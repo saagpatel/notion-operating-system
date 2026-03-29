@@ -70,10 +70,14 @@ npm run hooks:install
 
 ## Remaining backlog after Phase 4
 
-- broader observability inside still-excluded one-off batch and backfill scripts
-- deeper advanced-path test coverage for more provider and webhook edge cases
-- public release/distribution workflow if this should become more than a local-package CLI
-- selective cleanup of older internal docs and historical artifacts
+- The concrete post-Phase-4 repo roadmap now lives in `docs/repo-post-phase4-roadmap.md`
+- Recommended next repo phase: **Phase 5 - Advanced Workflow Hardening**
+- Later roadmap buckets include:
+  - script reduction and broader shared CLI coverage
+  - deeper observability and operator diagnosis
+  - profile portability and config lifecycle
+  - product-shape cleanup
+  - optional public release readiness
 
 ## Known assumptions and risks
 

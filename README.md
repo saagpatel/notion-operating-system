@@ -151,5 +151,6 @@ If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
 
 - First-run onboarding: [docs/first-run.md](docs/first-run.md)
 - Architecture overview: [docs/architecture-overview.md](docs/architecture-overview.md)
+- Post-Phase-4 repo roadmap: [docs/repo-post-phase4-roadmap.md](docs/repo-post-phase4-roadmap.md)
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - GitHub portability notes: [docs/github-portability.md](docs/github-portability.md)
