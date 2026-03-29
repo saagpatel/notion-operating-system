@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "repo_config",
+    "fallback": "manual_review",
+    "notes": [
+      "Keep GitHub action-family validation in repo config so dry runs and live execution use the same contract.",
+      "Do not allow destructive GitHub writes in Phase 8.",
+      "Keep the permission family narrow and GitHub-App-first."
+    ]
+  },
+  "families": [
+    {
+      "actionKey": "github.create_issue",
+      "provider": "GitHub",
+      "requestTarget": "issue",
+      "mutationClass": "Issue",
+      "permissionFamily": "issues_write",
+      "requiresTitle": true,
+      "requiresBody": true,
+      "requiresTargetNumber": false,
+      "usesLabels": true,
+      "usesAssignees": false,
+      "destructive": false,
+      "notes": "Create a new GitHub issue with repo-owned markdown payloads."
+    },
+    {
+      "actionKey": "github.update_issue",
+      "provider": "GitHub",
+      "requestTarget": "issue",
+      "mutationClass": "Issue",
+      "permissionFamily": "issues_write",
+      "requiresTitle": false,
+      "requiresBody": false,
+      "requiresTargetNumber": true,
+      "usesLabels": false,
+      "usesAssignees": false,
+      "destructive": false,
+      "notes": "Update an existing issue title and/or body without deleting anything."
+    },
+    {
+      "actionKey": "github.set_issue_labels",
+      "provider": "GitHub",
+      "requestTarget": "issue",
+      "mutationClass": "Issue",
+      "permissionFamily": "issues_write",
+      "requiresTitle": false,
+      "requiresBody": false,
+      "requiresTargetNumber": true,
+      "usesLabels": true,
+      "usesAssignees": false,
+      "destructive": false,
+      "notes": "Apply an explicit desired-state label set to a GitHub issue."
+    },
+    {
+      "actionKey": "github.set_issue_assignees",
+      "provider": "GitHub",
+      "requestTarget": "issue",
+      "mutationClass": "Issue",
+      "permissionFamily": "issues_write",
+      "requiresTitle": false,
+      "requiresBody": false,
+      "requiresTargetNumber": true,
+      "usesLabels": false,
+      "usesAssignees": true,
+      "destructive": false,
+      "notes": "Apply an explicit desired-state assignee set to a GitHub issue."
+    },
+    {
+      "actionKey": "github.add_issue_comment",
+      "provider": "GitHub",
+      "requestTarget": "issue",
+      "mutationClass": "Comment",
+      "permissionFamily": "issues_write",
+      "requiresTitle": false,
+      "requiresBody": true,
+      "requiresTargetNumber": true,
+      "usesLabels": false,
+      "usesAssignees": false,
+      "destructive": false,
+      "notes": "Add an issue comment using fix-forward compensation."
+    },
+    {
+      "actionKey": "github.comment_pull_request",
+      "provider": "GitHub",
+      "requestTarget": "pull_request",
+      "mutationClass": "Comment",
+      "permissionFamily": "issues_write_plus_pull_requests_read",
+      "requiresTitle": false,
+      "requiresBody": true,
+      "requiresTargetNumber": true,
+      "usesLabels": false,
+      "usesAssignees": false,
+      "destructive": false,
+      "notes": "Add a PR conversation comment using the issue-comment API path for pull requests, which also requires pull-request read access."
+    }
+  ]
+}

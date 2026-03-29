@@ -31,11 +31,20 @@ If you want to materialize the legacy layout into explicit profile files:
 notion-os profiles migrate --write
 ```
 
-If you want to prepare an additional profile safely:
+The repo already includes a tracked `sandbox` profile descriptor and profile-owned JSON files. To make it usable on your machine, add a local env file for it:
 
 ```bash
-notion-os profiles clone --source default --target sandbox
-notion-os profiles bootstrap --target sandbox
+cp .env .env.sandbox
+notion-os --profile sandbox doctor
+```
+
+That gives you a same-shape rehearsal lane, not an automatically isolated live sandbox. Copying `.env` is fine for dry-run and config rehearsal, but before any live sandbox write you must repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace or sandbox destinations.
+
+If you need to recreate the sandbox profile files from scratch, you can still use:
+
+```bash
+notion-os profiles clone --source default --target sandbox --write
+notion-os profiles bootstrap --target sandbox --write
 ```
 
 The recommended extra profile is `sandbox`. Use it as the proving environment before live changes to governance, signals, rollout, control-tower, or profile-lifecycle flows.
@@ -55,6 +64,8 @@ Common optional credentials:
 - any other advanced credentials listed in `.env.example`
 
 If you use a named profile, create that profile's env file instead of `.env` or set `NOTION_PROFILE` when you want to switch.
+
+If your shell exports path overrides like `NOTION_DESTINATIONS_PATH`, remember that those environment variables win over the profile descriptor values. Unset them when you want a named profile to use only its own tracked config paths.
 
 ## 4. Check destination config
 

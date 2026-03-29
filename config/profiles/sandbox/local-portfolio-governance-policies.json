@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "direct_rest",
+    "fallback": "manual_review",
+    "notes": [
+      "Keep repo config as the source of truth for action policy defaults and approval rules.",
+      "Do not allow any Phase 6 policy to mutate an external system live by default.",
+      "Use Notion as the human approval surface and the repo as the audit and verification engine."
+    ]
+  },
+  "policies": [
+    {
+      "actionKey": "github.create_issue",
+      "provider": "GitHub",
+      "mutationClass": "Issue",
+      "executionMode": "Approved Live",
+      "identityType": "GitHub App",
+      "approvalRule": "Single Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 72,
+      "allowedSources": [
+        "Recommendation",
+        "Weekly Review",
+        "Manual"
+      ],
+      "notes": "Phase 7's first governed write target should be GitHub issue creation after the approval and audit path is proven."
+    },
+    {
+      "actionKey": "github.comment_pull_request",
+      "provider": "GitHub",
+      "mutationClass": "Comment",
+      "executionMode": "Approved Live",
+      "identityType": "GitHub App",
+      "approvalRule": "Single Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 48,
+      "allowedSources": [
+        "Recommendation",
+        "Weekly Review",
+        "Manual"
+      ],
+      "notes": "Use PR conversation comments only after the GitHub-first path is proven and keep them approval-backed."
+    },
+    {
+      "actionKey": "github.update_issue",
+      "provider": "GitHub",
+      "mutationClass": "Issue",
+      "executionMode": "Approved Live",
+      "identityType": "GitHub App",
+      "approvalRule": "Single Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 72,
+      "allowedSources": [
+        "Recommendation",
+        "Weekly Review",
+        "Manual"
+      ],
+      "notes": "Issue edits stay approval-backed and dry-run-first so fix-forward changes remain auditable."
+    },
+    {
+      "actionKey": "github.set_issue_labels",
+      "provider": "GitHub",
+      "mutationClass": "Issue",
+      "executionMode": "Approved Live",
+      "identityType": "GitHub App",
+      "approvalRule": "Single Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 48,
+      "allowedSources": [
+        "Recommendation",
+        "Weekly Review",
+        "Manual"
+      ],
+      "notes": "Label changes use an explicit desired-state request so the resulting GitHub state remains reviewable."
+    },
+    {
+      "actionKey": "github.set_issue_assignees",
+      "provider": "GitHub",
+      "mutationClass": "Issue",
+      "executionMode": "Approved Live",
+      "identityType": "GitHub App",
+      "approvalRule": "Single Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 48,
+      "allowedSources": [
+        "Recommendation",
+        "Weekly Review",
+        "Manual"
+      ],
+      "notes": "Assignee changes use an explicit desired-state request rather than ad hoc manual edits."
+    },
+    {
+      "actionKey": "github.add_issue_comment",
+      "provider": "GitHub",
+      "mutationClass": "Comment",
+      "executionMode": "Approved Live",
+      "identityType": "GitHub App",
+      "approvalRule": "Single Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 48,
+      "allowedSources": [
+        "Recommendation",
+        "Weekly Review",
+        "Manual"
+      ],
+      "notes": "Issue comments are approval-backed and use corrective follow-up rather than delete-in-place compensation."
+    },
+    {
+      "actionKey": "vercel.redeploy",
+      "provider": "Vercel",
+      "mutationClass": "Deployment Control",
+      "executionMode": "Disabled",
+      "identityType": "Team Token",
+      "approvalRule": "Dual Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 24,
+      "allowedSources": [
+        "Manual"
+      ],
+      "notes": "Keep deployment control modeled but disabled until GitHub-first governance is proven."
+    },
+    {
+      "actionKey": "vercel.promote_or_rollback",
+      "provider": "Vercel",
+      "mutationClass": "Deployment Control",
+      "executionMode": "Disabled",
+      "identityType": "Team Token",
+      "approvalRule": "Dual Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": true,
+      "defaultExpiryHours": 12,
+      "allowedSources": [
+        "Manual"
+      ],
+      "notes": "Promotion or rollback paths stay disabled in Phase 6 and exist only as policy-backed future scaffolding."
+    }
+  ]
+}

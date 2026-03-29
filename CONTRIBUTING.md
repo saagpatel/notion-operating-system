@@ -12,6 +12,8 @@
 
 - `main` is protected
 - all work should land through pull requests
+- required status checks are mandatory before merge
+- required approval count is intentionally `0` for now because the repo currently has one primary maintainer
 - merge commits remain the preferred merge strategy for this repo
 - do not treat `npm run release:prepare` as a bypass around CI; it is an additional gate
 
@@ -65,6 +67,10 @@ npm run release:prepare
 ```
 
 If you are touching risky advanced workflows, also rehearse from the sandbox profile first.
+
+The repo already includes the tracked `sandbox` profile config. In most cases you only need a local `.env.sandbox`, which should remain untracked.
+
+Treat the tracked sandbox as a same-shape rehearsal lane by default. Before any live sandbox write, repoint its credentials and Notion target IDs to isolated sandbox targets instead of assuming the cloned defaults are already safe.
 
 If you touch CLI behavior, add or update CLI tests.
 
