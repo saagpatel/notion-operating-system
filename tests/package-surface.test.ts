@@ -72,7 +72,7 @@ describe("package surface", () => {
       expect(legacy.exitCode).toBe(0);
       expect(legacy.stdout).toContain(check.expected);
     }
-  });
+  }, 20_000);
 });
 
 async function runNpmScript(

@@ -12,6 +12,10 @@ on:
         required: true
         default: 0.2.0
 
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -24,6 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -34,6 +39,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate release version input
+        run: |
+          node --input-type=module -e 'import { readFileSync } from "node:fs"; const pkg = JSON.parse(readFileSync("package.json", "utf8")); const requestedVersion = process.argv[1]; if (pkg.version !== requestedVersion) { console.error("package.json version " + pkg.version + " does not match requested release " + requestedVersion); process.exit(1); }' "${{ inputs.version }}"
+
       - name: Run release preparation gate
         run: npm run release:prepare
 
@@ -41,17 +50,19 @@ jobs:
         run: |
           TAG="v${{ inputs.version }}"
           MANIFEST_PATH="tmp/release/pack-result.json"
-          TARBALL_PATH=$(node --input-type=module -e "import { readFileSync } from 'node:fs'; const data = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(data.tarballPath);" "$MANIFEST_PATH")
+          TARBALL_PATH="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; const data = JSON.parse(readFileSync(process.argv[1], "utf8")); process.stdout.write(data.tarballPath);' "$MANIFEST_PATH")"
           CHECKSUM_PATH="${TARBALL_PATH}.sha256"
           RELEASE_NOTES_PATH="tmp/release/release-notes.md"
 
           printf '# %s\n\nSee CHANGELOG.md for release notes for %s.\n' "$TAG" "$TAG" > "$RELEASE_NOTES_PATH"
           shasum -a 256 "$TARBALL_PATH" > "$CHECKSUM_PATH"
 
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "TARBALL_PATH=$TARBALL_PATH" >> "$GITHUB_ENV"
-          echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> "$GITHUB_ENV"
-          echo "RELEASE_NOTES_PATH=$RELEASE_NOTES_PATH" >> "$GITHUB_ENV"
+          {
+            echo "TAG=$TAG"
+            echo "TARBALL_PATH=$TARBALL_PATH"
+            echo "CHECKSUM_PATH=$CHECKSUM_PATH"
+            echo "RELEASE_NOTES_PATH=$RELEASE_NOTES_PATH"
+          } >> "$GITHUB_ENV"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
