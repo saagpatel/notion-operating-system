@@ -105,7 +105,6 @@ Important safety note: the tracked sandbox profile is a same-shape rehearsal lan
 
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
-  - refresh GitHub Actions versions before the announced Node 24 runner transition turns current warnings into failures
   - dependency review and override cleanup as upstream fixes land
   - continued docs accuracy
   - optional future public npm distribution only if explicitly desired later

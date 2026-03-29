@@ -261,9 +261,6 @@ Why that changes now:
 - the remaining work is optional distribution expansion or normal maintenance, not structural cleanup
 - any move beyond this point should be driven by actual audience and support commitments
 
-Immediate maintenance follow-up worth tracking:
-
-- refresh the GitHub Actions versions that still emit the Node 20 deprecation warning during the dependency-hygiene workflow
 
 ## Optional Future Distribution Track
 
