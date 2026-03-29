@@ -1,3 +1,4 @@
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import { losAngelesToday } from "../utils/date.js";
@@ -244,21 +245,21 @@ export function requirePhase5ExternalSignals(
 }
 
 export async function loadLocalPortfolioExternalSignalSourceConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH,
+  filePath = loadRuntimeConfig().paths.externalSignalSourcesPath,
 ): Promise<LocalPortfolioExternalSignalSourceConfig> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioExternalSignalSourceConfig(raw);
 }
 
 export async function loadLocalPortfolioExternalSignalProviderConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_PROVIDERS_PATH,
+  filePath = loadRuntimeConfig().paths.externalSignalProvidersPath,
 ): Promise<LocalPortfolioExternalSignalProviderConfig> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioExternalSignalProviderConfig(raw);
 }
 
 export async function loadLocalPortfolioExternalSignalViewPlan(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_VIEWS_PATH,
+  filePath = loadRuntimeConfig().paths.externalSignalViewsPath,
 ): Promise<LocalPortfolioExternalSignalViewPlan> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioExternalSignalViewPlan(raw);

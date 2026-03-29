@@ -1,5 +1,6 @@
 import { createHash, createSign } from "node:crypto";
 
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import type { LocalPortfolioControlTowerConfig } from "./local-portfolio-control-tower.js";
@@ -251,25 +252,25 @@ export function requirePhase8GithubDeepening(
 }
 
 export async function loadLocalPortfolioActuationTargetConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_ACTUATION_TARGETS_PATH,
+  filePath = loadRuntimeConfig().paths.actuationTargetsPath,
 ): Promise<LocalPortfolioActuationTargetConfig> {
   return parseLocalPortfolioActuationTargetConfig(await readJsonFile<unknown>(filePath));
 }
 
 export async function loadLocalPortfolioActuationViewPlan(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_ACTUATION_VIEWS_PATH,
+  filePath = loadRuntimeConfig().paths.actuationViewsPath,
 ): Promise<LocalPortfolioActuationViewPlan> {
   return parseLocalPortfolioActuationViewPlan(await readJsonFile<unknown>(filePath));
 }
 
 export async function loadLocalPortfolioGitHubActionFamilyConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_GITHUB_ACTION_FAMILIES_PATH,
+  filePath = loadRuntimeConfig().paths.githubActionFamiliesPath,
 ): Promise<LocalPortfolioGitHubActionFamilyConfig> {
   return parseLocalPortfolioGitHubActionFamilyConfig(await readJsonFile<unknown>(filePath));
 }
 
 export async function loadLocalPortfolioGitHubViewPlan(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_GITHUB_VIEWS_PATH,
+  filePath = loadRuntimeConfig().paths.githubViewsPath,
 ): Promise<LocalPortfolioActuationViewPlan> {
   return parseLocalPortfolioActuationViewPlan(await readJsonFile<unknown>(filePath));
 }

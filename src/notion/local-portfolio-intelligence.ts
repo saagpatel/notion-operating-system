@@ -1,3 +1,4 @@
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
@@ -228,7 +229,7 @@ export function requirePhase3Intelligence(
 }
 
 export async function loadLocalPortfolioIntelligenceViewPlan(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_INTELLIGENCE_VIEWS_PATH,
+  filePath = loadRuntimeConfig().paths.intelligenceViewsPath,
 ): Promise<LocalPortfolioIntelligenceViewPlan> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioIntelligenceViewPlan(raw);

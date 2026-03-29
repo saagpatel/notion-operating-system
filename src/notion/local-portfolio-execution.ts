@@ -1,3 +1,4 @@
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
@@ -134,7 +135,7 @@ export function requirePhase2Execution(
 }
 
 export async function loadLocalPortfolioExecutionViewPlan(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_EXECUTION_VIEWS_PATH,
+  filePath = loadRuntimeConfig().paths.executionViewsPath,
 ): Promise<LocalPortfolioExecutionViewPlan> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioExecutionViewPlan(raw);

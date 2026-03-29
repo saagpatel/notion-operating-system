@@ -5,6 +5,7 @@
     "moduleResolution": "NodeNext",
     "outDir": "dist",
     "rootDir": ".",
+    "declaration": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
@@ -19,6 +20,8 @@
   },
   "include": [
     "src/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "tests/**/*.d.ts",
+    "scripts/**/*.d.ts"
   ]
 }

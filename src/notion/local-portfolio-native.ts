@@ -1,3 +1,4 @@
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import type { DataSourceSchemaSnapshot, PropertySchema } from "../types.js";
@@ -158,21 +159,21 @@ const DASHBOARD_GROUPABLE_TYPES = new Set(["select", "status", "multi_select"]);
 const CHART_TYPES = new Set<NativeChartType>(["bar", "column", "donut"]);
 
 export async function loadLocalPortfolioNativeDashboardConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_NATIVE_DASHBOARDS_PATH,
+  filePath = loadRuntimeConfig().paths.nativeDashboardsPath,
 ): Promise<LocalPortfolioNativeDashboardConfig> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioNativeDashboardConfig(raw);
 }
 
 export async function loadLocalPortfolioNativeAutomationConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_NATIVE_AUTOMATIONS_PATH,
+  filePath = loadRuntimeConfig().paths.nativeAutomationsPath,
 ): Promise<LocalPortfolioNativeAutomationConfig> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioNativeAutomationConfig(raw);
 }
 
 export async function loadLocalPortfolioNativePilotConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_NATIVE_PILOTS_PATH,
+  filePath = loadRuntimeConfig().paths.nativePilotsPath,
 ): Promise<LocalPortfolioNativePilotConfig> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioNativePilotConfig(raw);
