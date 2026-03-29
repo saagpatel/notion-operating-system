@@ -43,6 +43,24 @@ In short, it is both:
 - a reusable Notion publishing toolkit
 - a code-backed operating system for running projects in Notion
 
+## GitHub Install
+
+Phase 10 makes the package installable from GitHub and GitHub release tarballs, while still keeping npm publishing out of scope.
+
+For the core toolkit surface, you can install directly from GitHub:
+
+```bash
+npm install github:saagpatel/notion-operating-system#v0.2.0
+```
+
+Then import the reusable toolkit pieces:
+
+```ts
+import { DestinationRegistry, Publisher, loadRuntimeConfig } from "notion-operating-system";
+```
+
+The `notion-operating-system/advanced` entrypoint still exists, but it is repo-specific and secondary to the public story in this phase.
+
 ## CLI
 
 The canonical entrypoints are:
@@ -118,6 +136,7 @@ Use the full local gate before shipping changes:
 
 ```bash
 npm run verify
+npm run release:prepare
 ```
 
 This runs:
@@ -125,6 +144,8 @@ This runs:
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
+- `npm run smoke:built-cli`
+- `npm run smoke:packed-install`
 
 Most shared CLI commands now also write lifecycle events and run summaries into the active log directory. By default that is `./logs`, or the profile/runtime override in `NOTION_LOG_DIR`.
 
@@ -189,6 +210,7 @@ If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
 
 - First-run onboarding: [docs/first-run.md](docs/first-run.md)
 - Architecture overview: [docs/architecture-overview.md](docs/architecture-overview.md)
+- Release process: [docs/release-process.md](docs/release-process.md)
 - Post-Phase-4 repo roadmap: [docs/repo-post-phase4-roadmap.md](docs/repo-post-phase4-roadmap.md)
 - Script surface classification: [docs/script-surface-classification.md](docs/script-surface-classification.md)
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)

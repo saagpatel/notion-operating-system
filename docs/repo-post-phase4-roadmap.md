@@ -212,7 +212,7 @@ Completed outcomes:
 
 ## Optional Phase 10: Public Release Readiness
 
-Only do this if the project should become more than a repo-local operator tool.
+Status: Completed on the local Phase 10 branch state.
 
 Primary outcomes:
 
@@ -220,25 +220,32 @@ Primary outcomes:
 - versioning and release process
 - public install and usage guidance
 
+Completed outcomes:
+
+- hardened the package metadata so the repo is installable from GitHub while npm publishing remains intentionally disabled
+- added `LICENSE`, `CHANGELOG.md`, tarball packing, installed-consumer smoke validation, and a manual release-prep gate
+- added a manual GitHub Actions release workflow that creates or updates draft releases with verified tarball artifacts
+- refreshed the docs so the public-facing story is the core toolkit first, with `./advanced` clearly secondary and repo-specific
+
 ## Recommended Immediate Next Track
 
-There is no required structural Phase 10 after this cleanup. The next track should be **Optional Phase 10: Public Release Readiness**, but only if the project is intended to become more than a repo-local operator tool.
+There is no required structural next phase after Phase 10. The repo is now in a healthier maintenance state, and any further productization should be treated as an explicit new track rather than a mandatory continuation.
 
-Why this is optional now:
+Why that changes now:
 
-- the repo now has a clearer product shape after Phase 9, so the remaining work is no longer rescue or cleanup work
-- public release overhead only makes sense if outside installation, versioning, and support boundaries are actually desired
-- if the repo stays private/operator-local, the current shape is already much healthier and does not require another mandatory cleanup phase
+- the GitHub-installable and manual-release posture is now in place
+- the remaining work is optional distribution expansion, not structural cleanup
+- any move beyond this point should be driven by actual audience and support commitments
 
-## Optional Phase 10 Docket
+## Optional Future Distribution Track
 
-If public-release planning starts later, use this as the working docket:
+If broader public distribution starts later, use this as the working docket:
 
-1. define package versioning and changelog expectations
-2. add public install and upgrade guidance for `notion-os`
-3. harden package metadata and consumer-facing exports for outside use
-4. decide how much of the advanced operating-system layer stays private versus public
-5. add release workflow automation only after the support boundary is clear
+1. decide whether npm publish should happen at all
+2. remove `private: true` only when public npm distribution is explicitly approved
+3. define outside support boundaries for `./advanced`
+4. add publish automation only after the support boundary is clear
+5. revisit whether consumer-facing docs should expand beyond GitHub installs and release tarballs
 
 ## Not Yet Recommended
 
