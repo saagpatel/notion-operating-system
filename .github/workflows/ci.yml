@@ -32,3 +32,6 @@ jobs:
 
       - name: Smoke built CLI
         run: npm run smoke:built-cli
+
+      - name: Smoke packed install
+        run: npm run smoke:packed-install

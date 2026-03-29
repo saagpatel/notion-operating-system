@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref or branch to release from
+        required: true
+        default: main
+      version:
+        description: Version number without the leading v
+        required: true
+        default: 0.2.0
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run release preparation gate
+        run: npm run release:prepare
+
+      - name: Prepare release metadata
+        run: |
+          TAG="v${{ inputs.version }}"
+          MANIFEST_PATH="tmp/release/pack-result.json"
+          TARBALL_PATH=$(node --input-type=module -e "import { readFileSync } from 'node:fs'; const data = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(data.tarballPath);" "$MANIFEST_PATH")
+          CHECKSUM_PATH="${TARBALL_PATH}.sha256"
+          RELEASE_NOTES_PATH="tmp/release/release-notes.md"
+
+          printf '# %s\n\nSee CHANGELOG.md for release notes for %s.\n' "$TAG" "$TAG" > "$RELEASE_NOTES_PATH"
+          shasum -a 256 "$TARBALL_PATH" > "$CHECKSUM_PATH"
+
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "TARBALL_PATH=$TARBALL_PATH" >> "$GITHUB_ENV"
+          echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> "$GITHUB_ENV"
+          echo "RELEASE_NOTES_PATH=$RELEASE_NOTES_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: notion-os-release-${{ inputs.version }}
+          path: |
+            ${{ env.TARBALL_PATH }}
+            ${{ env.CHECKSUM_PATH }}
+            tmp/release/pack-result.json
+            ${{ env.RELEASE_NOTES_PATH }}
+
+      - name: Create or update draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ inputs.ref }}
+          name: ${{ env.TAG }}
+          draft: true
+          body_path: ${{ env.RELEASE_NOTES_PATH }}
+          files: |
+            ${{ env.TARBALL_PATH }}
+            ${{ env.CHECKSUM_PATH }}
+          fail_on_unmatched_files: true
