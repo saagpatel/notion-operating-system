@@ -27,6 +27,7 @@ describe("cli smoke tests", () => {
     expect(result.stdout).toContain("Notion Operating System CLI");
     expect(result.stdout).toContain("--profile <name>");
     expect(result.stdout).toContain("control-tower");
+    expect(result.stdout).toContain("logs");
     expect(result.stderr).toBe("");
   });
 
@@ -36,6 +37,7 @@ describe("cli smoke tests", () => {
       ["doctor", "doctor"],
       ["destinations", "check"],
       ["profiles", "show"],
+      ["logs", "recent"],
       ["control-tower", "sync"],
       ["execution", "views-validate"],
       ["intelligence", "views-validate"],
@@ -130,6 +132,104 @@ describe("cli smoke tests", () => {
     expect(JSON.parse(result.stdout)).toEqual({
       version: 1,
       aliases: ["weekly_reviews", "command_center"],
+    });
+  });
+
+  test("lists recent runs in json and respects the limit", async () => {
+    const tempDir = await createTempWorkspace();
+    const logDir = path.join(tempDir, "logs");
+    await mkdir(logDir, { recursive: true });
+    await writeFile(
+      path.join(logDir, "older.jsonl"),
+      JSON.stringify({
+        action: "command_completed",
+        details: {
+          commandPath: "doctor",
+          profile: "default",
+          logFilePath: path.join(logDir, "older.jsonl"),
+          startedAt: "2026-03-29T10:00:00.000Z",
+          completedAt: "2026-03-29T10:00:01.000Z",
+          durationMs: 1000,
+          summary: { status: "completed", warningsCount: 0, failureCount: 0 },
+        },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(logDir, "newer.jsonl"),
+      JSON.stringify({
+        action: "command_failed",
+        details: {
+          commandPath: "signals sync",
+          profile: "default",
+          logFilePath: path.join(logDir, "newer.jsonl"),
+          startedAt: "2026-03-29T11:00:00.000Z",
+          completedAt: "2026-03-29T11:00:02.000Z",
+          durationMs: 2000,
+          summary: { status: "failed", warningsCount: 0, failureCount: 1, failureCategories: ["provider_error"] },
+        },
+      }),
+      "utf8",
+    );
+
+    const result = await runCliForTest(["logs", "recent", "--json", "--limit", "1"], {
+      cwd: tempDir,
+      env: {
+        NOTION_LOG_DIR: "./logs",
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: true,
+      runs: [
+        expect.objectContaining({
+          commandPath: "signals sync",
+          summary: expect.objectContaining({
+            status: "failed",
+          }),
+        }),
+      ],
+    });
+  });
+
+  test("skips malformed run logs safely", async () => {
+    const tempDir = await createTempWorkspace();
+    const logDir = path.join(tempDir, "logs");
+    await mkdir(logDir, { recursive: true });
+    await writeFile(path.join(logDir, "broken.jsonl"), "{nope}\n", "utf8");
+    await writeFile(
+      path.join(logDir, "good.jsonl"),
+      JSON.stringify({
+        action: "command_completed",
+        details: {
+          commandPath: "doctor",
+          profile: "default",
+          logFilePath: path.join(logDir, "good.jsonl"),
+          startedAt: "2026-03-29T09:00:00.000Z",
+          completedAt: "2026-03-29T09:00:01.000Z",
+          durationMs: 1000,
+          summary: { status: "completed", warningsCount: 0, failureCount: 0 },
+        },
+      }),
+      "utf8",
+    );
+
+    const result = await runCliForTest(["logs", "recent", "--json"], {
+      cwd: tempDir,
+      env: {
+        NOTION_LOG_DIR: "./logs",
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: true,
+      runs: [
+        expect.objectContaining({
+          commandPath: "doctor",
+        }),
+      ],
     });
   });
 

@@ -76,6 +76,9 @@ npm run doctor
 # Show the active workspace profile and resolved paths
 notion-os profiles show
 
+# Inspect the most recent command runs
+notion-os logs recent
+
 # Check configured Notion destination aliases
 npm run destinations:check
 
@@ -107,6 +110,20 @@ This runs:
 - `npm run build`
 
 Most shared CLI commands now also write lifecycle events and run summaries into the active log directory. By default that is `./logs`, or the profile/runtime override in `NOTION_LOG_DIR`.
+
+Run summaries now use four high-level statuses:
+
+- `completed`: clean run with no material warnings
+- `warning`: finished, but something needs attention
+- `partial`: some useful work finished, but part of the run needs follow-up
+- `failed`: the run did not complete cleanly
+
+To inspect recent runs without opening JSONL files manually:
+
+```bash
+notion-os logs recent
+notion-os logs recent --json
+```
 
 If you want the optional local pre-commit hook:
 

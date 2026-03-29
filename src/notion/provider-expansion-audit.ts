@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -34,7 +35,22 @@ export async function runProviderExpansionAuditCommand(
     externalProviderConfig,
     targetConfig,
   });
-  console.log(JSON.stringify({ ok: true, ...summary }, null, 2));
+  const warningCategories = new Set<"validation_gap" | "unsupported_provider">();
+  if (!summary.githubBaselineTrusted || summary.providers.some((provider) => provider.blockers.length > 0)) {
+    warningCategories.add("validation_gap");
+  }
+  if (summary.providers.some((provider) => provider.modeledActionKeys.length > 0 && provider.runnerSupportedActionKeys.length === 0)) {
+    warningCategories.add("unsupported_provider");
+  }
+  const output = { ok: true, ...summary };
+  recordCommandOutputSummary(output, {
+    status: warningCategories.size > 0 ? "warning" : "completed",
+    warningCategories: warningCategories.size > 0 ? [...warningCategories] : undefined,
+    metadata: {
+      candidateProviders: summary.candidateProviders.length,
+    },
+  });
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function main(): Promise<void> {

@@ -16,6 +16,8 @@ async function run() {
   const workspace = await createTempWorkspace();
 
   await expectSuccess(["--help"]);
+  await expectSuccess(["logs", "--help"]);
+  await expectSuccess(["logs", "recent", "--help"]);
   await expectSuccess(["control-tower", "--help"]);
   await expectSuccess(["governance", "--help"]);
   await expectSuccess(["signals", "--help"]);
@@ -55,6 +57,20 @@ async function run() {
   const payload = JSON.parse(destinations.stdout);
   if (JSON.stringify(payload.aliases) !== JSON.stringify(["weekly_reviews", "command_center"])) {
     throw new Error(`Built destinations check returned unexpected aliases: ${JSON.stringify(payload)}`);
+  }
+
+  const recentRuns = await runCli(["logs", "recent", "--json"], {
+    cwd: workspace,
+    env: {
+      NOTION_LOG_DIR: "./logs",
+    },
+  });
+  if (recentRuns.exitCode !== 0) {
+    throw new Error(`Built logs recent failed:\n${recentRuns.stderr || recentRuns.stdout}`);
+  }
+  const recentPayload = JSON.parse(recentRuns.stdout);
+  if (!Array.isArray(recentPayload.runs) || recentPayload.runs.length < 2) {
+    throw new Error(`Built logs recent returned unexpected payload: ${JSON.stringify(recentPayload)}`);
   }
 
   process.stdout.write("Built CLI smoke passed.\n");

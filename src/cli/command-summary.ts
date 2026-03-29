@@ -1,9 +1,13 @@
+import type { CommandFailureCategory, CommandRunStatus, CommandWarningCategory } from "./run-observability.js";
 import { mergeCommandSummary } from "./run-observability.js";
 
 export function recordCommandOutputSummary(
   output: Record<string, unknown>,
   options: {
     mode?: "live" | "dry-run";
+    status?: CommandRunStatus;
+    warningCategories?: CommandWarningCategory[];
+    failureCategories?: CommandFailureCategory[];
     metadata?: Record<string, unknown>;
   } = {},
 ): void {
@@ -16,6 +20,7 @@ export function recordCommandOutputSummary(
   }
 
   const summary = {
+    status: options.status ?? inferStatus(output),
     mode: options.mode ?? inferMode(output),
     rowsChanged: firstNumber(output, ["changedRows", "changedProjectPages", "projectsUpdated"]),
     pagesChanged: firstNumber(output, ["pagesChanged", "touchedProjects"]),
@@ -27,10 +32,30 @@ export function recordCommandOutputSummary(
     recordsSkipped: firstNumber(output, ["recordsSkipped", "skippedCount"]),
     warningsCount: firstNumber(output, ["warningsCount", "warningCount"]),
     failureCount: firstNumber(output, ["failureCount", "failures"]),
+    warningCategories: options.warningCategories,
+    failureCategories: options.failureCategories,
     metadata: summaryMetadata,
   };
 
   mergeCommandSummary(summary);
+}
+
+function inferStatus(output: Record<string, unknown>): CommandRunStatus | undefined {
+  if (output.status === "completed" || output.status === "warning" || output.status === "partial" || output.status === "failed") {
+    return output.status;
+  }
+
+  const failureCount = firstNumber(output, ["failureCount", "failures"]);
+  if (typeof failureCount === "number" && failureCount > 0) {
+    return "failed";
+  }
+
+  const warningCount = firstNumber(output, ["warningsCount", "warningCount"]);
+  if (typeof warningCount === "number" && warningCount > 0) {
+    return "warning";
+  }
+
+  return undefined;
 }
 
 function inferMode(output: Record<string, unknown>): "live" | "dry-run" | undefined {

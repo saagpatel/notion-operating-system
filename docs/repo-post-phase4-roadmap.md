@@ -156,6 +156,8 @@ Completed outcomes:
 
 ## Phase 7: Deeper Observability and Operator Diagnosis
 
+Status: Completed on the local Phase 7 branch state.
+
 Primary outcomes:
 
 - easier explanation of partial success, warnings, and live-write impact
@@ -167,6 +169,14 @@ Docket:
 - warning/failure taxonomy
 - recent-run inspection helper
 - clearer change summaries for live sync commands
+
+Completed outcomes:
+
+- enriched shared run summaries with status and category fields instead of counts alone
+- added the bounded warning and failure taxonomy for the first operator diagnosis slice
+- improved Notion HTTP classification so recovered retries and terminal failures surface more clearly in run logs
+- added `logs recent` as the read-only CLI entrypoint for recent run inspection
+- kept existing JSON stdout contracts stable while making the run logs more decision-useful
 
 ## Phase 8: Profile Portability and Config Lifecycle
 
@@ -207,24 +217,23 @@ Primary outcomes:
 
 ## Recommended Immediate Next Phase
 
-The next phase should be **Phase 7: Deeper Observability and Operator Diagnosis**.
+The next phase should be **Phase 8: Profile Portability and Config Lifecycle**.
 
 Why this should come next:
 
-- the trust-first hardening pass is already in place
-- the durable command surface is now clearer after Phase 6
-- the biggest remaining operator gap is understanding partial success, warnings, and live-write impact without digging through raw logs
+- the observability gap is now materially smaller after Phase 7
+- the next most valuable repo improvement is smoother multi-machine and multi-workspace movement
+- profile portability work is easier now that the command surface and run-diagnosis layers are both clearer
 
-## Immediate Phase 7 Docket
+## Immediate Phase 8 Docket
 
 If planning starts now, use this as the working docket:
 
-1. Add richer command summaries for advanced workflows
-2. Standardize warning and partial-success taxonomy
-3. Improve failure classification across provider and webhook flows
-4. Add a lightweight way to inspect recent run summaries
-5. Improve live-write change summaries for sync commands
-6. Re-review whether later profile-portability and product-shape work should be reprioritized after the observability pass
+1. Add safer profile diffing and preview flows
+2. Add profile clone and bootstrap helpers
+3. Add config versioning and migration support
+4. Broaden non-secret import/export support for important repo-owned state
+5. Re-review whether product-shape cleanup should follow immediately after the portability pass
 
 ## Not Yet Recommended
 

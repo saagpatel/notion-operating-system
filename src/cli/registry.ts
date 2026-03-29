@@ -11,6 +11,7 @@ import {
   runProfilesMigrateCommand,
   runProfilesShowCommand,
 } from "./profile-commands.js";
+import { runLogsRecentCommand } from "./log-commands.js";
 import { resolveOptionalControlTowerConfigPath } from "./context.js";
 import { runControlTowerSyncCommand } from "../notion/control-tower-sync.js";
 import { runReviewPacketCommand } from "../notion/review-packet.js";
@@ -150,6 +151,25 @@ export const cliRegistry: CliCommandDefinition[] = [
             bundle: asString(parsed.options.bundle),
             target: asString(parsed.options.target),
             write: asBoolean(parsed.options.write),
+          }),
+      },
+    ],
+  },
+  {
+    name: "logs",
+    description: "Inspect recent command run logs and summaries.",
+    subcommands: [
+      {
+        name: "recent",
+        description: "Show recent completed or failed command runs from the active log directory.",
+        options: [
+          { name: "json", description: "Emit recent runs as JSON.", type: "boolean" },
+          { name: "limit", description: "Maximum number of runs to show.", type: "number", valueName: "count", defaultValue: 10 },
+        ],
+        run: async ({ parsed }) =>
+          runLogsRecentCommand({
+            json: asBoolean(parsed.options.json),
+            limit: asNumber(parsed.options.limit) ?? 10,
           }),
       },
     ],

@@ -480,6 +480,8 @@ export async function runActionRunnerCommand(
     },
     {
       mode,
+      status: deriveActionRunnerSummaryStatus(results),
+      warningCategories: deriveActionRunnerWarningCategories(results),
       metadata: {
         resultCount: results.length,
       },
@@ -530,4 +532,26 @@ function delay(ms: number): Promise<void> {
 
 if (isDirectExecution(import.meta.url)) {
   void runLegacyCliPath(["governance", "action-runner"]);
+}
+
+function deriveActionRunnerSummaryStatus(results: ActionRunnerResult[]): "completed" | "partial" | "failed" {
+  const hasFailures = results.some((result) => result.status === "Failed");
+  const hasNonFailure = results.some((result) => result.status !== "Failed");
+  if (hasFailures && hasNonFailure) {
+    return "partial";
+  }
+  return hasFailures ? "failed" : "completed";
+}
+
+function deriveActionRunnerWarningCategories(results: ActionRunnerResult[]): Array<"partial_success" | "validation_gap"> | undefined {
+  const categories = new Set<"partial_success" | "validation_gap">();
+  const hasFailures = results.some((result) => result.status === "Failed");
+  const hasNonFailure = results.some((result) => result.status !== "Failed");
+  if (hasFailures && hasNonFailure) {
+    categories.add("partial_success");
+  }
+  if (results.some((result) => result.status === "Skipped" && /validation|policy|approval/i.test(result.notes ?? ""))) {
+    categories.add("validation_gap");
+  }
+  return categories.size > 0 ? [...categories] : undefined;
 }

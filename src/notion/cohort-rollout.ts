@@ -426,6 +426,8 @@ export async function runCohortRolloutCommand(
       },
       {
         mode: "live",
+        status: execution.failures.length > 0 ? "partial" : "completed",
+        warningCategories: execution.failures.length > 0 ? ["partial_success"] : undefined,
         metadata: {
           selectedProjects: plan.orderedTitles.length,
         },

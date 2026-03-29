@@ -364,6 +364,8 @@ export async function runActionDryRunCommand(
     };
     recordCommandOutputSummary(output, {
       mode: "dry-run",
+      status: validationNotes.length > 0 ? "warning" : "completed",
+      warningCategories: validationNotes.length > 0 ? ["validation_gap"] : undefined,
       metadata: {
         requestId: request.id,
       },

@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
@@ -48,7 +49,13 @@ export async function runExternalSignalViewsValidateCommand(
     },
   });
 
-  console.log(JSON.stringify({ ok: true, ...summary }, null, 2));
+  const output = { ok: true, ...summary };
+  recordCommandOutputSummary(output, {
+    metadata: {
+      validatedViews: summary.validatedViews.length,
+    },
+  });
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function main(): Promise<void> {

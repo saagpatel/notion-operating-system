@@ -487,8 +487,11 @@ export async function runExternalSignalSyncCommand(
       }),
     };
     recordCommandOutputSummary(output, {
+      status: deriveExternalSignalSyncStatus(providerResults),
+      warningCategories: deriveExternalSignalSyncWarningCategories(providerResults),
       metadata: {
         provider,
+        providerRunCount: providerResults.length,
       },
     });
     console.log(JSON.stringify(output, null, 2));
@@ -510,6 +513,42 @@ function logLoopProgress(live: boolean, scope: string, label: string, index: num
   if (index === 1 || index === total || index % 10 === 0) {
     console.error(`[${scope}] ${label} ${index}/${total}`);
   }
+}
+
+function deriveExternalSignalSyncStatus(
+  providerResults: ProviderSyncResult[],
+): "completed" | "warning" | "partial" | undefined {
+  if (providerResults.some((result) => result.status === "Partial")) {
+    return "partial";
+  }
+  if (
+    providerResults.some((result) =>
+      result.notes.some((note) => note.includes("Missing ") || note.includes("intentionally deferred")),
+    )
+  ) {
+    return "warning";
+  }
+  return undefined;
+}
+
+function deriveExternalSignalSyncWarningCategories(
+  providerResults: ProviderSyncResult[],
+): Array<"partial_success" | "missing_credentials" | "unsupported_provider"> | undefined {
+  const categories = new Set<"partial_success" | "missing_credentials" | "unsupported_provider">();
+  for (const result of providerResults) {
+    if (result.status === "Partial") {
+      categories.add("partial_success");
+    }
+    for (const note of result.notes) {
+      if (note.includes("Missing ")) {
+        categories.add("missing_credentials");
+      }
+      if (note.includes("intentionally deferred")) {
+        categories.add("unsupported_provider");
+      }
+    }
+  }
+  return categories.size > 0 ? [...categories] : undefined;
 }
 
 export async function syncProviders(input: {
