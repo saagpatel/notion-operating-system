@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -78,6 +79,8 @@ async function run() {
     throw new Error(`Built logs recent returned unexpected payload: ${JSON.stringify(recentPayload)}`);
   }
 
+  await verifyBuiltPackageSurface();
+
   process.stdout.write("Built CLI smoke passed.\n");
 }
 
@@ -108,6 +111,21 @@ async function runCli(argv, options = {}) {
       stderr: error.stderr ?? "",
       exitCode: error.code ?? 1,
     };
+  }
+}
+
+async function verifyBuiltPackageSurface() {
+  const coreModule = await import(pathToFileURL(path.join(repoRoot, "dist", "src", "index.js")).href);
+  const advancedModule = await import(pathToFileURL(path.join(repoRoot, "dist", "src", "advanced.js")).href);
+
+  if (!("Publisher" in coreModule) || !("loadRuntimeConfig" in coreModule)) {
+    throw new Error("Built root package surface is missing expected core exports.");
+  }
+  if ("DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH" in coreModule) {
+    throw new Error("Built root package surface leaked an advanced control-tower export.");
+  }
+  if (!("DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH" in advancedModule)) {
+    throw new Error("Built advanced package surface is missing the control-tower export.");
   }
 }
 
