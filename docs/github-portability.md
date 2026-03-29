@@ -2,6 +2,8 @@
 
 This guide explains how to store this project in GitHub and recreate it on a different machine later.
 
+Phase 10 also makes the repo installable from GitHub and GitHub release tarballs, while keeping npm publishing out of scope.
+
 ## Recommended Identity
 
 - Project name: `Notion Operating System`
@@ -109,6 +111,26 @@ This repo is portable, but the full system depends on external access that GitHu
 - any future GitHub or provider credentials used by advanced workflows
 
 GitHub preserves the logic and configuration. Your local `.env` and external service access restore the live connection.
+
+## GitHub Install Posture
+
+The outside-facing package story is intentionally narrow in this phase:
+
+- the root package is the reusable publishing toolkit
+- `./advanced` remains available, but it is secondary and repo-specific
+- releases are created manually through GitHub, not through npm publish automation
+
+Core toolkit install example:
+
+```bash
+npm install github:saagpatel/notion-operating-system#v0.2.0
+```
+
+That git-ref install relies on the package building its distributable files during `prepare`.
+
+If you want a verified packaged artifact instead of a git ref, use the tarball attached to a GitHub Release draft or release.
+
+For release preparation details, see `docs/release-process.md`.
 
 ## Practical Setup Strategy
 

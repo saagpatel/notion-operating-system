@@ -15,6 +15,8 @@ npm run typecheck
 npm test
 npm run build
 npm run verify
+npm run smoke:packed-install
+npm run release:prepare
 npm run doctor
 npm run hooks:install
 notion-os --help
@@ -48,6 +50,12 @@ Before shipping changes, run:
 npm run verify
 ```
 
+If you are touching package metadata, install posture, or release automation, also run:
+
+```bash
+npm run release:prepare
+```
+
 If you touch CLI behavior, add or update CLI tests.
 
 If you touch Notion publishing behavior, preserve existing dry-run and schema-validation safety expectations.
@@ -58,3 +66,9 @@ If you touch Notion publishing behavior, preserve existing dry-run and schema-va
 - default log location is `./logs` unless `NOTION_LOG_DIR` or the active profile changes it
 - the optional pre-commit hook is installed with `npm run hooks:install`
 - the hook is intentionally light: it blocks staged machine-local artifacts and runs `npm run typecheck`
+
+## Release posture
+
+- this repo is GitHub-installable in Phase 10, but still not published to npm
+- the public-facing story is the core toolkit first; `./advanced` remains secondary and repo-specific
+- manual release guidance lives in `docs/release-process.md`

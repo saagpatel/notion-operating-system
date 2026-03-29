@@ -1,11 +1,33 @@
 {
   "name": "notion-operating-system",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Local TypeScript automation for running a Notion-based project and portfolio operating system.",
+  "description": "GitHub-installable TypeScript toolkit for safe Notion publishing plus advanced repo-specific operating workflows.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/saagpatel/notion-operating-system.git"
+  },
+  "homepage": "https://github.com/saagpatel/notion-operating-system",
+  "bugs": {
+    "url": "https://github.com/saagpatel/notion-operating-system/issues"
+  },
+  "keywords": [
+    "notion",
+    "markdown",
+    "publishing",
+    "cli",
+    "automation"
+  ],
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "bin": {
     "notion-os": "./dist/src/cli.js"
   },
@@ -27,8 +49,12 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepare": "npm run build",
     "smoke:built-cli": "node scripts/built-cli-smoke.mjs",
-    "verify": "npm run typecheck && npm test && npm run build && npm run smoke:built-cli",
+    "pack:tarball": "node scripts/pack-release.mjs",
+    "smoke:packed-install": "node scripts/packed-install-smoke.mjs",
+    "verify": "npm run typecheck && npm test && npm run build && npm run smoke:built-cli && npm run smoke:packed-install",
+    "release:prepare": "npm run verify && npm run pack:tarball",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "hooks:check-staged": "node scripts/check-staged-files.mjs",
     "doctor": "tsx src/cli.ts doctor",
@@ -133,6 +159,14 @@
     "@types/node": "^22.13.10",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
-    "vitest": "^3.0.8"
+    "vitest": "^4.1.2"
+  },
+  "overrides": {
+    "minimatch@3.1.5": {
+      "brace-expansion": "1.1.13"
+    },
+    "minimatch@5.1.9": {
+      "brace-expansion": "2.0.3"
+    }
   }
 }

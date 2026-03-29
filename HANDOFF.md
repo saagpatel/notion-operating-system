@@ -4,9 +4,9 @@
 
 - Repo: `/Users/d/Notion`
 - Remote: `saagpatel/notion-operating-system`
-- Branch: `codex/phase-9-product-shape-cleanup`
+- Branch: `codex/phase-10-github-release-readiness`
 - Base remote commit on `main`: `39e4cdd`
-- The worktree now contains the accumulated local Phase 1 through Phase 9 changes on top of that base
+- The worktree now contains the accumulated local Phase 1 through Phase 10 changes on top of that base
 
 ## Completed roadmap phases
 
@@ -110,6 +110,13 @@
 - quarantined the clearest internal-only historical utilities under `src/internal/portfolio-audit/`
 - refreshed repo docs so the preferred operator surface is `notion-os ...` plus modern npm aliases, with older script names labeled as compatibility aliases
 
+### Phase 10
+
+- hardened the package metadata so the repo is GitHub-installable while still keeping npm publishing disabled in this phase
+- added `LICENSE`, `CHANGELOG.md`, tarball packing, installed-consumer smoke validation, and a manual `npm run release:prepare` gate
+- added a manual GitHub Actions `Release` workflow that creates or updates a draft release with a verified tarball and checksum
+- refreshed the public docs so the root toolkit is the main outside-facing story and `./advanced` stays clearly secondary
+
 ## Verification checklist for this branch
 
 Run these before landing or after pulling onto a new machine:
@@ -119,6 +126,7 @@ npm run typecheck
 npm test
 npm run build
 npm run verify
+npm run release:prepare
 npm run doctor -- --json
 node dist/src/cli.js --help
 ```
@@ -135,26 +143,29 @@ npm run governance:audit
 npm run signals:sync
 npm run doctor
 npm run verify
+npm run release:prepare
 npm run hooks:install
 ```
 
-## Remaining backlog after Phase 9
+## Remaining backlog after Phase 10
 
 - The concrete post-Phase-4 repo roadmap now lives in `docs/repo-post-phase4-roadmap.md`
-- Recommended next repo track: **Optional Phase 10 - Public Release Readiness**, but only if a public/distributable release is actually desired
+- No mandatory structural phase remains after Phase 10
 - Later roadmap buckets include:
-  - optional public release readiness
+  - optional future npm/distribution work if public package publishing is ever desired
 
 ## Verified on this branch
 
-These should be rerun successfully before landing the Phase 9 branch:
+These should be rerun successfully before landing the Phase 10 branch:
 
 ```bash
 npm run typecheck
 npm test
 npm run build
 npm run smoke:built-cli
+npm run smoke:packed-install
 npm run verify
+npm run release:prepare
 node dist/src/cli.js --help
 node dist/src/cli.js profiles diff --help
 node dist/src/cli.js profiles clone --help
@@ -175,3 +186,5 @@ node dist/src/cli.js signals sync --help
 - `logs recent` is the operator-facing entrypoint for recent run inspection in this phase
 - Profile portability stays preview-first and never exports or overwrites live secret values
 - Modern npm aliases are now the preferred npm surface for durable workflows; legacy `portfolio-audit:*` names remain compatibility aliases
+- Phase 10 makes the repo GitHub-installable, but it is still intentionally not published to npm
+- The outside-facing public story is the root toolkit first; `./advanced` remains secondary and repo-specific
