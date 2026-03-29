@@ -1,11 +1,10 @@
-import "dotenv/config";
-
-import { pathToFileURL } from "node:url";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { buildProjectIntelligenceDataset } from "../portfolio-audit/project-intelligence.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
@@ -51,12 +50,6 @@ interface ActivityRefreshProjectChange {
   lastBuildSession?: { from: string; to: string };
   buildSessionCount?: { from: number; to: number };
   buildSessionsLinked?: { from: number; to: number };
-}
-
-interface Flags {
-  live: boolean;
-  limit: number;
-  configPath: string;
 }
 
 export function selectLatestBuildEvidence(input: {
@@ -136,15 +129,21 @@ export function selectLatestBuildEvidence(input: {
   };
 }
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for activity refresh");
-    }
+export interface ActivityRefreshCommandOptions {
+  live?: boolean;
+  limit?: number;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const config = await loadLocalPortfolioControlTowerConfig(flags.configPath);
+export async function runActivityRefreshCommand(
+  options: ActivityRefreshCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for activity refresh");
+  const live = options.live ?? false;
+  const limit = options.limit ?? 10;
+  const config = await loadLocalPortfolioControlTowerConfig(
+    options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  );
     const sdk = new Client({
       auth: token,
       notionVersion: "2026-03-11",
@@ -324,11 +323,11 @@ async function main(): Promise<void> {
       }
 
       changedRows += 1;
-      if (sampleChanges.length < flags.limit) {
+      if (sampleChanges.length < limit) {
         sampleChanges.push(change);
       }
 
-      if (flags.live) {
+      if (live) {
         await api.updatePageProperties({
           pageId: page.id,
           properties: updates,
@@ -336,25 +335,17 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: flags.live,
-          changedRows,
-          lastActiveUpdates,
-          buildDateUpdates,
-          buildRelationUpdates,
-          sampleChanges,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      live,
+      changedRows,
+      lastActiveUpdates,
+      buildDateUpdates,
+      buildRelationUpdates,
+      sampleChanges,
+    };
+    recordCommandOutputSummary(output);
+    console.log(JSON.stringify(output, null, 2));
 }
 
 function toBuildSessionEvidence(page: DataSourcePageRef): BuildSessionEvidence {
@@ -390,39 +381,6 @@ function uniqueIds(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))];
 }
 
-function parseFlags(argv: string[]): Flags {
-  let live = false;
-  let limit = 10;
-  let configPath = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (!current) {
-      continue;
-    }
-    if (!current.startsWith("--")) {
-      configPath = current;
-      continue;
-    }
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--limit") {
-      const next = Number(argv[index + 1] ?? "");
-      if (Number.isFinite(next) && next > 0) {
-        limit = next;
-      }
-      index += 1;
-    }
-  }
-
-  return { live, limit, configPath };
-}
-
-const isEntrypoint =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (isEntrypoint) {
-  void main();
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["signals", "activity-refresh"]);
 }

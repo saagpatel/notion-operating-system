@@ -1,8 +1,9 @@
-import "dotenv/config";
-
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -22,22 +23,21 @@ import {
   renderNotionPhaseMemoryMarkdown,
   renderNotionRoadmapMarkdown,
 } from "./local-portfolio-roadmap.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import { losAngelesToday } from "../utils/date.js";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for phase closeout");
-    }
+export interface PhaseCloseoutCommandOptions {
+  phase?: number;
+  today?: string;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const today = flags.today ?? losAngelesToday();
-    const configPath =
-      process.argv[2]?.startsWith("--") ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    const config = await loadLocalPortfolioControlTowerConfig(configPath);
-    const phaseToClose = flags.phase ?? config.phaseState.currentPhase;
+export async function runPhaseCloseoutCommand(options: PhaseCloseoutCommandOptions = {}): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for phase closeout");
+  const today = options.today ?? losAngelesToday();
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  const config = await loadLocalPortfolioControlTowerConfig(configPath);
+  const phaseToClose = options.phase ?? config.phaseState.currentPhase;
 
     const phases = buildRoadmapPhases(
       config.phaseState.currentPhase,
@@ -274,50 +274,26 @@ async function main(): Promise<void> {
 
     await saveLocalPortfolioControlTowerConfig(nextConfig, configPath);
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          closedPhase: currentPhase.phase,
-          nextPhase: nextPhase.phase,
-          historicalBackfill: isHistoricalBackfill,
-          roadmapPath: "docs/notion-roadmap.md",
-          phaseMemoryPath: "docs/notion-phase-memory.md",
-          adrPath: "docs/adr/0001-local-portfolio-control-tower.md",
-          buildLogPageId: result.id,
-          buildLogPageUrl: result.url,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+  const output = {
+    ok: true,
+    closedPhase: currentPhase.phase,
+    nextPhase: nextPhase.phase,
+    historicalBackfill: isHistoricalBackfill,
+    roadmapPath: "docs/notion-roadmap.md",
+    phaseMemoryPath: "docs/notion-phase-memory.md",
+    adrPath: "docs/adr/0001-local-portfolio-control-tower.md",
+    buildLogPageId: result.id,
+    buildLogPageUrl: result.url,
+  };
+  recordCommandOutputSummary(output, {
+    metadata: {
+      closedPhase: currentPhase.phase,
+      nextPhase: nextPhase.phase,
+    },
+  });
+  console.log(JSON.stringify(output, null, 2));
 }
 
-function parseFlags(argv: string[]): { phase?: number; today?: string } {
-  let phase: number | undefined;
-  let today: string | undefined;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--phase") {
-      const next = argv[index + 1];
-      if (next) {
-        phase = Number(next);
-      }
-      index += 1;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-    }
-  }
-
-  return { phase, today };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["control-tower", "phase-closeout"]);
 }
-
-void main();

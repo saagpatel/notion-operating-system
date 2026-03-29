@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -42,28 +43,30 @@ import {
   toExternalSignalEventRecord,
   toExternalSignalSourceRecord,
 } from "./local-portfolio-external-signals-live.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand } from "../utils/markdown.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
 
 const WEEKLY_INTELLIGENCE_START = "<!-- codex:notion-weekly-intelligence:start -->";
 const WEEKLY_INTELLIGENCE_END = "<!-- codex:notion-weekly-intelligence:end -->";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for recommendation runs");
-    }
+export interface RecommendationRunCommandOptions {
+  live?: boolean;
+  today?: string;
+  type?: "weekly" | "daily" | "adhoc";
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const today = flags.today ?? losAngelesToday();
-    const weekStart = startOfWeekMonday(today);
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    let config = await loadLocalPortfolioControlTowerConfig(configPath);
+export async function runRecommendationRunCommand(
+  options: RecommendationRunCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for recommendation runs");
+  const live = options.live ?? false;
+  const today = options.today ?? losAngelesToday();
+  const type = options.type ?? "weekly";
+  const weekStart = startOfWeekMonday(today);
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
     const sdk = new Client({
       auth: token,
@@ -71,7 +74,7 @@ async function main(): Promise<void> {
     });
     const api = new DirectNotionClient(token);
 
-    if (flags.live) {
+    if (live) {
       config = await ensurePhase3IntelligenceSchema(sdk, config);
     }
 
@@ -167,19 +170,19 @@ async function main(): Promise<void> {
     const topDefer = recommendations.filter((entry) => entry.lane === "Defer")[0];
     const dailyFocus = buildDailyFocus({ topResume, tasks, packets, projects });
     const previousRun = existingRuns
-      .filter((run) => run.runType === normalizeRunType(flags.type))
+      .filter((run) => run.runType === normalizeRunType(type))
       .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
 
     const runTitle =
-      flags.type === "weekly"
+      type === "weekly"
         ? `Weekly recommendation run - ${weekStart}`
-        : flags.type === "daily"
+        : type === "daily"
           ? `Daily focus run - ${today}`
           : `Ad hoc recommendation run - ${today}`;
-    const status = flags.type === "weekly" ? "Draft" : "Published";
+    const status = type === "weekly" ? "Draft" : "Published";
     const markdown = renderRecommendationRunMarkdown({
       runTitle,
-      runType: normalizeRunType(flags.type),
+      runType: normalizeRunType(type),
       status,
       modelVersion: config.phase5ExternalSignals?.scoringModelVersion ?? phase3.scoringModelVersion,
       generatedAt: today,
@@ -192,7 +195,7 @@ async function main(): Promise<void> {
     });
 
     let createdRun: { id: string; url: string } | undefined;
-    if (flags.live) {
+    if (live) {
       const weeklyReview = weeklyPages.find((page) => page.title === `Week of ${weekStart}`);
       const created = await api.createPageWithMarkdown({
         parent: {
@@ -208,7 +211,7 @@ async function main(): Promise<void> {
         pageId: created.id,
         properties: {
           "Run Date": { date: { start: today } },
-          "Run Type": { select: { name: normalizeRunType(flags.type) } },
+          "Run Type": { select: { name: normalizeRunType(type) } },
           Status: { select: { name: status } },
           "Model Version": { rich_text: [{ type: "text", text: { content: config.phase5ExternalSignals?.scoringModelVersion ?? phase3.scoringModelVersion } }] },
           "Top Resume Project": relationValue(topResume ? [topResume.projectId] : []),
@@ -247,7 +250,7 @@ async function main(): Promise<void> {
               url: created.url,
               title: runTitle,
               runDate: today,
-              runType: normalizeRunType(flags.type),
+              runType: normalizeRunType(type),
               status,
               modelVersion: config.phase5ExternalSignals?.scoringModelVersion ?? phase3.scoringModelVersion,
               topResumeProjectIds: topResume ? [topResume.projectId] : [],
@@ -292,29 +295,26 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: flags.live,
-          runType: flags.type,
-          runTitle,
-          runId: createdRun?.id,
-          runUrl: createdRun?.url,
-          status,
-          topResume: topResume?.projectTitle,
-          topFinish: topFinish?.projectTitle,
-          topInvestigate: topInvestigate?.projectTitle,
-          topDefer: topDefer?.projectTitle,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      live,
+      runType: type,
+      runTitle,
+      runId: createdRun?.id,
+      runUrl: createdRun?.url,
+      status,
+      topResume: topResume?.projectTitle,
+      topFinish: topFinish?.projectTitle,
+      topInvestigate: topInvestigate?.projectTitle,
+      topDefer: topDefer?.projectTitle,
+    };
+    recordCommandOutputSummary(output, {
+      metadata: {
+        runType: type,
+        status,
+      },
+    });
+    console.log(JSON.stringify(output, null, 2));
 }
 
 function buildDailyFocus(input: {
@@ -360,32 +360,6 @@ function normalizeRunType(value: "weekly" | "daily" | "adhoc"): string {
   }
 }
 
-function parseFlags(argv: string[]): { live: boolean; today?: string; type: "weekly" | "daily" | "adhoc" } {
-  let live = false;
-  let today: string | undefined;
-  let type: "weekly" | "daily" | "adhoc" = "weekly";
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-      continue;
-    }
-    if (current === "--type") {
-      const next = argv[index + 1];
-      if (next === "weekly" || next === "daily" || next === "adhoc") {
-        type = next;
-      }
-      index += 1;
-    }
-  }
-
-  return { live, today, type };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["intelligence", "recommendation-run"]);
 }
-
-void main();

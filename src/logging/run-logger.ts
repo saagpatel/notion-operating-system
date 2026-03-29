@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { loadRuntimeConfig, type RuntimeConfig } from "../config/runtime-config.js";
 import type { LogEvent, LogLevel } from "../types.js";
 
 export class RunLogger {
@@ -8,10 +9,20 @@ export class RunLogger {
 
   private readonly logFilePath: string;
 
-  public constructor(logDir: string) {
+  private readonly mirrorToConsole: boolean;
+
+  public constructor(logDir: string, options: { mirrorToConsole?: boolean } = {}) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     this.runId = `run-${timestamp}`;
     this.logFilePath = path.resolve(logDir, `${this.runId}.jsonl`);
+    this.mirrorToConsole = options.mirrorToConsole ?? true;
+  }
+
+  public static fromRuntimeConfig(
+    runtimeConfig: RuntimeConfig = loadRuntimeConfig(),
+    options: { mirrorToConsole?: boolean } = {},
+  ): RunLogger {
+    return new RunLogger(runtimeConfig.paths.logDir, options);
   }
 
   public async init(): Promise<void> {
@@ -50,6 +61,10 @@ export class RunLogger {
 
     const line = `${JSON.stringify(event)}\n`;
     await fs.appendFile(this.logFilePath, line, "utf8");
+
+    if (!this.mirrorToConsole) {
+      return;
+    }
 
     const preview = details ? ` ${JSON.stringify(details)}` : "";
     const stream = level === "error" || level === "warn" ? console.error : console.log;

@@ -1,10 +1,10 @@
-import "dotenv/config";
-
 import { spawn } from "node:child_process";
-import { pathToFileURL } from "node:url";
 
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { losAngelesToday } from "../utils/date.js";
 import {
@@ -123,26 +123,42 @@ const QUEUE_SCORE: Record<Exclude<ControlTowerProjectRecord["operatingQueue"], u
   Watch: 0,
 };
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for the operational rollout command");
-    }
+export interface OperationalRolloutCommandOptions {
+  live?: boolean;
+  runPilotDryRun?: boolean;
+  runPilotLive?: boolean;
+  approvePilot?: boolean;
+  today?: string;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    if (flags.runPilotLive && !flags.live) {
-      throw new AppError("--run-pilot-live requires --live");
-    }
-    if (flags.approvePilot && !flags.live) {
-      throw new AppError("--approve-pilot requires --live");
-    }
-    if (flags.runPilotDryRun && !flags.live) {
-      throw new AppError("--run-pilot-dry-run requires --live");
-    }
+export async function runOperationalRolloutCommand(
+  options: OperationalRolloutCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken(
+    "NOTION_TOKEN is required for the operational rollout command",
+  );
+  const flags: ParsedFlags = {
+    live: options.live ?? false,
+    runPilotDryRun: options.runPilotDryRun ?? false,
+    runPilotLive: options.runPilotLive ?? false,
+    approvePilot: options.approvePilot ?? false,
+    today: options.today ?? losAngelesToday(),
+    configPath: options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  };
 
-    const baselineResults = await runBaselineCommands(flags);
-    const context = await loadRolloutContext(token, flags.configPath);
+  if (flags.runPilotLive && !flags.live) {
+    throw new AppError("--run-pilot-live requires --live");
+  }
+  if (flags.approvePilot && !flags.live) {
+    throw new AppError("--approve-pilot requires --live");
+  }
+  if (flags.runPilotDryRun && !flags.live) {
+    throw new AppError("--run-pilot-dry-run requires --live");
+  }
+
+  const baselineResults = await runBaselineCommands(flags);
+  const context = await loadRolloutContext(token, flags.configPath);
     const plan = buildOperationalRolloutPlan({
       projects: context.projects,
       githubSources: context.githubSources,
@@ -150,21 +166,22 @@ async function main(): Promise<void> {
     });
 
     if (!flags.live) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: true,
-            live: false,
-            baseline: baselineResults,
-            classifications: plan.candidates,
-            wave1Shortlist: plan.wave1Shortlist.map(summarizeCandidate),
-            wave2Queue: plan.wave2Queue.map(summarizeCandidate),
-            pilotCandidate: plan.pilotCandidate ? summarizeCandidate(plan.pilotCandidate) : undefined,
-          },
-          null,
-          2,
-        ),
-      );
+      const output = {
+        ok: true,
+        live: false,
+        baseline: baselineResults,
+        classifications: plan.candidates,
+        wave1Shortlist: plan.wave1Shortlist.map(summarizeCandidate),
+        wave2Queue: plan.wave2Queue.map(summarizeCandidate),
+        pilotCandidate: plan.pilotCandidate ? summarizeCandidate(plan.pilotCandidate) : undefined,
+      };
+      recordCommandOutputSummary(output, {
+        mode: "dry-run",
+        metadata: {
+          shortlistedProjects: plan.wave1Shortlist.length,
+        },
+      });
+      console.log(JSON.stringify(output, null, 2));
       return;
     }
 
@@ -211,29 +228,32 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: true,
-          baseline: baselineResults,
-          postClassificationBaseline,
-          classifications: plan.candidates,
-          wave1Shortlist: plan.wave1Shortlist.map(summarizeCandidate),
-          wave2Queue: plan.wave2Queue.map(summarizeCandidate),
-          pilotCandidate: plan.pilotCandidate ? summarizeCandidate(plan.pilotCandidate) : undefined,
-          writes,
-          pilotRequest,
-          pilotRuns,
+    const output = {
+      ok: true,
+      live: true,
+      baseline: baselineResults,
+      postClassificationBaseline,
+      classifications: plan.candidates,
+      wave1Shortlist: plan.wave1Shortlist.map(summarizeCandidate),
+      wave2Queue: plan.wave2Queue.map(summarizeCandidate),
+      pilotCandidate: plan.pilotCandidate ? summarizeCandidate(plan.pilotCandidate) : undefined,
+      writes,
+      pilotRequest,
+      pilotRuns,
+    };
+    recordCommandOutputSummary(
+      {
+        ...output,
+        recordsUpdated: Array.isArray(writes) ? writes.length : undefined,
+      },
+      {
+        mode: "live",
+        metadata: {
+          shortlistedProjects: plan.wave1Shortlist.length,
         },
-        null,
-        2,
-      ),
+      },
     );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    console.log(JSON.stringify(output, null, 2));
 }
 
 export function buildOperationalRolloutPlan(input: {
@@ -863,55 +883,6 @@ interface ParsedFlags {
   configPath: string;
 }
 
-function parseFlags(argv: string[]): ParsedFlags {
-  let live = false;
-  let runPilotDryRun = false;
-  let runPilotLive = false;
-  let approvePilot = false;
-  let today = losAngelesToday();
-  let configPath = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (!current) {
-      continue;
-    }
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--run-pilot-dry-run") {
-      runPilotDryRun = true;
-      continue;
-    }
-    if (current === "--run-pilot-live") {
-      runPilotLive = true;
-      continue;
-    }
-    if (current === "--approve-pilot") {
-      approvePilot = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1] ?? today;
-      index += 1;
-      continue;
-    }
-    if (!current.startsWith("--")) {
-      configPath = current;
-    }
-  }
-
-  return {
-    live,
-    runPilotDryRun,
-    runPilotLive,
-    approvePilot,
-    today,
-    configPath,
-  };
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void main();
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["rollout", "operational"]);
 }

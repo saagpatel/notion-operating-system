@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   applyDerivedSignals,
@@ -22,25 +23,25 @@ import {
   upsertPageByTitle,
 } from "./local-portfolio-control-tower-live.js";
 import { buildRoadmapPhases } from "./local-portfolio-roadmap.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for review-packet publishing");
-    }
+export interface ReviewPacketCommandOptions {
+  live?: boolean;
+  today?: string;
+  includeNextPhase?: boolean;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const live = flags.live;
-    const today = flags.today ?? losAngelesToday();
-    const currentWeekStart = startOfWeekMonday(today);
-    const weekTitle = `Week of ${currentWeekStart}`;
+export async function runReviewPacketCommand(options: ReviewPacketCommandOptions = {}): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for review-packet publishing");
+  const live = options.live ?? false;
+  const today = options.today ?? losAngelesToday();
+  const currentWeekStart = startOfWeekMonday(today);
+  const weekTitle = `Week of ${currentWeekStart}`;
 
-    const config = await loadLocalPortfolioControlTowerConfig(
-      process.argv[2]?.startsWith("--") ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
-    );
+  const config = await loadLocalPortfolioControlTowerConfig(
+    options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  );
 
     const sdk = new Client({
       auth: token,
@@ -82,8 +83,8 @@ async function main(): Promise<void> {
       config.phaseState.currentPhaseStatus,
       config.phaseState.currentPhase > 1,
     );
-    const nextPhaseBrief =
-      flags.includeNextPhase
+  const nextPhaseBrief =
+      options.includeNextPhase
         ? phases.find((phase) => phase.phase === config.phaseState.currentPhase)?.nextPhaseBrief
         : undefined;
 
@@ -127,26 +128,22 @@ async function main(): Promise<void> {
       pageUrl = result.url;
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live,
-          weekTitle,
-          compareStartDate,
-          touchedProjects: touchedProjects.length,
-          buildSessions: recentBuildSessions.length,
-          pageId,
-          pageUrl,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+  const output = {
+    ok: true,
+    live,
+    weekTitle,
+    compareStartDate,
+    touchedProjects: touchedProjects.length,
+    buildSessions: recentBuildSessions.length,
+    pageId,
+    pageUrl,
+  };
+  recordCommandOutputSummary(output, {
+    metadata: {
+      weekTitle,
+    },
+  });
+  console.log(JSON.stringify(output, null, 2));
 }
 
 function findCompareStartDate(weekTitles: string[], currentWeekStart: string): string {
@@ -164,28 +161,6 @@ function addDays(date: string, amount: number): string {
   return parsed.toISOString().slice(0, 10);
 }
 
-function parseFlags(argv: string[]): { live: boolean; today?: string; includeNextPhase: boolean } {
-  let live = false;
-  let today: string | undefined;
-  let includeNextPhase = false;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-      continue;
-    }
-    if (current === "--include-next-phase") {
-      includeNextPhase = true;
-    }
-  }
-
-  return { live, today, includeNextPhase };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["control-tower", "review-packet"]);
 }
-
-void main();

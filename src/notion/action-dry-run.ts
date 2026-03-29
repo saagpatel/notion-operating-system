@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -30,26 +31,26 @@ import {
   SUPPORTED_GITHUB_ACTION_KEYS,
 } from "./local-portfolio-actuation.js";
 import { toExternalActionExecutionRecord } from "./local-portfolio-actuation-live.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 
 const ACTUATION_PACKET_START = "<!-- codex:notion-actuation-packet:start -->";
 const ACTUATION_PACKET_END = "<!-- codex:notion-actuation-packet:end -->";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for action dry runs");
-    }
-    const flags = parseFlags(process.argv.slice(2));
-    if (!flags.request) {
-      throw new AppError("--request <page-id> is required");
-    }
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    const config = await loadLocalPortfolioControlTowerConfig(configPath);
+export interface ActionDryRunCommandOptions {
+  request?: string;
+  config?: string;
+}
+
+export async function runActionDryRunCommand(
+  options: ActionDryRunCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for action dry runs");
+  if (!options.request) {
+    throw new AppError("--request <page-id> is required");
+  }
+  const config = await loadLocalPortfolioControlTowerConfig(
+    options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  );
     const phase7 = requirePhase7Actuation(config);
     if (!config.phase6Governance || !config.phase5ExternalSignals) {
       throw new AppError("Phase 7 dry run requires phase6Governance and phase5ExternalSignals");
@@ -76,9 +77,11 @@ async function main(): Promise<void> {
       fetchAllPages(sdk, phase7.executions.dataSourceId, executionSchema.titlePropertyName),
     ]);
 
-    const request = requestPages.map((page) => toActionRequestRecord(page)).find((entry) => entry.id === flags.request);
+    const request = requestPages
+      .map((page) => toActionRequestRecord(page))
+      .find((entry) => entry.id === options.request);
     if (!request) {
-      throw new AppError(`Could not find action request "${flags.request}"`);
+      throw new AppError(`Could not find action request "${options.request}"`);
     }
     const policies = policyPages.map((page) => toActionPolicyRecord(page));
     const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
@@ -275,35 +278,23 @@ async function main(): Promise<void> {
       });
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          requestId: request.id,
-          executionId: created.id,
-          executionUrl: created.url,
-          readyForLive: validationNotes.length === 0,
-          validationNotes,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      requestId: request.id,
+      executionId: created.id,
+      executionUrl: created.url,
+      readyForLive: validationNotes.length === 0,
+      validationNotes,
+    };
+    recordCommandOutputSummary(output, {
+      mode: "dry-run",
+      metadata: {
+        requestId: request.id,
+      },
+    });
+    console.log(JSON.stringify(output, null, 2));
 }
 
-function parseFlags(argv: string[]): { request?: string } {
-  let request: string | undefined;
-  for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === "--request") {
-      request = argv[index + 1];
-      index += 1;
-    }
-  }
-  return { request };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["governance", "action-dry-run"]);
 }
-
-void main();

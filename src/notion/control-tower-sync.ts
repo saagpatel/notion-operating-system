@@ -1,12 +1,13 @@
-import "dotenv/config";
-
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DestinationRegistry } from "../config/destination-registry.js";
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { RunLogger } from "../logging/run-logger.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
@@ -28,28 +29,33 @@ import {
 } from "./local-portfolio-control-tower-live.js";
 import { loadLocalPortfolioViewPlan, validateLocalPortfolioViewPlanAgainstSchema } from "./local-portfolio-views.js";
 import { Publisher } from "../publishing/publisher.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
 import { losAngelesToday } from "../utils/date.js";
 
-async function main(): Promise<void> {
-  const logger = new RunLogger(process.env.NOTION_LOG_DIR ?? "./logs");
+export interface ControlTowerSyncCommandOptions {
+  live?: boolean;
+  today?: string;
+  config?: string;
+}
+
+export async function runControlTowerSyncCommand(
+  options: ControlTowerSyncCommandOptions = {},
+): Promise<void> {
+  const runtimeConfig = loadRuntimeConfig();
+  const logger = RunLogger.fromRuntimeConfig(runtimeConfig);
   await logger.init();
 
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for control-tower sync");
-    }
+  const token = runtimeConfig.notion.token;
+  if (!token) {
+    throw new Error("NOTION_TOKEN is required for control-tower sync");
+  }
+  const live = options.live ?? false;
+  const today = options.today ?? losAngelesToday();
 
-    const flags = parseFlags(process.argv.slice(2));
-    const live = flags.live;
-    const today = flags.today ?? losAngelesToday();
-
-    const [config, viewPlan, registry] = await Promise.all([
-      loadLocalPortfolioControlTowerConfig(process.argv[2]?.startsWith("--") ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH),
-      loadLocalPortfolioViewPlan(),
-      DestinationRegistry.load(process.env.NOTION_DESTINATIONS_PATH ?? "./config/destinations.json"),
-    ]);
+  const [config, viewPlan, registry] = await Promise.all([
+    loadLocalPortfolioControlTowerConfig(options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH),
+    loadLocalPortfolioViewPlan(),
+    DestinationRegistry.load(runtimeConfig.paths.destinationsPath),
+  ]);
 
     const sdk = new Client({
       auth: token,
@@ -151,25 +157,17 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live,
-          changedRows,
-          baselineCaptured,
-          commandCenterPageId: commandCenterSummary.pageId ?? nextConfig.commandCenter.pageId,
-          commandCenterPageUrl: commandCenterSummary.pageUrl ?? nextConfig.commandCenter.pageUrl,
-          metrics,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+  const output = {
+    ok: true,
+    live,
+    changedRows,
+    baselineCaptured,
+    commandCenterPageId: commandCenterSummary.pageId ?? nextConfig.commandCenter.pageId,
+    commandCenterPageUrl: commandCenterSummary.pageUrl ?? nextConfig.commandCenter.pageUrl,
+    metrics,
+  };
+  recordCommandOutputSummary(output);
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function publishCommandCenter(input: {
@@ -226,23 +224,6 @@ function diffDays(fromDate: string, toDate: string): number {
   return Math.floor((to.getTime() - from.getTime()) / 86_400_000);
 }
 
-function parseFlags(argv: string[]): { live: boolean; today?: string } {
-  let live = false;
-  let today: string | undefined;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-    }
-  }
-
-  return { live, today };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["control-tower", "sync"]);
 }
-
-void main();

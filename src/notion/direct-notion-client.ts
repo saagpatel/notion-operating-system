@@ -15,10 +15,12 @@ import type {
   SearchPageOptions,
   TemplateDescriptor,
 } from "../types.js";
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
 import { AppError } from "../utils/errors.js";
 import { NotionHttp } from "./http.js";
 import type { RunLogger } from "../logging/run-logger.js";
+import { getCurrentCommandLogger } from "../cli/run-observability.js";
 
 export class DirectNotionClient implements NotionApi {
   private readonly sdk: Client;
@@ -26,11 +28,28 @@ export class DirectNotionClient implements NotionApi {
   private readonly http: NotionHttp;
 
   public constructor(token: string, logger?: RunLogger) {
+    const runtimeConfig = loadRuntimeConfig();
+    const resolvedLogger = logger ?? getCurrentCommandLogger();
     this.sdk = new Client({
       auth: token,
-      notionVersion: "2026-03-11",
+      notionVersion: runtimeConfig.notion.version,
     });
-    this.http = new NotionHttp({ token, notionVersion: "2026-03-11", logger });
+    this.http = new NotionHttp({ token, notionVersion: runtimeConfig.notion.version, logger: resolvedLogger });
+  }
+
+  public async verifyAccess(): Promise<{ id: string; name: string; type: string }> {
+    const user = (await this.sdk.users.me({})) as {
+      id: string;
+      name?: string;
+      type?: string;
+      bot?: { owner?: { type?: string } };
+    };
+
+    return {
+      id: normalizeNotionId(user.id),
+      name: user.name ?? "Unknown Notion identity",
+      type: user.type ?? user.bot?.owner?.type ?? "unknown",
+    };
   }
 
   public async resolveDestination(destination: DestinationConfig): Promise<ResolvedDestination> {

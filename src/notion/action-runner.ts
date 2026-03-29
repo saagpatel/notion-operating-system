@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -41,18 +42,21 @@ import { AppError, toErrorMessage } from "../utils/errors.js";
 const ACTUATION_PACKET_START = "<!-- codex:notion-actuation-packet:start -->";
 const ACTUATION_PACKET_END = "<!-- codex:notion-actuation-packet:end -->";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for the action runner");
-    }
-    const flags = parseFlags(process.argv.slice(2));
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    const config = await loadLocalPortfolioControlTowerConfig(configPath);
+export interface ActionRunnerCommandOptions {
+  request?: string;
+  mode?: "dry-run" | "live";
+  limit?: number;
+  config?: string;
+}
+
+export async function runActionRunnerCommand(
+  options: ActionRunnerCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for the action runner");
+  const mode = options.mode ?? "dry-run";
+  const config = await loadLocalPortfolioControlTowerConfig(
+    options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  );
     const phase7 = requirePhase7Actuation(config);
     if (!config.phase6Governance || !config.phase5ExternalSignals) {
       throw new AppError("Phase 7 action runner requires phase6Governance and phase5ExternalSignals");
@@ -84,14 +88,14 @@ async function main(): Promise<void> {
     const requests = requestPages
       .map((page) => toActionRequestRecord(page))
       .filter((request) =>
-        flags.request
-          ? request.id === flags.request
+        options.request
+          ? request.id === options.request
           : request.status === "Approved" &&
-            (flags.mode === "live"
+            (mode === "live"
               ? request.executionIntent === "Ready for Live"
               : (request.executionIntent || "Dry Run") === "Dry Run"),
       )
-      .slice(0, flags.limit ?? (flags.mode === "live" ? phase7.runnerLimits.maxLivePerRun : phase7.runnerLimits.maxDryRunsPerRun));
+      .slice(0, options.limit ?? (mode === "live" ? phase7.runnerLimits.maxLivePerRun : phase7.runnerLimits.maxDryRunsPerRun));
 
     const results: Array<{ requestId: string; executionId?: string; status: string; notes?: string }> = [];
 
@@ -136,12 +140,12 @@ async function main(): Promise<void> {
         preflight,
         today: new Date().toISOString().slice(0, 10),
       });
-      if (validationNotes.length > 0 && flags.mode === "live") {
+      if (validationNotes.length > 0 && mode === "live") {
         results.push({ requestId: request.id, status: "Skipped", notes: validationNotes.join(" ") });
         continue;
       }
 
-      const modeLabel = flags.mode === "live" ? "Live" : "Dry Run";
+      const modeLabel = mode === "live" ? "Live" : "Dry Run";
       const idempotencyKey = computeActuationExecutionKey({
         requestId: request.id,
         actionKey,
@@ -150,12 +154,12 @@ async function main(): Promise<void> {
         payload,
       });
       const duplicate =
-        flags.mode === "live"
+        mode === "live"
           ? executions.find(
               (execution) => execution.mode === "Live" && execution.status === "Succeeded" && execution.idempotencyKey === idempotencyKey,
             )
           : undefined;
-      if (duplicate && flags.mode === "live") {
+      if (duplicate && mode === "live") {
         results.push({ requestId: request.id, status: "Skipped", notes: "A successful live execution already exists." });
         continue;
       }
@@ -187,7 +191,7 @@ async function main(): Promise<void> {
           "Label Delta Summary": richTextValue(summarizeGitHubLabelDelta({ payload, preflight })),
           "Assignee Delta Summary": richTextValue(summarizeGitHubAssigneeDelta({ payload, preflight })),
           "Response Classification": { select: { name: "Success" } },
-          "Reconcile Status": { select: { name: flags.mode === "live" ? "Pending" : "Not Needed" } },
+          "Reconcile Status": { select: { name: mode === "live" ? "Pending" : "Not Needed" } },
           "Compensation Plan": richTextValue(
             buildGitHubCompensationPlan(actionKey),
           ),
@@ -196,7 +200,7 @@ async function main(): Promise<void> {
 
       try {
         const postDryRun =
-          flags.mode === "dry-run"
+          mode === "dry-run"
             ? computePostDryRunReadiness({
                 request,
                 policies,
@@ -209,7 +213,7 @@ async function main(): Promise<void> {
               })
             : undefined;
         const providerResult: GitHubExecutionResult =
-          flags.mode === "live"
+          mode === "live"
             ? await executeGitHubAction({ payload, preflight })
             : {
                 executionStatus: "Succeeded",
@@ -229,7 +233,7 @@ async function main(): Promise<void> {
                       : "Dry run succeeded.",
               };
         const finalStatus =
-          flags.mode === "live"
+          mode === "live"
             ? providerResult.executionStatus
             : validationNotes.length > 0
               ? "Failed"
@@ -250,7 +254,7 @@ async function main(): Promise<void> {
             "Failure Notes": richTextValue(validationNotes.join(" ")),
           },
         });
-        if (flags.mode === "live") {
+        if (mode === "live") {
           await api.updatePageProperties({
             pageId: request.id,
             properties: {
@@ -277,7 +281,7 @@ async function main(): Promise<void> {
         await updateActuationPacket({
           api,
           request:
-            flags.mode === "live"
+            mode === "live"
               ? {
                   ...request,
                   executionIntent: "Dry Run",
@@ -320,7 +324,7 @@ async function main(): Promise<void> {
             compensationPlan: buildGitHubCompensationPlan(actionKey),
           },
           idempotencyKey,
-          validationNotes: flags.mode === "live" ? [] : postDryRun!.notes,
+          validationNotes: mode === "live" ? [] : postDryRun!.notes,
         });
         results.push({ requestId: request.id, executionId: draftExecution.id, status: finalStatus });
       } catch (error) {
@@ -341,7 +345,7 @@ async function main(): Promise<void> {
             "Latest Execution Status": { select: { name: "Problem" } },
             "Execution Intent": { select: { name: "Dry Run" } },
             "Execution Notes": richTextValue(
-              `Latest ${flags.mode === "live" ? "live" : "dry run"} execution failed: ${failureNotes}`,
+              `Latest ${mode === "live" ? "live" : "dry run"} execution failed: ${failureNotes}`,
             ),
           },
         });
@@ -351,7 +355,7 @@ async function main(): Promise<void> {
             ...request,
             executionIntent: "Dry Run",
             latestExecutionStatus: "Problem",
-            executionNotes: `Latest ${flags.mode === "live" ? "live" : "dry run"} execution failed: ${failureNotes}`,
+            executionNotes: `Latest ${mode === "live" ? "live" : "dry run"} execution failed: ${failureNotes}`,
           },
           payload,
           preflight,
@@ -388,16 +392,27 @@ async function main(): Promise<void> {
         results.push({ requestId: request.id, executionId: draftExecution.id, status: "Failed", notes: failureNotes });
       }
 
-      if (flags.mode === "live") {
+      if (mode === "live") {
         await delay(phase7.runnerLimits.minSecondsBetweenWrites * 1000);
       }
     }
 
-    console.log(JSON.stringify({ ok: true, mode: flags.mode, results }, null, 2));
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+  const output = { ok: true, mode, results };
+  recordCommandOutputSummary(
+    {
+      ...output,
+      recordsUpdated: results.filter((result) => result.status === "Succeeded").length,
+      recordsSkipped: results.filter((result) => result.status === "Skipped").length,
+      failureCount: results.filter((result) => result.status === "Failed").length,
+    },
+    {
+      mode,
+      metadata: {
+        resultCount: results.length,
+      },
+    },
+  );
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function updateActuationPacket(input: {
@@ -436,35 +451,10 @@ async function updateActuationPacket(input: {
   }
 }
 
-function parseFlags(argv: string[]): { request?: string; mode: "dry-run" | "live"; limit?: number } {
-  let request: string | undefined;
-  let mode: "dry-run" | "live" = "dry-run";
-  let limit: number | undefined;
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--request") {
-      request = argv[index + 1];
-      index += 1;
-      continue;
-    }
-    if (current === "--mode") {
-      const value = argv[index + 1];
-      if (value === "dry-run" || value === "live") {
-        mode = value;
-      }
-      index += 1;
-      continue;
-    }
-    if (current === "--limit") {
-      limit = Number(argv[index + 1]);
-      index += 1;
-    }
-  }
-  return { request, mode, limit };
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-void main();
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["governance", "action-runner"]);
+}
