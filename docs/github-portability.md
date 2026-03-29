@@ -132,6 +132,17 @@ If you want a verified packaged artifact instead of a git ref, use the tarball a
 
 For release preparation details, see `docs/release-process.md`.
 
+## Consumer install modes
+
+Pick the install mode that matches your need:
+
+1. GitHub ref install
+   - best when you want the package directly from a tagged GitHub ref
+2. GitHub release tarball install
+   - best when you want the most controlled verified artifact
+3. local repo development
+   - best when you are working on the repo and want the full source-first workflow
+
 ## Practical Setup Strategy
 
 For long-term safety, treat the system as three layers:
@@ -139,5 +150,17 @@ For long-term safety, treat the system as three layers:
 1. GitHub repo: code, config, docs, tests, examples
 2. Local machine: `.env`, logs, scratch state, git hook config
 3. External services: Notion workspace access and any other provider credentials
+
+## Sandbox profile recommendation
+
+For risky operational changes, create and use a `sandbox` profile before production writes:
+
+```bash
+notion-os profiles clone --source default --target sandbox --write
+notion-os profiles bootstrap --target sandbox --write
+notion-os --profile sandbox doctor
+```
+
+That profile is the recommended rehearsal path for control-tower, signals, governance, rollout, and profile-lifecycle changes.
 
 That split makes the system easy to recover without leaking secrets into version control.

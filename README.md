@@ -63,6 +63,27 @@ import { DestinationRegistry, Publisher, loadRuntimeConfig } from "notion-operat
 
 The `notion-operating-system/advanced` entrypoint still exists, but it is repo-specific and secondary to the public story in this phase.
 
+## Consumer Install Modes
+
+Use the install path that matches how much control you want:
+
+- GitHub ref install: best when you want the package directly from a tagged GitHub ref
+- GitHub release tarball install: best when you want the most locked-down verified artifact
+- local repo development: best when you are working on the repo itself and want the full source-first workflow
+
+Examples:
+
+```bash
+# GitHub ref install
+npm install github:saagpatel/notion-operating-system#v0.2.0
+
+# GitHub release tarball install
+npm install https://github.com/saagpatel/notion-operating-system/releases/download/v0.2.0/notion-operating-system-0.2.0.tgz
+
+# Local repo development
+npm ci
+```
+
 ## CLI
 
 The canonical entrypoints are:
@@ -83,6 +104,13 @@ tsx src/cli.ts --help
 tsx src/cli.ts control-tower --help
 npm run doctor -- --help
 ```
+
+## Repo Governance
+
+- `main` is a protected branch
+- all changes should land by pull request
+- merge commits stay enabled so the structured phase history remains readable
+- `npm run release:prepare` does not bypass CI; it is part of the release gate, not a replacement for it
 
 ## Most Common Commands
 
@@ -148,6 +176,9 @@ This runs:
 - `npm run build`
 - `npm run smoke:built-cli`
 - `npm run smoke:packed-install`
+- `npm run smoke:git-install`
+
+CI also verifies a fresh workspace copy so the repo is not relying on long-lived local state.
 
 Most shared CLI commands now also write lifecycle events and run summaries into the active log directory. By default that is `./logs`, or the profile/runtime override in `NOTION_LOG_DIR`.
 
@@ -205,6 +236,26 @@ notion-os profiles bootstrap --target sandbox --write
 notion-os profiles upgrade --write
 notion-os --profile default doctor
 ```
+
+## Sandbox Profile Discipline
+
+Use a `sandbox` profile as the default proving ground before live changes that touch:
+
+- `control-tower`
+- `signals`
+- `governance`
+- `rollout`
+- profile import, export, clone, bootstrap, or upgrade flows
+
+Recommended setup:
+
+```bash
+notion-os profiles clone --source default --target sandbox --write
+notion-os profiles bootstrap --target sandbox --write
+notion-os --profile sandbox doctor
+```
+
+Treat dry-run first as the rule in that profile unless you are explicitly rehearsing a live path.
 
 If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
 
