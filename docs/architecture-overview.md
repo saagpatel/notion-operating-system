@@ -1,6 +1,6 @@
 # Architecture Overview
 
-`Notion Operating System` now has four main layers plus a clearer package boundary between the core publisher and the advanced operating-system workflows.
+`Notion Operating System` now has four main layers plus a clearer package boundary between the reusable publishing toolkit and the advanced operating-system workflows.
 
 ## 1. CLI
 
@@ -16,7 +16,7 @@ Phase 2 and Phase 3 introduce:
 - an installable local bin: `notion-os`
 - shared command-run lifecycle logging and summaries
 
-This lets the main workflows share one operator-facing surface while keeping existing npm scripts usable.
+This lets the main workflows share one operator-facing surface while keeping existing npm scripts usable through modern aliases and legacy compatibility names.
 
 ## 2. Runtime and config
 
@@ -76,7 +76,7 @@ Phase 3 separates the public package surface into:
 - core exports from `src/index.ts`
 - advanced exports from `src/advanced.ts`
 
-Core exports cover the reusable publishing toolkit:
+Root exports cover the reusable publishing toolkit:
 
 - runtime config and profile loading
 - destination registry loading
@@ -93,6 +93,12 @@ Advanced exports cover the repo-specific operating-system layers:
 - external signals
 - governance and actuation
 - native overlays and rollout support
+
+Boundary rule:
+
+- if a module is useful as a general Notion publishing or setup primitive, it belongs in the root package surface
+- if it depends on this repo's specific control-tower, governance, execution, intelligence, signals, or rollout model, it belongs behind `./advanced`
+- one-off historical utilities stay internal and should not be promoted into either public export surface unless a later phase makes that decision explicitly
 
 ## Compatibility strategy
 

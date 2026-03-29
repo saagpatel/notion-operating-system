@@ -1,3 +1,4 @@
+// Internal historical utility. Kept for compatibility scripts, not the shared operator surface.
 import "dotenv/config";
 
 import fs from "node:fs/promises";
@@ -6,9 +7,9 @@ import path from "node:path";
 import { Client } from "@notionhq/client";
 import ExcelJS from "exceljs";
 
-import { DirectNotionClient } from "../notion/direct-notion-client.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { extractNotionIdFromUrl, normalizeNotionId } from "../../utils/notion-id.js";
 
 const PROJECTS_ROOT = "/Users/d/Projects";
 const WORKBOOK_PATH = path.join(PROJECTS_ROOT, "PORTFOLIO-AUDIT-REPORT.xlsx");

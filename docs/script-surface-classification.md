@@ -8,6 +8,13 @@ This note records which commands belong in the shared CLI and which scripts are 
 
 Use this file when deciding whether a legacy script should be migrated, kept as a compatibility wrapper, or left as a one-off internal utility.
 
+Preferred operator surface:
+
+- `notion-os ...`
+- modern npm aliases such as `control-tower:sync`, `governance:audit`, `signals:sync`, and `rollout:operational`
+
+Legacy `portfolio-audit:*` script names remain compatibility aliases where they still matter, but they are no longer the recommended default surface.
+
 ## Shared CLI
 
 These commands are part of the durable shared CLI surface and should stay discoverable through `notion-os` and `src/cli.ts`.
@@ -74,6 +81,7 @@ These commands are part of the durable shared CLI surface and should stay discov
 These legacy script entrypoints still matter for npm-script compatibility, but they should delegate to the shared CLI instead of growing their own command surface again.
 
 - existing wrapper entrypoints from Phases 2 through 6
+- modern npm aliases for durable workflows should point at `tsx src/cli.ts ...`
 - `portfolio-audit:github-lane-audit`
   - keep this as an alias wrapper to the same handler as `governance actuation-audit`
 - npm scripts that still point at migrated source files for historical compatibility
@@ -108,6 +116,8 @@ These scripts are intentionally left outside the shared CLI in Phase 6. They may
 - `webhook-shadow-server`
 - `portfolio-audit:generate`
 - `portfolio-audit:publish-notion`
+
+The clearest internal-only legacy utilities are now quarantined under `src/internal/portfolio-audit/`. They still have compatibility scripts where needed, but they are not part of the recommended operator surface.
 
 ## Default Rule For Future Work
 
