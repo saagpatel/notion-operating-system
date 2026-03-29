@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "notion_native",
+    "fallback": "document_and_defer",
+    "notes": [
+      "Phase 4 pilots are bounded experiments, not architecture changes.",
+      "Keep pilot scope narrow enough that Phase 5 can evaluate usefulness without inheriting hidden dependencies.",
+      "If a pilot is not clearly safe or clearly useful, defer it with a written reason."
+    ]
+  },
+  "pilots": [
+    {
+      "key": "githubDeliverySignals",
+      "name": "GitHub Delivery Signals",
+      "type": "synced_database",
+      "gatedBy": "business_plan",
+      "scope": "One read-only synced database pilot for a single active project or repo if a clearly supported source is available.",
+      "successCriteria": [
+        "Improves delivery visibility for one active project",
+        "Stays read-only and clearly separate from canonical scoring",
+        "Produces evidence that helps judge whether external telemetry should enter Phase 5"
+      ],
+      "constraints": [
+        "No writeback into GitHub or canonical Notion properties",
+        "No expansion beyond one project in Phase 4",
+        "Do not let synced rows drive recommendation scores directly"
+      ],
+      "defaultStatus": "deferred",
+      "deferReason": "Live rollout is deferred until a single high-value repo and supported synced source are confirmed."
+    },
+    {
+      "key": "weeklyNativeSummaryDraft",
+      "name": "Weekly Native Summary Draft",
+      "type": "custom_agent",
+      "gatedBy": "custom_agents",
+      "scope": "One weekly custom-agent draft that reads the latest published review and recommendation context and writes a draft into the native briefs page.",
+      "successCriteria": [
+        "Reduces summary-writing friction",
+        "Stays easy to review before use",
+        "Adds evidence that helps decide whether custom agents belong in later phases"
+      ],
+      "constraints": [
+        "Reads only tight, explicit context",
+        "Never edits canonical project, execution, or recommendation records",
+        "Requires human review before the output is treated as meaningful"
+      ],
+      "defaultStatus": "deferred",
+      "deferReason": "Live rollout is deferred until the dashboard layer is stable and the weekly draft workflow is worth the extra native complexity."
+    }
+  ]
+}

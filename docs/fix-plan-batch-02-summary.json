@@ -1,0 +1,42 @@
+{
+  "batch": "batch-02",
+  "projects": [
+    "OrbitForge",
+    "PomGambler",
+    "ContentEngine",
+    "FreeLanceInvoice",
+    "StatusPage"
+  ],
+  "verified_complete": [
+    "OrbitForge",
+    "PomGambler"
+  ],
+  "projects_with_findings": [
+    "ContentEngine",
+    "FreeLanceInvoice",
+    "StatusPage"
+  ],
+  "execution_order": [
+    "Verified complete before implementation: keep OrbitForge and PomGambler unchanged as merge/reference rows.",
+    "Completed before this pass: reopen ContentEngine, FreeLanceInvoice, and StatusPage in Local Portfolio Projects so the rows match current repo and GitHub truth.",
+    "Completed in this pass: finish the ContentEngine export-and-settings hardening slice and prove its focused Rust plus frontend checks.",
+    "Completed in this pass: finish the FreeLanceInvoice invoice payment-link safety slice and prove the Rust suite that covers the completed invoice and settings work.",
+    "Completed in this pass: finish the StatusPage internal-support recent-activity slice and prove the focused web test.",
+    "Next: handle ContentEngine release/docs-contract closeout and dependency/workflow-noise cleanup as separate follow-up.",
+    "Next: handle FreeLanceInvoice release-candidate closeout and dependency-PR cleanup as separate follow-up.",
+    "Next: handle StatusPage dependency-PR and workflow-noise cleanup separately from the completed support-console slice."
+  ],
+  "blockers": [
+    "ContentEngine has a proven bounded slice from this pass, but the broader dirty finish lane still has two open dependency PRs and eight recent failed workflow runs around the remaining release/docs-contract work.",
+    "FreeLanceInvoice has a proven bounded slice from this pass, but the broader dirty finish lane still has two open dependency PRs around the remaining release-candidate closeout work.",
+    "StatusPage has a proven bounded slice from this pass, but one open dependency PR and seven recent failed workflow runs still remain as separate follow-up.",
+    "OrbitForge and PomGambler do not block this batch unless a later decision intentionally reactivates them as separate execution lanes."
+  ],
+  "done_definition": [
+    "The batch-02 markdown and JSON artifacts match each other and cover only OrbitForge, PomGambler, ContentEngine, FreeLanceInvoice, and StatusPage as completion records.",
+    "All five scoped titles remain correctly housed in Local Portfolio Projects with zero exact-title duplicates in Project Portfolio.",
+    "OrbitForge and PomGambler remain correct merge/reference rows unless an explicit product decision changes that posture.",
+    "ContentEngine, FreeLanceInvoice, and StatusPage now have a Notion posture that matches real repo and GitHub truth, plus one bounded execution slice each has been completed and recorded.",
+    "The only remaining open items after this implementation pass are the true post-slice follow-up items called out in the batch record, not stale archive posture or missing batch artifacts."
+  ]
+}

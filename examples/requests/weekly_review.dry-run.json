@@ -1,0 +1,11 @@
+{
+  "destinationAlias": "weekly_reviews",
+  "inputFile": "examples/content/weekly-review.md",
+  "dryRun": true,
+  "titleOverride": "Week of 2026-03-16",
+  "propertyOverrides": {
+    "Tags": [
+      "Productive"
+    ]
+  }
+}

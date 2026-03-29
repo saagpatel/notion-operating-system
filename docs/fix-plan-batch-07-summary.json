@@ -1,0 +1,35 @@
+{
+  "batch": "batch-07",
+  "projects": [
+    "prompt-englab",
+    "SnippetLibrary",
+    "CryptForge",
+    "Chronomap",
+    "Echolocate"
+  ],
+  "verified_complete": [
+    "Chronomap",
+    "Echolocate"
+  ],
+  "projects_with_findings": [
+    "prompt-englab",
+    "SnippetLibrary",
+    "CryptForge"
+  ],
+  "execution_order": [
+    "prompt-englab: fix Prisma release-readiness and retire legacy-origin tracking before removing the old remote.",
+    "SnippetLibrary: narrow the current dirty tree into one bounded execution slice and keep the story focused on scope control.",
+    "CryptForge: decide the two open Dependabot PRs, fix the Windows ci-nightly npm detection issue, and rename the folder only after a lossless move is possible."
+  ],
+  "blockers": [
+    "verified_complete before implementation: none.",
+    "fixes completed in this chat: prompt-englab baseline restored and main correctness gates plus perf tail rerun; Chronomap baseline restored with typecheck and build passing; Echolocate baseline restored with lint, typecheck, and build passing; SnippetLibrary remote truth confirmed clean; CryptForge remote truth and GitHub noise reviewed.",
+    "remaining open items: prompt-englab still fails release-readiness at Prisma migration status and still has two local branches tracking legacy-origin; SnippetLibrary still needs bounded-slice follow-through on the current dirty tree; CryptForge still has two open Dependabot PRs, a Windows ci-nightly npm detection failure, and a risky folder rename that was intentionally deferred."
+  ],
+  "done_definition": [
+    "Both batch-07 artifacts must agree on the same post-implementation state.",
+    "The solved-baseline versus remaining-follow-up split must stay explicit.",
+    "Chronomap and Echolocate are the only projects verified complete for the scoped batch-07 checks after this implementation pass.",
+    "prompt-englab, SnippetLibrary, and CryptForge remain open only for the follow-up items recorded in the completion record, not for the old install-state blockers."
+  ]
+}

@@ -1,0 +1,165 @@
+{
+  "bucket": "env-local",
+  "projects": [
+    "PersonalKBDrafter",
+    "GPT_RAG",
+    "SlackIncidentBot",
+    "SnippetLibrary",
+    "TicketHandoff",
+    "OPscinema",
+    "Nexus",
+    "TicketDocumentation"
+  ],
+  "verified_complete": [
+    "GPT_RAG",
+    "SnippetLibrary",
+    "Nexus"
+  ],
+  "projects_with_findings": [
+    {
+      "project": "PersonalKBDrafter",
+      "already_proven": [
+        "Repo surface is normalized.",
+        "npm run check:prereqs, npm run lint, npm run build, and cargo test already pass."
+      ],
+      "current_blocker": "Saved kb-drafter-jira and kb-drafter-confluence credentials are still missing, and the local app state is still empty.",
+      "prerequisite_type": "credentials + saved app state",
+      "exact_next_action": [
+        "Save the Jira and Confluence credentials in the expected keychain items.",
+        "Seed one usable local settings row and one draftable article row.",
+        "Run one real Jira-to-Confluence drafting happy path."
+      ],
+      "minimum_verification": [
+        "One end-to-end drafting run completes using the saved credentials and seeded local state.",
+        "No manual DB or keychain patching is required during the run."
+      ],
+      "user_input_needed": [
+        "Saved Jira credential",
+        "Saved Confluence credential",
+        "One usable seeded local article/settings state"
+      ],
+      "done_signal": "A real drafting run succeeds from saved local state and produces the expected Confluence-side draft output."
+    },
+    {
+      "project": "SlackIncidentBot",
+      "already_proven": [
+        "Repo cleanup is complete.",
+        "Local library proof is already green."
+      ],
+      "current_blocker": "The .env file is still missing, required Slack/PostgreSQL environment variables are still absent, and Docker is still unavailable.",
+      "prerequisite_type": "runtime service + credentials",
+      "exact_next_action": [
+        "Populate .env with the real Slack and PostgreSQL settings.",
+        "Bring up Docker and PostgreSQL or the equivalent local runtime services.",
+        "Run one live Slack-triggered happy path against the configured database."
+      ],
+      "minimum_verification": [
+        "The app boots with real config loaded.",
+        "The app reaches PostgreSQL successfully.",
+        "One real Slack event or command completes end to end."
+      ],
+      "user_input_needed": [
+        "Slack bot token",
+        "Slack signing secret",
+        "PostgreSQL connection details",
+        "Working Docker/runtime environment"
+      ],
+      "done_signal": "One live Slack interaction succeeds and the expected DB-backed behavior is visible."
+    },
+    {
+      "project": "TicketHandoff",
+      "already_proven": [
+        "Earlier dependency cleanup and backend proof were already complete.",
+        "Frontend baseline is restored.",
+        "npm test -- --run and npm run build already pass."
+      ],
+      "current_blocker": "The local app database still has no saved api_config row, and the macOS keychain still has no com.tickethandoff.jira item.",
+      "prerequisite_type": "credentials + saved app state",
+      "exact_next_action": [
+        "Seed one valid Jira config row into the local app database.",
+        "Save one Jira credential in the expected keychain item.",
+        "Run one live Jira-backed handoff happy path."
+      ],
+      "minimum_verification": [
+        "One Jira-backed handoff completes using saved config and keychain credentials.",
+        "The run succeeds without manual overrides."
+      ],
+      "user_input_needed": [
+        "One real or test Jira tenant",
+        "One saved Jira keychain credential",
+        "One valid local api_config row"
+      ],
+      "done_signal": "A live handoff succeeds and creates or updates the expected Jira-side result."
+    },
+    {
+      "project": "OPscinema",
+      "already_proven": [
+        "Packaged-app identity is correct.",
+        "make smoke-app-verify passes.",
+        "The installed packaged app opens cleanly."
+      ],
+      "current_blocker": "The packaged app still needs Screen Recording permission for com.opscinema.desktop.",
+      "prerequisite_type": "macOS permission",
+      "exact_next_action": [
+        "Grant Screen Recording to com.opscinema.desktop in Privacy & Security.",
+        "Relaunch the packaged app.",
+        "Rerun the packaged smoke checklist covering Start Handoff Session, Apply Step Edit (Retry), export creation, and relaunch persistence."
+      ],
+      "minimum_verification": [
+        "The full packaged-app smoke checklist passes once after permission is granted."
+      ],
+      "user_input_needed": [
+        "Manual Screen Recording grant for com.opscinema.desktop"
+      ],
+      "done_signal": "The packaged-app happy path runs end to end with export creation and relaunch persistence intact."
+    },
+    {
+      "project": "TicketDocumentation",
+      "already_proven": [
+        "pnpm build, pnpm test, and cargo check already pass.",
+        "The app now launches.",
+        "Screen Recording and Ollama are already satisfied in the live app state."
+      ],
+      "current_blocker": "The final runtime closeout is still incomplete because monitoring has not been started and the end-to-end documentation-generation flow has not been closed from the app.",
+      "prerequisite_type": "runtime service",
+      "exact_next_action": [
+        "Relaunch the app.",
+        "Complete the onboarding step that starts monitoring.",
+        "Confirm activity capture begins.",
+        "Run one documentation-generation happy path against the live local model."
+      ],
+      "minimum_verification": [
+        "onboarding_completed flips true.",
+        "Activity rows begin to appear.",
+        "One documentation result is generated successfully from the live app flow."
+      ],
+      "user_input_needed": [
+        "One manual in-app monitoring start/onboarding completion if automation still cannot reliably reach the final control"
+      ],
+      "done_signal": "The first full runtime pass succeeds: onboarding completes, monitoring records activity, and documentation generation returns output from the live model."
+    }
+  ],
+  "execution_order": [
+    "OPscinema",
+    "TicketDocumentation",
+    "TicketHandoff",
+    "PersonalKBDrafter",
+    "SlackIncidentBot"
+  ],
+  "blockers": [
+    "OPscinema is blocked only by Screen Recording permission for com.opscinema.desktop.",
+    "TicketDocumentation is blocked only by the final onboarding and monitoring start plus one live documentation-generation pass.",
+    "TicketHandoff is blocked by a missing saved api_config row and missing com.tickethandoff.jira keychain item.",
+    "PersonalKBDrafter is blocked by missing kb-drafter-jira and kb-drafter-confluence credentials plus empty local app state.",
+    "SlackIncidentBot is blocked by missing .env/runtime vars and unavailable Docker/PostgreSQL runtime."
+  ],
+  "done_definition": [
+    "GPT_RAG, SnippetLibrary, and Nexus remain green on their existing bucket-closure proofs.",
+    "OPscinema passes the packaged-app smoke checklist after Screen Recording is granted to com.opscinema.desktop.",
+    "TicketDocumentation completes onboarding, starts monitoring, records activity, and generates one documentation result with the live local model.",
+    "TicketHandoff completes one live Jira-backed handoff using saved local config and keychain credentials.",
+    "PersonalKBDrafter completes one Jira-to-Confluence drafting run using saved credentials and seeded local app state.",
+    "SlackIncidentBot boots with real config, reaches PostgreSQL, and completes one live Slack-triggered happy path.",
+    "docs/followup-env-local.md and docs/followup-env-local-summary.json describe the same verified bucket state."
+  ]
+}

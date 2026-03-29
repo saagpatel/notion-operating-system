@@ -1,0 +1,10 @@
+{
+  "destinationAlias": "build_log",
+  "inputFile": "examples/content/build-log.md",
+  "dryRun": true,
+  "propertyOverrides": {
+    "Tags": [
+      "Documentation"
+    ]
+  }
+}

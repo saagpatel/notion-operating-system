@@ -1,0 +1,159 @@
+{
+  "source_batches": [
+    "audit-batch-1",
+    "audit-batch-2",
+    "audit-batch-3"
+  ],
+  "verified_complete": [
+    "ComplianceKit",
+    "ShipKit",
+    "compliance-suite"
+  ],
+  "remaining_findings": [
+    {
+      "category": "governance_gap",
+      "items": [
+        "SpecCompanion"
+      ]
+    },
+    {
+      "category": "governance_after_decision",
+      "items": [
+        "DeepTank"
+      ]
+    },
+    {
+      "category": "governance_policy_exception",
+      "items": [
+        "job-search-2026"
+      ],
+      "note": "Keep exempt from the GitHub action-request lane unless intentionally reopened as an active automation or code lane."
+    },
+    {
+      "category": "archive_or_merge_posture",
+      "items": [
+        "ContentEngine",
+        "FreeLanceInvoice",
+        "StatusPage",
+        "SynthWave",
+        "TerraSynth",
+        "PixelForge",
+        "DeepTank"
+      ]
+    },
+    {
+      "category": "canonical_local_surface_cleanup",
+      "items": [
+        "knowledgecore",
+        "IncidentWorkbench",
+        "PersonalKBDrafter",
+        "ScreenshotAnnotate",
+        "ContentEngine",
+        "FreeLanceInvoice",
+        "SynthWave",
+        "DevToolsTranslator",
+        "GPT_RAG",
+        "JobCommandCenter",
+        "Phantom Frequencies",
+        "Recall",
+        "ApplyKit",
+        "AuraForge",
+        "IncidentReview",
+        "SpecCompanion",
+        "DesktopPEt",
+        "CryptForge",
+        "OrbitForge (staging)",
+        "TerraSynth",
+        "PixelForge",
+        "Nexus",
+        "SlackIncidentBot",
+        "SmartClipboard",
+        "TicketDashboard",
+        "prompt-englab",
+        "SnippetLibrary"
+      ]
+    },
+    {
+      "category": "dependency_baseline_recovery",
+      "items": [
+        "SpecCompanion",
+        "Chronomap",
+        "Echolocate",
+        "OrbitForge (staging)",
+        "AIGCCore",
+        "Construction",
+        "DatabaseSchema",
+        "LegalDocsReview",
+        "RealEstate",
+        "SmartClipboard",
+        "TicketDashboard",
+        "TicketDocumentation"
+      ]
+    },
+    {
+      "category": "pr_and_workflow_noise_triage",
+      "items": [
+        "knowledgecore",
+        "EarthPulse",
+        "ContentEngine",
+        "AssistSupport",
+        "IncidentMgmt",
+        "visual-album-studio",
+        "PixelForge",
+        "TicketHandoff",
+        "SlackIncidentBot",
+        "WorkdayDebrief"
+      ]
+    },
+    {
+      "category": "finish_proof_and_manual_validation",
+      "items": [
+        "AIWorkFlow",
+        "ModelColosseum",
+        "Conductor",
+        "SignalDecay",
+        "SignalFlow",
+        "prompt-englab",
+        "PomGambler-prod",
+        "OPscinema",
+        "Nexus",
+        "TicketHandoff",
+        "WorkdayDebrief"
+      ]
+    }
+  ],
+  "conflicts": [
+    "No live conflict remains on wrong-database placement; all 61 in-scope titles exist in Local Portfolio Projects and zero exact-title matches remain in Project Portfolio.",
+    "No live conflict remains on active placeholder cleanup; zero active non-repo placeholder sources remain across the in-scope set.",
+    "The generic missing-lane rule should exempt merge/reference rows OrbitForge and PomGambler while they remain parked with Merged Into set.",
+    "AI Workflow Accelerator remains an unresolved near-match in Project Portfolio, not a proven duplicate of AIWorkFlow.",
+    "Batch 1 verified_complete should be read as remediation-complete in the operating system, not necessarily fully shipped."
+  ],
+  "systemic_issues": [
+    "Local repo fragmentation remains the largest portfolio-wide risk.",
+    "Missing dependency baselines block stronger verification across multiple JavaScript and frontend-heavy projects.",
+    "PR and workflow noise still obscures readiness on several otherwise-healthy finish lanes.",
+    "A smaller set of archive, merge, and product decisions still prevents clean portfolio closure."
+  ],
+  "master_execution_order": [
+    "Governance and policy exceptions: job-search-2026, SpecCompanion, DeepTank, AIWorkFlow near-match review.",
+    "Archive and merge normalization: ContentEngine, FreeLanceInvoice, StatusPage, SynthWave, TerraSynth, PixelForge.",
+    "Canonical local repo cleanup across the duplicate-surface and dirty-tree group spanning batches 1-3.",
+    "Dependency restore and blocked verification across the 12-project dependency-baseline group.",
+    "PR and workflow triage on the highest-noise active projects.",
+    "Finish-proof and polish on the near-finish group once hygiene and dependencies are stable."
+  ],
+  "blockers": [
+    "DeepTank still has no recorded merge target.",
+    "AI Workflow Accelerator still needs manual identity confirmation before any duplicate cleanup.",
+    "Repo cleanup must preserve existing user work across dirty trees outside this workspace.",
+    "Missing dependency installs still block stronger verification on the dependency-baseline group."
+  ],
+  "done_definition": [
+    "docs/audit-master.md and docs/audit-master-summary.json exist and reflect the same merged state.",
+    "All 61 in-scope projects remain correctly housed in Local Portfolio Projects with zero exact-title duplicates in Project Portfolio.",
+    "No active stale placeholder or non-repo source remains, and each executable lane has exactly one active repo source.",
+    "OrbitForge and PomGambler remain explicit merge/reference exceptions unless a later decision reactivates them as separate execution lanes.",
+    "The only remaining open items are real project execution blockers or explicitly documented policy decisions, not portfolio-data drift."
+  ]
+}

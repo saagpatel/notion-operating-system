@@ -1,0 +1,272 @@
+{
+  "source_batches": [
+    "audit-master-summary.json",
+    "fix-plan-batch-01-summary.json",
+    "fix-plan-batch-02-summary.json",
+    "fix-plan-batch-03-summary.json",
+    "fix-plan-batch-04-summary.json",
+    "fix-plan-batch-05-summary.json",
+    "fix-plan-batch-06-summary.json",
+    "fix-plan-batch-07-summary.json",
+    "fix-plan-batch-08-summary.json",
+    "fix-plan-batch-09-summary.json",
+    "fix-plan-batch-10-summary.json",
+    "fix-plan-audit-gap-followup-2026-03-24-summary.json",
+    "followup-env-local-summary.json",
+    "followup-github-governance-summary.json",
+    "followup-mixed-local-github-summary.json",
+    "followup-opscinema-implementation-summary.json",
+    "followup-mixed-local-github-implementation-summary.json",
+    "followup-github-governance-implementation-summary.json"
+  ],
+  "remaining_fixes": [
+    {
+      "project": "PersonalKBDrafter",
+      "source_batch": "followup-env-local-summary.json",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "Repo surface is normalized.",
+        "npm run check:prereqs, npm run lint, npm run build, and cargo test already pass."
+      ],
+      "remaining_work": [
+        "Save the Jira and Confluence credentials in the expected keychain items.",
+        "Seed one usable local settings row and one draftable article row.",
+        "Run one real Jira-to-Confluence drafting happy path."
+      ],
+      "blockers": [
+        "Saved kb-drafter-jira and kb-drafter-confluence credentials are still missing.",
+        "The local app state is still empty."
+      ],
+      "execution_group": "environment_and_runtime_prerequisites"
+    },
+    {
+      "project": "SlackIncidentBot",
+      "source_batch": "followup-env-local-summary.json",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "Repo cleanup is complete.",
+        "Local library proof is already green."
+      ],
+      "remaining_work": [
+        "Populate .env with the real Slack and PostgreSQL settings.",
+        "Bring up Docker and PostgreSQL or equivalent local runtime services.",
+        "Run one live Slack-triggered happy path against the configured database."
+      ],
+      "blockers": [
+        "The .env file is still missing.",
+        "Required Slack/PostgreSQL environment variables are still absent.",
+        "Docker is still unavailable."
+      ],
+      "execution_group": "environment_and_runtime_prerequisites"
+    },
+    {
+      "project": "TicketHandoff",
+      "source_batch": "followup-env-local-summary.json",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "Earlier dependency cleanup and backend proof were already complete.",
+        "Frontend baseline is restored.",
+        "npm test -- --run and npm run build already pass."
+      ],
+      "remaining_work": [
+        "Seed one valid Jira config row into the local app database.",
+        "Save one Jira credential in the expected keychain item.",
+        "Run one live Jira-backed handoff happy path."
+      ],
+      "blockers": [
+        "The local app database still has no saved api_config row.",
+        "The macOS keychain still has no com.tickethandoff.jira item."
+      ],
+      "execution_group": "environment_and_runtime_prerequisites"
+    },
+    {
+      "project": "OPscinema",
+      "source_batch": "followup-opscinema-implementation-summary.json",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "The packaged app now launches without the immediate false-permission stop.",
+        "A real packaged Start Handoff Session succeeded through capture, OCR, tutorial generation, and export creation.",
+        "The packaged app identity is stabilized at com.opscinema.desktop and make smoke-app-verify passes."
+      ],
+      "remaining_work": [
+        "Confirm and fix why a late Screen Recording prompt can still reappear after the successful packaged export flow.",
+        "Prove Apply Step Edit (Retry) end to end on a successful packaged session.",
+        "Prove relaunch persistence for the completed packaged session and export state."
+      ],
+      "blockers": [
+        "Post-export packaged smoke behavior is not fully stable or persistent yet."
+      ],
+      "execution_group": "opscinema_closeout"
+    },
+    {
+      "project": "TicketDocumentation",
+      "source_batch": "followup-env-local-summary.json",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "pnpm build, pnpm test, and cargo check already pass.",
+        "The app now launches.",
+        "Screen Recording and Ollama are already satisfied in the live app state."
+      ],
+      "remaining_work": [
+        "Relaunch the app.",
+        "Complete the onboarding step that starts monitoring.",
+        "Confirm activity capture begins.",
+        "Run one documentation-generation happy path against the live local model."
+      ],
+      "blockers": [
+        "The final runtime closeout is still incomplete because monitoring has not been started.",
+        "The documentation-generation flow has not been fully closed from the app."
+      ],
+      "execution_group": "environment_and_runtime_prerequisites"
+    },
+    {
+      "project": "DevToolsTranslator",
+      "source_batch": "followup-github-governance-implementation-summary.json",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "SESSION-PLAN.md was resolved as ignored scratch.",
+        "Recent release-extension-stage-controller runs on main succeeded on 2026-03-23 and 2026-03-24.",
+        "The governed issue text was reconciled to current release-readiness reality.",
+        "The scoped Notion refresh already completed.",
+        "Local perf gate proof passed on 2026-03-24."
+      ],
+      "remaining_work": [
+        "Add the missing manual Chrome sign-off marker.",
+        "Generate the missing internal-beta and chrome-store-public release manifests for 0.1.0-beta.14.",
+        "Provide the required Chrome Web Store credentials.",
+        "Provide the updater-signature input for staged public prerelease promotion.",
+        "Close the governed issue once the active release-readiness slice is no longer open."
+      ],
+      "blockers": [
+        "Issue #1 remains open because the manual smoke marker is still missing in docs/PHASE6_SMOKE_EVIDENCE.md.",
+        "Issue #1 remains open because the staged-public promotion readiness check still reports missing release manifests for 0.1.0-beta.14.",
+        "Issue #1 remains open because Chrome Web Store credentials are still missing.",
+        "Issue #1 remains open because the updater-signature input is still missing for the staged public prerelease flow."
+      ],
+      "execution_group": "github_workflow_governance"
+    },
+    {
+      "project": "JobCommandCenter",
+      "source_batch": "followup-github-governance-implementation-summary.json",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "The stale lockfile mismatch was repaired and npm run build now passes.",
+        "The Python sidecar dry-run path was verified end to end.",
+        "PR #2 was closed and issue #3 was rewritten as the active finish slice.",
+        "The scoped Notion refresh already completed."
+      ],
+      "remaining_work": [
+        "Run a real 5-job batch and capture evidence.",
+        "Document LinkedIn bot-detection behavior well enough to remove the current uncertainty.",
+        "Revisit the default-branch posture only after finish validation evidence exists.",
+        "Close issue #3 when the finish slice is complete."
+      ],
+      "blockers": [
+        "Issue #3 remains open because real 5-job batch evidence is still missing.",
+        "Issue #3 remains open because LinkedIn bot-detection behavior is still not documented well enough to remove uncertainty.",
+        "Issue #3 remains open because the current default-branch posture should stay intentional until finish-validation evidence exists."
+      ],
+      "execution_group": "github_workflow_governance"
+    }
+  ],
+  "master_execution_order": [
+    {
+      "step": 1,
+      "name": "freeze_completed_set",
+      "projects": [
+        "SpecCompanion",
+        "DeepTank",
+        "AIWorkFlow",
+        "AI Workflow Accelerator",
+        "job-search-2026",
+        "OrbitForge",
+        "PomGambler",
+        "SynthWave",
+        "TerraSynth",
+        "PixelForge",
+        "knowledgecore",
+        "IncidentWorkbench",
+        "Phantom Frequencies",
+        "Recall",
+        "ApplyKit",
+        "AuraForge",
+        "IncidentReview",
+        "DesktopPEt",
+        "OrbitForge (staging)",
+        "SmartClipboard",
+        "TicketDashboard",
+        "Chronomap",
+        "Echolocate",
+        "DatabaseSchema",
+        "LegalDocsReview",
+        "EarthPulse",
+        "AssistSupport",
+        "IncidentMgmt",
+        "visual-album-studio",
+        "SignalDecay",
+        "Conductor",
+        "WorkdayDebrief",
+        "ModelColosseum",
+        "SignalFlow",
+        "PomGambler-prod",
+        "GPT_RAG",
+        "SnippetLibrary",
+        "Nexus",
+        "FreeLanceInvoice",
+        "StatusPage",
+        "ContentEngine",
+        "CryptForge",
+        "Construction",
+        "RealEstate",
+        "ScreenshotAnnotate",
+        "prompt-englab",
+        "AIGCCore"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "environment_and_runtime_prerequisites",
+      "projects": [
+        "TicketDocumentation",
+        "TicketHandoff",
+        "PersonalKBDrafter",
+        "SlackIncidentBot"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "opscinema_closeout",
+      "projects": [
+        "OPscinema"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "github_workflow_governance",
+      "projects": [
+        "JobCommandCenter",
+        "DevToolsTranslator"
+      ]
+    },
+    {
+      "step": 5,
+      "name": "final_consolidation_pass",
+      "projects": []
+    }
+  ],
+  "blockers": [
+    "Several remaining items now depend on real credentials, saved app state, macOS permissions, or runtime services rather than code cleanup alone.",
+    "OPscinema is no longer blocked at first launch or first capture, but the packaged smoke flow is still not fully stable or persistent after export.",
+    "DevToolsTranslator still depends on clearing or replacing the active release-readiness blocker slice tracked in GitHub issue #1.",
+    "JobCommandCenter still depends on finish-validation evidence before its intentional default-branch posture can be re-evaluated and issue #3 can close.",
+    "Historical failed-workflow counts should stay historical unless the newest blocker text still points to them directly as the current issue."
+  ],
+  "done_definition": [
+    "docs/fix-plan-master.md and docs/fix-plan-master-summary.json both exist and describe the same merged state.",
+    "Every project from the 10 fix-plan batch summaries appears exactly once in either the markdown completed list or the JSON remaining_fixes array.",
+    "Nexus and TicketDocumentation are no longer treated as uncovered audit gaps; they are represented through dedicated follow-up coverage, and only TicketDocumentation remains active.",
+    "The current unresolved set is exactly these 7 projects: PersonalKBDrafter, SlackIncidentBot, TicketHandoff, OPscinema, TicketDocumentation, DevToolsTranslator, JobCommandCenter.",
+    "Completed or preserved projects do not reappear in the JSON remaining-fix payload.",
+    "Any future implementation pass refreshes from the latest batch and follow-up artifacts only, resolves summary conflicts, performs only the minimum verification needed, and rewrites the two master artifacts to the final post-implementation state."
+  ]
+}

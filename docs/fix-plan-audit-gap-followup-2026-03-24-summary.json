@@ -1,0 +1,76 @@
+{
+  "batch": "fix-plan-audit-gap-followup-2026-03-24",
+  "source_batches": [
+    "audit-master-summary.json",
+    "audit-batch-3.md",
+    "audit-batch-3-summary.json",
+    "fix-plan-master.md",
+    "fix-plan-master-summary.json"
+  ],
+  "remaining_fixes": [
+    {
+      "project": "Nexus",
+      "source_batch": "fix-plan-audit-gap-followup-2026-03-24",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "Audit-batch-3 evidence shows the operating row is corrected to Ready for Review / Finish.",
+        "Only one active repo source remains."
+      ],
+      "completed_in_this_pass": [
+        "Reconciled the dirty local branch with origin/main without dropping the in-progress worktree changes.",
+        "Restored the local dependency install baseline so finish-review commands could run.",
+        "Confirmed that pnpm typecheck and pnpm test pass on the reconciled branch."
+      ],
+      "remaining_work": [
+        "Restore or replace the deleted desktop build scripts in the active worktree.",
+        "Rerun pnpm test:e2e:smoke from the dirty branch before any completion call."
+      ],
+      "blockers": [
+        "pnpm test:e2e:smoke still fails because scripts/build/build-main.mjs, scripts/build/build-preload.mjs, and scripts/build/build-renderer-electron.mjs are missing from the dirty branch."
+      ],
+      "verification": [
+        "pnpm typecheck",
+        "pnpm test",
+        "pnpm test:e2e:smoke (fails on missing desktop build scripts)"
+      ],
+      "execution_group": "runtime_manual_finish_review"
+    },
+    {
+      "project": "TicketDocumentation",
+      "source_batch": "fix-plan-audit-gap-followup-2026-03-24",
+      "status": "remaining",
+      "completed_in_prior_batches": [
+        "Audit-batch-3 evidence shows the canonical repo lane and telemetry are clean.",
+        "The operating row is already corrected to Active Build / Build Now."
+      ],
+      "completed_in_this_pass": [
+        "Restored the frontend dependency baseline with pnpm install and updated the lockfile to match the declared package set.",
+        "Confirmed that pnpm build and pnpm test pass after the dependency restore.",
+        "Confirmed that cargo check --manifest-path src-tauri/Cargo.toml passes after the Tauri dependency restore."
+      ],
+      "remaining_work": [
+        "Run the real Tauri onboarding and monitoring happy path with macOS permissions enabled.",
+        "Validate documentation generation against a live Ollama model and capture the first product-level blocker if one appears."
+      ],
+      "blockers": [
+        "No code-level blocker surfaced in the first post-setup verification pass; the next real blocker is inferred runtime validation of the onboarding, monitoring, and documentation-generation flow with real permissions and a live Ollama model."
+      ],
+      "verification": [
+        "pnpm install",
+        "pnpm build",
+        "pnpm test",
+        "cargo check --manifest-path src-tauri/Cargo.toml"
+      ],
+      "execution_group": "runtime_manual_finish_review"
+    }
+  ],
+  "blockers": [
+    "Nexus still has an app-level smoke blocker on the dirty branch even after branch reconciliation.",
+    "TicketDocumentation no longer has a setup blocker; the next meaningful proof requires real runtime validation."
+  ],
+  "done_definition": [
+    "The follow-up packet gives Nexus and TicketDocumentation dedicated fix-plan coverage without rerunning the repo-wide audit.",
+    "The master fix-plan artifacts remain unchanged in this pass and can be refreshed later in a dedicated consolidation run.",
+    "Both projects remain explicit until they are no longer open execution gaps."
+  ]
+}

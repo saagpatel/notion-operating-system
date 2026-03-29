@@ -1,0 +1,34 @@
+{
+  "batch": "batch-10",
+  "projects": [
+    "WorkdayDebrief",
+    "ModelColosseum",
+    "Conductor",
+    "SignalDecay",
+    "SignalFlow",
+    "OPscinema",
+    "PomGambler-prod"
+  ],
+  "verified_complete": [
+    "SignalDecay",
+    "Conductor",
+    "WorkdayDebrief",
+    "ModelColosseum",
+    "SignalFlow",
+    "PomGambler-prod"
+  ],
+  "projects_with_findings": [
+    "OPscinema"
+  ],
+  "execution_order": [
+    "OPscinema"
+  ],
+  "blockers": [
+    "OPscinema: macOS Screen Recording permission is still missing for com.opscinema.desktop, so the packaged-app happy path cannot complete until Privacy & Security access is granted."
+  ],
+  "done_definition": [
+    "OPscinema is granted Screen Recording permission for com.opscinema.desktop and then passes the packaged-app smoke checklist end to end.",
+    "The other six batch-10 projects remain complete on the audited surfaces unless new drift appears.",
+    "The markdown and JSON batch-10 records stay aligned with the verified state."
+  ]
+}

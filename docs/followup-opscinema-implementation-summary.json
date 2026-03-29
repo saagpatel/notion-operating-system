@@ -1,0 +1,50 @@
+{
+  "bucket": "opscinema-implementation",
+  "projects": ["OPscinema"],
+  "verified_complete": [],
+  "projects_with_findings": [
+    {
+      "project": "OPscinema",
+      "completed_in_this_pass": [
+        "Confirmed from user evidence that OpsCinema Suite.app was already enabled in macOS Privacy & Security and moved the investigation into app-side behavior.",
+        "Stabilized the packaged local-smoke app identity by signing the installed app with the designated requirement identifier \"com.opscinema.desktop\".",
+        "Changed the permissions screen path so it reads Screen Recording status without triggering a real capture probe on launch.",
+        "Replaced the failing helper and CLI keyframe capture path with an in-process macOS capture path that produces PNG bytes inside the app process.",
+        "Adjusted OCR provider bbox parsing so slight edge overflow no longer fails the full packaged OCR stage.",
+        "Rebuilt, reinstalled, reopened, and smoke-ran the packaged app until Start Handoff Session completed through export creation."
+      ],
+      "remaining_open_items": [
+        "Confirm and fix why a late Screen Recording prompt can still reappear after the successful packaged export flow.",
+        "Prove Apply Step Edit (Retry) end to end on a successful packaged session.",
+        "Prove relaunch persistence for the completed packaged session and export state instead of only seeing the default permissions route on reopen."
+      ],
+      "verification": [
+        "make smoke-app-install completed for /Users/d/Applications/OpsCinema Suite.app.",
+        "make smoke-app-verify passed after the install-path signing fix.",
+        "codesign -dr - /Users/d/Applications/OpsCinema Suite.app reports designated => identifier \"com.opscinema.desktop\".",
+        "cargo check -p opscinema_desktop_backend --features runtime passed after the capture-path change.",
+        "cargo test -p opscinema_desktop_backend phase0_capture_permission_denied_has_action_hint -- --nocapture passed.",
+        "cargo test -p opscinema_desktop_backend phase0_runtime_smoke_build_info_and_session_roundtrip -- --nocapture passed.",
+        "cargo test -p opscinema_desktop_backend clamps_provider_bbox_to_normalized_bounds -- --nocapture passed.",
+        "cargo test -p opscinema_desktop_backend rejects_invalid_provider_schema -- --nocapture passed.",
+        "A real packaged Start Handoff Session succeeded through capture, OCR, tutorial generation, and export creation.",
+        "The latest packaged export was written to /tmp/opscinema-ui-export with manifest.json, tutorial.json, and player/index.html."
+      ],
+      "blockers": [
+        "Post-export packaged smoke behavior is not fully stable or persistent yet: the main flow now exports successfully, but a late Screen Recording prompt can still reappear and the pass does not yet contain clean proof for Apply Step Edit (Retry) plus relaunch persistence."
+      ]
+    }
+  ],
+  "execution_order": [
+    "Confirm and fix the late post-export Screen Recording prompt behavior.",
+    "Prove Apply Step Edit (Retry) on a successful packaged session.",
+    "Prove relaunch persistence for the completed packaged export session."
+  ],
+  "blockers": [
+    "Post-export packaged smoke behavior is not fully stable or persistent yet: the main flow now exports successfully, but a late Screen Recording prompt can still reappear and the pass does not yet contain clean proof for Apply Step Edit (Retry) plus relaunch persistence."
+  ],
+  "done_definition": [
+    "OPscinema is fully cleared when the packaged app completes and proves Start Handoff Session, Apply Step Edit (Retry), export creation, and relaunch persistence in one consistent state.",
+    "docs/followup-opscinema-implementation.md and docs/followup-opscinema-implementation-summary.json describe the same verified result from this implementation pass."
+  ]
+}

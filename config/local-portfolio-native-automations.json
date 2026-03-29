@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "playwright",
+    "fallback": "manual",
+    "notes": [
+      "Native database automations remain UI-driven, so the repo stores desired state and audit posture.",
+      "Phase 4 automations are notification-only and explicitly non-canonical.",
+      "No automation may mutate derived PM fields, recommendation fields, or execution state."
+    ]
+  },
+  "automations": [
+    {
+      "key": "projectReviewReminder",
+      "name": "Project Review Reminder",
+      "databaseKey": "projects",
+      "recurring": true,
+      "cadenceLabel": "Recurring review reminder",
+      "nonCanonical": true,
+      "reminderTarget": "Default owner",
+      "triggerSummary": "Notify when Next Review Date is due or overdue for Local Portfolio Projects.",
+      "allowedActions": [
+        "Send a native in-Notion reminder",
+        "Point the owner at the relevant filtered view"
+      ],
+      "forbiddenActions": [
+        "Edit derived PM fields",
+        "Advance project state automatically",
+        "Trigger chained automations"
+      ]
+    },
+    {
+      "key": "decisionRevisitReminder",
+      "name": "Decision Revisit Reminder",
+      "databaseKey": "decisions",
+      "recurring": true,
+      "cadenceLabel": "Recurring revisit reminder",
+      "nonCanonical": true,
+      "reminderTarget": "Decision owner",
+      "triggerSummary": "Notify when Revisit By is approaching for Project Decisions.",
+      "allowedActions": [
+        "Send a native in-Notion reminder",
+        "Link the owner back to the open decision record"
+      ],
+      "forbiddenActions": [
+        "Change decision status automatically",
+        "Write new decision rationale",
+        "Trigger a second automation"
+      ]
+    },
+    {
+      "key": "weeklyRunReviewReminder",
+      "name": "Weekly Run Review Reminder",
+      "databaseKey": "recommendationRuns",
+      "recurring": true,
+      "cadenceLabel": "Recurring weekly review reminder",
+      "nonCanonical": true,
+      "reminderTarget": "Weekly reviewer",
+      "triggerSummary": "Notify when a Weekly Portfolio recommendation run is still Draft.",
+      "allowedActions": [
+        "Send a native in-Notion reminder",
+        "Point the reviewer at the draft recommendation run"
+      ],
+      "forbiddenActions": [
+        "Publish a draft run automatically",
+        "Edit recommendation scores or lanes",
+        "Assume another automation already ran"
+      ]
+    }
+  ]
+}

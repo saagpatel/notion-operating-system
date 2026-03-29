@@ -1,0 +1,37 @@
+{
+  "batch": "batch-05",
+  "projects": [
+    "Phantom Frequencies",
+    "Recall",
+    "ApplyKit",
+    "AuraForge",
+    "IncidentReview"
+  ],
+  "verified_complete": [
+    "Phantom Frequencies",
+    "Recall"
+  ],
+  "projects_with_findings": [],
+  "execution_order": [
+    "Kept Phantom Frequencies and Recall unchanged because they were already clean on the audited batch surfaces.",
+    "Used the earlier batch-05 canonicalization, GitHub-lane cleanup, and Notion truth refresh for ApplyKit, AuraForge, and IncidentReview as the fixed baseline.",
+    "Validated ApplyKit's packet-detail, export, and local release-candidate slice with focused UI and native command checks.",
+    "Validated AuraForge's next publishable product slice with focused web smoke coverage while keeping dependency, perf, and automation work separate.",
+    "Validated IncidentReview by confirming no modified files remain outside docs/reference and closing the UI/report product-slice finding.",
+    "Rewrote the batch-05 markdown and JSON artifacts from the verified end state."
+  ],
+  "blockers": [
+    "No batch-05 blockers remain.",
+    "Follow-up only: ApplyKit schedule-only scorecard automation if it becomes a maintained operational surface.",
+    "Follow-up only: AuraForge dependency automation, perf-baseline maintenance, and wider workflow cleanup remain outside batch-05.",
+    "Follow-up only: IncidentReview release automation, dependency maintenance, mutation testing, and future generated-doc refreshes remain outside batch-05.",
+    "Historical failed-workflow counts may still appear in GitHub metrics until newer clean activity rolls them out of the recent window."
+  ],
+  "done_definition": [
+    "Phantom Frequencies and Recall remain clean on the audited batch surfaces.",
+    "ApplyKit, AuraForge, and IncidentReview continue from their canonical root repos only, with no duplicate active .batch surface.",
+    "All five titles remain correctly housed in Local Portfolio Projects with zero exact-title duplicates in Project Portfolio.",
+    "Each project keeps exactly one active GitHub repo source row and no Needs Mapping source row.",
+    "ApplyKit, AuraForge, and IncidentReview no longer have a remaining batch-05 product-slice finding; any future work is a separate maintenance or automation lane."
+  ]
+}

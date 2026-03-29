@@ -1,0 +1,41 @@
+{
+  "batch": "batch-04",
+  "projects": [
+    "PersonalKBDrafter",
+    "ScreenshotAnnotate",
+    "DevToolsTranslator",
+    "GPT_RAG",
+    "JobCommandCenter"
+  ],
+  "verified_complete": [],
+  "projects_with_findings": [
+    "PersonalKBDrafter",
+    "ScreenshotAnnotate",
+    "DevToolsTranslator",
+    "GPT_RAG",
+    "JobCommandCenter"
+  ],
+  "execution_order": [
+    "GPT_RAG",
+    "PersonalKBDrafter",
+    "JobCommandCenter",
+    "ScreenshotAnnotate",
+    "DevToolsTranslator",
+    "Re-audit the same five projects and rewrite both batch-04 artifacts from verified post-fix state"
+  ],
+  "blockers": [
+    "NOTION_TOKEN is missing in the current shell, so live Notion truth cannot be refreshed from this workspace yet.",
+    "PersonalKBDrafter manual happy-path proof still requires saved kb-drafter-jira and kb-drafter-confluence credentials plus non-empty local app settings.",
+    "GPT_RAG runtime proof still requires the local Ollama models qwen3-embedding:4b and qwen3:8b plus reranker dependencies and a reranker cache snapshot.",
+    "JobCommandCenter default-branch posture may be intentional and should still be treated as a decision, not auto-corrected blindly.",
+    "Pending or mismatched execution reconciliation may still require comparing Notion execution records with live GitHub issue or PR state before closing the lane-health findings."
+  ],
+  "done_definition": [
+    "All five projects still exist exactly once in Local Portfolio Projects and zero times in Project Portfolio.",
+    "Each project has one active canonical GitHub repo source, and any paused placeholders are clearly intentional and non-blocking.",
+    "Local repo surface is normalized in place for all five projects, with no ambiguous dirty or untracked state left in the active execution slice.",
+    "GitHub truth and Notion truth agree on PR posture, workflow posture, readiness state, and blocker text for each project.",
+    "The latest governed GitHub execution is reconciled for every project that currently shows Pending or material Mismatch status.",
+    "docs/fix-plan-batch-04.md and docs/fix-plan-batch-04-summary.json match the same verified batch state."
+  ]
+}

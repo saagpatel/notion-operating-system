@@ -1,0 +1,144 @@
+{
+  "bucket": "mixed-local-github",
+  "projects": [
+    "ContentEngine",
+    "FreeLanceInvoice",
+    "StatusPage",
+    "CryptForge",
+    "Construction",
+    "RealEstate"
+  ],
+  "verified_complete": [
+    "FreeLanceInvoice",
+    "StatusPage"
+  ],
+  "projects_with_findings": [
+    {
+      "project": "ContentEngine",
+      "already_completed_slice": [
+        "Batch-02 completed the export-and-settings hardening slice with focused Rust and frontend proof.",
+        "The broader release and docs closeout has already landed, so the remaining question is final merged-main proof rather than new product scope."
+      ],
+      "remaining_local_work": [
+        "None unless the current merged-main desktop-ci run exposes a real regression.",
+        "Do not reopen the product slice preemptively."
+      ],
+      "remaining_github_work": [
+        "Let the March 24, 2026 merged-main desktop-ci run finish.",
+        "If that run fails, fix only the surfaced issue and rerun that proof lane."
+      ],
+      "current_blocker": "The merged-main desktop-ci run is still in progress, so the finish lane is landed but not fully re-proven.",
+      "recommended_order": [
+        "Wait for the current merged-main desktop-ci result.",
+        "If it fails, do a targeted repair and rerun that proof.",
+        "Keep any later dependency noise in a separate hygiene pass."
+      ],
+      "minimum_verification": [
+        "The March 24, 2026 merged-main quality-gates run is already green.",
+        "The paired desktop-ci run for that same merge must also complete successfully."
+      ],
+      "done_signal": "PR #4 is merged, no open PR backlog remains, and the March 24, 2026 merged-main desktop-ci proof is green."
+    },
+    {
+      "project": "CryptForge",
+      "already_completed_slice": [
+        "Batch-07 established that origin is canonical, the current branch compares to origin/main, and local preflight passes.",
+        "The follow-up PR lane has been resolved and the Windows doctor-env fix is already merged."
+      ],
+      "remaining_local_work": [
+        "No required product work remains.",
+        "Keep the folder rename deferred unless there is a clearly lossless move window."
+      ],
+      "remaining_github_work": [
+        "Wait for fresh post-fix ci-nightly evidence on main.",
+        "Do not treat the March 22-23 failures as current product blockers, but do require one post-fix nightly or equivalent Windows smoke result."
+      ],
+      "current_blocker": "The latest completed ci-nightly evidence is still the pre-fix failure, so the merged Windows fix has not been re-proven by the scheduled lane yet.",
+      "recommended_order": [
+        "Get fresh ci-nightly or equivalent post-fix Windows proof.",
+        "Once that is green, explicitly defer the folder rename or perform it in a separate lossless move window.",
+        "Do not mix the folder move with workflow repair."
+      ],
+      "minimum_verification": [
+        "A green post-fix ci-nightly or equivalent Windows cross-platform smoke result.",
+        "Local npm run verify:preflight still passes.",
+        "Open PR count stays at zero."
+      ],
+      "done_signal": "The Windows nightly lane is green after the fix, no open PR debt remains, and the folder rename is either explicitly deferred or completed without risk."
+    },
+    {
+      "project": "Construction",
+      "already_completed_slice": [
+        "Batch-08 preserved the restored dependency baseline and cleared the original Dependabot backlog.",
+        "Later finish-lane CI fixes are already merged, so the remaining work is branch reconciliation rather than baseline recovery."
+      ],
+      "remaining_local_work": [
+        "Reconcile the preserved dirty branch onto origin/main without dropping local work.",
+        "Rerun the next finish-level verify slice from the reconciled branch."
+      ],
+      "remaining_github_work": [
+        "A new Dependabot PR #4 is open, but it should stay separate from the branch-reconciliation lane until the local branch is safe."
+      ],
+      "current_blocker": "The preserved dirty local branch is still behind origin/main, so fresh proof from the unreconciled branch would not count as a finish signal.",
+      "recommended_order": [
+        "Reconcile the dirty branch onto origin/main.",
+        "Capture fresh proof from the reconciled state.",
+        "Only after that, merge or close the new Dependabot PR #4 as separate hygiene."
+      ],
+      "minimum_verification": [
+        "Successful no-loss reconciliation onto origin/main.",
+        "Fresh proof from the reconciled branch.",
+        "Do not treat old dependency-lane workflow failures as active blockers unless a new current run fails."
+      ],
+      "done_signal": "The preserved branch is no longer behind origin/main, fresh reconciled-branch proof passes, and PR #4 is either resolved or intentionally left for separate future hygiene."
+    },
+    {
+      "project": "RealEstate",
+      "already_completed_slice": [
+        "Batch-08 preserved the restored dependency baseline, cleared the PR backlog, and reduced recent workflow noise to zero.",
+        "Later finish-lane merge proof is already green on main."
+      ],
+      "remaining_local_work": [
+        "Reconcile the preserved dirty branch onto origin/main without dropping local work.",
+        "Rerun the next finish-level verify slice from the reconciled branch."
+      ],
+      "remaining_github_work": [
+        "None active after the current bucket work.",
+        "Keep any new bot noise separate unless it becomes current and material."
+      ],
+      "current_blocker": "The preserved dirty local branch is still 4 commits behind origin/main, so current green main proof does not replace reconciled-branch proof.",
+      "recommended_order": [
+        "Reconcile the dirty branch onto origin/main.",
+        "Capture fresh proof from the reconciled state.",
+        "Keep the GitHub lane quiet while the local reconcile step happens."
+      ],
+      "minimum_verification": [
+        "Successful no-loss reconciliation onto origin/main.",
+        "Fresh proof from the reconciled branch.",
+        "Current green Quality and quality-gates runs on main are supporting evidence, not the final local-branch closeout."
+      ],
+      "done_signal": "The preserved branch is no longer behind origin/main, fresh reconciled-branch proof passes, and the repo stays at zero active PR and workflow noise."
+    }
+  ],
+  "execution_order": [
+    "ContentEngine: finish the one remaining merged-main proof check before reopening anything else.",
+    "Construction: reconcile the preserved dirty branch onto origin/main, then capture fresh proof before touching the new Dependabot PR.",
+    "RealEstate: reconcile the preserved dirty branch onto origin/main, then capture fresh proof.",
+    "CryptForge: get fresh post-fix nightly proof, then explicitly defer or safely perform the folder move in a separate lane.",
+    "Keep FreeLanceInvoice and StatusPage closed unless new evidence creates a genuinely new blocker."
+  ],
+  "blockers": [
+    "ContentEngine still has an unresolved merged-main desktop-ci proof run from March 24, 2026.",
+    "CryptForge still needs fresh post-fix ci-nightly evidence even though the fix is already merged.",
+    "Construction and RealEstate both require preserved-branch reconciliation before fresh proof can count.",
+    "Construction also has a new post-batch Dependabot PR #4 that should stay separate from the branch-reconciliation lane.",
+    "Historical failed-workflow counts from the source docs should stay historical unless the latest current run still points to the same blocker."
+  ],
+  "done_definition": [
+    "FreeLanceInvoice and StatusPage remain closed for this bucket because their completed slices are already proven and no active GitHub blocker remains.",
+    "ContentEngine is done when the March 24, 2026 merged-main desktop-ci run completes green, with no need to reopen product scope unless that run fails.",
+    "Construction is done when the preserved dirty branch is reconciled onto origin/main, fresh reconciled-branch proof passes, and the new PR #4 is then handled as separate hygiene.",
+    "RealEstate is done when the preserved dirty branch is reconciled onto origin/main and fresh reconciled-branch proof passes while the repo stays quiet.",
+    "CryptForge is done when the merged Windows nightly fix has fresh post-fix proof and the folder rename is explicitly deferred or completed in a separate lossless move."
+  ]
+}

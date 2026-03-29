@@ -1,0 +1,196 @@
+{
+  "batch": "audit-batch-2",
+  "projects": [
+    {
+      "name": "AIWorkFlow",
+      "status": "finding",
+      "summary": "Control-tower truth is current, but production deployment and launch polish still block a fully set state."
+    },
+    {
+      "name": "AssistSupport",
+      "status": "finding",
+      "summary": "Stale placeholder support rows were paused, but the repo is still dirty and PR/workflow noise remains high."
+    },
+    {
+      "name": "IncidentMgmt",
+      "status": "finding",
+      "summary": "Row is normalized, but repo-title naming drift and release/workflow cleanup still remain."
+    },
+    {
+      "name": "ModelColosseum",
+      "status": "finding",
+      "summary": "Now correctly sits in Ready to Demo with the stale deployment row paused, but it still needs demo/polish follow-through."
+    },
+    {
+      "name": "SignalDecay",
+      "status": "finding",
+      "summary": "Placeholder deployment noise is paused, but the project is still at scaffold-stage maturity."
+    },
+    {
+      "name": "visual-album-studio",
+      "status": "finding",
+      "summary": "Row is accurate, but open PRs and failed workflows still keep the lane noisy."
+    },
+    {
+      "name": "ApplyKit",
+      "status": "finding",
+      "summary": "Support-lane cleanup is done in Notion, but the canonical repo is dirty and a duplicate .batch surface remains."
+    },
+    {
+      "name": "AuraForge",
+      "status": "finding",
+      "summary": "Row is accurate, but the root repo is still dirty and the duplicate .batch surface remains."
+    },
+    {
+      "name": "IncidentReview",
+      "status": "finding",
+      "summary": "Row is accurate, but the root repo is dirty, the .batch copy remains, and workflow noise is still high."
+    },
+    {
+      "name": "SpecCompanion",
+      "status": "finding",
+      "summary": "The row now matches reality, but the static gate is blocked by missing dependencies and a duplicate .batch repo still exists."
+    },
+    {
+      "name": "Chronomap",
+      "status": "finding",
+      "summary": "Blocker truth is now evidence-based; typecheck is still blocked by a missing dependency baseline."
+    },
+    {
+      "name": "Conductor",
+      "status": "finding",
+      "summary": "Moved into Active Build after a passing xcodebuild baseline, but the next finish slice is still undefined."
+    },
+    {
+      "name": "Echolocate",
+      "status": "finding",
+      "summary": "Blocker truth is now evidence-based; lint is still blocked by missing prettier and local dependencies."
+    },
+    {
+      "name": "OrbitForge",
+      "status": "finding",
+      "summary": "Base and staging are now explicitly differentiated, but duplicate local surfaces and staging-baseline follow-up remain."
+    },
+    {
+      "name": "TerraSynth",
+      "status": "finding",
+      "summary": "Archive posture is normalized, but the local repo is still dirty."
+    },
+    {
+      "name": "CryptForge",
+      "status": "finding",
+      "summary": "Row is current, but whitespace path, legacy-origin upstream naming, and PR/workflow noise still need cleanup."
+    },
+    {
+      "name": "DeepTank",
+      "status": "finding",
+      "summary": "The row now correctly shows a decision-needed merge posture, but no merge target is captured."
+    },
+    {
+      "name": "DesktopPEt",
+      "status": "finding",
+      "summary": "Row is current, but legacy-origin upstream naming and the DesktopPEt-ready duplicate surface still split local truth."
+    },
+    {
+      "name": "LoreKeeper",
+      "status": "finding",
+      "summary": "Stale support rows are safely paused, but the repo still lacks a configured upstream."
+    },
+    {
+      "name": "PixelForge",
+      "status": "finding",
+      "summary": "Archive posture is normalized, but the repo is still dirty and workflow noise remains."
+    }
+  ],
+  "verified_complete": [],
+  "projects_with_findings": [
+    "AIWorkFlow",
+    "AssistSupport",
+    "IncidentMgmt",
+    "ModelColosseum",
+    "SignalDecay",
+    "visual-album-studio",
+    "ApplyKit",
+    "AuraForge",
+    "IncidentReview",
+    "SpecCompanion",
+    "Chronomap",
+    "Conductor",
+    "Echolocate",
+    "OrbitForge",
+    "TerraSynth",
+    "CryptForge",
+    "DeepTank",
+    "DesktopPEt",
+    "LoreKeeper",
+    "PixelForge"
+  ],
+  "systemic_issues": [
+    "Notion/source hygiene is largely remediated, with remaining duplicate or historical source rows paused instead of active",
+    "Local repo truth is still fragmented across dirty codex branches, duplicate worktrees, and inconsistent upstream naming",
+    "Missing dependency baselines block stronger verification on SpecCompanion, Chronomap, Echolocate, and likely OrbitForge staging",
+    "PR and workflow noise still obscures readiness on several active projects",
+    "A few projects still need portfolio decisions, especially DeepTank merge targeting and duplicate local surface retirement"
+  ],
+  "execution_order": [
+    {
+      "group": "canonical-local-repo-cleanup",
+      "projects": [
+        "ApplyKit",
+        "AuraForge",
+        "IncidentReview",
+        "SpecCompanion",
+        "DesktopPEt",
+        "CryptForge"
+      ]
+    },
+    {
+      "group": "dependency-baseline-restore",
+      "projects": [
+        "SpecCompanion",
+        "Chronomap",
+        "Echolocate",
+        "OrbitForge"
+      ]
+    },
+    {
+      "group": "pr-and-workflow-hygiene",
+      "projects": [
+        "AssistSupport",
+        "IncidentMgmt",
+        "visual-album-studio",
+        "LoreKeeper"
+      ]
+    },
+    {
+      "group": "decision-and-archive-resolution",
+      "projects": [
+        "DeepTank",
+        "OrbitForge",
+        "TerraSynth",
+        "PixelForge"
+      ]
+    },
+    {
+      "group": "finish-and-polish-follow-through",
+      "projects": [
+        "AIWorkFlow",
+        "ModelColosseum",
+        "Conductor",
+        "SignalDecay"
+      ]
+    }
+  ],
+  "blockers": [
+    "Dirty worktrees and duplicate repo surfaces still require repo-by-repo cleanup that preserves existing user work",
+    "Missing dependency installs block stronger static verification on SpecCompanion, Chronomap, and Echolocate",
+    "DeepTank still has no confirmed merge target",
+    "AI Workflow Accelerator remains a fuzzy backlog near-match worth manual confirmation before any future duplicate cleanup"
+  ],
+  "done_definition": [
+    "The batch is done when operating truth is current even if project execution work remains",
+    "Each project has one current operating row, no active stale placeholder source row, one canonical active GitHub source row, and evidence-based blocker text",
+    "Those Notion-side audit and remediation conditions are now met for this batch",
+    "Separate repo cleanup, dependency restoration, and finish/archive decisions are still required before individual projects are fully set"
+  ]
+}

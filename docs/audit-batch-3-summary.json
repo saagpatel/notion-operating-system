@@ -1,0 +1,74 @@
+{
+  "batch": "audit-batch-3",
+  "projects": [
+    "AIGCCore",
+    "app",
+    "Construction",
+    "DatabaseSchema",
+    "LegalDocsReview",
+    "Nexus",
+    "OPscinema",
+    "PomGambler",
+    "PomGambler-prod",
+    "prompt-englab",
+    "RealEstate",
+    "SignalFlow",
+    "SlackIncidentBot",
+    "SmartClipboard",
+    "SnippetLibrary",
+    "TicketDashboard",
+    "TicketDocumentation",
+    "TicketHandoff",
+    "WorkdayDebrief"
+  ],
+  "verified_complete": [],
+  "projects_with_findings": [
+    "AIGCCore",
+    "app",
+    "Construction",
+    "DatabaseSchema",
+    "LegalDocsReview",
+    "Nexus",
+    "OPscinema",
+    "PomGambler",
+    "PomGambler-prod",
+    "prompt-englab",
+    "RealEstate",
+    "SignalFlow",
+    "SlackIncidentBot",
+    "SmartClipboard",
+    "SnippetLibrary",
+    "TicketDashboard",
+    "TicketDocumentation",
+    "TicketHandoff",
+    "WorkdayDebrief"
+  ],
+  "systemic_issues": [
+    "No exact-title placement errors remain; remaining work is project readiness rather than database placement.",
+    "Canonical source ownership is clean, but some projects still keep paused historical placeholder source rows.",
+    "Local git debt remains across the batch, including dirty trees, behind-main drift, and legacy-origin branch tracking.",
+    "No project in this batch is fully complete yet.",
+    "PomGambler is intentionally merged into PomGambler-prod and should not be treated as a separate active GitHub lane."
+  ],
+  "execution_order": [
+    "SignalFlow, prompt-englab, and TicketHandoff",
+    "SlackIncidentBot, WorkdayDebrief, and PomGambler-prod",
+    "Construction, RealEstate, and DatabaseSchema",
+    "LegalDocsReview, SmartClipboard, and TicketDashboard",
+    "TicketDocumentation, AIGCCore, and SnippetLibrary",
+    "app, OPscinema, Nexus, and PomGambler"
+  ],
+  "blockers": [
+    "No access or tooling blocker remains for this batch.",
+    "PomGambler would need a new explicit repo and source-lane split if it is ever reactivated separately from PomGambler-prod.",
+    "The remaining blockers are project-specific engineering work, manual validation, release review, and local git cleanup."
+  ],
+  "done_definition": [
+    "Both batch artifacts exist and match the final live state.",
+    "All 19 projects remain correctly housed in Local Portfolio Projects with zero exact-title duplicates in Project Portfolio.",
+    "Each GitHub-backed project has exactly one active canonical repo source row, and PomGambler remains explicitly merged into PomGambler-prod unless later reactivated separately.",
+    "TicketHandoff retains its active canonical repo source and WorkdayDebrief retains explicit build-session evidence.",
+    "GitHub-derived counts in the operating rows match live GitHub values at audit closeout.",
+    "The batch is fully complete only when the remaining project blockers are resolved or intentionally reclassified."
+  ]
+}

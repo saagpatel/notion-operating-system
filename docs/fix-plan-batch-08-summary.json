@@ -1,0 +1,38 @@
+{
+  "batch": "batch-08",
+  "projects": [
+    "AIGCCore",
+    "Construction",
+    "DatabaseSchema",
+    "LegalDocsReview",
+    "RealEstate"
+  ],
+  "verified_complete": [],
+  "projects_with_findings": [
+    "AIGCCore",
+    "Construction",
+    "RealEstate"
+  ],
+  "execution_order": [
+    "AIGCCore workflow repair was pushed to main and pnpm test now passes locally from the preserved baseline.",
+    "Construction Dependabot PR backlog was merged away; the remaining blocker is preserved branch drift 3 commits behind origin/main.",
+    "DatabaseSchema Dependabot PR backlog was closed and npm run verify:all now passes from the restored baseline.",
+    "LegalDocsReview Dependabot PR backlog was closed and the local lint, typecheck, and test stack now has fresh proof.",
+    "RealEstate Dependabot PR backlog was merged away; recent failed workflow noise is now zero and the remaining blocker is preserved branch drift 4 commits behind origin/main."
+  ],
+  "blockers": [
+    "AIGCCore still has a fresh codex-quality-security failure in dependency_and_misconfig during job setup and 5 recent failed workflow runs in the metric surface.",
+    "Construction still has a preserved dirty branch that is 3 commits behind origin/main.",
+    "RealEstate still has a preserved dirty branch that is 4 commits behind origin/main.",
+    "Dirty local work was intentionally preserved in all five repos, so future branch reconciliation must avoid dropping it.",
+    "Dependency-baseline recovery is already complete for all five repos and should not be re-opened unless new evidence proves it regressed."
+  ],
+  "done_definition": [
+    "Both batch-08 artifacts exist and stay aligned as the final post-implementation record for this scoped batch.",
+    "All five scoped projects remain correctly housed in Local Portfolio Projects with zero exact-title duplicates in Project Portfolio.",
+    "Each scoped project keeps exactly one active canonical repo source row, and RealEstate keeps only paused historical source rows beyond that active canonical row.",
+    "Dependency-baseline recovery remains explicitly complete for all five repos and is not re-solved as an open setup problem later.",
+    "DatabaseSchema and LegalDocsReview are complete on the batch-08 surfaces because their open PR backlog is cleared and fresh local proof now exists from the restored baseline.",
+    "The only remaining open items for batch-08 are the AIGCCore workflow-job fix plus branch-reconciliation follow-up for Construction and RealEstate."
+  ]
+}

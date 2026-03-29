@@ -1,0 +1,261 @@
+import "dotenv/config";
+
+import { Client } from "@notionhq/client";
+
+import { DirectNotionClient } from "./direct-notion-client.js";
+import {
+  applyDerivedSignals,
+  DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  loadLocalPortfolioControlTowerConfig,
+  saveLocalPortfolioControlTowerConfig,
+} from "./local-portfolio-control-tower.js";
+import {
+  calculateExecutionMetrics,
+  buildProjectExecutionContext,
+  mergeManagedSection,
+  renderExecutionBriefSection,
+  renderExecutionCommandCenterSection,
+} from "./local-portfolio-execution.js";
+import {
+  ensurePhase2ExecutionSchema,
+  toExecutionTaskRecord,
+  toProjectDecisionRecord,
+  toWorkPacketRecord,
+} from "./local-portfolio-execution-live.js";
+import {
+  loadLocalPortfolioExecutionViewPlan,
+  validateLocalPortfolioExecutionViewPlanAgainstSchemas,
+} from "./local-portfolio-execution-views.js";
+import {
+  fetchAllPages,
+  toBuildSessionRecord,
+  toControlTowerProjectRecord,
+} from "./local-portfolio-control-tower-live.js";
+import { AppError, toErrorMessage } from "../utils/errors.js";
+import { assertSafeReplacement, buildReplaceCommand } from "../utils/markdown.js";
+import { losAngelesToday } from "../utils/date.js";
+
+const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
+const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
+const EXECUTION_COMMAND_CENTER_START = "<!-- codex:notion-execution-command-center:start -->";
+const EXECUTION_COMMAND_CENTER_END = "<!-- codex:notion-execution-command-center:end -->";
+
+async function main(): Promise<void> {
+  try {
+    const token = process.env.NOTION_TOKEN?.trim();
+    if (!token) {
+      throw new AppError("NOTION_TOKEN is required for execution sync");
+    }
+
+    const flags = parseFlags(process.argv.slice(2));
+    const live = flags.live;
+    const today = flags.today ?? losAngelesToday();
+    const configPath =
+      process.argv[2]?.startsWith("--")
+        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
+        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+
+    const config = await loadLocalPortfolioControlTowerConfig(configPath);
+    if (!config.phase2Execution) {
+      throw new AppError("Control tower config is missing phase2Execution");
+    }
+    if (!config.commandCenter.pageId) {
+      throw new AppError("Control tower config is missing commandCenter.pageId");
+    }
+
+    const sdk = new Client({
+      auth: token,
+      notionVersion: "2026-03-11",
+    });
+    const api = new DirectNotionClient(token);
+
+    if (live) {
+      logLiveStage(live, "Ensuring Phase 2 schema");
+      await ensurePhase2ExecutionSchema(sdk, config);
+    }
+
+    logLiveStage(live, "Loading execution schemas");
+    const viewPlan = await loadLocalPortfolioExecutionViewPlan();
+    const [projectSchema, buildSchema, decisionsSchema, packetsSchema, tasksSchema] = await Promise.all([
+      api.retrieveDataSource(config.database.dataSourceId),
+      api.retrieveDataSource(config.relatedDataSources.buildLogId),
+      api.retrieveDataSource(config.phase2Execution.decisions.dataSourceId),
+      api.retrieveDataSource(config.phase2Execution.packets.dataSourceId),
+      api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId),
+    ]);
+
+    validateLocalPortfolioExecutionViewPlanAgainstSchemas(viewPlan, {
+      decisions: decisionsSchema,
+      packets: packetsSchema,
+      tasks: tasksSchema,
+    });
+
+    logLiveStage(live, "Fetching execution datasets");
+    const [projectPages, buildPages, decisionPages, packetPages, taskPages] = await Promise.all([
+      fetchAllPages(sdk, config.database.dataSourceId, projectSchema.titlePropertyName),
+      fetchAllPages(sdk, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
+      fetchAllPages(sdk, config.phase2Execution.decisions.dataSourceId, decisionsSchema.titlePropertyName),
+      fetchAllPages(sdk, config.phase2Execution.packets.dataSourceId, packetsSchema.titlePropertyName),
+      fetchAllPages(sdk, config.phase2Execution.tasks.dataSourceId, tasksSchema.titlePropertyName),
+    ]);
+
+    const projects = projectPages.map((page) => applyDerivedSignals(toControlTowerProjectRecord(page), config, today));
+    const buildSessions = buildPages.map((page) => toBuildSessionRecord(page));
+    const decisions = decisionPages.map((page) => toProjectDecisionRecord(page));
+    const packets = packetPages.map((page) => toWorkPacketRecord(page));
+    const tasks = taskPages.map((page) => toExecutionTaskRecord(page));
+    const metrics = calculateExecutionMetrics({
+      decisions,
+      packets,
+      tasks,
+      today,
+      config,
+    });
+
+    let changedProjectPages = 0;
+    if (live) {
+      logLiveStage(live, "Refreshing project execution briefs", { projectCount: projects.length });
+      for (const project of projects) {
+        logLoopProgress(live, "execution-sync", "Project brief", projects.indexOf(project) + 1, projects.length);
+        const context = buildProjectExecutionContext({
+          project,
+          decisions,
+          packets,
+          tasks,
+          buildSessions,
+          today,
+        });
+        const previous = await api.readPageMarkdown(project.id);
+        const nextMarkdown = mergeManagedSection(
+          previous.markdown,
+          renderExecutionBriefSection(context),
+          EXECUTION_BRIEF_START,
+          EXECUTION_BRIEF_END,
+        );
+
+        if (nextMarkdown !== previous.markdown.trim()) {
+          assertSafeReplacement(previous.markdown, nextMarkdown);
+          await api.patchPageMarkdown({
+            pageId: project.id,
+            command: "replace_content",
+            newMarkdown: buildReplaceCommand(nextMarkdown),
+          });
+          changedProjectPages += 1;
+        }
+      }
+
+      logLiveStage(live, "Refreshing execution command center");
+      const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId);
+      const nextCommandCenter = mergeManagedSection(
+        previousCommandCenter.markdown,
+        renderExecutionCommandCenterSection({
+          metrics,
+          decisions,
+          packets,
+          tasks,
+          projects,
+          today,
+        }),
+        EXECUTION_COMMAND_CENTER_START,
+        EXECUTION_COMMAND_CENTER_END,
+      );
+      if (nextCommandCenter !== previousCommandCenter.markdown.trim()) {
+        assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
+        await api.patchPageMarkdown({
+          pageId: config.commandCenter.pageId,
+          command: "replace_content",
+          newMarkdown: buildReplaceCommand(nextCommandCenter),
+        });
+      }
+
+      logLiveStage(live, "Persisting execution sync metrics");
+      await saveLocalPortfolioControlTowerConfig(
+        {
+          ...config,
+          phaseState: {
+            ...config.phaseState,
+          },
+          phase2Execution: {
+            ...config.phase2Execution,
+            baselineCapturedAt: config.phase2Execution.baselineCapturedAt ?? today,
+            baselineMetrics: config.phase2Execution.baselineMetrics ?? serializeExecutionMetrics(metrics),
+            lastSyncAt: today,
+            lastSyncMetrics: serializeExecutionMetrics(metrics),
+          },
+        },
+        configPath,
+      );
+    }
+
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          live,
+          changedProjectPages,
+          metrics,
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    console.error(toErrorMessage(error));
+    process.exitCode = 1;
+  }
+}
+
+function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
+  if (!live) {
+    return;
+  }
+
+  const suffix = details ? ` ${JSON.stringify(details)}` : "";
+  console.error(`[execution-sync] ${stage}${suffix}`);
+}
+
+function logLoopProgress(live: boolean, scope: string, label: string, index: number, total: number): void {
+  if (!live) {
+    return;
+  }
+  if (index === 1 || index === total || index % 10 === 0) {
+    console.error(`[${scope}] ${label} ${index}/${total}`);
+  }
+}
+
+function serializeExecutionMetrics(metrics: ReturnType<typeof calculateExecutionMetrics>): Record<string, number | string[]> {
+  return {
+    openDecisions: metrics.openDecisions,
+    nowPackets: metrics.nowPackets,
+    standbyPackets: metrics.standbyPackets,
+    blockedPackets: metrics.blockedPackets,
+    blockedTasks: metrics.blockedTasks,
+    overdueTasks: metrics.overdueTasks,
+    tasksCompletedThisWeek: metrics.tasksCompletedThisWeek,
+    packetsCompletedThisWeek: metrics.packetsCompletedThisWeek,
+    rolloverPackets: metrics.rolloverPackets,
+    projectsWithExecutionDrift: metrics.projectsWithExecutionDrift,
+    wipViolations: metrics.wipViolations,
+  };
+}
+
+function parseFlags(argv: string[]): { live: boolean; today?: string } {
+  let live = false;
+  let today: string | undefined;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const current = argv[index];
+    if (current === "--live") {
+      live = true;
+      continue;
+    }
+    if (current === "--today") {
+      today = argv[index + 1];
+      index += 1;
+    }
+  }
+
+  return { live, today };
+}
+
+void main();

@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "notion_mcp",
+    "fallback": "playwright",
+    "notes": [
+      "Use Notion MCP as the primary saved-view path for phase 3 intelligence databases.",
+      "Keep direct REST as the canonical path for schema, rows, markdown content, validation, and logs.",
+      "Only use Playwright if Notion MCP cannot complete the saved-view task."
+    ]
+  },
+  "collections": [
+    {
+      "key": "projects",
+      "database": {
+        "name": "Local Portfolio Projects",
+        "databaseUrl": "https://www.notion.so/1258652152454b6a81325eb988ec04d4",
+        "databaseId": "12586521-5245-4b6a-8132-5eb988ec04d4",
+        "dataSourceId": "7858b551-4ce9-4bc3-ad1d-07b187d7117b",
+        "destinationAlias": "local_portfolio_projects"
+      },
+      "views": [
+        {
+          "name": "Recommended Resume",
+          "viewId": "326c21f1-caf0-8155-afee-000c4d040b85",
+          "type": "table",
+          "purpose": "Show the strongest resume candidates with their current confidence.",
+          "configure": "FILTER \"Recommendation Lane\" = \"Resume\"; SORT BY \"Recommendation Score\" DESC; SHOW \"Name\", \"Recommendation Lane\", \"Recommendation Score\", \"Recommendation Confidence\", \"Recommendation Updated\", \"Next Move\""
+        },
+        {
+          "name": "Recommended Finish",
+          "viewId": "326c21f1-caf0-8109-87df-000cb25746c0",
+          "type": "table",
+          "purpose": "Surface the best finish-push candidates.",
+          "configure": "FILTER \"Recommendation Lane\" = \"Finish\"; SORT BY \"Recommendation Score\" DESC; SHOW \"Name\", \"Recommendation Lane\", \"Recommendation Score\", \"Recommendation Confidence\", \"Ship Readiness\", \"Effort to Ship\""
+        },
+        {
+          "name": "Investigate Now",
+          "viewId": "326c21f1-caf0-8104-ae49-000cf9817968",
+          "type": "table",
+          "purpose": "Keep high-value investigate candidates visible.",
+          "configure": "FILTER \"Recommendation Lane\" = \"Investigate\"; SORT BY \"Recommendation Score\" DESC; SHOW \"Name\", \"Recommendation Lane\", \"Recommendation Score\", \"Recommendation Confidence\", \"Current State\", \"Biggest Blocker\""
+        },
+        {
+          "name": "Defer Candidates",
+          "viewId": "326c21f1-caf0-81c1-b360-000c0c754fd4",
+          "type": "table",
+          "purpose": "Show projects that look like hold, archive, or merge candidates.",
+          "configure": "FILTER \"Recommendation Lane\" = \"Defer\"; SORT BY \"Recommendation Score\" DESC; SHOW \"Name\", \"Recommendation Lane\", \"Recommendation Score\", \"Momentum\", \"Evidence Freshness\", \"Setup Friction\""
+        },
+        {
+          "name": "Support Gaps",
+          "viewId": "326c21f1-caf0-8153-a598-000c8b6ab3d0",
+          "type": "table",
+          "purpose": "Highlight projects where recommendation confidence is low because support is thin.",
+          "configure": "FILTER \"Recommendation Confidence\" = \"Low\"; SORT BY \"Recommendation Updated\" DESC; SHOW \"Name\", \"Recommendation Lane\", \"Recommendation Confidence\", \"Related Research Count\", \"Supporting Skills Count\", \"Linked Tool Count\""
+        }
+      ]
+    },
+    {
+      "key": "recommendationRuns",
+      "database": {
+        "name": "Recommendation Runs",
+        "databaseUrl": "https://www.notion.so/9a512d863fcb496f88f1097cbf3afc70",
+        "databaseId": "9a512d86-3fcb-496f-88f1-097cbf3afc70",
+        "dataSourceId": "11bae136-7b7c-4f1e-8bf1-7f16ad9134f7",
+        "destinationAlias": "recommendation_runs"
+      },
+      "views": [
+        {
+          "name": "Latest Weekly",
+          "viewId": "326c21f1-caf0-8117-94ab-000c39e2dc1b",
+          "type": "table",
+          "purpose": "Keep the canonical weekly recommendation runs front and center.",
+          "configure": "FILTER \"Run Type\" = \"Weekly Portfolio\"; SORT BY \"Run Date\" DESC; SHOW \"Name\", \"Status\", \"Run Date\", \"Top Resume Project\", \"Top Finish Project\", \"Top Investigate Project\", \"Top Defer Project\""
+        },
+        {
+          "name": "Daily Focus",
+          "viewId": "326c21f1-caf0-81eb-9f80-000c4c53788c",
+          "type": "table",
+          "purpose": "Show the lighter daily-focus runs derived from the weekly steering state.",
+          "configure": "FILTER \"Run Type\" = \"Daily Focus\"; SORT BY \"Run Date\" DESC; SHOW \"Name\", \"Status\", \"Run Date\", \"Top Resume Project\", \"Summary\""
+        },
+        {
+          "name": "History",
+          "viewId": "326c21f1-caf0-81ba-a985-000c7c932828",
+          "type": "table",
+          "purpose": "Review recommendation-run history over time.",
+          "configure": "SORT BY \"Run Date\" DESC; SHOW \"Name\", \"Run Type\", \"Status\", \"Run Date\", \"Model Version\", \"Reviewer\", \"Reviewed On\""
+        }
+      ]
+    },
+    {
+      "key": "linkSuggestions",
+      "database": {
+        "name": "Link Suggestions",
+        "databaseUrl": "https://www.notion.so/a14f6e546773430aa35e9f4ae1d3eb88",
+        "databaseId": "a14f6e54-6773-430a-a35e-9f4ae1d3eb88",
+        "dataSourceId": "453cda16-4274-4ed6-8327-4dcffaaa1bdb",
+        "destinationAlias": "link_suggestions"
+      },
+      "views": [
+        {
+          "name": "Review Queue",
+          "viewId": "326c21f1-caf0-8193-8b14-000cd1c83f49",
+          "type": "table",
+          "purpose": "Keep proposed link suggestions in a single queue for review.",
+          "configure": "FILTER \"Status\" = \"Proposed\"; SORT BY \"Confidence Score\" DESC; SHOW \"Name\", \"Suggestion Type\", \"Local Project\", \"Confidence Score\", \"Suggested In Run\""
+        },
+        {
+          "name": "Accepted",
+          "viewId": "326c21f1-caf0-8178-a466-000cb3504d4c",
+          "type": "table",
+          "purpose": "Review the suggestions that improved live relations.",
+          "configure": "FILTER \"Status\" = \"Accepted\"; SORT BY \"Confidence Score\" DESC; SHOW \"Name\", \"Suggestion Type\", \"Local Project\", \"Confidence Score\", \"Review Notes\""
+        },
+        {
+          "name": "Rejected",
+          "viewId": "326c21f1-caf0-81ff-bf06-000c7718e9d8",
+          "type": "table",
+          "purpose": "Keep rejection memory visible so suggestions do not resurface blindly.",
+          "configure": "FILTER \"Status\" = \"Rejected\"; SORT BY \"Confidence Score\" DESC; SHOW \"Name\", \"Suggestion Type\", \"Local Project\", \"Confidence Score\", \"Review Notes\""
+        },
+        {
+          "name": "By Project",
+          "viewId": "326c21f1-caf0-81b5-8813-000c3559ff86",
+          "type": "table",
+          "purpose": "Review suggestion history in project context.",
+          "configure": "SORT BY \"Confidence Score\" DESC; SHOW \"Name\", \"Local Project\", \"Suggestion Type\", \"Status\", \"Confidence Score\", \"Suggested In Run\""
+        }
+      ]
+    }
+  ]
+}

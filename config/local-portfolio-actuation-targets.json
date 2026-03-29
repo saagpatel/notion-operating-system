@@ -1,0 +1,1120 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "repo_config",
+    "fallback": "manual_review",
+    "notes": [
+      "Use External Signal Sources as the canonical repo target resolver for Phase 8.",
+      "Keep GitHub-first actuation on a small allowlist until the deeper issue and PR-comment lane is proven.",
+      "Store target-safe defaults here instead of in Notion rows so the runner stays deterministic."
+    ]
+  },
+  "defaults": {
+    "allowedActions": [
+      "github.create_issue",
+      "github.update_issue",
+      "github.set_issue_labels",
+      "github.set_issue_assignees",
+      "github.add_issue_comment",
+      "github.comment_pull_request"
+    ],
+    "titlePrefix": "[Portfolio]",
+    "defaultLabels": [
+      "portfolio"
+    ],
+    "supportsIssueCreate": true,
+    "supportsPrComment": true
+  },
+  "targets": [
+    {
+      "title": "Portfolio Actuation Sandbox",
+      "sourceIdentifier": "saagpatel/portfolio-actuation-sandbox",
+      "sourceUrl": "https://github.com/saagpatel/portfolio-actuation-sandbox",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "IncidentMgmt",
+      "sourceIdentifier": "saagpatel/IncidentManagement",
+      "sourceUrl": "https://github.com/saagpatel/IncidentManagement",
+      "localProjectId": "326c21f1-caf0-8144-9339-fb9e715c5c13",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "AIWorkFlow",
+      "sourceIdentifier": "saagpatel/AIWorkFlow",
+      "sourceUrl": "https://github.com/saagpatel/AIWorkFlow",
+      "localProjectId": "326c21f1-caf0-8124-9f11-c6ae66612ff2",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "SignalDecay",
+      "sourceIdentifier": "saagpatel/SignalDecay",
+      "sourceUrl": "https://github.com/saagpatel/SignalDecay",
+      "localProjectId": "326c21f1-caf0-815d-a20f-db55f15fa400",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "JobCommandCenter",
+      "sourceIdentifier": "saagpatel/JobCommandCenter",
+      "sourceUrl": "https://github.com/saagpatel/JobCommandCenter",
+      "localProjectId": "326c21f1-caf0-8174-b7e4-cd40d79db124",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "GPT_RAG",
+      "sourceIdentifier": "saagpatel/GPT_RAG",
+      "sourceUrl": "https://github.com/saagpatel/GPT_RAG",
+      "localProjectId": "326c21f1-caf0-810d-b393-c2b8f3b2bbb3",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "AssistSupport",
+      "sourceIdentifier": "saagpatel/AssistSupport",
+      "sourceUrl": "https://github.com/saagpatel/AssistSupport",
+      "localProjectId": "326c21f1-caf0-818e-82c7-d36f8fc501a1",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "DevToolsTranslator",
+      "sourceIdentifier": "saagpatel/DevToolsTranslator",
+      "sourceUrl": "https://github.com/saagpatel/DevToolsTranslator",
+      "localProjectId": "326c21f1-caf0-815d-8d77-d44b03d8daa6",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "ModelColosseum",
+      "sourceIdentifier": "saagpatel/ModelColosseum",
+      "sourceUrl": "https://github.com/saagpatel/ModelColosseum",
+      "localProjectId": "326c21f1-caf0-811b-b754-eca178c2b8d2",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "Phantom Frequencies",
+      "sourceIdentifier": "saagpatel/PhantomFrequencies",
+      "sourceUrl": "https://github.com/saagpatel/PhantomFrequencies",
+      "localProjectId": "326c21f1-caf0-8114-ada8-e5cbf8167a1e",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "Recall",
+      "sourceIdentifier": "saagpatel/Recall",
+      "sourceUrl": "https://github.com/saagpatel/Recall",
+      "localProjectId": "326c21f1-caf0-81e9-9578-c70f5b8fccf1",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "visual-album-studio",
+      "sourceIdentifier": "saagpatel/visual-album-studio",
+      "sourceUrl": "https://github.com/saagpatel/visual-album-studio",
+      "localProjectId": "326c21f1-caf0-8168-9c2c-e2ce6fcb74cc",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "TicketHandoff",
+      "sourceIdentifier": "saagpatel/TicketHandoff",
+      "sourceUrl": "https://github.com/saagpatel/TicketHandoff",
+      "localProjectId": "326c21f1-caf0-8187-8362-e479d7db1b87",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "WorkdayDebrief",
+      "sourceIdentifier": "saagpatel/WorkdayDebrief",
+      "sourceUrl": "https://github.com/saagpatel/WorkdayDebrief",
+      "localProjectId": "326c21f1-caf0-818a-b131-c9868164ab9c",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "KBFreshnessDetector",
+      "sourceIdentifier": "saagpatel/KBFreshness",
+      "sourceUrl": "https://github.com/saagpatel/KBFreshness",
+      "localProjectId": "326c21f1-caf0-8113-b458-d5ce59dc36de",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "IncidentReview",
+      "sourceIdentifier": "saagpatel/IncidentReview",
+      "sourceUrl": "https://github.com/saagpatel/IncidentReview",
+      "localProjectId": "326c21f1-caf0-8109-bd99-ecf24381ac46",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "Relay",
+      "sourceIdentifier": "saagpatel/Relay",
+      "sourceUrl": "https://github.com/saagpatel/Relay",
+      "localProjectId": "326c21f1-caf0-81b2-88d8-e277519da94a",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "LoreKeeper",
+      "sourceIdentifier": "saagpatel/LoreKeeper",
+      "sourceUrl": "https://github.com/saagpatel/LoreKeeper",
+      "localProjectId": "326c21f1-caf0-81c3-8759-e5aa28dee730",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "DesktopPEt",
+      "sourceIdentifier": "saagpatel/DesktopPEt",
+      "sourceUrl": "https://github.com/saagpatel/DesktopPEt",
+      "localProjectId": "326c21f1-caf0-81b4-ab36-d48baa0b88fa",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "DeepTank",
+      "sourceIdentifier": "saagpatel/DeepTank",
+      "sourceUrl": "https://github.com/saagpatel/DeepTank",
+      "localProjectId": "326c21f1-caf0-812d-a6bb-e1bbc7dfde4e",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "DesktopTerrarium",
+      "sourceIdentifier": "saagpatel/DesktopTerrarium",
+      "sourceUrl": "https://github.com/saagpatel/DesktopTerrarium",
+      "localProjectId": "326c21f1-caf0-810d-8ade-e5fbd3ef2308",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "EarthPulse",
+      "sourceIdentifier": "saagpatel/EarthPulse",
+      "sourceUrl": "https://github.com/saagpatel/EarthPulse",
+      "localProjectId": "326c21f1-caf0-81f2-adb8-eba1b8023ecb",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "PomGambler-prod",
+      "sourceIdentifier": "saagpatel/PomGambler-prod",
+      "sourceUrl": "https://github.com/saagpatel/PomGambler-prod",
+      "localProjectId": "326c21f1-caf0-81c8-942b-d93431d89433",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "ApplyKit",
+      "sourceIdentifier": "saagpatel/ApplyKit",
+      "sourceUrl": "https://github.com/saagpatel/ApplyKit",
+      "localProjectId": "326c21f1-caf0-8137-b7d7-d869de031f23",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "SpecCompanion",
+      "sourceIdentifier": "saagpatel/SpecCompanion",
+      "sourceUrl": "https://github.com/saagpatel/SpecCompanion",
+      "localProjectId": "326c21f1-caf0-815f-8785-ed28789a34a2",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "ComplianceKit",
+      "sourceIdentifier": "saagpatel/ComplianceKit",
+      "sourceUrl": "https://github.com/saagpatel/ComplianceKit",
+      "localProjectId": "326c21f1-caf0-814b-93a5-e558887357a9",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "job-search-2026",
+      "sourceIdentifier": "saagpatel/job-search-2026",
+      "sourceUrl": "https://github.com/saagpatel/job-search-2026",
+      "localProjectId": "326c21f1-caf0-8128-a963-f6314ab33649",
+      "allowedActions": [],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": false,
+      "supportsPrComment": false
+    },
+    {
+      "title": "Nexus",
+      "sourceIdentifier": "saagpatel/Nexus",
+      "sourceUrl": "https://github.com/saagpatel/Nexus",
+      "localProjectId": "326c21f1-caf0-81ed-8456-c8c886f0ae7b",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "SignalFlow",
+      "sourceIdentifier": "saagpatel/SignalFlow",
+      "sourceUrl": "https://github.com/saagpatel/SignalFlow",
+      "localProjectId": "326c21f1-caf0-8119-b675-e2025efc4c6b",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "OPscinema",
+      "sourceIdentifier": "saagpatel/OPscinema",
+      "sourceUrl": "https://github.com/saagpatel/OPscinema",
+      "localProjectId": "326c21f1-caf0-81cd-94bf-e038328b6cc0",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "prompt-englab",
+      "sourceIdentifier": "saagpatel/prompt-englab",
+      "sourceUrl": "https://github.com/saagpatel/prompt-englab",
+      "localProjectId": "326c21f1-caf0-81fb-af8d-cf19399d016a",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "app",
+      "sourceIdentifier": "saagpatel/app",
+      "sourceUrl": "https://github.com/saagpatel/app",
+      "localProjectId": "326c21f1-caf0-81b2-bd12-f75f33e4b0eb",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "SmartClipboard",
+      "sourceIdentifier": "saagpatel/SmartClipboard",
+      "sourceUrl": "https://github.com/saagpatel/SmartClipboard",
+      "localProjectId": "326c21f1-caf0-81e4-8a25-e43d6ac1114a",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "StatusPage",
+      "sourceIdentifier": "saagpatel/StatusPage",
+      "sourceUrl": "https://github.com/saagpatel/StatusPage",
+      "localProjectId": "326c21f1-caf0-8166-a62f-df3ec0149ef9",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "RealEstate",
+      "sourceIdentifier": "saagpatel/RealEstate",
+      "sourceUrl": "https://github.com/saagpatel/RealEstate",
+      "localProjectId": "326c21f1-caf0-8120-8059-cac4614db39b",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "BattleGrid",
+      "sourceIdentifier": "saagpatel/BattleGrid",
+      "sourceUrl": "https://github.com/saagpatel/BattleGrid",
+      "localProjectId": "326c21f1-caf0-81fe-8969-e83166e7ef76",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "FreeLanceInvoice",
+      "sourceIdentifier": "saagpatel/FreelanceInvoice",
+      "sourceUrl": "https://github.com/saagpatel/FreelanceInvoice",
+      "localProjectId": "326c21f1-caf0-81cc-9e54-cc45f9e57b1c",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "ShipKit",
+      "sourceIdentifier": "saagpatel/ShipKit",
+      "sourceUrl": "https://github.com/saagpatel/ShipKit",
+      "localProjectId": "326c21f1-caf0-810a-a904-dbfdf29c8512",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "compliance-suite",
+      "sourceIdentifier": "saagpatel/compliance-suite",
+      "sourceUrl": "https://github.com/saagpatel/compliance-suite",
+      "localProjectId": "326c21f1-caf0-81fb-8a60-eb35caad28bc",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "SlackIncidentBot",
+      "sourceIdentifier": "saagpatel/SlackIncidentBot",
+      "sourceUrl": "https://github.com/saagpatel/SlackIncidentBot",
+      "localProjectId": "326c21f1-caf0-81f1-8c9c-c0cebbd90008",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "SnippetLibrary",
+      "sourceIdentifier": "saagpatel/SnippetLibrary",
+      "sourceUrl": "https://github.com/saagpatel/SnippetLibrary",
+      "localProjectId": "326c21f1-caf0-8160-a302-d364d6a4f990",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "TicketDashboard",
+      "sourceIdentifier": "saagpatel/TicketDashboard",
+      "sourceUrl": "https://github.com/saagpatel/TicketDashboard",
+      "localProjectId": "326c21f1-caf0-811c-8921-d8560e683aa0",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "TicketDocumentation",
+      "sourceIdentifier": "saagpatel/TicketDocumentation",
+      "sourceUrl": "https://github.com/saagpatel/TicketDocumentation",
+      "localProjectId": "326c21f1-caf0-812e-8802-d504bc7545f5",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "ContentEngine",
+      "sourceIdentifier": "saagpatel/ContentEngine",
+      "sourceUrl": "https://github.com/saagpatel/ContentEngine",
+      "localProjectId": "326c21f1-caf0-811d-a38b-f6d5f0fbc8fc",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "AuraForge",
+      "sourceIdentifier": "saagpatel/AuraForge",
+      "sourceUrl": "https://github.com/saagpatel/AuraForge",
+      "localProjectId": "326c21f1-caf0-8195-a9d3-e9347ccfd184",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "CryptForge",
+      "sourceIdentifier": "saagpatel/CryptForge",
+      "sourceUrl": "https://github.com/saagpatel/CryptForge",
+      "localProjectId": "326c21f1-caf0-8169-a680-e1ef6f5157e7",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "PersonalKBDrafter",
+      "sourceIdentifier": "saagpatel/PersonalKBDrafter",
+      "sourceUrl": "https://github.com/saagpatel/PersonalKBDrafter",
+      "localProjectId": "326c21f1-caf0-8111-bcd8-c1260a973ff8",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "PixelForge",
+      "sourceIdentifier": "saagpatel/PixelForge",
+      "sourceUrl": "https://github.com/saagpatel/PixelForge",
+      "localProjectId": "326c21f1-caf0-81da-be81-d97a3f543eda",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "DatabaseSchema",
+      "sourceIdentifier": "saagpatel/DatabaseSchema",
+      "sourceUrl": "https://github.com/saagpatel/DatabaseSchema",
+      "localProjectId": "326c21f1-caf0-8165-980e-f0842f871b2b",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "LegalDocsReview",
+      "sourceIdentifier": "saagpatel/LegalDocsReview",
+      "sourceUrl": "https://github.com/saagpatel/LegalDocsReview",
+      "localProjectId": "326c21f1-caf0-814f-8360-dc528a7a696f",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "AIGCCore",
+      "sourceIdentifier": "saagpatel/AIGCCore",
+      "sourceUrl": "https://github.com/saagpatel/AIGCCore",
+      "localProjectId": "326c21f1-caf0-811e-a039-ee13ff4dfdde",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "knowledgecore",
+      "sourceIdentifier": "saagpatel/knowledgecore",
+      "sourceUrl": "https://github.com/saagpatel/knowledgecore",
+      "localProjectId": "326c21f1-caf0-81e1-8203-edfbc26deeba",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "IncidentWorkbench",
+      "sourceIdentifier": "saagpatel/IncidentWorkbench",
+      "sourceUrl": "https://github.com/saagpatel/IncidentWorkbench",
+      "localProjectId": "326c21f1-caf0-81a3-beda-d2ff8e0763d0",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "ScreenshotAnnotate",
+      "sourceIdentifier": "saagpatel/ScreenshotAnnotate",
+      "sourceUrl": "https://github.com/saagpatel/ScreenshotAnnotate",
+      "localProjectId": "326c21f1-caf0-8154-8bf8-e05ee94ab4da",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "Construction",
+      "sourceIdentifier": "saagpatel/Construction",
+      "sourceUrl": "https://github.com/saagpatel/Construction",
+      "localProjectId": "326c21f1-caf0-8199-be5f-f43dfdc02cdb",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "SynthWave",
+      "sourceIdentifier": "saagpatel/SynthWave",
+      "sourceUrl": "https://github.com/saagpatel/SynthWave",
+      "localProjectId": "326c21f1-caf0-81ff-919e-c5ab3d27af2c",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "Chronomap",
+      "sourceIdentifier": "saagpatel/Chronomap",
+      "sourceUrl": "https://github.com/saagpatel/Chronomap",
+      "localProjectId": "326c21f1-caf0-813b-bc3b-c87985287073",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "Conductor",
+      "sourceIdentifier": "saagpatel/Conductor",
+      "sourceUrl": "https://github.com/saagpatel/Conductor",
+      "localProjectId": "326c21f1-caf0-81f7-8923-c3649066647c",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "Echolocate",
+      "sourceIdentifier": "saagpatel/Echolocate",
+      "sourceUrl": "https://github.com/saagpatel/Echolocate",
+      "localProjectId": "326c21f1-caf0-81a8-ab1a-cd5ca37aafe2",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "OrbitForge (staging)",
+      "sourceIdentifier": "saagpatel/OrbitForge",
+      "sourceUrl": "https://github.com/saagpatel/OrbitForge",
+      "localProjectId": "326c21f1-caf0-81e5-801d-e192312939fc",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    },
+    {
+      "title": "TerraSynth",
+      "sourceIdentifier": "saagpatel/TerraSynth",
+      "sourceUrl": "https://github.com/saagpatel/TerraSynth",
+      "localProjectId": "326c21f1-caf0-81c4-b7cf-d8b7d597e476",
+      "allowedActions": [
+        "github.create_issue",
+        "github.update_issue",
+        "github.set_issue_labels",
+        "github.set_issue_assignees",
+        "github.add_issue_comment",
+        "github.comment_pull_request"
+      ],
+      "titlePrefix": "[Portfolio]",
+      "defaultLabels": [],
+      "supportsIssueCreate": true,
+      "supportsPrComment": true
+    }
+  ]
+}

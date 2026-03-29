@@ -1,0 +1,152 @@
+{
+  "batch": "batch-09",
+  "projects": [
+    "EarthPulse",
+    "AssistSupport",
+    "IncidentMgmt",
+    "visual-album-studio",
+    "TicketHandoff"
+  ],
+  "verified_complete": {
+    "before_implementation": [
+      "All five projects were already correctly housed in Local Portfolio Projects.",
+      "None of the five had an exact-title row in Project Portfolio.",
+      "Each project already had one active canonical GitHub source row, with placeholder rows paused where present.",
+      "All five already had governed GitHub lane coverage.",
+      "IncidentMgmt was already canonically mapped to saagpatel/IncidentManagement.",
+      "visual-album-studio was already complete from earlier batch-09 work."
+    ],
+    "after_implementation": [
+      "EarthPulse",
+      "AssistSupport",
+      "IncidentMgmt"
+    ]
+  },
+  "projects_with_findings": {
+    "fixes_already_completed_in_batch_09": [
+      {
+        "title": "EarthPulse",
+        "completed": [
+          "Closed 17 dependency PRs.",
+          "Repointed local main to origin/main.",
+          "Fast-forwarded local main to the canonical remote.",
+          "Updated the operating row away from stale Ready for Review."
+        ]
+      },
+      {
+        "title": "AssistSupport",
+        "completed": [
+          "Closed 6 dependency PRs.",
+          "Removed the untracked SESSION-PLAN.md scratch file.",
+          "Repointed local master to origin/master.",
+          "Updated the operating row with the new blocker story."
+        ]
+      },
+      {
+        "title": "IncidentMgmt",
+        "completed": [
+          "Closed 2 dependency PRs.",
+          "Preserved the canonical IncidentManagement mapping.",
+          "Updated the operating row away from stale Ship-Ready posture."
+        ]
+      },
+      {
+        "title": "visual-album-studio",
+        "completed": [
+          "Closed 12 dependency PRs.",
+          "Ran the canonical verify suite successfully.",
+          "Recorded the project as complete before this implementation pass."
+        ]
+      },
+      {
+        "title": "TicketHandoff",
+        "completed": [
+          "Closed 1 dependency PR.",
+          "Removed local .perf-results scratch artifacts.",
+          "Passed cargo test with 17 Rust tests green.",
+          "Updated the operating row away from stale Ship-Ready posture."
+        ]
+      }
+    ],
+    "fixes_completed_in_this_chat": [
+      {
+        "title": "EarthPulse",
+        "completed": [
+          "Established the active colon-free worktree at /Users/d/Projects/FunGamePrjs/EarthPulse.",
+          "Restored the pnpm dependency baseline with pnpm install --frozen-lockfile.",
+          "Passed pnpm preflight:ci, pnpm typecheck, and pnpm test:unit."
+        ],
+        "remaining_open_items": []
+      },
+      {
+        "title": "AssistSupport",
+        "completed": [
+          "Restored the frontend pnpm baseline.",
+          "Moved pnpm/action-setup ahead of actions/setup-node in dependency-watch.yml.",
+          "Added Dependabot ignore rules for pnpm/action-setup and taiki-e/install-action.",
+          "Passed pnpm test and pnpm run check:workflow-drift."
+        ],
+        "remaining_open_items": []
+      },
+      {
+        "title": "IncidentMgmt",
+        "completed": [
+          "Refreshed pnpm-lock.yaml from the current package.json state.",
+          "Added the missing sqlx::Row imports in the Rust e2e tests.",
+          "Aligned stale Rust e2e fixtures to the current schema.",
+          "Passed cargo test --manifest-path src-tauri/Cargo.toml."
+        ],
+        "remaining_open_items": []
+      },
+      {
+        "title": "TicketHandoff",
+        "completed": [
+          "Refreshed package-lock.json with npm install.",
+          "Passed npm test -- --run.",
+          "Passed npm run build."
+        ],
+        "remaining_open_items": [
+          "Live Jira-backed happy-path proof is still missing."
+        ]
+      }
+    ],
+    "already_complete_before_this_chat": [
+      "visual-album-studio"
+    ],
+    "remaining_open_items": [
+      "TicketHandoff"
+    ]
+  },
+  "execution_order": {
+    "completed_earlier_in_batch_09": [
+      "Closed the stale dependency PR backlog across the batch.",
+      "Normalized stale local branch and scratch-artifact truth.",
+      "Updated the operating truth so the remaining blockers became precise."
+    ],
+    "completed_in_this_chat": [
+      "Finished the EarthPulse colon-free path recovery and proof capture.",
+      "Restored the AssistSupport frontend baseline and repaired its dependency automation config.",
+      "Repaired the IncidentMgmt lockfile and Rust e2e drift until local Rust proof passed cleanly.",
+      "Restored the TicketHandoff frontend baseline and revalidated frontend proof.",
+      "Rewrote the batch artifacts to final post-implementation truth."
+    ],
+    "remaining_follow_up": [
+      "TicketHandoff"
+    ]
+  },
+  "blockers": {
+    "still_require_follow_up": [
+      {
+        "title": "TicketHandoff",
+        "blocker": "Live Jira-backed happy-path proof is blocked because the local app database had no saved api_config row and the macOS keychain had no com.tickethandoff.jira item."
+      }
+    ]
+  },
+  "done_definition": [
+    "The batch artifacts separate verified complete before this implementation pass, fixes already completed earlier in batch 09, fixes completed in this chat, remaining open items, and blockers that still require follow-up.",
+    "visual-album-studio remains explicitly preserved as already complete before this pass.",
+    "EarthPulse, AssistSupport, and IncidentMgmt now have fresh local proof for the fixes that were still open at the start of this chat.",
+    "TicketHandoff no longer has a frontend baseline blocker; its only remaining unresolved work is live Jira-backed happy-path proof.",
+    "docs/fix-plan-batch-09.md and docs/fix-plan-batch-09-summary.json now describe the same final post-implementation state."
+  ]
+}

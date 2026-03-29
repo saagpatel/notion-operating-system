@@ -1,0 +1,89 @@
+{
+  "bucket": "github-governance",
+  "projects": [
+    "ScreenshotAnnotate",
+    "DevToolsTranslator",
+    "JobCommandCenter",
+    "prompt-englab",
+    "AIGCCore"
+  ],
+  "verified_complete": [
+    "ScreenshotAnnotate",
+    "prompt-englab",
+    "AIGCCore"
+  ],
+  "projects_with_findings": [
+    {
+      "project": "DevToolsTranslator",
+      "already_proven": [
+        "SESSION-PLAN.md was resolved as ignored scratch.",
+        "Recent release-extension-stage-controller runs on main succeeded on 2026-03-23 and 2026-03-24.",
+        "The governed issue text was reconciled to current release-readiness reality.",
+        "The scoped Notion refresh already completed."
+      ],
+      "remaining_issue_type": "governed execution reconcile plus release-readiness gate",
+      "current_blocker": "Issue #1 remains open for the active release-readiness slice: manual Chrome sign-off, Chrome Web Store credentials, updater-signature inputs, and one unresolved perf-reliability-regression failure from 2026-03-21.",
+      "exact_closure_action": [
+        "Clear or replace the blockers tracked in issue #1.",
+        "Reconcile the issue body again if fresher evidence changes the blocker slice.",
+        "Close the governed issue once the active release-readiness slice is no longer open."
+      ],
+      "dependencies": [
+        "Blocked by current GitHub and governance state, not by local baseline or Notion auth."
+      ],
+      "minimum_verification": [
+        "Verify the blocker list in issue #1 still matches live workflow evidence.",
+        "Verify the unresolved release blocker is fixed or replaced with fresher evidence-backed blockers.",
+        "Verify issue #1 closes when the release-readiness slice is no longer active."
+      ],
+      "notion_dependency": "Notion refresh already completed; no auth blocker remains.",
+      "done_signal": "The governed issue closes because the active release-readiness blocker slice on main is no longer open."
+    },
+    {
+      "project": "JobCommandCenter",
+      "already_proven": [
+        "The stale lockfile mismatch was repaired and npm run build now passes.",
+        "The Python sidecar dry-run path was verified end to end.",
+        "PR #2 was closed and issue #3 was rewritten as the active finish slice.",
+        "The scoped Notion refresh already completed."
+      ],
+      "remaining_issue_type": "governed execution finish slice plus default-branch decision",
+      "current_blocker": "Issue #3 remains open for finish validation: PyInstaller bundle proof, real 5-job batch evidence, LinkedIn bot-detection uncertainty, and the need to keep polish/v1.0-improvements as the intentional default branch until validation is complete.",
+      "exact_closure_action": [
+        "Validate the PyInstaller bundle.",
+        "Run a real 5-job batch and capture evidence.",
+        "Document LinkedIn bot-detection behavior well enough to remove the current uncertainty.",
+        "Revisit the default-branch posture only after finish validation evidence exists.",
+        "Close issue #3 when the finish slice is complete."
+      ],
+      "dependencies": [
+        "Blocked by current GitHub and governance state.",
+        "The default-branch posture must stay intentional until finish validation is complete."
+      ],
+      "minimum_verification": [
+        "Verify finish evidence exists for the PyInstaller bundle and a real 5-job batch.",
+        "Verify LinkedIn bot-detection behavior is documented well enough to remove uncertainty.",
+        "Verify issue #3 closes only after the default-branch posture is still intentional or is explicitly changed with evidence."
+      ],
+      "notion_dependency": "Notion refresh already completed; no auth blocker remains.",
+      "done_signal": "Issue #3 closes and the default-branch posture is explicitly justified by finish-validation evidence rather than placeholder workflow activity."
+    }
+  ],
+  "execution_order": [
+    "JobCommandCenter",
+    "DevToolsTranslator"
+  ],
+  "blockers": [
+    "JobCommandCenter is still blocked by governed finish-validation work in issue #3, not by local setup or Notion auth.",
+    "DevToolsTranslator is still blocked by the active release-readiness slice tracked in issue #1, not by local setup or Notion auth.",
+    "Historical workflow failures in GitHub for older prompt-englab and AIGCCore runs are no longer active blockers for this bucket.",
+    "Older batch wording now overstates the remaining open set for this bucket because ScreenshotAnnotate, prompt-englab, and AIGCCore were closed after the plan was executed."
+  ],
+  "done_definition": [
+    "docs/followup-github-governance.md and docs/followup-github-governance-summary.json describe the same five-project bucket state after the completed execution work.",
+    "verified_complete contains ScreenshotAnnotate, prompt-englab, and AIGCCore because their scoped GitHub, workflow, governance, and Notion follow-through items are closed.",
+    "DevToolsTranslator is only done for this bucket when issue #1 no longer needs to carry the active release-readiness blocker slice.",
+    "JobCommandCenter is only done for this bucket when issue #3 closes and the default-branch posture is still intentional or explicitly revised based on finish-validation evidence.",
+    "Solved local baseline work stays solved unless new evidence shows an actual regression."
+  ]
+}

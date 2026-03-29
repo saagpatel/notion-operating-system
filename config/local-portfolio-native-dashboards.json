@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "notion_mcp",
+    "fallback": "playwright",
+    "notes": [
+      "Use Notion MCP first for native dashboard creation when the dashboard view type is supported cleanly.",
+      "Use Playwright only if dashboard widget configuration requires UI-only steps.",
+      "Keep the repo config as the source of truth for the intended dashboard composition."
+    ]
+  },
+  "dashboards": [
+    {
+      "key": "portfolio",
+      "name": "Portfolio Dashboard",
+      "databaseKey": "projects",
+      "databaseName": "Local Portfolio Projects",
+      "maxWidgets": 8,
+      "widgets": [
+        {
+          "kind": "chart",
+          "title": "Projects by Recommendation Lane",
+          "chartType": "bar",
+          "groupBy": "Recommendation Lane",
+          "measure": "count",
+          "filters": []
+        },
+        {
+          "kind": "chart",
+          "title": "Projects by Operating Queue",
+          "chartType": "column",
+          "groupBy": "Operating Queue",
+          "measure": "count",
+          "filters": []
+        },
+        {
+          "kind": "table",
+          "title": "Needs Review",
+          "sourceViewName": "Needs Review"
+        },
+        {
+          "kind": "table",
+          "title": "Needs Decision",
+          "sourceViewName": "Needs Decision"
+        },
+        {
+          "kind": "table",
+          "title": "Recommended Resume",
+          "sourceViewName": "Recommended Resume"
+        },
+        {
+          "kind": "table",
+          "title": "Recommended Finish",
+          "sourceViewName": "Recommended Finish"
+        },
+        {
+          "kind": "table",
+          "title": "Defer Candidates",
+          "sourceViewName": "Defer Candidates"
+        }
+      ]
+    },
+    {
+      "key": "execution",
+      "name": "Execution Dashboard",
+      "databaseKey": "tasks",
+      "databaseName": "Execution Tasks",
+      "maxWidgets": 8,
+      "widgets": [
+        {
+          "kind": "table",
+          "title": "Today",
+          "sourceViewName": "Today"
+        },
+        {
+          "kind": "table",
+          "title": "This Week",
+          "sourceViewName": "This Week"
+        },
+        {
+          "kind": "table",
+          "title": "Blocked",
+          "sourceViewName": "Blocked"
+        },
+        {
+          "kind": "table",
+          "title": "My Tasks",
+          "sourceViewName": "My Tasks"
+        },
+        {
+          "kind": "chart",
+          "title": "Tasks by Status",
+          "chartType": "bar",
+          "groupBy": "Status",
+          "measure": "count",
+          "filters": []
+        },
+        {
+          "kind": "chart",
+          "title": "Tasks by Priority",
+          "chartType": "donut",
+          "groupBy": "Priority",
+          "measure": "count",
+          "filters": []
+        },
+        {
+          "kind": "table",
+          "title": "Ready Queue",
+          "sourceViewName": "Ready Queue"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+coverage/
+logs/*.jsonl
+logs/*.log
+*.tsbuildinfo
+.playwright-auth/
+.firecrawl/
+.DS_Store
+.tmp/
+tmp/
+var/

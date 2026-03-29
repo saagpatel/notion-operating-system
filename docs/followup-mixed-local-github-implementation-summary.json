@@ -1,0 +1,32 @@
+{
+  "bucket": "mixed-local-github-implementation",
+  "projects": [
+    "ContentEngine",
+    "CryptForge",
+    "Construction",
+    "RealEstate"
+  ],
+  "verified_complete": [
+    "ContentEngine",
+    "CryptForge",
+    "Construction",
+    "RealEstate"
+  ],
+  "projects_with_findings": [],
+  "execution_order": [
+    "ContentEngine: rechecked the March 24, 2026 merged-main desktop-ci run and confirmed it completed green.",
+    "Construction: fast-forward reconciled the preserved branch onto origin/main, reran pnpm run check:frontend, merged Dependabot PR #4 as separate hygiene, fast-forwarded again, reran pnpm run check:frontend, and repointed the branch to track origin/main.",
+    "RealEstate: fast-forward reconciled the preserved branch onto origin/main, reran pnpm lint, and repointed the branch to track origin/main.",
+    "CryptForge: reproduced the current Windows nightly blocker, fixed npm detection, reran branch proof, fixed the newly surfaced icon format problem, reran local proof, opened PR #5, passed fresh branch ci-pr plus branch-scoped Windows smoke proof, merged PR #5, and explicitly deferred the folder rename as separate hygiene."
+  ],
+  "blockers": [
+    "No active blockers remain in this bucket.",
+    "The CryptForge folder rename remains intentionally deferred hygiene and was not mixed into the workflow-fix lane."
+  ],
+  "done_definition": [
+    "ContentEngine is done for this bucket because the March 24, 2026 merged-main desktop-ci proof is green and no open PR backlog remains.",
+    "CryptForge is done for this bucket because PR #5 merged after the updated branch passed the needed Windows smoke proof, and the folder rename is explicitly deferred as separate hygiene.",
+    "Construction is done for this bucket because the preserved branch now matches origin/main, the minimum fresh local proof passed, and the extra Dependabot hygiene PR is resolved.",
+    "RealEstate is done for this bucket because the preserved branch now matches origin/main, the minimum fresh local proof passed, and no active GitHub noise remains."
+  ]
+}

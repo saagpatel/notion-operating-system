@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "notion_mcp",
+    "fallback": "playwright",
+    "notes": [
+      "Use Notion MCP first for saved external-signal views.",
+      "Keep the repo config as the source of truth for intended filters and layouts.",
+      "Use Playwright only if MCP cannot complete a view task cleanly."
+    ]
+  },
+  "collections": [
+    {
+      "key": "sources",
+      "database": {
+        "name": "External Signal Sources",
+        "databaseUrl": "https://www.notion.so/6d05a3305679435e89cb1b70e433476c",
+        "databaseId": "6d05a330-5679-435e-89cb-1b70e433476c",
+        "dataSourceId": "775e18d3-9985-4871-980b-5570a21e30c1",
+        "destinationAlias": "external_signal_sources"
+      },
+      "views": [
+        {
+          "name": "Needs Mapping",
+          "type": "table",
+          "purpose": "Review priority projects that still need real external-source identifiers.",
+          "configure": "FILTER \"Status\" = \"Needs Mapping\"; SHOW \"Name\", \"Local Project\", \"Provider\", \"Source Type\", \"Status\"; SORT BY \"Name\" ASC"
+        },
+        {
+          "name": "Active GitHub",
+          "type": "table",
+          "purpose": "Inspect active GitHub repo mappings used by the polling sync.",
+          "configure": "FILTER \"Provider\" = \"GitHub\"; FILTER \"Status\" = \"Active\"; SHOW \"Name\", \"Local Project\", \"Identifier\", \"Last Synced At\"; SORT BY \"Last Synced At\" DESC"
+        },
+        {
+          "name": "Active Deployments",
+          "type": "table",
+          "purpose": "Inspect active deployment-source mappings for delivery telemetry.",
+          "configure": "FILTER \"Provider\" = \"Vercel\"; FILTER \"Status\" = \"Active\"; SHOW \"Name\", \"Local Project\", \"Identifier\", \"Environment\", \"Last Synced At\"; SORT BY \"Last Synced At\" DESC"
+        }
+      ]
+    },
+    {
+      "key": "events",
+      "database": {
+        "name": "External Signal Events",
+        "databaseUrl": "https://www.notion.so/0a15456eabcf4bf7962d41831c05ebb5",
+        "databaseId": "0a15456e-abcf-4bf7-962d-41831c05ebb5",
+        "dataSourceId": "b7694451-672f-47d8-9613-e10ede111e0f",
+        "destinationAlias": "external_signal_events"
+      },
+      "views": [
+        {
+          "name": "Recent Risk Events",
+          "type": "table",
+          "purpose": "Review the newest workflow and deployment signals that carry delivery risk.",
+          "configure": "FILTER \"Severity\" = \"Risk\"; SHOW \"Name\", \"Local Project\", \"Provider\", \"Signal Type\", \"Status\", \"Occurred At\"; SORT BY \"Occurred At\" DESC"
+        },
+        {
+          "name": "Recent Deployments",
+          "type": "table",
+          "purpose": "Review the newest deployment events across mapped projects.",
+          "configure": "FILTER \"Signal Type\" = \"Deployment\"; SHOW \"Name\", \"Local Project\", \"Status\", \"Environment\", \"Occurred At\"; SORT BY \"Occurred At\" DESC"
+        },
+        {
+          "name": "Recent Workflow Failures",
+          "type": "table",
+          "purpose": "Review recent failed workflow runs that should influence delivery risk.",
+          "configure": "FILTER \"Signal Type\" = \"Workflow Run\"; FILTER \"Severity\" = \"Risk\"; SHOW \"Name\", \"Local Project\", \"Status\", \"Occurred At\"; SORT BY \"Occurred At\" DESC"
+        },
+        {
+          "name": "By Project",
+          "type": "table",
+          "purpose": "Browse external telemetry by linked local project.",
+          "configure": "SHOW \"Name\", \"Local Project\", \"Provider\", \"Signal Type\", \"Status\", \"Occurred At\"; SORT BY \"Occurred At\" DESC"
+        }
+      ]
+    },
+    {
+      "key": "syncRuns",
+      "database": {
+        "name": "External Signal Sync Runs",
+        "databaseUrl": "https://www.notion.so/72c94777445b4c89b6fabaca2d06cb6f",
+        "databaseId": "72c94777-445b-4c89-b6fa-baca2d06cb6f",
+        "dataSourceId": "d9be5cd5-5a18-4a6d-adc3-5b73299d6376",
+        "destinationAlias": "external_signal_sync_runs"
+      },
+      "views": [
+        {
+          "name": "Latest Runs",
+          "type": "table",
+          "purpose": "Inspect the newest external-signal sync runs and item counts.",
+          "configure": "SHOW \"Name\", \"Provider\", \"Status\", \"Started At\", \"Completed At\", \"Items Written\", \"Failures\"; SORT BY \"Started At\" DESC"
+        },
+        {
+          "name": "Failures",
+          "type": "table",
+          "purpose": "Review sync runs that failed or only partially succeeded.",
+          "configure": "FILTER \"Status\" = \"Failed\"; SHOW \"Name\", \"Provider\", \"Started At\", \"Failures\", \"Notes\"; SORT BY \"Started At\" DESC"
+        },
+        {
+          "name": "History",
+          "type": "table",
+          "purpose": "Review the full sync-run audit history across providers.",
+          "configure": "SHOW \"Name\", \"Provider\", \"Status\", \"Started At\", \"Completed At\", \"Items Seen\", \"Items Written\", \"Items Deduped\"; SORT BY \"Started At\" DESC"
+        }
+      ]
+    },
+    {
+      "key": "projects",
+      "database": {
+        "name": "Local Portfolio Projects",
+        "databaseUrl": "https://www.notion.so/1258652152454b6a81325eb988ec04d4",
+        "databaseId": "12586521-5245-4b6a-8132-5eb988ec04d4",
+        "dataSourceId": "7858b551-4ce9-4bc3-ad1d-07b187d7117b",
+        "destinationAlias": "local_portfolio_projects"
+      },
+      "views": [
+        {
+          "name": "Telemetry Coverage",
+          "type": "table",
+          "purpose": "Review which priority projects have useful external telemetry coverage.",
+          "configure": "SHOW \"Name\", \"External Signal Coverage\", \"Latest External Activity\", \"External Signal Updated\"; SORT BY \"External Signal Updated\" DESC"
+        },
+        {
+          "name": "Delivery Risk",
+          "type": "table",
+          "purpose": "Surface projects where workflows or deployments are showing elevated delivery risk.",
+          "configure": "SHOW \"Name\", \"Latest Deployment Status\", \"Recent Failed Workflow Runs\", \"Recommendation Lane\"; SORT BY \"Recent Failed Workflow Runs\" DESC"
+        }
+      ]
+    }
+  ]
+}
