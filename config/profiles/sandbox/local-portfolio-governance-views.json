@@ -14,29 +14,26 @@
       "key": "policies",
       "database": {
         "name": "External Action Policies",
-        "databaseUrl": "https://www.notion.so/4391b4f2ea0e46b39bff5d940a369805",
-        "databaseId": "4391b4f2-ea0e-46b3-9bff-5d940a369805",
-        "dataSourceId": "c8f79d13-4b7b-426d-b4ac-2490e4712abe",
+        "databaseUrl": "https://www.notion.so/44a022df679f4a66bd729c291f8a97dd",
+        "databaseId": "44a022df679f4a66bd729c291f8a97dd",
+        "dataSourceId": "915302aa7ee44b58831eff0ec3fccd71",
         "destinationAlias": "external_action_policies"
       },
       "views": [
         {
           "name": "Disabled Policies",
-          "viewId": "327c21f1-caf0-8117-bf63-000cf4a8a032",
           "type": "table",
           "purpose": "Review modeled policies that stay disabled until Phase 7.",
           "configure": "FILTER \"Execution Mode\" = \"Disabled\"; SHOW \"Name\", \"Provider\", \"Mutation Class\", \"Approval Rule\", \"Identity Type\"; SORT BY \"Name\" ASC"
         },
         {
           "name": "Shadow Policies",
-          "viewId": "327c21f1-caf0-81d4-813f-000c7b22a6aa",
           "type": "table",
           "purpose": "Review policies that are safe to shadow-log without any external mutation.",
           "configure": "FILTER \"Execution Mode\" = \"Shadow\"; SHOW \"Name\", \"Provider\", \"Mutation Class\", \"Approval Rule\"; SORT BY \"Name\" ASC"
         },
         {
           "name": "Future Live Candidates",
-          "viewId": "327c21f1-caf0-8186-9d5e-000c2f0dcae6",
           "type": "table",
           "purpose": "Review policies that could become governed live candidates in a future phase.",
           "configure": "SHOW \"Name\", \"Provider\", \"Mutation Class\", \"Execution Mode\", \"Dry Run Required\", \"Rollback Required\"; SORT BY \"Execution Mode\" ASC"
@@ -47,36 +44,32 @@
       "key": "actionRequests",
       "database": {
         "name": "External Action Requests",
-        "databaseUrl": "https://www.notion.so/5a44a25903824dbdb4876f1739b667c3",
-        "databaseId": "5a44a259-0382-4dbd-b487-6f1739b667c3",
-        "dataSourceId": "478c198a-4ca3-4b62-b907-ad077e57bf81",
+        "databaseUrl": "https://www.notion.so/2bc05bb37eae4b21b8294daae2a0c9f5",
+        "databaseId": "2bc05bb37eae4b21b8294daae2a0c9f5",
+        "dataSourceId": "3e1aa7faa31e4791ba6e90511fbb4e30",
         "destinationAlias": "external_action_requests"
       },
       "views": [
         {
           "name": "Pending Approval",
-          "viewId": "327c21f1-caf0-81b6-abf7-000cdf3689e6",
           "type": "table",
           "purpose": "Review requests waiting on a human approval decision.",
           "configure": "FILTER \"Status\" = \"Pending Approval\"; SHOW \"Name\", \"Local Project\", \"Policy\", \"Requested At\", \"Expires At\"; SORT BY \"Requested At\" DESC"
         },
         {
           "name": "Approved Ready",
-          "viewId": "327c21f1-caf0-8100-b969-000cce3a859e",
           "type": "table",
           "purpose": "Review approved requests that remain non-executed in Phase 6.",
           "configure": "FILTER \"Status\" = \"Approved\"; SHOW \"Name\", \"Local Project\", \"Policy\", \"Decided At\", \"Expires At\"; SORT BY \"Decided At\" DESC"
         },
         {
           "name": "Rejected / Expired",
-          "viewId": "327c21f1-caf0-81b8-b78c-000c77a8937c",
           "type": "table",
           "purpose": "Review requests that were rejected or expired before use.",
           "configure": "SHOW \"Name\", \"Status\", \"Local Project\", \"Policy\", \"Decided At\", \"Expires At\"; SORT BY \"Decided At\" DESC"
         },
         {
           "name": "By Project",
-          "viewId": "327c21f1-caf0-8177-bc29-000c7a118235",
           "type": "table",
           "purpose": "Browse the full approval ledger by linked project.",
           "configure": "SHOW \"Name\", \"Local Project\", \"Status\", \"Policy\", \"Requested At\", \"Expires At\"; SORT BY \"Requested At\" DESC"
@@ -87,29 +80,26 @@
       "key": "endpoints",
       "database": {
         "name": "Webhook Endpoints",
-        "databaseUrl": "https://www.notion.so/8501590c7ca347e694cb495301541341",
-        "databaseId": "8501590c-7ca3-47e6-94cb-495301541341",
-        "dataSourceId": "e0012d3c-f606-4c68-af40-aedf1da5610d",
+        "databaseUrl": "https://www.notion.so/c2e3630c7c2441f4b2c1e49ad1a61932",
+        "databaseId": "c2e3630c7c2441f4b2c1e49ad1a61932",
+        "dataSourceId": "b1a20d83456d48bd9d78fc0d3a68f534",
         "destinationAlias": "webhook_endpoints"
       },
       "views": [
         {
           "name": "Disabled",
-          "viewId": "327c21f1-caf0-81f9-ae34-000cde1ee754",
           "type": "table",
           "purpose": "Review endpoints that remain fully disabled in Phase 6.",
           "configure": "FILTER \"Mode\" = \"Disabled\"; SHOW \"Name\", \"Provider\", \"Receiver Path\", \"Secret Env Var\"; SORT BY \"Name\" ASC"
         },
         {
           "name": "Shadow Ready",
-          "viewId": "327c21f1-caf0-8188-a0cb-000c61da1495",
           "type": "table",
           "purpose": "Review endpoints that are configured for verified shadow-mode receipt capture.",
           "configure": "FILTER \"Mode\" = \"Shadow\"; SHOW \"Name\", \"Provider\", \"Receiver Path\", \"Replay Window Minutes\", \"Last Delivery At\"; SORT BY \"Provider\" ASC"
         },
         {
           "name": "Misconfigured",
-          "viewId": "327c21f1-caf0-811a-bd57-000c8ab2214a",
           "type": "table",
           "purpose": "Review endpoints that likely need secret or path fixes before use.",
           "configure": "SHOW \"Name\", \"Provider\", \"Mode\", \"Secret Env Var\", \"Replay Window Minutes\"; SORT BY \"Mode\" ASC"
@@ -120,36 +110,32 @@
       "key": "deliveries",
       "database": {
         "name": "Webhook Deliveries",
-        "databaseUrl": "https://www.notion.so/fc7bd961163a4e5d822d62a78c67d559",
-        "databaseId": "fc7bd961-163a-4e5d-822d-62a78c67d559",
-        "dataSourceId": "398aab9b-8783-466c-b80a-a6d4718e6ce6",
+        "databaseUrl": "https://www.notion.so/b32f0d731cc7456f9fe5f1a5984408ee",
+        "databaseId": "b32f0d731cc7456f9fe5f1a5984408ee",
+        "dataSourceId": "6caaeb290839402c95aad39c9b04cda0",
         "destinationAlias": "webhook_deliveries"
       },
       "views": [
         {
           "name": "Recent Verified",
-          "viewId": "327c21f1-caf0-812e-8310-000c5413f038",
           "type": "table",
           "purpose": "Review the newest verified logical webhook deliveries.",
           "configure": "FILTER \"Verification Result\" = \"Valid\"; SHOW \"Name\", \"Provider\", \"Event Type\", \"Status\", \"Last Seen At\", \"Receipt Count\"; SORT BY \"Last Seen At\" DESC"
         },
         {
           "name": "Duplicates",
-          "viewId": "327c21f1-caf0-81a2-9b88-000cdbc8b233",
           "type": "table",
           "purpose": "Review logical deliveries that have seen duplicate or redelivered receipts.",
           "configure": "FILTER \"Status\" = \"Duplicate\"; SHOW \"Name\", \"Provider\", \"Receipt Count\", \"Last Seen At\"; SORT BY \"Last Seen At\" DESC"
         },
         {
           "name": "Rejected",
-          "viewId": "327c21f1-caf0-81c6-ad92-000c2ec3780a",
           "type": "table",
           "purpose": "Review deliveries that failed verification or processing.",
           "configure": "FILTER \"Verification Result\" = \"Invalid Signature\"; SHOW \"Name\", \"Provider\", \"Event Type\", \"Verification Result\", \"Last Seen At\"; SORT BY \"Last Seen At\" DESC"
         },
         {
           "name": "Needs Reconcile",
-          "viewId": "327c21f1-caf0-819d-ae1c-000cfcb87856",
           "type": "table",
           "purpose": "Review GitHub deliveries that need follow-up or reconcile handling.",
           "configure": "FILTER \"Status\" = \"Failed\"; SHOW \"Name\", \"Provider\", \"Event Type\", \"Failure Notes\", \"Last Seen At\"; SORT BY \"Last Seen At\" DESC"
@@ -160,29 +146,26 @@
       "key": "receipts",
       "database": {
         "name": "Webhook Receipts",
-        "databaseUrl": "https://www.notion.so/06140c994fd9438490d3352905296da0",
-        "databaseId": "06140c99-4fd9-4384-90d3-352905296da0",
-        "dataSourceId": "bbdf81cd-8fdf-4f47-8e81-19cbb74ec1d5",
+        "databaseUrl": "https://www.notion.so/8f84a4cca9f94eaca9b5937978801213",
+        "databaseId": "8f84a4cca9f94eaca9b5937978801213",
+        "dataSourceId": "60bfef6502d64e34a57110e40f433cdc",
         "destinationAlias": "webhook_receipts"
       },
       "views": [
         {
           "name": "Recent Receipts",
-          "viewId": "327c21f1-caf0-815d-985e-000c72341fb6",
           "type": "table",
           "purpose": "Review the raw receipt ledger in newest-first order.",
           "configure": "SHOW \"Name\", \"Provider\", \"Received At\", \"Verification Result\", \"Drain Status\"; SORT BY \"Received At\" DESC"
         },
         {
           "name": "Drain Failures",
-          "viewId": "327c21f1-caf0-8168-94f6-000c1e4050ac",
           "type": "table",
           "purpose": "Review receipt rows that could not be drained into durable ledgers.",
           "configure": "FILTER \"Drain Status\" = \"Failed\"; SHOW \"Name\", \"Provider\", \"Received At\", \"Failure Notes\"; SORT BY \"Received At\" DESC"
         },
         {
           "name": "Rejected Signatures",
-          "viewId": "327c21f1-caf0-81f9-aeba-000cb251cc12",
           "type": "table",
           "purpose": "Review receipts rejected during signature verification.",
           "configure": "FILTER \"Verification Result\" = \"Invalid Signature\"; SHOW \"Name\", \"Provider\", \"Received At\", \"Failure Notes\"; SORT BY \"Received At\" DESC"

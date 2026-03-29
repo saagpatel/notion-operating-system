@@ -14,9 +14,9 @@
       "key": "sources",
       "database": {
         "name": "External Signal Sources",
-        "databaseUrl": "https://www.notion.so/6d05a3305679435e89cb1b70e433476c",
-        "databaseId": "6d05a330-5679-435e-89cb-1b70e433476c",
-        "dataSourceId": "775e18d3-9985-4871-980b-5570a21e30c1",
+        "databaseUrl": "https://www.notion.so/90c4842fecff405296dc0ffd0168e9fb",
+        "databaseId": "90c4842fecff405296dc0ffd0168e9fb",
+        "dataSourceId": "ecac78cb94064113918be0a73e6168d0",
         "destinationAlias": "external_signal_sources"
       },
       "views": [
@@ -44,9 +44,9 @@
       "key": "events",
       "database": {
         "name": "External Signal Events",
-        "databaseUrl": "https://www.notion.so/0a15456eabcf4bf7962d41831c05ebb5",
-        "databaseId": "0a15456e-abcf-4bf7-962d-41831c05ebb5",
-        "dataSourceId": "b7694451-672f-47d8-9613-e10ede111e0f",
+        "databaseUrl": "https://www.notion.so/5e1928f4a8f74b7baed424f16d61c664",
+        "databaseId": "5e1928f4a8f74b7baed424f16d61c664",
+        "dataSourceId": "1a674b385f494e1c9cfd88e3c80d3ddd",
         "destinationAlias": "external_signal_events"
       },
       "views": [
@@ -80,9 +80,9 @@
       "key": "syncRuns",
       "database": {
         "name": "External Signal Sync Runs",
-        "databaseUrl": "https://www.notion.so/72c94777445b4c89b6fabaca2d06cb6f",
-        "databaseId": "72c94777-445b-4c89-b6fa-baca2d06cb6f",
-        "dataSourceId": "d9be5cd5-5a18-4a6d-adc3-5b73299d6376",
+        "databaseUrl": "https://www.notion.so/7e66f6897202435ea5f268216dde6694",
+        "databaseId": "7e66f6897202435ea5f268216dde6694",
+        "dataSourceId": "f73d6fcc79ab48a3b7a6ec80fd23f5d2",
         "destinationAlias": "external_signal_sync_runs"
       },
       "views": [
@@ -110,9 +110,9 @@
       "key": "projects",
       "database": {
         "name": "Local Portfolio Projects",
-        "databaseUrl": "https://www.notion.so/1258652152454b6a81325eb988ec04d4",
-        "databaseId": "12586521-5245-4b6a-8132-5eb988ec04d4",
-        "dataSourceId": "7858b551-4ce9-4bc3-ad1d-07b187d7117b",
+        "databaseUrl": "https://www.notion.so/0fb35f86619e4fa5873b01afca847c36",
+        "databaseId": "0fb35f86619e4fa5873b01afca847c36",
+        "dataSourceId": "edb714a881ba43498d56787e7e5698ff",
         "destinationAlias": "local_portfolio_projects"
       },
       "views": [
