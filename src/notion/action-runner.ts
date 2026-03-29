@@ -11,6 +11,7 @@ import {
 import { fetchAllPages, relationValue, richTextValue, titleValue } from "./local-portfolio-control-tower-live.js";
 import { mergeManagedSection } from "./local-portfolio-execution.js";
 import { toExternalSignalSourceRecord } from "./local-portfolio-external-signals-live.js";
+import type { ActionPolicyRecord, ActionRequestRecord } from "./local-portfolio-governance.js";
 import { toActionPolicyRecord, toActionRequestRecord } from "./local-portfolio-governance-live.js";
 import {
   buildGitHubCompensationPlan,
@@ -41,6 +42,77 @@ import { AppError, toErrorMessage } from "../utils/errors.js";
 
 const ACTUATION_PACKET_START = "<!-- codex:notion-actuation-packet:start -->";
 const ACTUATION_PACKET_END = "<!-- codex:notion-actuation-packet:end -->";
+
+export interface ActionRunnerResult {
+  requestId: string;
+  executionId?: string;
+  status: "Succeeded" | "Skipped" | "Failed";
+  notes?: string;
+}
+
+export interface ActionRunnerDecisionInput {
+  request: Pick<ActionRequestRecord, "id" | "policyIds">;
+  policies: ActionPolicyRecord[];
+  executions: Array<Pick<ExternalActionExecutionRecord, "id" | "mode" | "status" | "idempotencyKey">>;
+  mode: "dry-run" | "live";
+  actionKey?: string;
+  idempotencyKey?: string;
+  validationNotes?: string[];
+}
+
+export function evaluateActionRunnerDecision(
+  input: ActionRunnerDecisionInput,
+): { status: "execute" } | { status: "Skipped"; notes: string } {
+  const policy = input.policies.find((entry) => input.request.policyIds.includes(entry.id));
+  if (
+    !policy ||
+    !SUPPORTED_GITHUB_ACTION_KEYS.includes(policy.title as (typeof SUPPORTED_GITHUB_ACTION_KEYS)[number])
+  ) {
+    return { status: "Skipped", notes: "Missing supported linked policy." };
+  }
+
+  const validationNotes = input.validationNotes ?? [];
+  if (input.mode === "live" && validationNotes.length > 0) {
+    return { status: "Skipped", notes: validationNotes.join(" ") };
+  }
+
+  if (input.mode === "live" && input.idempotencyKey) {
+    const duplicate = input.executions.find(
+      (execution) =>
+        execution.mode === "Live" &&
+        execution.status === "Succeeded" &&
+        execution.idempotencyKey === input.idempotencyKey,
+    );
+    if (duplicate) {
+      return { status: "Skipped", notes: "A successful live execution already exists." };
+    }
+  }
+
+  return { status: "execute" };
+}
+
+export function summarizeActionRunnerResults(results: ActionRunnerResult[]): {
+  recordsUpdated: number;
+  recordsSkipped: number;
+  failureCount: number;
+} {
+  return {
+    recordsUpdated: results.filter((result) => result.status === "Succeeded").length,
+    recordsSkipped: results.filter((result) => result.status === "Skipped").length,
+    failureCount: results.filter((result) => result.status === "Failed").length,
+  };
+}
+
+export function classifyActionRunnerFailure(error: unknown): {
+  failureNotes: string;
+  failureClassification: GitHubResponseClassification;
+} {
+  const failureNotes = toErrorMessage(error);
+  return {
+    failureNotes,
+    failureClassification: classifyGitHubFailureMessage(failureNotes) as GitHubResponseClassification,
+  };
+}
 
 export interface ActionRunnerCommandOptions {
   request?: string;
@@ -97,15 +169,21 @@ export async function runActionRunnerCommand(
       )
       .slice(0, options.limit ?? (mode === "live" ? phase7.runnerLimits.maxLivePerRun : phase7.runnerLimits.maxDryRunsPerRun));
 
-    const results: Array<{ requestId: string; executionId?: string; status: string; notes?: string }> = [];
+    const results: ActionRunnerResult[] = [];
 
     for (const request of requests) {
       const policy = policies.find((entry) => request.policyIds.includes(entry.id));
-      if (!policy || !SUPPORTED_GITHUB_ACTION_KEYS.includes(policy.title as (typeof SUPPORTED_GITHUB_ACTION_KEYS)[number])) {
-        results.push({ requestId: request.id, status: "Skipped", notes: "Missing supported linked policy." });
+      const baselineDecision = evaluateActionRunnerDecision({
+        request,
+        policies,
+        executions,
+        mode,
+      });
+      if (baselineDecision.status === "Skipped") {
+        results.push({ requestId: request.id, status: "Skipped", notes: baselineDecision.notes });
         continue;
       }
-      const actionKey = policy.title as ActuationActionKey;
+      const actionKey = policy!.title as ActuationActionKey;
       const latestDryRun = executions
         .filter((execution) => request.latestExecutionIds.includes(execution.id))
         .find((execution) => execution.mode === "Dry Run");
@@ -140,11 +218,6 @@ export async function runActionRunnerCommand(
         preflight,
         today: new Date().toISOString().slice(0, 10),
       });
-      if (validationNotes.length > 0 && mode === "live") {
-        results.push({ requestId: request.id, status: "Skipped", notes: validationNotes.join(" ") });
-        continue;
-      }
-
       const modeLabel = mode === "live" ? "Live" : "Dry Run";
       const idempotencyKey = computeActuationExecutionKey({
         requestId: request.id,
@@ -153,14 +226,17 @@ export async function runActionRunnerCommand(
         mode: modeLabel,
         payload,
       });
-      const duplicate =
-        mode === "live"
-          ? executions.find(
-              (execution) => execution.mode === "Live" && execution.status === "Succeeded" && execution.idempotencyKey === idempotencyKey,
-            )
-          : undefined;
-      if (duplicate && mode === "live") {
-        results.push({ requestId: request.id, status: "Skipped", notes: "A successful live execution already exists." });
+      const decision = evaluateActionRunnerDecision({
+        request,
+        policies,
+        executions,
+        mode,
+        actionKey,
+        idempotencyKey,
+        validationNotes,
+      });
+      if (decision.status === "Skipped") {
+        results.push({ requestId: request.id, status: "Skipped", notes: decision.notes });
         continue;
       }
 
@@ -328,8 +404,7 @@ export async function runActionRunnerCommand(
         });
         results.push({ requestId: request.id, executionId: draftExecution.id, status: finalStatus });
       } catch (error) {
-        const failureNotes = toErrorMessage(error);
-        const failureClassification = classifyGitHubFailureMessage(failureNotes);
+        const { failureNotes, failureClassification } = classifyActionRunnerFailure(error);
         await api.updatePageProperties({
           pageId: draftExecution.id,
           properties: {
@@ -369,7 +444,7 @@ export async function runActionRunnerCommand(
             policyIds: request.policyIds,
             targetSourceIds: [target.source.id],
             provider: "GitHub",
-            actionKey: policy.title,
+            actionKey,
             mode: modeLabel,
             status: "Failed",
             idempotencyKey,
@@ -380,7 +455,7 @@ export async function runActionRunnerCommand(
             commentId: "",
             labelDeltaSummary: summarizeGitHubLabelDelta({ payload, preflight }),
             assigneeDeltaSummary: summarizeGitHubAssigneeDelta({ payload, preflight }),
-            responseClassification: failureClassification as GitHubResponseClassification,
+            responseClassification: failureClassification,
             reconcileStatus: "Mismatch" as GitHubReconcileStatus,
             responseSummary: "",
             failureNotes,
@@ -401,9 +476,7 @@ export async function runActionRunnerCommand(
   recordCommandOutputSummary(
     {
       ...output,
-      recordsUpdated: results.filter((result) => result.status === "Succeeded").length,
-      recordsSkipped: results.filter((result) => result.status === "Skipped").length,
-      failureCount: results.filter((result) => result.status === "Failed").length,
+      ...summarizeActionRunnerResults(results),
     },
     {
       mode,

@@ -11,6 +11,7 @@ import {
 import { fetchAllPages, relationValue, richTextValue, titleValue } from "./local-portfolio-control-tower-live.js";
 import { mergeManagedSection } from "./local-portfolio-execution.js";
 import { toExternalSignalSourceRecord } from "./local-portfolio-external-signals-live.js";
+import type { ActionPolicyRecord, ActionRequestRecord } from "./local-portfolio-governance.js";
 import { toActionPolicyRecord, toActionRequestRecord } from "./local-portfolio-governance-live.js";
 import {
   buildGitHubCompensationPlan,
@@ -35,6 +36,110 @@ import { AppError } from "../utils/errors.js";
 
 const ACTUATION_PACKET_START = "<!-- codex:notion-actuation-packet:start -->";
 const ACTUATION_PACKET_END = "<!-- codex:notion-actuation-packet:end -->";
+
+export interface ActionDryRunPreparation {
+  target: ReturnType<typeof resolveActuationTarget> | null;
+  payload: ReturnType<typeof buildGitHubExecutionPayload> | null;
+  preflight?: GitHubActionPreflight;
+  idempotencyKey: string;
+  preparationError?: string;
+}
+
+export async function prepareActionDryRun(
+  input: {
+    request: ActionRequestRecord;
+    sources: ReturnType<typeof toExternalSignalSourceRecord>[];
+    targetConfig: Awaited<ReturnType<typeof loadLocalPortfolioActuationTargetConfig>>;
+    actionKey: ActuationActionKey;
+  },
+  dependencies: {
+    fetchPreflight: typeof fetchGitHubActionPreflight;
+  } = {
+    fetchPreflight: fetchGitHubActionPreflight,
+  },
+): Promise<ActionDryRunPreparation> {
+  try {
+    const target = resolveActuationTarget({
+      request: input.request,
+      sources: input.sources,
+      targetConfig: input.targetConfig,
+      actionKey: input.actionKey,
+    });
+    const payload = buildGitHubExecutionPayload({
+      request: input.request,
+      target,
+      actionKey: input.actionKey,
+    });
+    const preflight = await dependencies.fetchPreflight({ payload });
+    const idempotencyKey = computeActuationExecutionKey({
+      requestId: input.request.id,
+      actionKey: input.actionKey,
+      targetSourceId: target.source.id,
+      mode: "Dry Run",
+      payload,
+    });
+    return {
+      target,
+      payload,
+      preflight,
+      idempotencyKey,
+    };
+  } catch (error) {
+    return {
+      target: null,
+      payload: null,
+      preflight: undefined,
+      idempotencyKey: "",
+      preparationError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export function evaluateActionDryRunReadiness(input: {
+  request: ActionRequestRecord;
+  policies: ActionPolicyRecord[];
+  config: Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>>;
+  actionKey: ActuationActionKey;
+  latestExecution?: ReturnType<typeof toExternalActionExecutionRecord>;
+  preparation: ActionDryRunPreparation;
+  today: string;
+  executedAt: string;
+}): {
+  validationNotes: string[];
+  postDryRun: ReturnType<typeof computePostDryRunReadiness>;
+  readyForLive: boolean;
+} {
+  const validationNotes = evaluateActionRequestReadiness({
+    request: input.request,
+    policies: input.policies,
+    target: input.preparation.target ?? undefined,
+    config: input.config,
+    latestDryRun:
+      input.latestExecution && input.latestExecution.mode === "Dry Run"
+        ? input.latestExecution
+        : undefined,
+    actionKey: input.actionKey,
+    preflight: input.preparation.preflight,
+    today: input.today,
+  });
+
+  const postDryRun = computePostDryRunReadiness({
+    request: input.request,
+    policies: input.policies,
+    target: input.preparation.target ?? undefined,
+    config: input.config,
+    actionKey: input.actionKey,
+    executedAt: input.executedAt,
+    preflightNotes: validationNotes,
+    preflight: input.preparation.preflight,
+  });
+
+  return {
+    validationNotes,
+    postDryRun,
+    readyForLive: validationNotes.length === 0,
+  };
+}
 
 export interface ActionDryRunCommandOptions {
   request?: string;
@@ -95,61 +200,32 @@ export async function runActionDryRunCommand(
     }
     const actionKey = policy.title as ActuationActionKey;
 
-    let target = null;
-    let payload = null;
-    let preflight: GitHubActionPreflight | undefined;
-    let idempotencyKey = "";
     const latestExecution = executions
       .filter((execution) => request.latestExecutionIds.includes(execution.id))
       .sort((left, right) => right.executedAt.localeCompare(left.executedAt))[0];
-
-    try {
-      target = resolveActuationTarget({
-        request,
-        sources,
-        targetConfig,
-        actionKey,
-      });
-      payload = buildGitHubExecutionPayload({
-        request,
-        target,
-        actionKey,
-      });
-      preflight = await fetchGitHubActionPreflight({ payload });
-      idempotencyKey = computeActuationExecutionKey({
-        requestId: request.id,
-        actionKey,
-        targetSourceId: target.source.id,
-        mode: "Dry Run",
-        payload,
-      });
-    } catch {
-      // Validation notes below will capture why the request is not ready.
-    }
-
-    const validationNotes = evaluateActionRequestReadiness({
+    const preparation = await prepareActionDryRun({
       request,
-      policies,
-      target: target ?? undefined,
-      config,
-      latestDryRun:
-        latestExecution && latestExecution.mode === "Dry Run" ? latestExecution : undefined,
+      sources,
+      targetConfig,
       actionKey,
-      preflight,
-      today: new Date().toISOString().slice(0, 10),
     });
 
     const now = new Date().toISOString();
-    const postDryRun = computePostDryRunReadiness({
+    const readiness = evaluateActionDryRunReadiness({
       request,
       policies,
-      target: target ?? undefined,
       config,
       actionKey,
+      latestExecution,
+      preparation,
+      today: now.slice(0, 10),
       executedAt: now,
-      preflightNotes: validationNotes,
-      preflight,
     });
+    const { validationNotes, postDryRun } = readiness;
+    const target = preparation.target;
+    const payload = preparation.payload;
+    const preflight = preparation.preflight;
+    const idempotencyKey = preparation.idempotencyKey;
     const preflightNotes = payload ? describeGitHubActionPreflight({ actionKey, preflight }) : [];
     const executionTitle = `Dry run - ${request.title} - ${now.slice(0, 19)}`;
     const markdown = [
@@ -283,7 +359,7 @@ export async function runActionDryRunCommand(
       requestId: request.id,
       executionId: created.id,
       executionUrl: created.url,
-      readyForLive: validationNotes.length === 0,
+      readyForLive: readiness.readyForLive,
       validationNotes,
     };
     recordCommandOutputSummary(output, {

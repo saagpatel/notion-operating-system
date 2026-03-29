@@ -33,7 +33,7 @@ import {
   classifyOperationalRolloutProject,
   ensureGitHubCreateIssueActionRequest,
   renderDecisionMarkdown,
-  runScriptJson,
+  runRolloutCommandSteps,
   type OperationalRolloutCandidate,
 } from "./operational-rollout.js";
 import { AppError } from "../utils/errors.js";
@@ -310,40 +310,104 @@ export async function runCohortRolloutCommand(
       dryRuns: [] as Array<{ title: CohortProjectTitle; result: unknown }>,
       liveRuns: [] as Array<{ title: CohortProjectTitle; result: unknown }>,
       followUps: {} as Record<string, unknown>,
+      failures: [] as Array<{ step: string; title?: CohortProjectTitle; error: string }>,
     };
 
     if (flags.runDry || flags.runLive) {
-      for (const write of writes) {
-        execution.dryRuns.push({
+      const dryRunSteps = await runRolloutCommandSteps(
+        writes.map((write) => ({
+          key: `dryRun:${write.title}`,
+          script: "portfolio-audit:action-dry-run",
+          args: ["--request", write.requestId],
           title: write.title,
-          result: await runScriptJson("portfolio-audit:action-dry-run", ["--request", write.requestId]),
-        });
+        })),
+      );
+      for (const write of writes) {
+        const result = dryRunSteps.results[`dryRun:${write.title}`];
+        if (result !== undefined) {
+          execution.dryRuns.push({
+            title: write.title,
+            result,
+          });
+        }
       }
-      execution.followUps.actionRequestSync = await runScriptJson("portfolio-audit:action-request-sync", ["--live"]);
+      execution.failures.push(
+        ...dryRunSteps.failures.map((failure) => ({
+          step: failure.key,
+          title: failure.title as CohortProjectTitle | undefined,
+          error: failure.error,
+        })),
+      );
+      const requestSyncStep = await runRolloutCommandSteps([
+        { key: "actionRequestSync", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+      ]);
+      Object.assign(execution.followUps, requestSyncStep.results);
+      execution.failures.push(
+        ...requestSyncStep.failures.map((failure) => ({
+          step: failure.key,
+          title: failure.title as CohortProjectTitle | undefined,
+          error: failure.error,
+        })),
+      );
     }
 
     if (flags.runLive) {
-      for (const write of writes) {
-        execution.liveRuns.push({
+      const liveRunSteps = await runRolloutCommandSteps(
+        writes.map((write) => ({
+          key: `liveRun:${write.title}`,
+          script: "portfolio-audit:action-runner",
+          args: ["--mode", "live", "--request", write.requestId],
           title: write.title,
-          result: await runScriptJson("portfolio-audit:action-runner", ["--mode", "live", "--request", write.requestId]),
-        });
+        })),
+      );
+      for (const write of writes) {
+        const result = liveRunSteps.results[`liveRun:${write.title}`];
+        if (result !== undefined) {
+          execution.liveRuns.push({
+            title: write.title,
+            result,
+          });
+        }
       }
-      execution.followUps.actionRequestSyncAfterLive = await runScriptJson("portfolio-audit:action-request-sync", ["--live"]);
-      execution.followUps.githubSignalSync = await runScriptJson("portfolio-audit:external-signal-sync", [
-        "--provider",
-        "github",
-        "--live",
+      execution.failures.push(
+        ...liveRunSteps.failures.map((failure) => ({
+          step: failure.key,
+          title: failure.title as CohortProjectTitle | undefined,
+          error: failure.error,
+        })),
+      );
+      const liveFollowUpSteps = await runRolloutCommandSteps([
+        { key: "actionRequestSyncAfterLive", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+        {
+          key: "githubSignalSync",
+          script: "portfolio-audit:external-signal-sync",
+          args: ["--provider", "github", "--live"],
+        },
+        { key: "webhookShadowDrain", script: "portfolio-audit:webhook-shadow-drain", args: [] },
+        { key: "webhookReconcile", script: "portfolio-audit:webhook-reconcile", args: ["--provider", "github"] },
       ]);
-      execution.followUps.webhookShadowDrain = await runScriptJson("portfolio-audit:webhook-shadow-drain", []);
-      execution.followUps.webhookReconcile = await runScriptJson("portfolio-audit:webhook-reconcile", [
-        "--provider",
-        "github",
-      ]);
+      Object.assign(execution.followUps, liveFollowUpSteps.results);
+      execution.failures.push(
+        ...liveFollowUpSteps.failures.map((failure) => ({
+          step: failure.key,
+          title: failure.title as CohortProjectTitle | undefined,
+          error: failure.error,
+        })),
+      );
     }
 
-    execution.followUps.controlTowerSync = await runScriptJson("portfolio-audit:control-tower-sync", ["--live"]);
-    execution.followUps.reviewPacket = await runScriptJson("portfolio-audit:review-packet", ["--live"]);
+    const finalFollowUpSteps = await runRolloutCommandSteps([
+      { key: "controlTowerSync", script: "portfolio-audit:control-tower-sync", args: ["--live"] },
+      { key: "reviewPacket", script: "portfolio-audit:review-packet", args: ["--live"] },
+    ]);
+    Object.assign(execution.followUps, finalFollowUpSteps.results);
+    execution.failures.push(
+      ...finalFollowUpSteps.failures.map((failure) => ({
+        step: failure.key,
+        title: failure.title as CohortProjectTitle | undefined,
+        error: failure.error,
+      })),
+    );
 
     const output = {
       ok: true,
@@ -358,6 +422,7 @@ export async function runCohortRolloutCommand(
       {
         ...output,
         recordsUpdated: Array.isArray(writes) ? writes.length : undefined,
+        failureCount: execution.failures.length,
       },
       {
         mode: "live",

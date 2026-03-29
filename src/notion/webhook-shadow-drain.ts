@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { Client } from "@notionhq/client";
 
+import { isDirectExecution } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -503,7 +504,12 @@ export function extractGitHubReconcileCandidate(
   body: string,
   eventType: string,
 ): GitHubReconcileCandidate | undefined {
-  const parsedPayload = JSON.parse(body) as Record<string, unknown>;
+  let parsedPayload: Record<string, unknown>;
+  try {
+    parsedPayload = JSON.parse(body) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
   if (eventType === "issues") {
     const issue = (parsedPayload.issue ?? {}) as Record<string, unknown>;
     const issueNumber = typeof issue.number === "number" ? issue.number : 0;
@@ -535,4 +541,6 @@ export function extractGitHubReconcileCandidate(
   return undefined;
 }
 
-void main();
+if (isDirectExecution(import.meta.url)) {
+  void main();
+}

@@ -54,6 +54,41 @@ describe("local portfolio provider expansion", () => {
     expect(vercel?.blockers).toContain("All policies are still disabled.");
     expect(vercel?.nextStep).toContain("dry-run runner support");
   });
+
+  test("keeps non-GitHub provider expansion blocked until GitHub is trusted", async () => {
+    const [controlConfig, policyConfig, webhookConfig, externalProviderConfig, targetConfig] = await Promise.all([
+      readConfig("../config/local-portfolio-control-tower.json").then(parseLocalPortfolioControlTowerConfig),
+      loadLocalPortfolioGovernancePolicyConfig(),
+      readConfig("../config/local-portfolio-webhook-providers.json").then(parseLocalPortfolioWebhookProviderConfig),
+      loadLocalPortfolioExternalSignalProviderConfig(),
+      readConfig("../config/local-portfolio-actuation-targets.json").then(parseLocalPortfolioActuationTargetConfig),
+    ]);
+
+    const summary = buildProviderExpansionAuditSummary({
+      controlConfig: {
+        ...controlConfig,
+        phase8GithubDeepening: {
+          ...controlConfig.phase8GithubDeepening!,
+          webhookFeedback: {
+            ...controlConfig.phase8GithubDeepening!.webhookFeedback,
+            githubStatus: "shadow",
+          },
+        },
+      },
+      policyConfig,
+      webhookConfig,
+      externalProviderConfig,
+      targetConfig,
+    });
+
+    const vercel = summary.providers.find((provider) => provider.provider === "Vercel");
+
+    expect(summary.githubBaselineTrusted).toBe(false);
+    expect(vercel?.blockers).toContain(
+      "GitHub is not yet marked as trusted feedback, so provider expansion should stay gated.",
+    );
+    expect(vercel?.nextStep).toContain("Keep expansion paused");
+  });
 });
 
 async function readConfig(relativePath: string): Promise<unknown> {

@@ -1,6 +1,6 @@
 # Repo Roadmap After Phase 4
 
-Updated: 2026-03-28
+Updated: 2026-03-29
 
 ## Purpose
 
@@ -105,6 +105,8 @@ This track is optional and should stay behind the trust and cleanup work above.
 
 ## Phase 5: Advanced Workflow Hardening
 
+Status: Completed on the local Phase 5 branch state.
+
 Recommended first because it attacks the highest-risk part of the repo.
 
 Primary outcomes:
@@ -195,24 +197,24 @@ Primary outcomes:
 
 ## Recommended Immediate Next Phase
 
-The next phase should be **Phase 5: Advanced Workflow Hardening**.
+The next phase should be **Phase 6: Script Reduction and Shared CLI Coverage**.
 
 Why this should come next:
 
-- the foundation is already strong enough
-- the most meaningful remaining risk is in the advanced workflows, not the CLI shell
-- expanding trust first makes later command migration and product cleanup much safer
+- the trust-first hardening pass is now in place
+- the biggest remaining repo-shape problem is still the long tail of legacy scripts
+- reducing script sprawl now will make later observability and product-shape cleanup much cleaner
 
-## Immediate Phase 5 Docket
+## Immediate Phase 6 Docket
 
 If planning starts now, use this as the working docket:
 
-1. Add targeted tests for `action-runner`, `action-dry-run`, and governance duplicate suppression
-2. Add targeted tests for external-signal/provider failure paths, partial credentials, and unsupported providers
-3. Add targeted tests for webhook shadow and reconcile edge cases
-4. Add targeted tests for rollout follow-up sequencing and failure isolation
-5. Add built CLI smoke checks for representative advanced commands
-6. Review the resulting gaps and only then decide whether some old scripts need to move sooner into the shared CLI
+1. Audit the remaining one-off scripts by keep, migrate, or retire
+2. Move the highest-value retained scripts into the shared CLI
+3. Replace more custom argument parsing with the shared parser where it is safe
+4. Add help output and compatibility coverage for the newly migrated flows
+5. Quarantine or explicitly mark truly one-off utilities so they stop looking like core operator surface
+6. Re-review the remaining advanced workflow gaps after the script surface is cleaner
 
 ## Not Yet Recommended
 

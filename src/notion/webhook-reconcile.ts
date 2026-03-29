@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { Client } from "@notionhq/client";
 
+import { isDirectExecution } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -9,6 +10,7 @@ import {
 } from "./local-portfolio-control-tower.js";
 import { fetchAllPages } from "./local-portfolio-control-tower-live.js";
 import { requirePhase6Governance } from "./local-portfolio-governance.js";
+import type { WebhookDeliveryRecord } from "./local-portfolio-governance.js";
 import { toWebhookDeliveryRecord } from "./local-portfolio-governance-live.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 
@@ -19,7 +21,7 @@ async function main(): Promise<void> {
       throw new AppError("NOTION_TOKEN is required for webhook reconcile");
     }
 
-    const flags = parseFlags(process.argv.slice(2));
+    const flags = parseWebhookReconcileFlags(process.argv.slice(2));
     const configPath =
       process.argv[2]?.startsWith("--")
         ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
@@ -33,12 +35,7 @@ async function main(): Promise<void> {
     const deliveryPages = await fetchAllPages(sdk, phase6.webhookDeliveries.dataSourceId, deliverySchema.titlePropertyName);
     const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));
 
-    const providerName = flags.provider === "github" ? "GitHub" : flags.provider === "vercel" ? "Vercel" : "Google Calendar";
-    const reconcileNeeded = deliveries.filter(
-      (delivery) =>
-        delivery.provider === providerName &&
-        (delivery.status === "Failed" || delivery.verificationResult === "Duplicate"),
-    );
+    const reconcileNeeded = findWebhookDeliveriesNeedingReconcile(deliveries, flags.provider);
 
     console.log(
       JSON.stringify(
@@ -63,7 +60,7 @@ async function main(): Promise<void> {
   }
 }
 
-function parseFlags(argv: string[]): { provider: "github" | "vercel" | "google_calendar" } {
+export function parseWebhookReconcileFlags(argv: string[]): { provider: "github" | "vercel" | "google_calendar" } {
   let provider: "github" | "vercel" | "google_calendar" = "github";
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
@@ -78,4 +75,18 @@ function parseFlags(argv: string[]): { provider: "github" | "vercel" | "google_c
   return { provider };
 }
 
-void main();
+export function findWebhookDeliveriesNeedingReconcile(
+  deliveries: WebhookDeliveryRecord[],
+  provider: "github" | "vercel" | "google_calendar",
+): WebhookDeliveryRecord[] {
+  const providerName = provider === "github" ? "GitHub" : provider === "vercel" ? "Vercel" : "Google Calendar";
+  return deliveries.filter(
+    (delivery) =>
+      delivery.provider === providerName &&
+      (delivery.status === "Failed" || delivery.verificationResult === "Duplicate"),
+  );
+}
+
+if (isDirectExecution(import.meta.url)) {
+  void main();
+}
