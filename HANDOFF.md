@@ -81,6 +81,17 @@
 - documented the shared-cli vs wrapper vs one-off script split in `docs/script-surface-classification.md`
 - expanded CLI help, wrapper coverage, and built-cli smoke checks for the migrated command set
 
+### Phase 7
+
+- enriched shared run summaries with:
+  - `status`
+  - `warningCategories`
+  - `failureCategories`
+- standardized the first bounded observability taxonomy for warnings and failures
+- improved HTTP retry and timeout classification so recovered retries and terminal failures show up more clearly in run logs
+- added `logs recent` as a read-only operator command for inspecting recent command outcomes from the active log directory
+- upgraded representative advanced workflows so their run summaries are more explicit about warnings, partial success, and diagnosis
+
 ## Verification checklist for this branch
 
 Run these before landing or after pulling onto a new machine:
@@ -104,19 +115,18 @@ npm run verify
 npm run hooks:install
 ```
 
-## Remaining backlog after Phase 6
+## Remaining backlog after Phase 7
 
 - The concrete post-Phase-4 repo roadmap now lives in `docs/repo-post-phase4-roadmap.md`
-- Recommended next repo phase: **Phase 7 - Deeper Observability and Operator Diagnosis**
+- Recommended next repo phase: **Phase 8 - Profile Portability and Config Lifecycle**
 - Later roadmap buckets include:
-  - deeper observability and operator diagnosis
   - profile portability and config lifecycle
   - product-shape cleanup
   - optional public release readiness
 
 ## Verified on this branch
 
-These should be rerun successfully before landing the Phase 6 branch:
+These should be rerun successfully before landing the Phase 7 branch:
 
 ```bash
 npm run typecheck
@@ -125,8 +135,9 @@ npm run build
 npm run smoke:built-cli
 npm run verify
 node dist/src/cli.js --help
+node dist/src/cli.js logs recent --help
 node dist/src/cli.js governance audit --help
-node dist/src/cli.js execution views-validate --help
+node dist/src/cli.js signals sync --help
 ```
 
 ## Known assumptions and risks
@@ -136,3 +147,4 @@ node dist/src/cli.js execution views-validate --help
 - Secrets still remain operator-managed in local env files and must never be committed
 - The local README rewrite was preserved and extended instead of being replaced
 - The current script surface classification lives in `docs/script-surface-classification.md`
+- `logs recent` is the operator-facing entrypoint for recent run inspection in this phase
