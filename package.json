@@ -52,6 +52,7 @@
     "prepare": "npm run build",
     "smoke:built-cli": "node scripts/built-cli-smoke.mjs",
     "smoke:git-install": "node scripts/git-install-smoke.mjs",
+    "sandbox:smoke": "node scripts/sandbox-smoke.mjs",
     "pack:tarball": "node scripts/pack-release.mjs",
     "smoke:packed-install": "node scripts/packed-install-smoke.mjs",
     "verify": "npm run typecheck && npm test && npm run build && npm run smoke:built-cli && npm run smoke:packed-install && npm run smoke:git-install",
