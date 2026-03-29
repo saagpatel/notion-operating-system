@@ -1,3 +1,4 @@
+// Internal historical utility. Kept for compatibility scripts, not the shared operator surface.
 import { statSync, type Stats } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
