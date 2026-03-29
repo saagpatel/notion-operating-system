@@ -38,6 +38,8 @@ cp .env .env.sandbox
 notion-os --profile sandbox doctor
 ```
 
+That gives you a same-shape rehearsal lane, not an automatically isolated live sandbox. Copying `.env` is fine for dry-run and config rehearsal, but before any live sandbox write you must repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace or sandbox destinations.
+
 If you need to recreate the sandbox profile files from scratch, you can still use:
 
 ```bash

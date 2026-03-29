@@ -258,6 +258,10 @@ notion-os --profile sandbox doctor
 
 The repo now ships a tracked `sandbox` profile descriptor and its profile-owned JSON config files. The only local piece you normally need to supply is `.env.sandbox`, which should stay untracked.
 
+Important: the tracked sandbox config starts as a same-shape rehearsal copy of the default profile. Copying `.env` into `.env.sandbox` is acceptable for dry-run and config-path rehearsal, but it does not create an isolated live sandbox by itself.
+
+Before any live rehearsal, repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace or sandbox destinations. Do not assume the cloned sandbox profile is safe for live writes until you have done that repointing explicitly.
+
 Treat dry-run first as the rule in that profile unless you are explicitly rehearsing a live path.
 
 If your shell exports overrides like `NOTION_DESTINATIONS_PATH`, those environment variables win over the profile descriptor. Unset them when you want the sandbox profile to resolve only its own profile-owned paths.

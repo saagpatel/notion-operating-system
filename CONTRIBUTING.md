@@ -70,6 +70,8 @@ If you are touching risky advanced workflows, also rehearse from the sandbox pro
 
 The repo already includes the tracked `sandbox` profile config. In most cases you only need a local `.env.sandbox`, which should remain untracked.
 
+Treat the tracked sandbox as a same-shape rehearsal lane by default. Before any live sandbox write, repoint its credentials and Notion target IDs to isolated sandbox targets instead of assuming the cloned defaults are already safe.
+
 If you touch CLI behavior, add or update CLI tests.
 
 If you touch Notion publishing behavior, preserve existing dry-run and schema-validation safety expectations.

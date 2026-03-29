@@ -99,6 +99,8 @@ Stay dry-run first there unless the operator is explicitly rehearsing a live pat
 
 The repo now includes the tracked `sandbox` profile descriptor and profile-owned JSON files. The local operator still needs to supply `.env.sandbox`, which must remain untracked. Shell-level overrides like `NOTION_DESTINATIONS_PATH` still take precedence over profile descriptor paths.
 
+Important safety note: the tracked sandbox profile is a same-shape rehearsal lane by default, not an automatically isolated live sandbox. Before any live sandbox write, the operator must repoint sandbox credentials and Notion target IDs to separate sandbox targets.
+
 ## Remaining backlog
 
 - no required structural phase remains after Phase 10

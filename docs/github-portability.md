@@ -162,6 +162,8 @@ notion-os --profile sandbox doctor
 
 That profile is the recommended rehearsal path for control-tower, signals, governance, rollout, and profile-lifecycle changes. The local `.env.sandbox` should stay untracked.
 
+By default, that tracked sandbox profile is a same-shape rehearsal copy, not an isolated live sandbox. Before any live sandbox write, repoint the sandbox credentials and destination IDs to separate sandbox targets.
+
 If your terminal exports overrides like `NOTION_DESTINATIONS_PATH`, unset them when you want the sandbox profile to use only its profile-owned config paths.
 
 That split makes the system easy to recover without leaking secrets into version control.
