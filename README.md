@@ -123,6 +123,9 @@ npm run verify
 # Verify local setup on a new machine
 npm run doctor
 
+# Rehearse the sandbox safety path
+npm run sandbox:smoke
+
 # Show the active workspace profile and resolved paths
 notion-os profiles show
 
@@ -169,6 +172,7 @@ Use the full local gate before shipping changes:
 ```bash
 npm run verify
 npm run release:prepare
+npm run sandbox:smoke
 ```
 
 This runs:
@@ -182,7 +186,7 @@ This runs:
 
 CI also verifies a fresh workspace copy so the repo is not relying on long-lived local state.
 
-For the recurring maintenance rhythm after the main build-out phases, use [docs/maintenance-playbook.md](docs/maintenance-playbook.md).
+For the recurring maintenance rhythm after the main build-out phases, use [docs/maintenance-playbook.md](docs/maintenance-playbook.md). For the operational proving path before risky live writes, use [docs/sandbox-rehearsal-runbook.md](docs/sandbox-rehearsal-runbook.md).
 
 Most shared CLI commands now also write lifecycle events and run summaries into the active log directory. By default that is `./logs`, or the profile/runtime override in `NOTION_LOG_DIR`.
 
@@ -192,6 +196,13 @@ Run summaries now use four high-level statuses:
 - `warning`: finished, but something needs attention
 - `partial`: some useful work finished, but part of the run needs follow-up
 - `failed`: the run did not complete cleanly
+
+For risky advanced workflow changes, use this proving path:
+
+- unit and integration tests for code confidence
+- `npm run verify` for repo confidence
+- `npm run verify:fresh-clone` for fresh-machine confidence
+- `notion-os --profile sandbox doctor` plus `npm run sandbox:smoke` for operational confidence
 
 To inspect recent runs without opening JSONL files manually:
 
@@ -255,22 +266,22 @@ Use a `sandbox` profile as the default proving ground before live changes that t
 Recommended setup:
 
 ```bash
-cp .env .env.sandbox
 notion-os --profile sandbox profiles show
 notion-os --profile sandbox doctor
+npm run sandbox:smoke
 ```
 
-The repo now ships a tracked `sandbox` profile descriptor and its profile-owned JSON config files. The only local piece you normally need to supply is `.env.sandbox`, which should stay untracked.
+The repo now ships a tracked `sandbox` profile descriptor, isolated sandbox config, and its profile-owned JSON config files. The only local piece you normally need to supply is `.env.sandbox`, which should stay untracked.
 
-Important: the tracked sandbox config still starts as a same-shape rehearsal copy of the default profile. Copying `.env` into `.env.sandbox` is acceptable only as a first local bootstrap step for dry-run rehearsal.
+The sandbox is intended to be a real isolated live workspace. `notion-os --profile sandbox doctor` is the proof gate, and `npm run sandbox:smoke` is the higher-confidence rehearsal lane that runs the safe sandbox sequence from a temporary workspace copy so repo-tracked files do not get rewritten.
 
-Before any live rehearsal, repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and the rest of the sandbox Notion target IDs to a separate sandbox workspace. The sandbox doctor now enforces this: it fails when the sandbox token matches the primary token, when sandbox target refs overlap the primary profile, or when env overrides like `NOTION_DESTINATIONS_PATH` mask sandbox-owned paths.
+Before any live rehearsal, make sure `.env.sandbox` still points at the sandbox integration token and that the sandbox Notion targets remain isolated from the primary profile. The sandbox doctor enforces this: it fails when the sandbox token matches the primary token, when sandbox target refs overlap the primary profile, or when env overrides like `NOTION_DESTINATIONS_PATH` mask sandbox-owned paths.
 
 Treat dry-run first as the rule in that profile unless you are explicitly rehearsing a live path.
 
 If your shell exports overrides like `NOTION_DESTINATIONS_PATH`, those environment variables win over the profile descriptor. Unset them when you want the sandbox profile to resolve only its own profile-owned paths.
 
-If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
+If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md) and [docs/sandbox-rehearsal-runbook.md](docs/sandbox-rehearsal-runbook.md).
 
 ## Project Docs
 
@@ -278,6 +289,7 @@ If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
 - Architecture overview: [docs/architecture-overview.md](docs/architecture-overview.md)
 - Release process: [docs/release-process.md](docs/release-process.md)
 - Maintenance playbook: [docs/maintenance-playbook.md](docs/maintenance-playbook.md)
+- Sandbox rehearsal runbook: [docs/sandbox-rehearsal-runbook.md](docs/sandbox-rehearsal-runbook.md)
 - Post-Phase-4 repo roadmap: [docs/repo-post-phase4-roadmap.md](docs/repo-post-phase4-roadmap.md)
 - Script surface classification: [docs/script-surface-classification.md](docs/script-surface-classification.md)
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)

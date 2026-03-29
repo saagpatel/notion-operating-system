@@ -156,13 +156,13 @@ For long-term safety, treat the system as three layers:
 For risky operational changes, use the tracked `sandbox` profile before production writes:
 
 ```bash
-cp .env .env.sandbox
 notion-os --profile sandbox doctor
+npm run sandbox:smoke
 ```
 
 That profile is the recommended rehearsal path for control-tower, signals, governance, rollout, and profile-lifecycle changes. The local `.env.sandbox` should stay untracked.
 
-By default, that tracked sandbox profile is a same-shape rehearsal copy, not an isolated live sandbox. Before any live sandbox write, repoint the sandbox credentials and destination IDs to separate sandbox targets. The sandbox doctor now fails explicitly if the sandbox token overlaps the primary profile, if the sandbox Notion refs overlap the primary profile, or if an env override masks the sandbox-owned destinations path.
+The intended steady state is an isolated live sandbox. The sandbox doctor now fails explicitly if the sandbox token overlaps the primary profile, if the sandbox Notion refs overlap the primary profile, or if an env override masks the sandbox-owned destinations path. `npm run sandbox:smoke` gives you the fuller rehearsal lane from a temporary workspace copy so repo-tracked files do not get rewritten during the smoke sequence.
 
 If your terminal exports overrides like `NOTION_DESTINATIONS_PATH`, unset them when you want the sandbox profile to use only its profile-owned config paths.
 
