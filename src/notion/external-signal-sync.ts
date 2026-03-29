@@ -512,7 +512,7 @@ function logLoopProgress(live: boolean, scope: string, label: string, index: num
   }
 }
 
-async function syncProviders(input: {
+export async function syncProviders(input: {
   flags: { provider: "github" | "vercel" | "all"; live: boolean; today?: string };
   today: string;
   phase5: NonNullable<Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>>["phase5ExternalSignals"]>;
@@ -562,7 +562,7 @@ async function syncProviders(input: {
   return results;
 }
 
-async function syncGithubSources(
+export async function syncGithubSources(
   provider: ExternalSignalProviderPlan,
   sources: ExternalSignalSourceRecord[],
   maxEventsPerSource: number,
@@ -690,7 +690,7 @@ async function syncGithubSources(
   };
 }
 
-async function syncVercelSources(
+export async function syncVercelSources(
   provider: ExternalSignalProviderPlan,
   sources: ExternalSignalSourceRecord[],
   maxEventsPerSource: number,
@@ -963,7 +963,9 @@ function formatExternalDate(value: unknown): string {
   return losAngelesToday();
 }
 
-function normalizeProviderName(value: ExternalSignalSourceRecord["provider"]): ExternalProviderKey {
+export function normalizeProviderName(
+  value: ExternalSignalSourceRecord["provider"],
+): ExternalProviderKey | undefined {
   switch (value) {
     case "GitHub":
       return "github";
@@ -972,7 +974,7 @@ function normalizeProviderName(value: ExternalSignalSourceRecord["provider"]): E
     case "Google Calendar":
       return "google_calendar";
     default:
-      return "github";
+      return undefined;
   }
 }
 

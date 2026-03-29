@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildOperationalRolloutPlan,
   classifyOperationalRolloutProject,
+  runRolloutCommandSteps,
 } from "../src/notion/operational-rollout.js";
 import type { LocalPortfolioActuationTargetConfig } from "../src/notion/local-portfolio-actuation.js";
 import type { ControlTowerProjectRecord } from "../src/notion/local-portfolio-control-tower.js";
@@ -128,6 +129,37 @@ describe("operational rollout", () => {
 
     expect(plan.wave1Shortlist).toHaveLength(1);
     expect(plan.wave1Shortlist[0]?.githubLane).toBe("seeded_needs_mapping");
+  });
+
+  test("keeps rollout follow-up failures isolated while preserving sequence order", async () => {
+    const calls: string[] = [];
+    const result = await runRolloutCommandSteps(
+      [
+        { key: "step-1", script: "views-validate", args: [] },
+        { key: "step-2", script: "action-runner", args: ["--mode", "live"], title: "Pilot" },
+        { key: "step-3", script: "webhook-reconcile", args: ["--provider", "github"] },
+      ],
+      async (script) => {
+        calls.push(script);
+        if (script === "action-runner") {
+          throw new Error("Permission Failure: blocked");
+        }
+        return { ok: true, script };
+      },
+    );
+
+    expect(calls).toEqual(["views-validate", "action-runner", "webhook-reconcile"]);
+    expect(result.results).toEqual({
+      "step-1": { ok: true, script: "views-validate" },
+      "step-3": { ok: true, script: "webhook-reconcile" },
+    });
+    expect(result.failures).toEqual([
+      expect.objectContaining({
+        key: "step-2",
+        title: "Pilot",
+        error: "Permission Failure: blocked",
+      }),
+    ]);
   });
 });
 

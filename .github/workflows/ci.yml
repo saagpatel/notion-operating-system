@@ -31,4 +31,4 @@ jobs:
         run: npm run build
 
       - name: Smoke built CLI
-        run: node dist/src/cli.js --help
+        run: npm run smoke:built-cli

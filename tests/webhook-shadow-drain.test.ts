@@ -55,6 +55,41 @@ describe("webhook shadow drain reconcile matching", () => {
       actionKeys: ["github.add_issue_comment"],
     });
   });
+
+  test("returns undefined for malformed webhook payloads", () => {
+    expect(extractGitHubReconcileCandidate("{not json", "issues")).toBeUndefined();
+  });
+
+  test("returns undefined when the matched source does not line up", () => {
+    const match = findMatchingGitHubExecutionForReceipt({
+      executions: [baseExecution({ targetSourceIds: ["source-1"] })],
+      matchedSourceId: "source-2",
+      candidate: {
+        issueNumber: 1,
+        commentId: "",
+        actionKeys: ["github.create_issue"],
+      },
+    });
+
+    expect(match).toBeUndefined();
+  });
+
+  test("maps pull request comments to the pull-request comment action", () => {
+    const candidate = extractGitHubReconcileCandidate(
+      JSON.stringify({
+        action: "created",
+        issue: { number: 14, pull_request: { url: "https://api.github.com/repos/owner/repo/pulls/14" } },
+        comment: { id: 8765 },
+      }),
+      "issue_comment",
+    );
+
+    expect(candidate).toEqual({
+      issueNumber: 14,
+      commentId: "8765",
+      actionKeys: ["github.comment_pull_request"],
+    });
+  });
 });
 
 function baseExecution(overrides: Partial<ExternalActionExecutionRecord> = {}): ExternalActionExecutionRecord {

@@ -1,6 +1,6 @@
 # Repo Roadmap After Phase 4
 
-Updated: 2026-03-28
+Updated: 2026-03-29
 
 ## Purpose
 
@@ -105,6 +105,8 @@ This track is optional and should stay behind the trust and cleanup work above.
 
 ## Phase 5: Advanced Workflow Hardening
 
+Status: Completed on the local Phase 5 branch state.
+
 Recommended first because it attacks the highest-risk part of the repo.
 
 Primary outcomes:
@@ -130,6 +132,8 @@ Exit criteria:
 
 ## Phase 6: Script Reduction and Shared CLI Coverage
 
+Status: Completed on the local Phase 6 branch state.
+
 Primary outcomes:
 
 - fewer important commands live outside the shared CLI
@@ -141,6 +145,14 @@ Docket:
 - audit the remaining one-off scripts by keep, migrate, or retire
 - move the highest-value retained scripts into the shared CLI
 - remove duplicated parsing and normalize help text for the migrated flows
+- record the shared-cli, wrapper, and one-off split in repo memory
+
+Completed outcomes:
+
+- promoted durable audit and validation commands into the existing `governance`, `execution`, `intelligence`, and `signals` families
+- kept their legacy source entrypoints as compatibility wrappers for npm-script stability
+- left batch, backfill, manual, overhaul, native-overlay, and other narrow utilities outside the shared CLI on purpose
+- recorded the durable command-surface decisions in `docs/script-surface-classification.md`
 
 ## Phase 7: Deeper Observability and Operator Diagnosis
 
@@ -195,24 +207,24 @@ Primary outcomes:
 
 ## Recommended Immediate Next Phase
 
-The next phase should be **Phase 5: Advanced Workflow Hardening**.
+The next phase should be **Phase 7: Deeper Observability and Operator Diagnosis**.
 
 Why this should come next:
 
-- the foundation is already strong enough
-- the most meaningful remaining risk is in the advanced workflows, not the CLI shell
-- expanding trust first makes later command migration and product cleanup much safer
+- the trust-first hardening pass is already in place
+- the durable command surface is now clearer after Phase 6
+- the biggest remaining operator gap is understanding partial success, warnings, and live-write impact without digging through raw logs
 
-## Immediate Phase 5 Docket
+## Immediate Phase 7 Docket
 
 If planning starts now, use this as the working docket:
 
-1. Add targeted tests for `action-runner`, `action-dry-run`, and governance duplicate suppression
-2. Add targeted tests for external-signal/provider failure paths, partial credentials, and unsupported providers
-3. Add targeted tests for webhook shadow and reconcile edge cases
-4. Add targeted tests for rollout follow-up sequencing and failure isolation
-5. Add built CLI smoke checks for representative advanced commands
-6. Review the resulting gaps and only then decide whether some old scripts need to move sooner into the shared CLI
+1. Add richer command summaries for advanced workflows
+2. Standardize warning and partial-success taxonomy
+3. Improve failure classification across provider and webhook flows
+4. Add a lightweight way to inspect recent run summaries
+5. Improve live-write change summaries for sync commands
+6. Re-review whether later profile-portability and product-shape work should be reprioritized after the observability pass
 
 ## Not Yet Recommended
 

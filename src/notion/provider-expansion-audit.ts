@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
@@ -10,32 +11,46 @@ import { loadLocalPortfolioActuationTargetConfig } from "./local-portfolio-actua
 import { buildProviderExpansionAuditSummary } from "./local-portfolio-provider-expansion.js";
 import { toErrorMessage } from "../utils/errors.js";
 
+export interface ProviderExpansionAuditCommandOptions {
+  config?: string;
+}
+
+export async function runProviderExpansionAuditCommand(
+  options: ProviderExpansionAuditCommandOptions = {},
+): Promise<void> {
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  const [controlConfig, policyConfig, webhookConfig, externalProviderConfig, targetConfig] = await Promise.all([
+    loadLocalPortfolioControlTowerConfig(configPath),
+    loadLocalPortfolioGovernancePolicyConfig(),
+    loadLocalPortfolioWebhookProviderConfig(),
+    loadLocalPortfolioExternalSignalProviderConfig(),
+    loadLocalPortfolioActuationTargetConfig(),
+  ]);
+
+  const summary = buildProviderExpansionAuditSummary({
+    controlConfig,
+    policyConfig,
+    webhookConfig,
+    externalProviderConfig,
+    targetConfig,
+  });
+  console.log(JSON.stringify({ ok: true, ...summary }, null, 2));
+}
+
 async function main(): Promise<void> {
   try {
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    const [controlConfig, policyConfig, webhookConfig, externalProviderConfig, targetConfig] = await Promise.all([
-      loadLocalPortfolioControlTowerConfig(configPath),
-      loadLocalPortfolioGovernancePolicyConfig(),
-      loadLocalPortfolioWebhookProviderConfig(),
-      loadLocalPortfolioExternalSignalProviderConfig(),
-      loadLocalPortfolioActuationTargetConfig(),
-    ]);
-
-    const summary = buildProviderExpansionAuditSummary({
-      controlConfig,
-      policyConfig,
-      webhookConfig,
-      externalProviderConfig,
-      targetConfig,
+    await runProviderExpansionAuditCommand({
+      config:
+        process.argv[2]?.startsWith("--")
+          ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
+          : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
     });
-    console.log(JSON.stringify({ ok: true, ...summary }, null, 2));
   } catch (error) {
     console.error(toErrorMessage(error));
     process.exitCode = 1;
   }
 }
 
-void main();
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["signals", "provider-expansion-audit"]);
+}

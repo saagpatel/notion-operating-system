@@ -73,6 +73,21 @@ export interface OperationalRolloutPlan {
   pilotCandidate?: OperationalRolloutCandidate;
 }
 
+export interface RolloutCommandStep {
+  key: string;
+  script: string;
+  args: string[];
+  title?: string;
+}
+
+export interface RolloutCommandFailure {
+  key: string;
+  script: string;
+  args: string[];
+  title?: string;
+  error: string;
+}
+
 export interface EnsureGitHubCreateIssueActionRequestInput {
   api: DirectNotionClient;
   config: RolloutContext["config"];
@@ -198,6 +213,7 @@ export async function runOperationalRolloutCommand(
 
     let pilotRequest: Awaited<ReturnType<typeof ensurePilotActionRequest>> | undefined;
     const pilotRuns: Record<string, unknown> = {};
+    const pilotRunFailures: RolloutCommandFailure[] = [];
 
     if (plan.pilotCandidate) {
       pilotRequest = await ensurePilotActionRequest({
@@ -212,19 +228,31 @@ export async function runOperationalRolloutCommand(
         approve: flags.approvePilot || flags.runPilotLive,
       });
 
-      pilotRuns.requestSyncAfterCreate = await runScriptJson("portfolio-audit:action-request-sync", ["--live"]);
-      pilotRuns.githubSignalSync = await runScriptJson("portfolio-audit:external-signal-sync", ["--provider", "github", "--live"]);
+      const postCreateSteps = await runRolloutCommandSteps([
+        { key: "requestSyncAfterCreate", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+        { key: "githubSignalSync", script: "portfolio-audit:external-signal-sync", args: ["--provider", "github", "--live"] },
+      ]);
+      Object.assign(pilotRuns, postCreateSteps.results);
+      pilotRunFailures.push(...postCreateSteps.failures);
 
       if (flags.runPilotDryRun || flags.runPilotLive) {
-        pilotRuns.dryRun = await runScriptJson("portfolio-audit:action-dry-run", ["--request", pilotRequest.id]);
-        pilotRuns.requestSyncAfterDryRun = await runScriptJson("portfolio-audit:action-request-sync", ["--live"]);
+        const dryRunSteps = await runRolloutCommandSteps([
+          { key: "dryRun", script: "portfolio-audit:action-dry-run", args: ["--request", pilotRequest.id], title: plan.pilotCandidate.projectTitle },
+          { key: "requestSyncAfterDryRun", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+        ]);
+        Object.assign(pilotRuns, dryRunSteps.results);
+        pilotRunFailures.push(...dryRunSteps.failures);
       }
 
       if (flags.runPilotLive) {
-        pilotRuns.liveRun = await runScriptJson("portfolio-audit:action-runner", ["--mode", "live", "--request", pilotRequest.id]);
-        pilotRuns.requestSyncAfterLive = await runScriptJson("portfolio-audit:action-request-sync", ["--live"]);
-        pilotRuns.webhookDrain = await runScriptJson("portfolio-audit:webhook-shadow-drain", []);
-        pilotRuns.webhookReconcile = await runScriptJson("portfolio-audit:webhook-reconcile", ["--provider", "github"]);
+        const liveSteps = await runRolloutCommandSteps([
+          { key: "liveRun", script: "portfolio-audit:action-runner", args: ["--mode", "live", "--request", pilotRequest.id], title: plan.pilotCandidate.projectTitle },
+          { key: "requestSyncAfterLive", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+          { key: "webhookDrain", script: "portfolio-audit:webhook-shadow-drain", args: [] },
+          { key: "webhookReconcile", script: "portfolio-audit:webhook-reconcile", args: ["--provider", "github"] },
+        ]);
+        Object.assign(pilotRuns, liveSteps.results);
+        pilotRunFailures.push(...liveSteps.failures);
       }
     }
 
@@ -240,11 +268,13 @@ export async function runOperationalRolloutCommand(
       writes,
       pilotRequest,
       pilotRuns,
+      pilotRunFailures,
     };
     recordCommandOutputSummary(
       {
         ...output,
         recordsUpdated: Array.isArray(writes) ? writes.length : undefined,
+        failureCount: pilotRunFailures.length,
       },
       {
         mode: "live",
@@ -724,6 +754,30 @@ export async function ensureGitHubCreateIssueActionRequest(
     title: input.requestTitle,
     status,
   };
+}
+
+export async function runRolloutCommandSteps(
+  steps: RolloutCommandStep[],
+  runner: (script: string, args: string[]) => Promise<unknown> = runScriptJson,
+): Promise<{ results: Record<string, unknown>; failures: RolloutCommandFailure[] }> {
+  const results: Record<string, unknown> = {};
+  const failures: RolloutCommandFailure[] = [];
+
+  for (const step of steps) {
+    try {
+      results[step.key] = await runner(step.script, step.args);
+    } catch (error) {
+      failures.push({
+        key: step.key,
+        script: step.script,
+        args: [...step.args],
+        title: step.title,
+        error: toErrorMessage(error),
+      });
+    }
+  }
+
+  return { results, failures };
 }
 
 export function renderDecisionMarkdown(candidate: OperationalRolloutCandidate): string {
