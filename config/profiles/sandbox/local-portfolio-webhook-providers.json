@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "spoolDirectory": "./var/notion-webhook-shadow",
+  "providers": [
+    {
+      "key": "github",
+      "displayName": "GitHub",
+      "mode": "shadow",
+      "endpointPath": "/webhooks/github/shadow",
+      "subscribedEvents": [
+        "issues",
+        "issue_comment",
+        "pull_request",
+        "workflow_run"
+      ],
+      "secretEnvVar": "GITHUB_APP_WEBHOOK_SECRET",
+      "deliveryIdLocation": "header",
+      "deliveryIdField": "x-github-delivery",
+      "eventTypeLocation": "header",
+      "eventTypeField": "x-github-event",
+      "signatureHeader": "x-hub-signature-256",
+      "signatureAlgorithm": "github_sha256",
+      "replayWindowMinutes": 60,
+      "notes": [
+        "Validate X-Hub-Signature-256 before any downstream processing.",
+        "Use X-GitHub-Delivery as the logical delivery identity.",
+        "Phase 8 promotes GitHub receipts into trusted feedback for issue and comment reconciliation while keeping execution records as the primary write outcome."
+      ]
+    },
+    {
+      "key": "vercel",
+      "displayName": "Vercel",
+      "mode": "shadow",
+      "endpointPath": "/webhooks/vercel/shadow",
+      "subscribedEvents": [
+        "deployment"
+      ],
+      "secretEnvVar": "VERCEL_WEBHOOK_SECRET",
+      "deliveryIdLocation": "payload",
+      "deliveryIdField": "id",
+      "eventTypeLocation": "payload",
+      "eventTypeField": "type",
+      "signatureHeader": "x-vercel-signature",
+      "signatureAlgorithm": "vercel_sha1",
+      "replayWindowMinutes": 60,
+      "notes": [
+        "Validate x-vercel-signature and keep deployment hooks read-only in Phase 6.",
+        "Use the payload id as the logical delivery identity."
+      ]
+    }
+  ]
+}

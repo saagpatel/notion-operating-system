@@ -78,6 +78,8 @@ npm run release:prepare
 ## Governance and release posture
 
 - `main` is intended to stay protected and pull-request-only
+- required checks stay mandatory before merge
+- required approval count is intentionally `0` for now because the repo currently operates as a solo-maintainer system
 - merge commits remain the preferred merge strategy so the repo history stays readable
 - `npm run release:prepare` is the mandatory local release gate
 - the `Release` GitHub Actions workflow stays manual through `workflow_dispatch`
@@ -95,10 +97,13 @@ Use a `sandbox` profile as the default proving ground before live changes that t
 
 Stay dry-run first there unless the operator is explicitly rehearsing a live path.
 
+The repo now includes the tracked `sandbox` profile descriptor and profile-owned JSON files. The local operator still needs to supply `.env.sandbox`, which must remain untracked. Shell-level overrides like `NOTION_DESTINATIONS_PATH` still take precedence over profile descriptor paths.
+
 ## Remaining backlog
 
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
+  - refresh GitHub Actions versions before the announced Node 24 runner transition turns current warnings into failures
   - dependency review and override cleanup as upstream fixes land
   - continued docs accuracy
   - optional future public npm distribution only if explicitly desired later

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "providers": [
+    {
+      "key": "github",
+      "displayName": "GitHub",
+      "enabled": true,
+      "authEnvVar": "GITHUB_TOKEN",
+      "baseUrl": "https://api.github.com",
+      "syncStrategy": "poll",
+      "sourceTypes": [
+        "Repo"
+      ],
+      "notes": [
+        "Use REST polling first with stable dedupe keys and provider-side pagination.",
+        "Process repo sources serially to respect GitHub secondary-rate-limit guidance.",
+        "Webhook delivery and replay governance are intentionally deferred to Phase 6."
+      ]
+    },
+    {
+      "key": "vercel",
+      "displayName": "Vercel",
+      "enabled": true,
+      "authEnvVar": "VERCEL_TOKEN",
+      "baseUrl": "https://api.vercel.com",
+      "syncStrategy": "poll",
+      "sourceTypes": [
+        "Deployment Project"
+      ],
+      "notes": [
+        "Treat deployment history as additive delivery evidence, not a replacement for project state.",
+        "Capture recent deployment status, environment, and target URLs in normalized event form."
+      ]
+    },
+    {
+      "key": "google_calendar",
+      "displayName": "Google Calendar",
+      "enabled": false,
+      "authEnvVar": "GOOGLE_CALENDAR_TOKEN",
+      "baseUrl": "https://www.googleapis.com/calendar/v3",
+      "syncStrategy": "incremental",
+      "sourceTypes": [
+        "Calendar"
+      ],
+      "notes": [
+        "Calendar support is scaffolded in Phase 5 but not part of the first live slice.",
+        "When activated later, use sync-token based incremental sync with full resync on 410."
+      ]
+    }
+  ]
+}

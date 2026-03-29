@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "strategy": {
+    "primary": "notion_mcp",
+    "fallback": "playwright",
+    "notes": [
+      "Keep Phase 7 actuation views narrow and queue-oriented.",
+      "Reuse existing governance and external-signal databases rather than duplicating action state."
+    ]
+  },
+  "collections": [
+    {
+      "key": "actionRequests",
+      "database": {
+        "name": "External Action Requests",
+        "databaseUrl": "https://www.notion.so/5a44a25903824dbdb4876f1739b667c3",
+        "databaseId": "5a44a259-0382-4dbd-b487-6f1739b667c3",
+        "dataSourceId": "478c198a-4ca3-4b62-b907-ad077e57bf81",
+        "destinationAlias": "external_action_requests"
+      },
+      "views": [
+        {
+          "name": "Ready to Dry Run",
+          "viewId": "327c21f1-caf0-815a-9bbf-000ca2932433",
+          "type": "table",
+          "purpose": "Review approved requests that still need a dry run.",
+          "configure": "FILTER \"Status\" = \"Approved\"; FILTER \"Execution Intent\" = \"Dry Run\"; SORT BY \"Requested At\" ASC"
+        },
+        {
+          "name": "Approved for Live",
+          "viewId": "327c21f1-caf0-81a2-98cd-000c739bb5fa",
+          "type": "table",
+          "purpose": "Review approved requests that passed dry run and are ready for serial live execution.",
+          "configure": "FILTER \"Status\" = \"Approved\"; FILTER \"Execution Intent\" = \"Ready for Live\"; SORT BY \"Decided At\" ASC"
+        },
+        {
+          "name": "Executed",
+          "viewId": "327c21f1-caf0-816a-bc4c-000ca65f8125",
+          "type": "table",
+          "purpose": "Review completed live requests and their linked execution history.",
+          "configure": "FILTER \"Status\" = \"Executed\"; SORT BY \"Decided At\" DESC"
+        },
+        {
+          "name": "Actuation Failures",
+          "viewId": "327c21f1-caf0-8103-9feb-000cd7d67b54",
+          "type": "table",
+          "purpose": "Review requests whose latest execution failed or needs compensation.",
+          "configure": "FILTER \"Latest Execution Status\" = \"Problem\"; SHOW \"Name\", \"Policy\", \"Target Source\", \"Latest Execution\", \"Execution Notes\""
+        }
+      ]
+    },
+    {
+      "key": "executions",
+      "database": {
+        "name": "External Action Executions",
+        "databaseUrl": "https://www.notion.so/8c397a5f5c6e476a947b36cbec127038",
+        "databaseId": "8c397a5f-5c6e-476a-947b-36cbec127038",
+        "dataSourceId": "c5bc574d-0963-499f-a9ea-c8661aeb555e",
+        "destinationAlias": "external_action_executions"
+      },
+      "views": [
+        {
+          "name": "Dry Runs",
+          "viewId": "327c21f1-caf0-819b-8228-000c7efaa920",
+          "type": "table",
+          "purpose": "Review dry-run previews, validation outcomes, and idempotency keys.",
+          "configure": "FILTER \"Mode\" = \"Dry Run\"; SORT BY \"Executed At\" DESC"
+        },
+        {
+          "name": "Live Successes",
+          "viewId": "327c21f1-caf0-817b-9687-000c9a3e02cf",
+          "type": "table",
+          "purpose": "Review successful live executions and their provider result links.",
+          "configure": "FILTER \"Mode\" = \"Live\"; FILTER \"Status\" = \"Succeeded\"; SORT BY \"Executed At\" DESC"
+        },
+        {
+          "name": "Failures",
+          "viewId": "327c21f1-caf0-8194-a2a1-000c49b0623e",
+          "type": "table",
+          "purpose": "Review failed executions without re-running blindly.",
+          "configure": "FILTER \"Status\" = \"Failed\"; SORT BY \"Executed At\" DESC"
+        },
+        {
+          "name": "Compensation Needed",
+          "viewId": "327c21f1-caf0-81f2-b6c7-000c23b864f8",
+          "type": "table",
+          "purpose": "Review executions that need explicit fix-forward follow-up.",
+          "configure": "FILTER \"Status\" = \"Compensation Needed\"; SORT BY \"Executed At\" DESC"
+        }
+      ]
+    },
+    {
+      "key": "sources",
+      "database": {
+        "name": "External Signal Sources",
+        "databaseUrl": "https://www.notion.so/6d05a3305679435e89cb1b70e433476c",
+        "databaseId": "6d05a330-5679-435e-89cb-1b70e433476c",
+        "dataSourceId": "775e18d3-9985-4871-980b-5570a21e30c1",
+        "destinationAlias": "external_signal_sources"
+      },
+      "views": [
+        {
+          "name": "GitHub Targets Ready",
+          "viewId": "327c21f1-caf0-81df-b24c-000cd94bcae0",
+          "type": "table",
+          "purpose": "Review mapped GitHub repo sources that are actuation-ready.",
+          "configure": "FILTER \"Provider\" = \"GitHub\"; FILTER \"Status\" = \"Active\"; SORT BY \"Name\" ASC"
+        }
+      ]
+    }
+  ]
+}

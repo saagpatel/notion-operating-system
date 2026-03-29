@@ -109,6 +109,8 @@ npm run doctor -- --help
 
 - `main` is a protected branch
 - all changes should land by pull request
+- required checks stay mandatory before merge
+- required approval count is intentionally `0` for now because this is currently a solo-maintainer repo
 - merge commits stay enabled so the structured phase history remains readable
 - `npm run release:prepare` does not bypass CI; it is part of the release gate, not a replacement for it
 
@@ -250,12 +252,15 @@ Use a `sandbox` profile as the default proving ground before live changes that t
 Recommended setup:
 
 ```bash
-notion-os profiles clone --source default --target sandbox --write
-notion-os profiles bootstrap --target sandbox --write
+cp .env .env.sandbox
 notion-os --profile sandbox doctor
 ```
 
+The repo now ships a tracked `sandbox` profile descriptor and its profile-owned JSON config files. The only local piece you normally need to supply is `.env.sandbox`, which should stay untracked.
+
 Treat dry-run first as the rule in that profile unless you are explicitly rehearsing a live path.
+
+If your shell exports overrides like `NOTION_DESTINATIONS_PATH`, those environment variables win over the profile descriptor. Unset them when you want the sandbox profile to resolve only its own profile-owned paths.
 
 If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
 

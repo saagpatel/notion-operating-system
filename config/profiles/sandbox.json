@@ -1,0 +1,8 @@
+{
+  "configVersion": 1,
+  "name": "sandbox",
+  "label": "Sandbox",
+  "envFile": "./.env.sandbox",
+  "destinationsPath": "./config/profiles/sandbox/destinations.json",
+  "controlTowerConfigPath": "./config/profiles/sandbox/local-portfolio-control-tower.json"
+}

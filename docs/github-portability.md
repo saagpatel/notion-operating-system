@@ -153,14 +153,15 @@ For long-term safety, treat the system as three layers:
 
 ## Sandbox profile recommendation
 
-For risky operational changes, create and use a `sandbox` profile before production writes:
+For risky operational changes, use the tracked `sandbox` profile before production writes:
 
 ```bash
-notion-os profiles clone --source default --target sandbox --write
-notion-os profiles bootstrap --target sandbox --write
+cp .env .env.sandbox
 notion-os --profile sandbox doctor
 ```
 
-That profile is the recommended rehearsal path for control-tower, signals, governance, rollout, and profile-lifecycle changes.
+That profile is the recommended rehearsal path for control-tower, signals, governance, rollout, and profile-lifecycle changes. The local `.env.sandbox` should stay untracked.
+
+If your terminal exports overrides like `NOTION_DESTINATIONS_PATH`, unset them when you want the sandbox profile to use only its profile-owned config paths.
 
 That split makes the system easy to recover without leaking secrets into version control.
