@@ -196,16 +196,19 @@ Completed outcomes:
 
 ## Phase 9: Product-Shape Cleanup
 
+Status: Completed on the local Phase 9 branch state.
+
 Primary outcomes:
 
 - clearer boundary between reusable toolkit and operator-specific system
 - less historical clutter
 
-Docket:
+Completed outcomes:
 
-- cleanup of stale docs and old naming
-- clearer `core` vs `advanced` boundary decisions
-- removal or quarantine of low-value internal artifacts
+- added modern npm aliases for the durable advanced workflow families while keeping the older `portfolio-audit:*` script names as compatibility aliases
+- tightened the root package surface so reusable toolkit exports stay in `src/index.ts` and repo-specific operating-system exports stay behind `./advanced`
+- quarantined the clearest internal-only historical utilities under `src/internal/portfolio-audit/` without broad script churn
+- refreshed the main docs so the preferred operator surface is `notion-os ...` plus modern npm aliases, with legacy script names documented as compatibility only
 
 ## Optional Phase 10: Public Release Readiness
 
@@ -217,25 +220,25 @@ Primary outcomes:
 - versioning and release process
 - public install and usage guidance
 
-## Recommended Immediate Next Phase
+## Recommended Immediate Next Track
 
-The next phase should be **Phase 9: Product-Shape Cleanup**.
+There is no required structural Phase 10 after this cleanup. The next track should be **Optional Phase 10: Public Release Readiness**, but only if the project is intended to become more than a repo-local operator tool.
 
-Why this should come next:
+Why this is optional now:
 
-- the repo now has a stronger profile lifecycle and portability story after Phase 8
-- the next best leverage is reducing leftover historical clutter and clarifying what is core versus advanced
-- that cleanup will make any future public-release decision cleaner and lower-risk
+- the repo now has a clearer product shape after Phase 9, so the remaining work is no longer rescue or cleanup work
+- public release overhead only makes sense if outside installation, versioning, and support boundaries are actually desired
+- if the repo stays private/operator-local, the current shape is already much healthier and does not require another mandatory cleanup phase
 
-## Immediate Phase 9 Docket
+## Optional Phase 10 Docket
 
-If planning starts now, use this as the working docket:
+If public-release planning starts later, use this as the working docket:
 
-1. Clean up stale docs and old narrow publisher naming that no longer matches the product
-2. Re-review root package exports versus `./advanced` and tighten that boundary where useful
-3. Quarantine or remove low-value internal artifacts that still look like part of the durable surface
-4. Revisit whether any remaining historical utilities should move behind clearer internal-only labeling
-5. Decide what documentation belongs in public-facing docs versus operator-only memory
+1. define package versioning and changelog expectations
+2. add public install and upgrade guidance for `notion-os`
+3. harden package metadata and consumer-facing exports for outside use
+4. decide how much of the advanced operating-system layer stays private versus public
+5. add release workflow automation only after the support boundary is clear
 
 ## Not Yet Recommended
 

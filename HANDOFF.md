@@ -4,9 +4,9 @@
 
 - Repo: `/Users/d/Notion`
 - Remote: `saagpatel/notion-operating-system`
-- Branch: `codex/phase-8-profile-portability`
+- Branch: `codex/phase-9-product-shape-cleanup`
 - Base remote commit on `main`: `39e4cdd`
-- The worktree now contains the accumulated local Phase 1 through Phase 6 changes on top of that base
+- The worktree now contains the accumulated local Phase 1 through Phase 9 changes on top of that base
 
 ## Completed roadmap phases
 
@@ -103,6 +103,13 @@
 - introduced profile descriptor config versioning with compatibility for legacy unversioned descriptors and old bundle exports
 - centralized the portable profile asset manifest so export, import, diff, clone, bootstrap, and upgrade all use the same profile-owned file set
 
+### Phase 9
+
+- added modern npm aliases for the durable advanced workflow families while keeping legacy `portfolio-audit:*` names working for compatibility
+- tightened the root package surface so it reads more clearly as a reusable toolkit, with repo-specific operating-system modules staying behind `./advanced`
+- quarantined the clearest internal-only historical utilities under `src/internal/portfolio-audit/`
+- refreshed repo docs so the preferred operator surface is `notion-os ...` plus modern npm aliases, with older script names labeled as compatibility aliases
+
 ## Verification checklist for this branch
 
 Run these before landing or after pulling onto a new machine:
@@ -123,22 +130,24 @@ notion-os --help
 notion-os profiles show
 notion-os profiles diff --against-profile default
 notion-os profiles clone --source default --target sandbox
+npm run control-tower:sync
+npm run governance:audit
+npm run signals:sync
 npm run doctor
 npm run verify
 npm run hooks:install
 ```
 
-## Remaining backlog after Phase 8
+## Remaining backlog after Phase 9
 
 - The concrete post-Phase-4 repo roadmap now lives in `docs/repo-post-phase4-roadmap.md`
-- Recommended next repo phase: **Phase 9 - Product-Shape Cleanup**
+- Recommended next repo track: **Optional Phase 10 - Public Release Readiness**, but only if a public/distributable release is actually desired
 - Later roadmap buckets include:
-  - product-shape cleanup
   - optional public release readiness
 
 ## Verified on this branch
 
-These should be rerun successfully before landing the Phase 8 branch:
+These should be rerun successfully before landing the Phase 9 branch:
 
 ```bash
 npm run typecheck
@@ -165,3 +174,4 @@ node dist/src/cli.js signals sync --help
 - The current script surface classification lives in `docs/script-surface-classification.md`
 - `logs recent` is the operator-facing entrypoint for recent run inspection in this phase
 - Profile portability stays preview-first and never exports or overwrites live secret values
+- Modern npm aliases are now the preferred npm surface for durable workflows; legacy `portfolio-audit:*` names remain compatibility aliases

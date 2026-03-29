@@ -2,7 +2,7 @@
 
 Notion Operating System is a local automation layer for turning Notion into a real project and portfolio control system.
 
-It started as a safe Markdown-to-Notion publisher, then grew into a broader system for publishing notes, maintaining project state, generating reviews, syncing external signals, and running governed workflows around Notion.
+It started as a safe Markdown publishing toolkit for Notion, then grew into a broader system for publishing notes, maintaining project state, generating reviews, syncing external signals, and running governed workflows around Notion.
 
 ## Main Features
 
@@ -40,7 +40,7 @@ On top of that, it manages a broader Notion-based project system: project databa
 
 In short, it is both:
 
-- a safe local publisher for Notion
+- a reusable Notion publishing toolkit
 - a code-backed operating system for running projects in Notion
 
 ## CLI
@@ -52,7 +52,7 @@ notion-os <command> [subcommand] [options]
 tsx src/cli.ts <command> [subcommand] [options]
 ```
 
-The older `npm run ...` scripts still work, but the shared CLI now keeps help text, flag parsing, runtime setup, and profile selection consistent across the main workflows.
+The shared CLI is the preferred operator surface. Older `npm run ...` scripts still work for compatibility, but the shared CLI keeps help text, flag parsing, runtime setup, and profile selection consistent across the main workflows.
 
 You can explore the CLI with:
 
@@ -100,6 +100,17 @@ notion-os control-tower sync
 # Preview the weekly review packet
 notion-os control-tower review-packet
 ```
+
+Preferred npm aliases for common advanced workflows:
+
+```bash
+npm run control-tower:sync
+npm run governance:audit
+npm run signals:sync
+npm run rollout:operational
+```
+
+Legacy `portfolio-audit:*` script names still work, but they are compatibility aliases now rather than the recommended default surface.
 
 ## Verification And Logs
 
