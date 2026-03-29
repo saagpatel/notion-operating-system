@@ -182,6 +182,8 @@ This runs:
 
 CI also verifies a fresh workspace copy so the repo is not relying on long-lived local state.
 
+For the recurring maintenance rhythm after the main build-out phases, use [docs/maintenance-playbook.md](docs/maintenance-playbook.md).
+
 Most shared CLI commands now also write lifecycle events and run summaries into the active log directory. By default that is `./logs`, or the profile/runtime override in `NOTION_LOG_DIR`.
 
 Run summaries now use four high-level statuses:
@@ -224,6 +226,7 @@ Phase 3 adds full workspace profiles so the same repo can point at different Not
 
 - `config/profiles.json` stores the registry
 - `config/profiles/<name>.json` stores each profile descriptor
+- each profile descriptor now exposes a `kind` of `primary` or `sandbox`
 - the active profile resolves the env file, destinations file, control-tower file, and the rest of the advanced JSON config set
 
 Useful commands:
@@ -253,14 +256,15 @@ Recommended setup:
 
 ```bash
 cp .env .env.sandbox
+notion-os --profile sandbox profiles show
 notion-os --profile sandbox doctor
 ```
 
 The repo now ships a tracked `sandbox` profile descriptor and its profile-owned JSON config files. The only local piece you normally need to supply is `.env.sandbox`, which should stay untracked.
 
-Important: the tracked sandbox config starts as a same-shape rehearsal copy of the default profile. Copying `.env` into `.env.sandbox` is acceptable for dry-run and config-path rehearsal, but it does not create an isolated live sandbox by itself.
+Important: the tracked sandbox config still starts as a same-shape rehearsal copy of the default profile. Copying `.env` into `.env.sandbox` is acceptable only as a first local bootstrap step for dry-run rehearsal.
 
-Before any live rehearsal, repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace or sandbox destinations. Do not assume the cloned sandbox profile is safe for live writes until you have done that repointing explicitly.
+Before any live rehearsal, repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and the rest of the sandbox Notion target IDs to a separate sandbox workspace. The sandbox doctor now enforces this: it fails when the sandbox token matches the primary token, when sandbox target refs overlap the primary profile, or when env overrides like `NOTION_DESTINATIONS_PATH` mask sandbox-owned paths.
 
 Treat dry-run first as the rule in that profile unless you are explicitly rehearsing a live path.
 
@@ -273,6 +277,7 @@ If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
 - First-run onboarding: [docs/first-run.md](docs/first-run.md)
 - Architecture overview: [docs/architecture-overview.md](docs/architecture-overview.md)
 - Release process: [docs/release-process.md](docs/release-process.md)
+- Maintenance playbook: [docs/maintenance-playbook.md](docs/maintenance-playbook.md)
 - Post-Phase-4 repo roadmap: [docs/repo-post-phase4-roadmap.md](docs/repo-post-phase4-roadmap.md)
 - Script surface classification: [docs/script-surface-classification.md](docs/script-surface-classification.md)
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)

@@ -40,6 +40,7 @@ The repo now also includes the operational hardening pass that landed after Phas
   - fresh workspace verification
 - scheduled dependency hygiene via weekly audit workflow plus Dependabot
 - explicit sandbox-profile discipline for risky advanced workflow changes
+- sandbox doctor enforcement for token isolation, target isolation, and env-path masking
 - refreshed docs around consumer install modes, release readiness, and merged-main reality
 
 ## Canonical local verification
@@ -66,6 +67,7 @@ notion-os profiles show
 notion-os profiles diff --against-profile default
 notion-os profiles clone --source default --target sandbox --write
 notion-os profiles bootstrap --target sandbox --write
+notion-os --profile sandbox profiles show
 notion-os --profile sandbox doctor
 notion-os logs recent
 npm run control-tower:sync
@@ -73,6 +75,7 @@ npm run governance:audit
 npm run signals:sync
 npm run verify
 npm run release:prepare
+npm run verify:fresh-clone
 ```
 
 ## Governance and release posture
@@ -99,7 +102,7 @@ Stay dry-run first there unless the operator is explicitly rehearsing a live pat
 
 The repo now includes the tracked `sandbox` profile descriptor and profile-owned JSON files. The local operator still needs to supply `.env.sandbox`, which must remain untracked. Shell-level overrides like `NOTION_DESTINATIONS_PATH` still take precedence over profile descriptor paths.
 
-Important safety note: the tracked sandbox profile is a same-shape rehearsal lane by default, not an automatically isolated live sandbox. Before any live sandbox write, the operator must repoint sandbox credentials and Notion target IDs to separate sandbox targets.
+Important safety note: the tracked sandbox profile is a same-shape rehearsal lane by default, not an automatically isolated live sandbox. Before any live sandbox write, the operator must repoint sandbox credentials and Notion target IDs to separate sandbox targets. `notion-os --profile sandbox doctor` now enforces that rule and fails if the sandbox token matches the primary token, the sandbox refs overlap the primary profile, or an env override masks the sandbox-owned destinations path.
 
 ## Remaining backlog
 
@@ -108,6 +111,7 @@ Important safety note: the tracked sandbox profile is a same-shape rehearsal lan
   - dependency review and override cleanup as upstream fixes land
   - continued docs accuracy
   - optional future public npm distribution only if explicitly desired later
+- the recurring maintenance cadence now lives in `docs/maintenance-playbook.md`
 
 ## Known assumptions
 

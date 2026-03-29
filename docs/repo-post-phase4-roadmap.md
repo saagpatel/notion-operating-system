@@ -247,8 +247,10 @@ Completed outcomes:
 - manually validated the dependency-hygiene lane on `main` and confirmed it passes today
 - documented sandbox-profile discipline for risky advanced workflow changes
 - promoted a tracked `sandbox` profile into the repo so the proving lane is real instead of purely procedural
+- added sandbox doctor enforcement so token overlap, target overlap, and env-path masking now fail explicitly
 - aligned protected-branch policy with solo-maintainer reality by keeping PRs and required checks mandatory while setting required approvals to `0`
 - refreshed the handoff and install docs so they match the merged-main reality instead of the earlier phase-branch era
+- added a durable maintenance playbook for weekly, monthly, and quarterly upkeep
 
 ## Recommended Immediate Next Track
 
@@ -260,6 +262,7 @@ Why that changes now:
 - the operational hardening track is now in place as well
 - the remaining work is optional distribution expansion or normal maintenance, not structural cleanup
 - any move beyond this point should be driven by actual audience and support commitments
+- the normal maintenance cadence now lives in `docs/maintenance-playbook.md`
 
 
 ## Optional Future Distribution Track

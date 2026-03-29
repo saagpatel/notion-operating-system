@@ -35,10 +35,17 @@ The repo already includes a tracked `sandbox` profile descriptor and profile-own
 
 ```bash
 cp .env .env.sandbox
+notion-os --profile sandbox profiles show
 notion-os --profile sandbox doctor
 ```
 
-That gives you a same-shape rehearsal lane, not an automatically isolated live sandbox. Copying `.env` is fine for dry-run and config rehearsal, but before any live sandbox write you must repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace or sandbox destinations.
+That gives you a same-shape rehearsal lane, not an automatically isolated live sandbox. Copying `.env` is fine only as a first bootstrap step for dry-run and config rehearsal. Before any live sandbox write you must repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace.
+
+The sandbox doctor now enforces that rule. It fails when:
+
+- the sandbox token matches the primary token
+- sandbox Notion target refs overlap the primary profile
+- an env override like `NOTION_DESTINATIONS_PATH` masks the sandbox-owned destinations file
 
 If you need to recreate the sandbox profile files from scratch, you can still use:
 
