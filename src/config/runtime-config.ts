@@ -49,6 +49,8 @@ export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export interface RuntimeConfig {
   cwd: string;
   profile: {
+    configVersion: number;
+    sourceConfigVersion: number;
     name: string;
     label: string;
     implicit: boolean;
@@ -170,6 +172,8 @@ function buildRuntimeConfig(env: RuntimeEnv, cwd: string, profile: WorkspaceProf
   return {
     cwd,
     profile: {
+      configVersion: profile.configVersion,
+      sourceConfigVersion: profile.sourceConfigVersion,
       name: profile.name,
       label: profile.label,
       implicit: profile.implicit,
@@ -218,6 +222,8 @@ function buildFallbackRuntimeConfig(cwd: string, env: NodeJS.ProcessEnv, profile
   return {
     cwd,
     profile: {
+      configVersion: profile.configVersion,
+      sourceConfigVersion: profile.sourceConfigVersion,
       name: profile.name,
       label: profile.label,
       implicit: profile.implicit,
