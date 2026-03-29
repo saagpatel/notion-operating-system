@@ -4,9 +4,9 @@
 
 - Repo: `/Users/d/Notion`
 - Remote: `saagpatel/notion-operating-system`
-- Branch: `codex/phase-4-observability-hardening`
+- Branch: `codex/phase-6-cli-coverage`
 - Base remote commit on `main`: `39e4cdd`
-- The worktree now contains the accumulated local Phase 1 through Phase 5 changes on top of that base
+- The worktree now contains the accumulated local Phase 1 through Phase 6 changes on top of that base
 
 ## Completed roadmap phases
 
@@ -65,6 +65,22 @@
   - `npm run smoke:built-cli`
 - CI now runs the stronger built CLI smoke script instead of only `node dist/src/cli.js --help`
 
+### Phase 6
+
+- migrated durable audit and validation commands into the shared CLI under the existing families:
+  - `governance audit`
+  - `governance views-validate`
+  - `governance actuation-audit`
+  - `governance webhook-shadow-drain`
+  - `governance webhook-reconcile`
+  - `execution views-validate`
+  - `intelligence views-validate`
+  - `signals views-validate`
+  - `signals provider-expansion-audit`
+- kept the old script entrypoints as compatibility wrappers so existing npm scripts still work
+- documented the shared-cli vs wrapper vs one-off script split in `docs/script-surface-classification.md`
+- expanded CLI help, wrapper coverage, and built-cli smoke checks for the migrated command set
+
 ## Verification checklist for this branch
 
 Run these before landing or after pulling onto a new machine:
@@ -88,10 +104,10 @@ npm run verify
 npm run hooks:install
 ```
 
-## Remaining backlog after Phase 5
+## Remaining backlog after Phase 6
 
 - The concrete post-Phase-4 repo roadmap now lives in `docs/repo-post-phase4-roadmap.md`
-- Recommended next repo phase: **Phase 6 - Script Reduction and Shared CLI Coverage**
+- Recommended next repo phase: **Phase 7 - Deeper Observability and Operator Diagnosis**
 - Later roadmap buckets include:
   - deeper observability and operator diagnosis
   - profile portability and config lifecycle
@@ -100,7 +116,7 @@ npm run hooks:install
 
 ## Verified on this branch
 
-These were rerun successfully after the Phase 5 changes:
+These should be rerun successfully before landing the Phase 6 branch:
 
 ```bash
 npm run typecheck
@@ -109,7 +125,8 @@ npm run build
 npm run smoke:built-cli
 npm run verify
 node dist/src/cli.js --help
-node dist/src/cli.js signals --help
+node dist/src/cli.js governance audit --help
+node dist/src/cli.js execution views-validate --help
 ```
 
 ## Known assumptions and risks
@@ -118,3 +135,4 @@ node dist/src/cli.js signals --help
 - The shared run summaries improve logs first; they do not intentionally change existing JSON stdout contracts
 - Secrets still remain operator-managed in local env files and must never be committed
 - The local README rewrite was preserved and extended instead of being replaced
+- The current script surface classification lives in `docs/script-surface-classification.md`
