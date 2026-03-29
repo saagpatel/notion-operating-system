@@ -1,0 +1,7 @@
+{
+  "name": "default",
+  "label": "Default Workspace",
+  "envFile": ".env",
+  "destinationsPath": "./config/destinations.json",
+  "controlTowerConfigPath": "./config/local-portfolio-control-tower.json"
+}

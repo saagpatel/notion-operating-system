@@ -1,9 +1,24 @@
 {
-  "name": "notion-publish-local",
+  "name": "notion-operating-system",
   "version": "0.1.0",
   "private": true,
-  "description": "Reliable local Notion publishing workflow for Codex sessions.",
+  "description": "Local TypeScript automation for running a Notion-based project and portfolio operating system.",
   "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "bin": {
+    "notion-os": "./dist/src/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./advanced": {
+      "types": "./dist/src/advanced.d.ts",
+      "import": "./dist/src/advanced.js"
+    }
+  },
   "engines": {
     "node": ">=20.0.0"
   },
@@ -12,6 +27,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify": "npm run typecheck && npm test && npm run build",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "hooks:check-staged": "node scripts/check-staged-files.mjs",
+    "doctor": "tsx src/cli.ts doctor",
     "publish:notion": "tsx src/cli.ts publish",
     "destinations:check": "tsx src/cli.ts destinations check",
     "destinations:resolve": "tsx src/cli.ts destinations resolve --write",

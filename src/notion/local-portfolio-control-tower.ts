@@ -1,3 +1,4 @@
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { readJsonFile, writeJsonFile } from "../utils/files.js";
 import { AppError } from "../utils/errors.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
@@ -587,7 +588,7 @@ export interface ReviewPacketContext {
 }
 
 export async function loadLocalPortfolioControlTowerConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  filePath = loadRuntimeConfig().paths.controlTowerConfigPath,
 ): Promise<LocalPortfolioControlTowerConfig> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioControlTowerConfig(raw);
@@ -595,7 +596,7 @@ export async function loadLocalPortfolioControlTowerConfig(
 
 export async function saveLocalPortfolioControlTowerConfig(
   config: LocalPortfolioControlTowerConfig,
-  filePath = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  filePath = loadRuntimeConfig().paths.controlTowerConfigPath,
 ): Promise<void> {
   await writeJsonFile(filePath, config);
 }

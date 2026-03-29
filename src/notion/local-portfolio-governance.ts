@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual, createHash } from "node:crypto";
 import path from "node:path";
 
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import type { DataSourceSchemaSnapshot, PropertySchema } from "../types.js";
@@ -270,19 +271,19 @@ export function requirePhase6Governance(
 }
 
 export async function loadLocalPortfolioGovernancePolicyConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_GOVERNANCE_POLICIES_PATH,
+  filePath = loadRuntimeConfig().paths.governancePoliciesPath,
 ): Promise<LocalPortfolioGovernancePolicyConfig> {
   return parseLocalPortfolioGovernancePolicyConfig(await readJsonFile<unknown>(filePath));
 }
 
 export async function loadLocalPortfolioWebhookProviderConfig(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_WEBHOOK_PROVIDERS_PATH,
+  filePath = loadRuntimeConfig().paths.webhookProvidersPath,
 ): Promise<LocalPortfolioWebhookProviderConfig> {
   return parseLocalPortfolioWebhookProviderConfig(await readJsonFile<unknown>(filePath));
 }
 
 export async function loadLocalPortfolioGovernanceViewPlan(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_GOVERNANCE_VIEWS_PATH,
+  filePath = loadRuntimeConfig().paths.governanceViewsPath,
 ): Promise<LocalPortfolioGovernanceViewPlan> {
   return parseLocalPortfolioGovernanceViewPlan(await readJsonFile<unknown>(filePath));
 }

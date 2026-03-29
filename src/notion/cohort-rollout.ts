@@ -1,9 +1,8 @@
-import "dotenv/config";
-
-import { pathToFileURL } from "node:url";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -37,7 +36,7 @@ import {
   runScriptJson,
   type OperationalRolloutCandidate,
 } from "./operational-rollout.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import { losAngelesToday } from "../utils/date.js";
 
 export const DEFAULT_COHORT_PROJECT_ORDER = ["BattleGrid", "EarthPulse", "Relay", "SynthWave"] as const;
@@ -98,32 +97,46 @@ interface LiveSourceContext {
   record: ExternalSignalSourceRecord;
 }
 
-async function main(): Promise<void> {
-  try {
-    const flags = parseFlags(process.argv.slice(2));
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (flags.live && !token) {
-      throw new AppError("NOTION_TOKEN is required for cohort rollout live mode");
-    }
+export interface CohortRolloutCommandOptions {
+  live?: boolean;
+  approve?: boolean;
+  runDry?: boolean;
+  runLive?: boolean;
+  today?: string;
+  projects?: string;
+  config?: string;
+}
 
-    const config = await loadLocalPortfolioControlTowerConfig(flags.configPath);
+export async function runCohortRolloutCommand(
+  options: CohortRolloutCommandOptions = {},
+): Promise<void> {
+  const flags: CohortFlags = {
+    live: options.live ?? false,
+    approve: options.approve ?? false,
+    runDry: options.runDry ?? false,
+    runLive: options.runLive ?? false,
+    today: options.today ?? losAngelesToday(),
+    configPath: options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+    selectedTitles: parseCohortProjectSelection(options.projects),
+  };
+
+  if ((flags.runDry || flags.runLive) && !flags.live) {
+    throw new AppError("--run-dry and --run-live require --live");
+  }
+
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for cohort rollout");
+  const config = await loadLocalPortfolioControlTowerConfig(flags.configPath);
     if (!config.phase2Execution || !config.phase5ExternalSignals || !config.phase6Governance) {
       throw new AppError("Cohort rollout requires phases 2, 5, and 6 to be configured");
     }
 
     const sourceConfig = await loadLocalPortfolioExternalSignalSourceConfig();
     const targetConfig = await loadLocalPortfolioActuationTargetConfig();
-    const sdk = token
-      ? new Client({
-          auth: token,
-          notionVersion: "2026-03-11",
-        })
-      : null;
-    const api = token ? new DirectNotionClient(token) : null;
-
-    if (!sdk || !api) {
-      throw new AppError("NOTION_TOKEN is required for cohort rollout");
-    }
+    const sdk = new Client({
+      auth: token,
+      notionVersion: "2026-03-11",
+    });
+    const api = new DirectNotionClient(token);
 
     const [projectSchema, sourceSchema, decisionSchema, actionRequestSchema, policySchema] = await Promise.all([
       api.retrieveDataSource(config.database.dataSourceId),
@@ -152,20 +165,21 @@ async function main(): Promise<void> {
     });
 
     if (!flags.live) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: true,
-            live: false,
-            today: flags.today,
-            selectedProjects: plan.orderedTitles,
-            summary: plan.summary,
-            projects: plan.projects,
-          },
-          null,
-          2,
-        ),
-      );
+      const output = {
+        ok: true,
+        live: false,
+        today: flags.today,
+        selectedProjects: plan.orderedTitles,
+        summary: plan.summary,
+        projects: plan.projects,
+      };
+      recordCommandOutputSummary(output, {
+        mode: "dry-run",
+        metadata: {
+          selectedProjects: plan.orderedTitles.length,
+        },
+      });
+      console.log(JSON.stringify(output, null, 2));
       return;
     }
 
@@ -331,25 +345,28 @@ async function main(): Promise<void> {
     execution.followUps.controlTowerSync = await runScriptJson("portfolio-audit:control-tower-sync", ["--live"]);
     execution.followUps.reviewPacket = await runScriptJson("portfolio-audit:review-packet", ["--live"]);
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: true,
-          today: flags.today,
-          selectedProjects: plan.orderedTitles,
-          summary: plan.summary,
-          writes,
-          execution,
+    const output = {
+      ok: true,
+      live: true,
+      today: flags.today,
+      selectedProjects: plan.orderedTitles,
+      summary: plan.summary,
+      writes,
+      execution,
+    };
+    recordCommandOutputSummary(
+      {
+        ...output,
+        recordsUpdated: Array.isArray(writes) ? writes.length : undefined,
+      },
+      {
+        mode: "live",
+        metadata: {
+          selectedProjects: plan.orderedTitles.length,
         },
-        null,
-        2,
-      ),
+      },
     );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    console.log(JSON.stringify(output, null, 2));
 }
 
 export function parseCohortProjectSelection(raw?: string): CohortProjectTitle[] {
@@ -617,66 +634,6 @@ function buildCohortIssueBody(projectPlan: CohortRolloutProjectPlan): string {
   ].join("\n");
 }
 
-function parseFlags(argv: string[]): CohortFlags {
-  let live = false;
-  let approve = false;
-  let runDry = false;
-  let runLive = false;
-  let today = losAngelesToday();
-  let configPath = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-  let projectArg: string | undefined;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (!current) {
-      continue;
-    }
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--approve") {
-      approve = true;
-      continue;
-    }
-    if (current === "--run-dry") {
-      runDry = true;
-      continue;
-    }
-    if (current === "--run-live") {
-      runLive = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1] ?? today;
-      index += 1;
-      continue;
-    }
-    if (current === "--projects") {
-      projectArg = argv[index + 1];
-      index += 1;
-      continue;
-    }
-    if (!current.startsWith("--")) {
-      configPath = current;
-    }
-  }
-
-  if ((runDry || runLive) && !live) {
-    throw new AppError("--run-dry and --run-live require --live");
-  }
-
-  return {
-    live,
-    approve,
-    runDry,
-    runLive,
-    today,
-    configPath,
-    selectedTitles: parseCohortProjectSelection(projectArg),
-  };
-}
-
 function peopleValue(id?: string): { people: Array<{ id: string }> } {
   return id ? { people: [{ id }] } : { people: [] };
 }
@@ -687,6 +644,6 @@ function addDays(date: string, amount: number): string {
   return parsed.toISOString().slice(0, 10);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void main();
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["rollout", "cohort"]);
 }

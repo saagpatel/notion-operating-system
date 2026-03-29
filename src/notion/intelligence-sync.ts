@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -41,7 +42,7 @@ import {
   loadLocalPortfolioIntelligenceViewPlan,
 } from "./local-portfolio-intelligence.js";
 import { validateLocalPortfolioIntelligenceViewPlanAgainstSchemas } from "./local-portfolio-intelligence-views.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 
@@ -50,20 +51,20 @@ const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->
 const INTELLIGENCE_COMMAND_CENTER_START = "<!-- codex:notion-intelligence-command-center:start -->";
 const INTELLIGENCE_COMMAND_CENTER_END = "<!-- codex:notion-intelligence-command-center:end -->";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for intelligence sync");
-    }
+export interface IntelligenceSyncCommandOptions {
+  live?: boolean;
+  today?: string;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const today = flags.today ?? losAngelesToday();
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    let config = await loadLocalPortfolioControlTowerConfig(configPath);
+export async function runIntelligenceSyncCommand(
+  options: IntelligenceSyncCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for intelligence sync");
+  const live = options.live ?? false;
+  const today = options.today ?? losAngelesToday();
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
     const sdk = new Client({
       auth: token,
@@ -71,13 +72,13 @@ async function main(): Promise<void> {
     });
     const api = new DirectNotionClient(token);
 
-    if (flags.live) {
-      logLiveStage(flags.live, "Ensuring Phase 3 schema");
+    if (live) {
+      logLiveStage(live, "Ensuring Phase 3 schema");
       config = await ensurePhase3IntelligenceSchema(sdk, config);
     }
 
     const phase3 = requirePhase3Intelligence(config);
-    logLiveStage(flags.live, "Loading intelligence view plan");
+    logLiveStage(live, "Loading intelligence view plan");
     const viewPlan = await loadLocalPortfolioIntelligenceViewPlan();
 
     const [projectSchema, buildSchema, researchSchema, skillSchema, toolSchema, decisionSchema, packetSchema, taskSchema, runSchema, suggestionSchema] =
@@ -94,14 +95,14 @@ async function main(): Promise<void> {
         api.retrieveDataSource(phase3.linkSuggestions.dataSourceId),
       ]);
 
-    logLiveStage(flags.live, "Validating intelligence views");
+    logLiveStage(live, "Validating intelligence views");
     validateLocalPortfolioIntelligenceViewPlanAgainstSchemas(viewPlan, {
       projects: projectSchema,
       recommendationRuns: runSchema,
       linkSuggestions: suggestionSchema,
     });
 
-    logLiveStage(flags.live, "Fetching intelligence datasets");
+    logLiveStage(live, "Fetching intelligence datasets");
     const [projectPages, buildPages, researchPages, skillPages, toolPages, decisionPages, packetPages, taskPages, runPages, suggestionPages] =
       await Promise.all([
         fetchAllPages(sdk, config.database.dataSourceId, projectSchema.titlePropertyName),
@@ -155,8 +156,8 @@ async function main(): Promise<void> {
       .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
 
     let changedProjectPages = 0;
-    if (flags.live) {
-      logLiveStage(flags.live, "Applying accepted link suggestions", {
+    if (live) {
+      logLiveStage(live, "Applying accepted link suggestions", {
         suggestionCount: suggestions.filter((entry) => entry.status === "Accepted").length,
       });
       const projectPageMap = new Map(projectPages.map((page) => [page.id, page]));
@@ -173,9 +174,9 @@ async function main(): Promise<void> {
           toolPages: toolPageMap,
         });
 
-      logLiveStage(flags.live, "Refreshing recommendation briefs", { projectCount: contexts.length });
+      logLiveStage(live, "Refreshing recommendation briefs", { projectCount: contexts.length });
       for (const [index, context] of contexts.entries()) {
-        logLoopProgress(flags.live, "intelligence-sync", "Project brief", index + 1, contexts.length);
+        logLoopProgress(live, "intelligence-sync", "Project brief", index + 1, contexts.length);
         const recommendation = recommendations.find((entry) => entry.projectId === context.project.id);
         if (!recommendation) {
           continue;
@@ -222,7 +223,7 @@ async function main(): Promise<void> {
         }
       }
 
-      logLiveStage(flags.live, "Refreshing intelligence command center");
+      logLiveStage(live, "Refreshing intelligence command center");
       const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId!);
       const nextCommandCenter = mergeManagedSection(
         previousCommandCenter.markdown,
@@ -248,7 +249,7 @@ async function main(): Promise<void> {
         });
       }
 
-      logLiveStage(flags.live, "Persisting intelligence sync metrics");
+      logLiveStage(live, "Persisting intelligence sync metrics");
       const nextConfig = {
         ...config,
         phaseState: {
@@ -267,24 +268,21 @@ async function main(): Promise<void> {
       config = nextConfig;
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: flags.live,
-          changedProjectPages,
-          metrics,
-          latestWeeklyRunId: latestWeeklyRun?.id,
-          latestDailyRunId: latestDailyRun?.id,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      live,
+      changedProjectPages,
+      metrics,
+      latestWeeklyRunId: latestWeeklyRun?.id,
+      latestDailyRunId: latestDailyRun?.id,
+    };
+    recordCommandOutputSummary(output, {
+      metadata: {
+        latestWeeklyRunId: latestWeeklyRun?.id,
+        latestDailyRunId: latestDailyRun?.id,
+      },
+    });
+    console.log(JSON.stringify(output, null, 2));
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
@@ -406,23 +404,6 @@ function serializeMetrics(metrics: ReturnType<typeof calculateIntelligenceMetric
   };
 }
 
-function parseFlags(argv: string[]): { live: boolean; today?: string } {
-  let live = false;
-  let today: string | undefined;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-    }
-  }
-
-  return { live, today };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["intelligence", "sync"]);
 }
-
-void main();

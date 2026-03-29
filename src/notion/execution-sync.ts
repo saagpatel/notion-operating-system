@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   applyDerivedSignals,
@@ -40,22 +41,21 @@ const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
 const EXECUTION_COMMAND_CENTER_START = "<!-- codex:notion-execution-command-center:start -->";
 const EXECUTION_COMMAND_CENTER_END = "<!-- codex:notion-execution-command-center:end -->";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for execution sync");
-    }
+export interface ExecutionSyncCommandOptions {
+  live?: boolean;
+  today?: string;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const live = flags.live;
-    const today = flags.today ?? losAngelesToday();
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+export async function runExecutionSyncCommand(
+  options: ExecutionSyncCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for execution sync");
+  const live = options.live ?? false;
+  const today = options.today ?? losAngelesToday();
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
 
-    const config = await loadLocalPortfolioControlTowerConfig(configPath);
+  const config = await loadLocalPortfolioControlTowerConfig(configPath);
     if (!config.phase2Execution) {
       throw new AppError("Control tower config is missing phase2Execution");
     }
@@ -187,22 +187,14 @@ async function main(): Promise<void> {
       );
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live,
-          changedProjectPages,
-          metrics,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      live,
+      changedProjectPages,
+      metrics,
+    };
+    recordCommandOutputSummary(output);
+    console.log(JSON.stringify(output, null, 2));
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
@@ -239,23 +231,6 @@ function serializeExecutionMetrics(metrics: ReturnType<typeof calculateExecution
   };
 }
 
-function parseFlags(argv: string[]): { live: boolean; today?: string } {
-  let live = false;
-  let today: string | undefined;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-    }
-  }
-
-  return { live, today };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["execution", "sync"]);
 }
-
-void main();

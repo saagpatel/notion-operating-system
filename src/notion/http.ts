@@ -1,5 +1,7 @@
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import type { RunLogger } from "../logging/run-logger.js";
+import { getCurrentCommandLogger, incrementCommandSummary } from "../cli/run-observability.js";
 
 interface RequestOptions {
   method?: string;
@@ -19,9 +21,9 @@ export class NotionHttp {
 
   public constructor({
     token,
-    notionVersion = "2026-03-11",
-    maxAttempts = 5,
-    timeoutMs = 90_000,
+    notionVersion,
+    maxAttempts,
+    timeoutMs,
     logger,
   }: {
     token: string;
@@ -30,11 +32,12 @@ export class NotionHttp {
     timeoutMs?: number;
     logger?: RunLogger;
   }) {
+    const runtimeConfig = loadRuntimeConfig();
     this.token = token;
-    this.notionVersion = notionVersion;
-    this.maxAttempts = maxAttempts;
-    this.timeoutMs = timeoutMs;
-    this.logger = logger;
+    this.notionVersion = notionVersion ?? runtimeConfig.notion.version;
+    this.maxAttempts = maxAttempts ?? runtimeConfig.notion.retryMaxAttempts;
+    this.timeoutMs = timeoutMs ?? runtimeConfig.notion.httpTimeoutMs;
+    this.logger = logger ?? getCurrentCommandLogger();
   }
 
   public async requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -59,6 +62,7 @@ export class NotionHttp {
       } catch (error) {
         clearTimeout(timeout);
         if (isAbortError(error)) {
+          incrementCommandSummary("timeoutCount");
           await this.logger?.warn("notion_http_timeout", {
             path,
             method,
@@ -67,13 +71,27 @@ export class NotionHttp {
           });
 
           if (attempt === this.maxAttempts) {
+            await this.logger?.error("notion_http_timeout_exhausted", {
+              path,
+              method,
+              attempts: this.maxAttempts,
+              timeoutMs: this.timeoutMs,
+            });
             break;
           }
 
+          incrementCommandSummary("retryCount");
           await sleep(Math.min(attempt * 1000, 5000));
           continue;
         }
 
+        await this.logger?.error("notion_http_failure", {
+          path,
+          method,
+          attempt,
+          classification: "transport_error",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
         throw error;
       }
       clearTimeout(timeout);
@@ -84,6 +102,7 @@ export class NotionHttp {
 
       if (response.status === 429 || response.status >= 500) {
         const retryAfter = Number(response.headers.get("Retry-After") ?? "1");
+        incrementCommandSummary("retryCount");
         await this.logger?.warn("notion_http_retry", {
           path,
           method,
@@ -93,6 +112,13 @@ export class NotionHttp {
         });
 
         if (attempt === this.maxAttempts) {
+          await this.logger?.error("notion_http_retry_exhausted", {
+            path,
+            method,
+            attempts: this.maxAttempts,
+            status: response.status,
+            retryAfterSeconds: retryAfter,
+          });
           break;
         }
 
@@ -101,12 +127,26 @@ export class NotionHttp {
       }
 
       const errorBody = await safeJson(response);
+      await this.logger?.error("notion_http_failure", {
+        path,
+        method,
+        attempt,
+        status: response.status,
+        classification: response.status >= 400 && response.status < 500 ? "client_error" : "unexpected_response",
+      });
       throw new AppError(`Notion request failed for ${method} ${path}`, {
         status: response.status,
         body: errorBody,
       });
     }
 
+    await this.logger?.error("notion_http_failure", {
+      path,
+      method,
+      attempts: this.maxAttempts,
+      classification: "timeout_exhausted",
+      timeoutMs: this.timeoutMs,
+    });
     throw new AppError(`Notion request timed out after ${this.maxAttempts} attempt(s) for ${method} ${path}`, {
       timeoutMs: this.timeoutMs,
     });

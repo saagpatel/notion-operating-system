@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -26,7 +27,7 @@ import {
 } from "./local-portfolio-governance-live.js";
 import { toExternalActionExecutionRecord } from "./local-portfolio-actuation-live.js";
 import { renderActuationCommandCenterSection, renderWeeklyActuationSection } from "./local-portfolio-actuation.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import { losAngelesToday } from "../utils/date.js";
 
 const GOVERNANCE_BRIEF_START = "<!-- codex:notion-governance-brief:start -->";
@@ -40,20 +41,20 @@ const ACTUATION_COMMAND_CENTER_END = "<!-- codex:notion-actuation-command-center
 const WEEKLY_ACTUATION_START = "<!-- codex:notion-weekly-actuation:start -->";
 const WEEKLY_ACTUATION_END = "<!-- codex:notion-weekly-actuation:end -->";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for action request sync");
-    }
+export interface ActionRequestSyncCommandOptions {
+  live?: boolean;
+  today?: string;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const today = flags.today ?? losAngelesToday();
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    let config = await loadLocalPortfolioControlTowerConfig(configPath);
+export async function runActionRequestSyncCommand(
+  options: ActionRequestSyncCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for action request sync");
+  const live = options.live ?? false;
+  const today = options.today ?? losAngelesToday();
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
     const sdk = new Client({
       auth: token,
@@ -61,8 +62,8 @@ async function main(): Promise<void> {
     });
     const api = new DirectNotionClient(token);
 
-    if (flags.live) {
-      logLiveStage(flags.live, "Ensuring Phase 6 schema");
+    if (live) {
+      logLiveStage(live, "Ensuring Phase 6 schema");
       config = await ensurePhase6GovernanceSchema(sdk, config);
       await saveLocalPortfolioControlTowerConfig(config, configPath);
     }
@@ -81,7 +82,7 @@ async function main(): Promise<void> {
       executionSchemaPromise,
     ]);
 
-    logLiveStage(flags.live, "Fetching governance datasets");
+    logLiveStage(live, "Fetching governance datasets");
     const executionPagesPromise =
       config.phase7Actuation && executionSchema
         ? fetchAllPages(sdk, config.phase7Actuation.executions.dataSourceId, executionSchema.titlePropertyName)
@@ -104,8 +105,8 @@ async function main(): Promise<void> {
     const executions = executionPages.map((page) => toExternalActionExecutionRecord(page));
 
     let expiredCount = 0;
-    if (flags.live) {
-      logLiveStage(flags.live, "Expiring stale action requests", { requestCount: requests.length });
+    if (live) {
+      logLiveStage(live, "Expiring stale action requests", { requestCount: requests.length });
       for (const request of requests) {
         if (shouldExpireActionRequest(request, today)) {
           await api.updatePageProperties({
@@ -121,10 +122,10 @@ async function main(): Promise<void> {
     }
 
     let changedProjectPages = 0;
-    if (flags.live) {
-      logLiveStage(flags.live, "Refreshing governance briefs", { projectCount: projects.length });
+    if (live) {
+      logLiveStage(live, "Refreshing governance briefs", { projectCount: projects.length });
       for (const [index, project] of projects.entries()) {
-        logLoopProgress(flags.live, "action-request-sync", "Project brief", index + 1, projects.length);
+        logLoopProgress(live, "action-request-sync", "Project brief", index + 1, projects.length);
         const projectRequests = requests.filter((request) => request.localProjectIds.includes(project.id));
         const projectDeliveries = deliveries.filter((delivery) => delivery.localProjectIds.includes(project.id));
         const projectExecutions = executions.filter((execution) => execution.localProjectIds.includes(project.id));
@@ -148,7 +149,7 @@ async function main(): Promise<void> {
       }
 
       if (config.commandCenter.pageId) {
-        logLiveStage(flags.live, "Refreshing governance command center");
+        logLiveStage(live, "Refreshing governance command center");
         const commandCenter = await api.readPageMarkdown(config.commandCenter.pageId);
         const section = renderGovernanceCommandCenterSection({
           requests,
@@ -184,7 +185,7 @@ async function main(): Promise<void> {
 
       const latestWeekly = weeklyPages.sort((left, right) => right.title.localeCompare(left.title))[0];
       if (latestWeekly) {
-        logLiveStage(flags.live, "Refreshing weekly governance summary");
+        logLiveStage(live, "Refreshing weekly governance summary");
         const weekly = await api.readPageMarkdown(latestWeekly.id);
         const section = renderWeeklyGovernanceSection({ requests, deliveries, actuationExecutions: executions });
         const updated = mergeManagedSection(weekly.markdown, section, WEEKLY_GOVERNANCE_START, WEEKLY_GOVERNANCE_END);
@@ -205,25 +206,17 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          expiredCount,
-          changedProjectPages,
-          pendingApprovalCount: requests.filter((request) => request.status === "Pending Approval").length,
-          approvedCount: requests.filter((request) => request.status === "Approved").length,
-          verifiedDeliveryCount: deliveries.filter((delivery) => delivery.verificationResult === "Valid").length,
-          executionCount: executions.length,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      expiredCount,
+      changedProjectPages,
+      pendingApprovalCount: requests.filter((request) => request.status === "Pending Approval").length,
+      approvedCount: requests.filter((request) => request.status === "Approved").length,
+      verifiedDeliveryCount: deliveries.filter((delivery) => delivery.verificationResult === "Valid").length,
+      executionCount: executions.length,
+    };
+    recordCommandOutputSummary(output);
+    console.log(JSON.stringify(output, null, 2));
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
@@ -243,23 +236,6 @@ function logLoopProgress(live: boolean, scope: string, label: string, index: num
   console.error(`[${scope}] ${label} ${index}/${total}`);
 }
 
-function parseFlags(argv: string[]): { live: boolean; today?: string } {
-  let live = false;
-  let today: string | undefined;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-    }
-  }
-
-  return { live, today };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["governance", "action-request-sync"]);
 }
-
-void main();

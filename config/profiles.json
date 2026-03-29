@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "defaultProfile": "default",
+  "profiles": [
+    "default"
+  ]
+}

@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -106,21 +107,23 @@ interface ProviderSyncResult {
   syncedSourceIds: string[];
 }
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for external signal sync");
-    }
+export interface ExternalSignalSyncCommandOptions {
+  live?: boolean;
+  provider?: "github" | "vercel" | "all";
+  today?: string;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const today = flags.today ?? losAngelesToday();
-    const weekStart = startOfWeekMonday(today);
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    let config = await loadLocalPortfolioControlTowerConfig(configPath);
+export async function runExternalSignalSyncCommand(
+  options: ExternalSignalSyncCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for external signal sync");
+  const live = options.live ?? false;
+  const provider = options.provider ?? "all";
+  const today = options.today ?? losAngelesToday();
+  const weekStart = startOfWeekMonday(today);
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
     const sdk = new Client({
       auth: token,
@@ -128,15 +131,15 @@ async function main(): Promise<void> {
     });
     const api = new DirectNotionClient(token);
 
-    if (flags.live) {
-      logLiveStage(flags.live, "Ensuring Phase 5 schema");
+    if (live) {
+      logLiveStage(live, "Ensuring Phase 5 schema");
       config = await ensurePhase5ExternalSignalSchema(sdk, config);
     }
 
     const phase5 = requirePhase5ExternalSignals(config);
     const providerConfig = await loadLocalPortfolioExternalSignalProviderConfig();
 
-    logLiveStage(flags.live, "Loading external signal schemas");
+    logLiveStage(live, "Loading external signal schemas");
     const [
       projectSchema,
       buildSchema,
@@ -169,7 +172,7 @@ async function main(): Promise<void> {
       api.retrieveDataSource(phase5.syncRuns.dataSourceId),
     ]);
 
-    logLiveStage(flags.live, "Fetching external signal datasets");
+    logLiveStage(live, "Fetching external signal datasets");
     const [
       projectPages,
       buildPages,
@@ -222,10 +225,10 @@ async function main(): Promise<void> {
     const eventKeySet = new Set(existingEvents.map((event) => event.eventKey));
     const sourceMap = new Map(sources.map((source) => [source.id, source]));
 
-    if (flags.live) {
-      logLiveStage(flags.live, "Syncing providers", { provider: flags.provider });
+    if (live) {
+      logLiveStage(live, "Syncing providers", { provider });
       providerResults = await syncProviders({
-        flags,
+        flags: { live, provider, today: options.today },
         today,
         phase5,
         providers: providerConfig.providers,
@@ -233,7 +236,7 @@ async function main(): Promise<void> {
         eventKeySet,
       });
 
-      logLiveStage(flags.live, "Writing sync runs", { providerRunCount: providerResults.length });
+      logLiveStage(live, "Writing sync runs", { providerRunCount: providerResults.length });
       for (const result of providerResults) {
         const syncRun = await createSyncRunPage({
           api,
@@ -308,10 +311,10 @@ async function main(): Promise<void> {
       .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
 
     let changedProjectPages = 0;
-    if (flags.live) {
-      logLiveStage(flags.live, "Refreshing project signal briefs", { projectCount: projects.length });
+    if (live) {
+      logLiveStage(live, "Refreshing project signal briefs", { projectCount: projects.length });
       for (const project of projects) {
-        logLoopProgress(flags.live, "external-signal-sync", "Project brief", projects.indexOf(project) + 1, projects.length);
+        logLoopProgress(live, "external-signal-sync", "Project brief", projects.indexOf(project) + 1, projects.length);
         const recommendation = recommendations.find((entry) => entry.projectId === project.id);
         const summary = summaryMap.get(project.id);
         if (!recommendation || !summary) {
@@ -387,7 +390,7 @@ async function main(): Promise<void> {
         }
       }
 
-      logLiveStage(flags.live, "Refreshing command center and weekly review");
+      logLiveStage(live, "Refreshing command center and weekly review");
       const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId!);
       const withIntelligence = mergeManagedSection(
         previousCommandCenter.markdown,
@@ -448,7 +451,7 @@ async function main(): Promise<void> {
       const externalMetrics = calculateExternalSignalMetrics({
         summaries: [...summaryMap.values()],
       });
-      logLiveStage(flags.live, "Persisting external signal metrics");
+      logLiveStage(live, "Persisting external signal metrics");
       const nextConfig = {
         ...config,
         phaseState: {
@@ -472,27 +475,23 @@ async function main(): Promise<void> {
       config = nextConfig;
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: flags.live,
-          provider: flags.provider,
-          createdEventCount,
-          createdSyncRunCount,
-          changedProjectPages,
-          metrics: calculateExternalSignalMetrics({
-            summaries: [...summaryMap.values()],
-          }),
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      live,
+      provider,
+      createdEventCount,
+      createdSyncRunCount,
+      changedProjectPages,
+      metrics: calculateExternalSignalMetrics({
+        summaries: [...summaryMap.values()],
+      }),
+    };
+    recordCommandOutputSummary(output, {
+      metadata: {
+        provider,
+      },
+    });
+    console.log(JSON.stringify(output, null, 2));
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
@@ -1022,32 +1021,6 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function parseFlags(argv: string[]): { live: boolean; provider: "github" | "vercel" | "all"; today?: string } {
-  let live = false;
-  let provider: "github" | "vercel" | "all" = "all";
-  let today: string | undefined;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--provider") {
-      const next = argv[index + 1];
-      if (next === "github" || next === "vercel" || next === "all") {
-        provider = next;
-      }
-      index += 1;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-    }
-  }
-
-  return { live, provider, today };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["signals", "sync"]);
 }
-
-void main();

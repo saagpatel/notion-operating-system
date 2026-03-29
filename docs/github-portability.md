@@ -20,6 +20,8 @@ Commit the parts that define how the system works:
 - `tests/`
 - `package.json`
 - `package-lock.json`
+- `scripts/`
+- `.githooks/`
 - `tsconfig.json`
 - `.env.example`
 - `README.md`
@@ -72,13 +74,15 @@ NOTION_TOKEN=...
 NOTION_LOG_DIR=./logs
 NOTION_DESTINATIONS_PATH=./config/destinations.json
 NOTION_RETRY_MAX_ATTEMPTS=5
+NOTION_HTTP_TIMEOUT_MS=90000
 ```
 
 Next, confirm the basic setup:
 
 ```bash
+npm run doctor
 npm run destinations:check
-npm test
+npm run verify
 ```
 
 If destination IDs ever need refreshing for that workspace, run:
@@ -111,7 +115,7 @@ GitHub preserves the logic and configuration. Your local `.env` and external ser
 For long-term safety, treat the system as three layers:
 
 1. GitHub repo: code, config, docs, tests, examples
-2. Local machine: `.env`, logs, scratch state
+2. Local machine: `.env`, logs, scratch state, git hook config
 3. External services: Notion workspace access and any other provider credentials
 
 That split makes the system easy to recover without leaking secrets into version control.

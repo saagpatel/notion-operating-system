@@ -1,13 +1,14 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import {
   buildExternalSignalSeedPlans,
   loadLocalPortfolioExternalSignalSourceConfig,
@@ -24,19 +25,22 @@ import {
 import { toIntelligenceProjectRecord } from "./local-portfolio-intelligence-live.js";
 import { toWorkPacketRecord } from "./local-portfolio-execution-live.js";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for external signal mapping seeding");
-    }
+export interface ExternalSignalSeedMappingsCommandOptions {
+  live?: boolean;
+  limit?: number;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    let config = await loadLocalPortfolioControlTowerConfig(configPath);
+export async function runExternalSignalSeedMappingsCommand(
+  options: ExternalSignalSeedMappingsCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken(
+    "NOTION_TOKEN is required for external signal mapping seeding",
+  );
+  const live = options.live ?? false;
+  const limit = options.limit ?? 15;
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
     const sdk = new Client({
       auth: token,
@@ -44,7 +48,7 @@ async function main(): Promise<void> {
     });
     const api = new DirectNotionClient(token);
 
-    if (flags.live) {
+    if (live) {
       config = await ensurePhase5ExternalSignalSchema(sdk, config);
     }
     if (!config.phase5ExternalSignals) {
@@ -66,10 +70,10 @@ async function main(): Promise<void> {
       projects: projectPages.map((page) => toIntelligenceProjectRecord(page)),
       packets: packetPages.map((page) => toWorkPacketRecord(page)),
       sourceConfig,
-    }).slice(0, flags.limit);
+    }).slice(0, limit);
 
     const results: Array<{ id: string; url: string; existed: boolean; title: string }> = [];
-    if (flags.live) {
+    if (live) {
       for (const plan of seedPlans) {
         const result = await upsertPageByTitle({
           api,
@@ -105,45 +109,17 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: flags.live,
-          seededCount: seedPlans.length,
-          limit: flags.limit,
-          createdOrUpdated: results,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      live,
+      seededCount: seedPlans.length,
+      limit,
+      createdOrUpdated: results,
+    };
+    recordCommandOutputSummary(output);
+    console.log(JSON.stringify(output, null, 2));
 }
 
-function parseFlags(argv: string[]): { live: boolean; limit: number } {
-  let live = false;
-  let limit = 15;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--limit") {
-      const value = Number(argv[index + 1]);
-      if (Number.isFinite(value) && value > 0) {
-        limit = value;
-      }
-      index += 1;
-    }
-  }
-
-  return { live, limit };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["signals", "seed-mappings"]);
 }
-
-void main();

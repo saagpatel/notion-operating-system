@@ -1,7 +1,8 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   addDays,
@@ -40,28 +41,29 @@ import {
   renderWeeklyReviewMarkdown,
   type ControlTowerProjectRecord,
 } from "./local-portfolio-control-tower.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
 
 const WEEKLY_EXECUTION_START = "<!-- codex:notion-weekly-execution:start -->";
 const WEEKLY_EXECUTION_END = "<!-- codex:notion-weekly-execution:end -->";
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for weekly planning");
-    }
+export interface WeeklyPlanCommandOptions {
+  live?: boolean;
+  today?: string;
+  includeNextPhase?: boolean;
+  config?: string;
+}
 
-    const flags = parseFlags(process.argv.slice(2));
-    const today = flags.today ?? losAngelesToday();
-    const weekStart = startOfWeekMonday(today);
-    const weekTitle = `Week of ${weekStart}`;
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    const config = await loadLocalPortfolioControlTowerConfig(configPath);
+export async function runWeeklyPlanCommand(
+  options: WeeklyPlanCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for weekly planning");
+  const live = options.live ?? false;
+  const today = options.today ?? losAngelesToday();
+  const weekStart = startOfWeekMonday(today);
+  const weekTitle = `Week of ${weekStart}`;
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  const config = await loadLocalPortfolioControlTowerConfig(configPath);
     if (!config.phase2Execution) {
       throw new AppError("Control tower config is missing phase2Execution");
     }
@@ -72,7 +74,7 @@ async function main(): Promise<void> {
     });
     const api = new DirectNotionClient(token);
 
-    if (flags.live) {
+    if (live) {
       await ensurePhase2ExecutionSchema(sdk, config);
     }
 
@@ -118,7 +120,7 @@ async function main(): Promise<void> {
       throw new AppError("Could not select enough projects to seed the weekly execution system");
     }
 
-    if (flags.live) {
+    if (live) {
       const committedDecision = await upsertPageByTitle({
         api,
         dataSourceId: config.phase2Execution.decisions.dataSourceId,
@@ -463,7 +465,7 @@ async function main(): Promise<void> {
           `Keep ${standbyProject.title} ready as the clean fallback packet.`,
           `Resolve the blocking decision on ${blockedProject.title}.`,
         ],
-        includeNextPhase: Boolean(flags.includeNextPhase),
+        includeNextPhase: Boolean(options.includeNextPhase),
         phase3Brief: config.phase2Execution.phaseMemory.phase3Brief,
       });
       const weeklyMarkdown = mergeManagedSection(
@@ -509,26 +511,22 @@ async function main(): Promise<void> {
       today,
     });
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          live: flags.live,
-          weekTitle,
-          nowProject: nowProject.title,
-          standbyProject: standbyProject.title,
-          blockedProject: blockedProject.title,
-          metrics,
-          currentPacket: context.activePacket?.title,
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+    const output = {
+      ok: true,
+      live,
+      weekTitle,
+      nowProject: nowProject.title,
+      standbyProject: standbyProject.title,
+      blockedProject: blockedProject.title,
+      metrics,
+      currentPacket: context.activePacket?.title,
+    };
+    recordCommandOutputSummary(output, {
+      metadata: {
+        weekTitle,
+      },
+    });
+    console.log(JSON.stringify(output, null, 2));
 }
 
 function pickProject(
@@ -593,28 +591,6 @@ function renderTaskMarkdown(projectTitle: string, status: string): string {
   ].join("\n");
 }
 
-function parseFlags(argv: string[]): { live: boolean; today?: string; includeNextPhase: boolean } {
-  let live = false;
-  let today: string | undefined;
-  let includeNextPhase = false;
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const current = argv[index];
-    if (current === "--live") {
-      live = true;
-      continue;
-    }
-    if (current === "--today") {
-      today = argv[index + 1];
-      index += 1;
-      continue;
-    }
-    if (current === "--include-next-phase") {
-      includeNextPhase = true;
-    }
-  }
-
-  return { live, today, includeNextPhase };
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["execution", "weekly-plan"]);
 }
-
-void main();

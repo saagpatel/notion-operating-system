@@ -1,3 +1,4 @@
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { readJsonFile } from "../utils/files.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
 import { AppError } from "../utils/errors.js";
@@ -44,7 +45,7 @@ const BOOLEAN_FILTERABLE_TYPES = new Set(["checkbox"]);
 const GROUPABLE_TYPES = new Set(["select", "status", "multi_select"]);
 
 export async function loadLocalPortfolioViewPlan(
-  filePath = DEFAULT_LOCAL_PORTFOLIO_VIEWS_PATH,
+  filePath = loadRuntimeConfig().paths.localPortfolioViewsPath,
 ): Promise<LocalPortfolioViewPlan> {
   const raw = await readJsonFile<unknown>(filePath);
   return parseLocalPortfolioViewPlan(raw);

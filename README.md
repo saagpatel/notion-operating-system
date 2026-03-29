@@ -1,252 +1,156 @@
 # Notion Operating System
 
-This repo gives Codex a durable local workflow for publishing Markdown or text files into Notion through the direct Notion REST API.
+Notion Operating System is a local automation layer for turning Notion into a real project and portfolio control system.
 
-That publisher is the foundation, but the project has grown into a broader Notion operating system for project and portfolio management. In practice, this repo now does two jobs:
+It started as a safe Markdown-to-Notion publisher, then grew into a broader system for publishing notes, maintaining project state, generating reviews, syncing external signals, and running governed workflows around Notion.
 
-- publishes local content into Notion safely and repeatably
-- maintains a larger Notion-based control tower for projects, reviews, signals, and governed actions
+## Main Features
 
-## What this project does
+- Publish local Markdown and text files into the right Notion pages and databases
+- Use friendly destination aliases instead of raw Notion IDs
+- Validate writable Notion properties before any write
+- Support dry-run first, then live publish when you are ready
+- Create pages, update existing pages, replace page content, or patch targeted sections
+- Maintain a Notion control tower for project and portfolio tracking
+- Generate command-center pages, weekly reviews, and operating summaries
+- Store rules, config, and workflow logic in code so the system is portable across machines
 
-- Reads a local `.md` or `.txt` file
-- Resolves a friendly destination alias from `config/destinations.json`
-- Validates writable properties against the current parent data source schema
-- Creates or updates Notion pages using the direct REST markdown endpoints
-- Handles template discovery, template creation, and template readiness polling
-- Retries on rate limits with `Retry-After`
-- Writes structured run logs into `logs/`
-- Supports dry-run and live publish modes
+## Exciting Features
 
-## Setup
+- Direct Markdown publishing into Notion through the REST API
+- A real project operating system built on top of Notion, not just a note uploader
+- Derived project signals like operating queues, review timing, and evidence freshness
+- External telemetry lanes that can bring in signals from systems like GitHub
+- Governed action flows that make automation auditable instead of ad hoc
+- Config-driven behavior that makes the whole setup reproducible and versionable in GitHub
 
-1. Install dependencies:
+## Why You Would Want To Use It
 
-   ```bash
-   npm install
-   ```
+- You want Notion to behave more like an operating system than a manual workspace
+- You want repeatable publishing from local files instead of copy-pasting into Notion
+- You want project reviews, summaries, and control pages to be generated consistently
+- You want your PM logic, rules, and workflow memory stored in code, not trapped in one machine or one chat history
+- You want a setup that can be cloned, versioned, audited, and rebuilt later
 
-2. Copy the example environment file:
+## What Exactly It Does
 
-   ```bash
-   cp .env.example .env
-   ```
+This project reads local content, resolves where that content belongs in Notion, validates the destination schema, and then safely creates or updates the target page.
 
-3. Put your Notion integration token in `.env` as `NOTION_TOKEN`.
+On top of that, it manages a broader Notion-based project system: project databases, saved-view plans, weekly review packets, command-center pages, external signal mapping, governance rules, and rollout workflows.
 
-4. Update `config/destinations.json` with your real destination aliases and Notion URLs.
+In short, it is both:
 
-5. If your destination config only has URLs and not resolved IDs yet, resolve them:
+- a safe local publisher for Notion
+- a code-backed operating system for running projects in Notion
 
-   ```bash
-   npm run destinations:resolve
-   ```
+## CLI
 
-## GitHub And Portability
+The canonical entrypoints are:
 
-If you want this system to survive machine changes, this repo should live in GitHub.
-
-What belongs in GitHub:
-
-- source code in `src/`
-- config files in `config/`
-- docs in `docs/`
-- examples in `examples/`
-- environment template files like `.env.example`
-
-What should stay local:
-
-- `.env` and any real tokens
-- run logs in `logs/`
-- scratch files in `tmp/` and `.tmp/`
-- webhook shadow state in `var/`
-
-Recommended repo identity:
-
-- Project name: `Notion Operating System`
-- GitHub repo name: `notion-operating-system`
-
-For a machine-to-machine setup checklist, see [docs/github-portability.md](docs/github-portability.md).
-
-## Common commands
-
-- Dry-run a publish request:
-
-  ```bash
-  npm run publish:notion -- --request examples/requests/weekly_review.dry-run.json --dry-run
-  ```
-
-- Publish a file directly by alias:
-
-  ```bash
-  npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly-review.md --live
-  ```
-
-- Check destination config only:
-
-  ```bash
-  npm run destinations:check
-  ```
-
-- Rebuild the `Local Portfolio Projects` database as the resume-and-decision system:
-
-  ```bash
-  npm run portfolio-audit:overhaul-notion
-  ```
-
-- Print the saved-view sync plan for `Local Portfolio Projects`:
-
-  ```bash
-  npm run portfolio-audit:views-plan
-  ```
-
-- Validate the saved-view plan against the live `Local Portfolio Projects` schema before an MCP sync:
-
-  ```bash
-  npm run portfolio-audit:views-validate
-  ```
-
-- Dry-run the project control-tower sync:
-
-  ```bash
-  npm run portfolio-audit:control-tower-sync
-  ```
-
-- Publish the current weekly review packet from the control tower:
-
-  ```bash
-  npm run portfolio-audit:review-packet -- --live
-  ```
-
-- Run the bounded operational rollout for the current priority slice:
-
-  ```bash
-  npm run portfolio-audit:operational-rollout
-  ```
-
-- Dry-run the BattleGrid/EarthPulse/Relay/SynthWave cohort rollout into governed GitHub issues:
-
-  ```bash
-  npm run portfolio-audit:cohort-rollout -- --projects BattleGrid,EarthPulse,Relay,SynthWave
-  ```
-
-- Audit which non-GitHub provider is closest to a safe Phase 9 pilot:
-
-  ```bash
-  npm run portfolio-audit:provider-expansion-audit
-  ```
-
-- Close the active phase and write the next-phase brief into repo memory plus Build Log:
-
-  ```bash
-  npm run portfolio-audit:phase-closeout -- --phase 1
-  ```
-
-## Request file format
-
-The easiest repeatable path is a small JSON request file:
-
-```json
-{
-  "destinationAlias": "weekly_reviews",
-  "inputFile": "examples/content/weekly-review.md",
-  "dryRun": true,
-  "titleOverride": "Week of 2026-03-16"
-}
+```bash
+notion-os <command> [subcommand] [options]
+tsx src/cli.ts <command> [subcommand] [options]
 ```
 
-## Live write safety
+The older `npm run ...` scripts still work, but the shared CLI now keeps help text, flag parsing, runtime setup, and profile selection consistent across the main workflows.
 
-- Dry-run is the default unless `--live` is passed.
-- Dry-run can work without a token if the destination config includes a `schemaSnapshot`.
-- `allowDeletingContent` defaults to `false`.
-- Full content replacement refuses to proceed if the existing page contains child page or child database blocks and the new content would remove them.
-- After a live publish, the tool reads the final markdown back and logs whether the response looks truncated or contains `unknown_block_ids`.
+You can explore the CLI with:
 
-## Human-only Notion steps
+```bash
+notion-os --help
+notion-os --profile default doctor --help
+tsx src/cli.ts --help
+tsx src/cli.ts control-tower --help
+npm run doctor -- --help
+```
 
-This code cannot do these steps for you:
+## Most Common Commands
 
-1. Create the internal Notion integration.
-2. Grant the integration the capabilities required for page creation, page update, property insert/update, and markdown read/update.
-3. Put the token into `NOTION_TOKEN`.
-4. Share each target page or data source with the integration.
+```bash
+# Run the full local release gate
+npm run verify
 
-## Repo guide
+# Verify local setup on a new machine
+npm run doctor
 
-- [DESTINATIONS.md](DESTINATIONS.md): destination alias design and maintenance
-- [AGENTS.md](AGENTS.md): in-repo operating instructions for future Codex sessions
-- [.agents/skills/notion-publish/SKILL.md](.agents/skills/notion-publish/SKILL.md): short Codex skill for future publish tasks
+# Show the active workspace profile and resolved paths
+notion-os profiles show
 
-## Current real destinations
+# Check configured Notion destination aliases
+npm run destinations:check
 
-- `weekly_reviews` -> `📅 Weekly Reviews`
-- `build_log` -> `🔨 Build Log`
-- `project_portfolio` -> `📦 Project Portfolio`
-- `local_portfolio_projects` -> `Local Portfolio Projects`
-- `local_portfolio_command_center` -> `Local Portfolio Command Center`
-- `skills_library` -> `🤹 Skills Library`
-- `research_library` -> `📚 Research Library`
-- `ai_tool_site_matrix` -> `🧠 AI Tool & Site Matrix`
+# Publish a file safely first
+npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly.md --dry-run
 
-## Project database roles
+# Publish live when ready
+npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly.md --live
 
-- `Local Portfolio Projects` is the operating project system for projects that are completed or currently in some kind of build, review, resume, or active-working status.
-- `Project Portfolio` is the earlier-stage portfolio system for projects that have not been started yet.
-- Keep both databases distinct on purpose: `Local Portfolio Projects` is the day-to-day operating surface, while `Project Portfolio` is the pre-start pipeline.
+# Refresh the main control tower safely
+notion-os control-tower sync
 
-## Local Portfolio Projects overhaul
+# Preview the weekly review packet
+notion-os control-tower review-packet
+```
 
-The `portfolio-audit:overhaul-notion` command upgrades the live `Local Portfolio Projects` data source in place using local evidence from:
+## Verification And Logs
 
-- `/Users/d/Projects/PORTFOLIO-AUDIT-REPORT.md`
-- `/Users/d/Projects/PORTFOLIO-AUDIT-REPORT.xlsx`
-- `/Users/d/Projects/project-registry.md`
-- the local repo/manifests/docs under `/Users/d/Projects`
+Use the full local gate before shipping changes:
 
-It adds the resume-and-decision fields, refreshes each project page into a resume-first profile, and backfills reverse links from Build Log, Research Library, Skills Library, and AI Tool & Site Matrix.
+```bash
+npm run verify
+```
 
-One current limitation: the public Notion API still does not expose database-view creation, so the command cannot create the target saved views automatically.
+This runs:
 
-The durable workaround in this repo is:
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
 
-- direct Notion REST remains the source of truth for schema, rows, and markdown content
-- Notion MCP is the preferred way to create and update saved views when MCP auth is healthy
-- Playwright is the fallback only if MCP auth is unavailable or the view layer needs browser repair
+Most shared CLI commands now also write lifecycle events and run summaries into the active log directory. By default that is `./logs`, or the profile/runtime override in `NOTION_LOG_DIR`.
 
-The saved view source of truth now lives in `/Users/d/Notion/config/local-portfolio-views.json`.
-Use `npm run portfolio-audit:views-plan` to print the exact view definitions, database IDs, and MCP-ready configuration strings for:
+If you want the optional local pre-commit hook:
 
-- `Portfolio Home`
-- `Resume Now`
-- `Worth Finishing`
-- `Needs Decision`
-- `Needs Review`
-- `Cold Storage`
-- `By Category`
-- `Gallery Snapshot`
+```bash
+npm run hooks:install
+```
 
-The same config now also stores the live Notion view IDs for those eight views.
-Use `npm run portfolio-audit:views-validate` to confirm the config still matches the live data source schema before you run an MCP view sync.
+That hook stays intentionally light. It blocks obvious machine-local artifacts and runs `npm run typecheck`. CI and `npm run verify` remain the real full gate.
 
-## Phase-one control tower
+## First Run
 
-The control-tower source of truth now lives in `/Users/d/Notion/config/local-portfolio-control-tower.json`.
-It defines:
+For a fresh machine:
 
-- field ownership for manual, derived, and legacy-hidden properties
-- freshness windows and review cadences
-- queue precedence
-- command-center page bootstrap and saved-view IDs
-- baseline metrics and phase state for the roadmap ledger
+1. Install dependencies with `npm ci`
+2. Copy `.env.example` to `.env`
+3. Fill in `NOTION_TOKEN`
+4. Confirm the active profile points at the right config files
+5. Run `npm run doctor`
+6. Run `npm run verify`
+7. Start with a dry-run publish before any live write
 
-The new phase-one commands are:
+## Profiles
 
-- `npm run portfolio-audit:control-tower-sync`
-- `npm run portfolio-audit:review-packet`
-- `npm run portfolio-audit:phase-closeout`
+Phase 3 adds full workspace profiles so the same repo can point at different Notion environments safely.
 
-The repo-canonical memory artifacts live at:
+- `config/profiles.json` stores the registry
+- `config/profiles/<name>.json` stores each profile descriptor
+- the active profile resolves the env file, destinations file, control-tower file, and the rest of the advanced JSON config set
 
-- `/Users/d/Notion/docs/notion-roadmap.md`
-- `/Users/d/Notion/docs/adr/0001-local-portfolio-control-tower.md`
+Useful commands:
+
+```bash
+notion-os profiles list
+notion-os profiles show
+notion-os profiles migrate --write
+notion-os --profile default doctor
+```
+
+If you want a fuller walkthrough, see [docs/first-run.md](docs/first-run.md).
+
+## Project Docs
+
+- First-run onboarding: [docs/first-run.md](docs/first-run.md)
+- Architecture overview: [docs/architecture-overview.md](docs/architecture-overview.md)
+- Post-Phase-4 repo roadmap: [docs/repo-post-phase4-roadmap.md](docs/repo-post-phase4-roadmap.md)
+- Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- GitHub portability notes: [docs/github-portability.md](docs/github-portability.md)

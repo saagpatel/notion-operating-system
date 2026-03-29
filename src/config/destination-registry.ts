@@ -7,6 +7,7 @@ import {
   type DestinationRegistryConfig,
   type PublishRequest,
 } from "../types.js";
+import { loadRuntimeConfig } from "./runtime-config.js";
 import { readJsonFile, writeJsonFile } from "../utils/files.js";
 import { AppError } from "../utils/errors.js";
 
@@ -16,7 +17,7 @@ export class DestinationRegistry {
     private config: DestinationRegistryConfig,
   ) {}
 
-  public static async load(configPath: string): Promise<DestinationRegistry> {
+  public static async load(configPath = loadRuntimeConfig().paths.destinationsPath): Promise<DestinationRegistry> {
     const absolutePath = path.resolve(configPath);
     const file = await readJsonFile<unknown>(absolutePath);
     const config = DestinationRegistrySchema.parse(file);
