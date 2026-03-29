@@ -278,6 +278,8 @@ export async function runOperationalRolloutCommand(
       },
       {
         mode: "live",
+        status: pilotRunFailures.length > 0 ? "partial" : "completed",
+        warningCategories: pilotRunFailures.length > 0 ? ["partial_success"] : undefined,
         metadata: {
           shortlistedProjects: plan.wave1Shortlist.length,
         },

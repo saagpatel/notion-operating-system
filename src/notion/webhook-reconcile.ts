@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
@@ -36,24 +37,32 @@ export async function runWebhookReconcileCommand(
   const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));
   const provider = options.provider ?? "github";
   const reconcileNeeded = findWebhookDeliveriesNeedingReconcile(deliveries, provider);
-
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
+  const output = {
+    ok: true,
+    provider,
+    reconcileNeeded: reconcileNeeded.map((delivery) => ({
+      title: delivery.title,
+      url: delivery.url,
+      status: delivery.status,
+      verificationResult: delivery.verificationResult,
+      receiptCount: delivery.receiptCount,
+    })),
+  };
+  recordCommandOutputSummary(
+    {
+      ...output,
+      recordsSkipped: reconcileNeeded.length,
+      warningsCount: reconcileNeeded.length > 0 ? 1 : 0,
+    },
+    {
+      status: reconcileNeeded.length > 0 ? "warning" : "completed",
+      warningCategories: reconcileNeeded.length > 0 ? ["stale_data"] : undefined,
+      metadata: {
         provider,
-        reconcileNeeded: reconcileNeeded.map((delivery) => ({
-          title: delivery.title,
-          url: delivery.url,
-          status: delivery.status,
-          verificationResult: delivery.verificationResult,
-          receiptCount: delivery.receiptCount,
-        })),
       },
-      null,
-      2,
-    ),
+    },
   );
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function main(): Promise<void> {

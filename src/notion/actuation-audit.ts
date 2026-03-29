@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -36,7 +37,16 @@ export async function runActuationAuditCommand(
     policyConfig: { policies: policyConfig.policies },
     targetConfig,
   });
-  console.log(JSON.stringify({ ok: true, githubActionFamilies: githubFamilies.families.length, ...summary }, null, 2));
+  const output = { ok: true, githubActionFamilies: githubFamilies.families.length, ...summary };
+  const missingCredentials = summary.missingGitHubAuthRefs.length > 0 || summary.missingGitHubWebhookRefs.length > 0;
+  recordCommandOutputSummary(output, {
+    status: missingCredentials ? "warning" : "completed",
+    warningCategories: missingCredentials ? ["missing_credentials"] : undefined,
+    metadata: {
+      allowlistedTargets: summary.allowlistedTargets,
+    },
+  });
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function main(): Promise<void> {

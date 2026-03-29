@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { Client } from "@notionhq/client";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
@@ -318,20 +319,20 @@ export async function runWebhookShadowDrainCommand(
     }
   }
 
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        drainedFiles: entries.length,
-        receiptCount,
-        createdDeliveryCount,
-        updatedDeliveryCount,
-        createdEventCount,
-      },
-      null,
-      2,
-    ),
-  );
+  const output = {
+    ok: true,
+    drainedFiles: entries.length,
+    receiptCount,
+    createdDeliveryCount,
+    updatedDeliveryCount,
+    createdEventCount,
+  };
+  recordCommandOutputSummary(output, {
+    metadata: {
+      drainedFiles: entries.length,
+    },
+  });
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function main(): Promise<void> {

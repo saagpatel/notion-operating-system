@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -34,17 +35,23 @@ export async function runGovernanceAuditCommand(
     policyConfig,
     providerConfig,
   });
-
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        ...summary,
-      },
-      null,
-      2,
-    ),
-  );
+  const output = {
+    ok: true,
+    ...summary,
+  };
+  const hasWarnings =
+    summary.missingSecretRefs.length > 0 ||
+    summary.policiesMissingApprovalRule.length > 0 ||
+    summary.endpointModeWarnings.length > 0 ||
+    summary.identityWarnings.length > 0;
+  recordCommandOutputSummary(output, {
+    status: hasWarnings ? "warning" : "completed",
+    warningCategories: hasWarnings ? ["validation_gap"] : undefined,
+    metadata: {
+      liveMutationPolicies: summary.liveMutationPolicies.length,
+    },
+  });
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function main(): Promise<void> {
