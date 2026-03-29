@@ -455,13 +455,17 @@ export function buildExternalSignalSeedPlans(input: {
     })),
   );
 
-  const seenTitles = new Set<string>();
+  const seenSeedKeys = new Set<string>();
   return [...input.sourceConfig.manualSeeds, ...generatedSeeds].filter((plan) => {
-    const key = plan.title.trim().toLowerCase();
-    if (seenTitles.has(key)) {
+    const key = [
+      plan.localProjectId.trim().toLowerCase(),
+      plan.provider.trim().toLowerCase(),
+      plan.sourceType.trim().toLowerCase(),
+    ].join("::");
+    if (seenSeedKeys.has(key)) {
       return false;
     }
-    seenTitles.add(key);
+    seenSeedKeys.add(key);
     return true;
   });
 }
