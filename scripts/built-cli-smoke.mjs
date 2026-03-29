@@ -19,6 +19,15 @@ async function run() {
   await expectSuccess(["control-tower", "--help"]);
   await expectSuccess(["governance", "--help"]);
   await expectSuccess(["signals", "--help"]);
+  await expectSuccess(["governance", "audit", "--help"]);
+  await expectSuccess(["governance", "views-validate", "--help"]);
+  await expectSuccess(["governance", "actuation-audit", "--help"]);
+  await expectSuccess(["governance", "webhook-shadow-drain", "--help"]);
+  await expectSuccess(["governance", "webhook-reconcile", "--help"]);
+  await expectSuccess(["execution", "views-validate", "--help"]);
+  await expectSuccess(["intelligence", "views-validate", "--help"]);
+  await expectSuccess(["signals", "views-validate", "--help"]);
+  await expectSuccess(["signals", "provider-expansion-audit", "--help"]);
 
   const doctor = await runCli(["doctor", "--json"], {
     cwd: workspace,

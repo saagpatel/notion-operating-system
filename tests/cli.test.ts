@@ -32,22 +32,44 @@ describe("cli smoke tests", () => {
 
   test("renders help for each major command family", async () => {
     const families = [
-      "publish",
-      "doctor",
-      "destinations",
-      "profiles",
-      "control-tower",
-      "execution",
-      "intelligence",
-      "signals",
-      "governance",
-      "rollout",
-    ];
+      ["publish", "publish"],
+      ["doctor", "doctor"],
+      ["destinations", "check"],
+      ["profiles", "show"],
+      ["control-tower", "sync"],
+      ["execution", "views-validate"],
+      ["intelligence", "views-validate"],
+      ["signals", "provider-expansion-audit"],
+      ["governance", "webhook-reconcile"],
+      ["rollout", "operational"],
+    ] as const;
 
-    for (const family of families) {
+    for (const [family, expectedSubcommand] of families) {
       const result = await runCliForTest([family, "--help"]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain(family);
+      expect(result.stdout).toContain(expectedSubcommand);
+      expect(result.stderr).toBe("");
+    }
+  });
+
+  test("renders help for the migrated durable subcommands", async () => {
+    const commands = [
+      ["governance", "audit"],
+      ["governance", "views-validate"],
+      ["governance", "actuation-audit"],
+      ["governance", "webhook-shadow-drain"],
+      ["governance", "webhook-reconcile"],
+      ["execution", "views-validate"],
+      ["intelligence", "views-validate"],
+      ["signals", "views-validate"],
+      ["signals", "provider-expansion-audit"],
+    ];
+
+    for (const command of commands) {
+      const result = await runCliForTest([...command, "--help"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(command[command.length - 1]!);
       expect(result.stderr).toBe("");
     }
   });
@@ -109,6 +131,35 @@ describe("cli smoke tests", () => {
       version: 1,
       aliases: ["weekly_reviews", "command_center"],
     });
+  });
+
+  test("runs migrated safe audit commands through the shared CLI", async () => {
+    const governance = await runCliForTest(["governance", "audit"], { cwd: repoRoot });
+    const actuation = await runCliForTest(["governance", "actuation-audit"], { cwd: repoRoot });
+    const providerExpansion = await runCliForTest(["signals", "provider-expansion-audit"], {
+      cwd: repoRoot,
+    });
+
+    expect(governance.exitCode).toBe(0);
+    expect(JSON.parse(governance.stdout)).toEqual(
+      expect.objectContaining({
+        ok: true,
+      }),
+    );
+
+    expect(actuation.exitCode).toBe(0);
+    expect(JSON.parse(actuation.stdout)).toEqual(
+      expect.objectContaining({
+        ok: true,
+      }),
+    );
+
+    expect(providerExpansion.exitCode).toBe(0);
+    expect(JSON.parse(providerExpansion.stdout)).toEqual(
+      expect.objectContaining({
+        ok: true,
+      }),
+    );
   });
 
   test("surfaces publish validation errors without making writes", async () => {
@@ -278,6 +329,49 @@ describe("profiles cli", () => {
 });
 
 describe("legacy wrapper compatibility", () => {
+  test("governance audit wrapper delegates to the shared help output", async () => {
+    const result = await runLegacyHelp("src/notion/governance-audit.ts");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Audit the governance policy and webhook posture");
+  });
+
+  test("execution views validation wrapper delegates to the shared help output", async () => {
+    const result = await runLegacyHelp("src/notion/validate-local-portfolio-execution-views.ts");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Validate the execution saved-view plan");
+  });
+
+  test("provider expansion wrapper delegates to the shared help output", async () => {
+    const result = await runLegacyHelp("src/notion/provider-expansion-audit.ts");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("provider expansion");
+  });
+
+  test("governance audit wrapper still runs a safe audit path", async () => {
+    const result = await runLegacyCommand("src/notion/governance-audit.ts");
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.objectContaining({
+        ok: true,
+      }),
+    );
+  });
+
+  test("provider expansion wrapper still runs a safe audit path", async () => {
+    const result = await runLegacyCommand("src/notion/provider-expansion-audit.ts");
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.objectContaining({
+        ok: true,
+      }),
+    );
+  });
+
   test("control-tower wrapper delegates to the shared help output", async () => {
     const result = await runLegacyHelp("src/notion/control-tower-sync.ts");
 
@@ -483,8 +577,15 @@ function applyEnvOverrides(overrides: Record<string, string | undefined> | undef
 }
 
 async function runLegacyHelp(relativeScriptPath: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return runLegacyCommand(relativeScriptPath, ["--help"]);
+}
+
+async function runLegacyCommand(
+  relativeScriptPath: string,
+  args: string[] = [],
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
-    const result = await execFileAsync(tsxBin, [relativeScriptPath, "--help"], {
+    const result = await execFileAsync(tsxBin, [relativeScriptPath, ...args], {
       cwd: repoRoot,
       env: process.env,
     });
