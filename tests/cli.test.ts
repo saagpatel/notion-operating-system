@@ -110,6 +110,34 @@ describe("cli smoke tests", () => {
     expect(report.checks.some((check: { id: string }) => check.id === "destinations-schema")).toBe(true);
   });
 
+  test("keeps sandbox doctor isolated from default .env leakage during cli startup", async () => {
+    const tempDir = await createSandboxCliWorkspace();
+
+    const result = await runCliForTest(["doctor", "--json"], {
+      cwd: tempDir,
+      env: {
+        NOTION_PROFILE: "sandbox",
+        NOTION_TOKEN: undefined,
+        NOTION_DESTINATIONS_PATH: undefined,
+        NOTION_LOG_DIR: undefined,
+        NOTION_RETRY_MAX_ATTEMPTS: undefined,
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    const report = JSON.parse(result.stdout);
+    expect(report.runtime.profile.name).toBe("sandbox");
+    expect(report.runtime.paths.destinationsPath).toContain(
+      path.join("config", "profiles", "sandbox", "destinations.json"),
+    );
+    expect(report.checks.find((check: { id: string }) => check.id === "sandbox-path-overrides")).toEqual(
+      expect.objectContaining({ status: "pass" }),
+    );
+    expect(report.checks.find((check: { id: string }) => check.id === "sandbox-token-isolation")).toEqual(
+      expect.objectContaining({ status: "pass" }),
+    );
+  });
+
   test("records command lifecycle events for successful runs", async () => {
     const tempDir = await createTempWorkspace();
     const logDir = path.join(tempDir, "logs");
@@ -358,6 +386,7 @@ describe("profiles cli", () => {
       profiles: [
         expect.objectContaining({
           name: "default",
+          kind: "primary",
           implicit: true,
           configVersion: 1,
           isActive: true,
@@ -374,6 +403,7 @@ describe("profiles cli", () => {
 
     expect(result.exitCode).toBe(0);
     expect(payload.profile.name).toBe("work");
+    expect(payload.profile.kind).toBe("primary");
     expect(payload.profile.implicit).toBe(false);
     expect(payload.profile.configVersion).toBe(1);
     expect(payload.profile.sourceConfigVersion).toBe(0);
@@ -518,12 +548,12 @@ describe("profiles cli", () => {
     );
   });
 
-  test("clones a profile preview-first and preserves an existing env file on write", async () => {
+  test("clones a profile preview-first and defaults sandbox targets to sandbox kind on write", async () => {
     const tempDir = await createProfiledWorkspace();
-    await writeFile(path.join(tempDir, ".env.clone"), "NOTION_TOKEN=keep_me\n", "utf8");
+    await writeFile(path.join(tempDir, ".env.sandbox"), "NOTION_TOKEN=keep_me\n", "utf8");
 
     const preview = await runCliForTest(
-      ["profiles", "clone", "--source", "work", "--target", "clone", "--json"],
+      ["profiles", "clone", "--source", "work", "--target", "sandbox", "--json"],
       { cwd: tempDir },
     );
     expect(preview.exitCode).toBe(0);
@@ -532,25 +562,41 @@ describe("profiles cli", () => {
         wrote: false,
         actions: expect.arrayContaining([
           expect.objectContaining({ action: "create" }),
-          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.clone") }),
+          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.sandbox") }),
         ]),
       }),
     );
 
     const written = await runCliForTest(
-      ["profiles", "clone", "--source", "work", "--target", "clone", "--write", "--json"],
+      ["profiles", "clone", "--source", "work", "--target", "sandbox", "--write", "--json"],
       { cwd: tempDir },
     );
     expect(written.exitCode).toBe(0);
-    const clonedDescriptor = JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "clone.json"), "utf8"));
+    const clonedDescriptor = JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "sandbox.json"), "utf8"));
     expect(clonedDescriptor.configVersion).toBe(1);
-    expect(JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "clone", "destinations.json"), "utf8"))).toEqual(
-      expect.objectContaining({ version: 1 }),
-    );
-    expect(await readFile(path.join(tempDir, ".env.clone"), "utf8")).toContain("keep_me");
+    expect(clonedDescriptor.kind).toBe("sandbox");
+    expect(
+      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "sandbox", "destinations.json"), "utf8")),
+    ).toEqual(expect.objectContaining({ version: 1 }));
+    expect(await readFile(path.join(tempDir, ".env.sandbox"), "utf8")).toContain("keep_me");
   });
 
-  test("bootstraps only missing files from defaults or a bundle", async () => {
+  test("preserves the source profile kind when cloning a sandbox profile to a non-sandbox name", async () => {
+    const tempDir = await createSandboxCliWorkspace();
+
+    const written = await runCliForTest(
+      ["profiles", "clone", "--source", "sandbox", "--target", "rehearsal", "--write", "--json"],
+      { cwd: tempDir },
+    );
+
+    expect(written.exitCode).toBe(0);
+    const clonedDescriptor = JSON.parse(
+      await readFile(path.join(tempDir, "config", "profiles", "rehearsal.json"), "utf8"),
+    );
+    expect(clonedDescriptor.kind).toBe("sandbox");
+  });
+
+  test("bootstraps only missing files from defaults or a bundle and preserves sandbox kind", async () => {
     const tempDir = await createProfiledWorkspace();
     const bootstrapDir = path.join(tempDir, "config", "profiles", "bootstrap");
     await mkdir(bootstrapDir, { recursive: true });
@@ -593,10 +639,13 @@ describe("profiles cli", () => {
     const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
     await runCliForTest(["--profile", "work", "profiles", "export", "--output", bundlePath], { cwd: tempDir });
     const bundleBootstrap = await runCliForTest(
-      ["profiles", "bootstrap", "--target", "bundlecopy", "--from-bundle", bundlePath, "--write", "--json"],
+      ["profiles", "bootstrap", "--target", "bundlecopy", "--kind", "sandbox", "--from-bundle", bundlePath, "--write", "--json"],
       { cwd: tempDir },
     );
     expect(bundleBootstrap.exitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "bundlecopy.json"), "utf8")),
+    ).toEqual(expect.objectContaining({ kind: "sandbox" }));
     expect(
       JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "bundlecopy", "destinations.json"), "utf8")),
     ).toEqual(expect.objectContaining({ version: 1 }));
@@ -837,6 +886,108 @@ async function createProfiledWorkspace(): Promise<string> {
     "utf8",
   );
   await writeFile(path.join(tempDir, ".env.work"), "", "utf8");
+
+  return tempDir;
+}
+
+async function createSandboxCliWorkspace(): Promise<string> {
+  const tempDir = await createTempWorkspace();
+  const sandboxDir = path.join(tempDir, "config", "profiles", "sandbox");
+  await mkdir(sandboxDir, { recursive: true });
+
+  await writeFile(
+    path.join(tempDir, "config", "profiles.json"),
+    JSON.stringify({
+      version: 1,
+      defaultProfile: "sandbox",
+      profiles: ["default", "sandbox"],
+    }),
+    "utf8",
+  );
+  await mkdir(path.join(tempDir, "config", "profiles"), { recursive: true });
+  await writeFile(
+    path.join(tempDir, "config", "profiles", "default.json"),
+    JSON.stringify({
+      configVersion: 1,
+      name: "default",
+      label: "Default Workspace",
+      kind: "primary",
+      envFile: ".env",
+      destinationsPath: "./config/destinations.json",
+      controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, "config", "profiles", "sandbox.json"),
+    JSON.stringify({
+      configVersion: 1,
+      name: "sandbox",
+      label: "Sandbox Workspace",
+      kind: "sandbox",
+      envFile: ".env.sandbox",
+      destinationsPath: "./config/profiles/sandbox/destinations.json",
+      controlTowerConfigPath: "./config/profiles/sandbox/local-portfolio-control-tower.json",
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, ".env"),
+    ["NOTION_TOKEN=default-token", "NOTION_DESTINATIONS_PATH=./config/destinations.json"].join("\n"),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, ".env.sandbox"),
+    [
+      "NOTION_TOKEN=sandbox-token",
+      "NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
+    ].join("\n"),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, "config", "local-portfolio-control-tower.json"),
+    JSON.stringify({
+      version: 1,
+      relatedDataSources: {
+        buildLogId: "11111111-1111-1111-1111-111111111111",
+      },
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(sandboxDir, "local-portfolio-control-tower.json"),
+    JSON.stringify({
+      version: 1,
+      relatedDataSources: {
+        buildLogId: "22222222-2222-2222-2222-222222222222",
+      },
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(sandboxDir, "destinations.json"),
+    JSON.stringify({
+      version: 1,
+      destinations: [
+        {
+          alias: "sandbox_center",
+          destinationType: "page",
+          sourceUrl: "https://www.notion.so/sandbox-center-22222222222222222222222222222222",
+          templateMode: "none",
+          titleRule: { source: "literal", value: "Sandbox Center" },
+          fixedProperties: {},
+          defaultProperties: {},
+          mode: "create_new_page",
+          safeDefaults: {
+            allowDeletingContent: false,
+            templatePollIntervalMs: 1000,
+            templatePollTimeoutMs: 5000,
+          },
+        },
+      ],
+    }),
+    "utf8",
+  );
 
   return tempDir;
 }

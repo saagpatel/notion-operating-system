@@ -11,63 +11,55 @@
   },
   "database": {
     "name": "Local Portfolio Projects",
-    "databaseUrl": "https://www.notion.so/1258652152454b6a81325eb988ec04d4",
-    "databaseId": "12586521-5245-4b6a-8132-5eb988ec04d4",
-    "dataSourceId": "7858b551-4ce9-4bc3-ad1d-07b187d7117b"
+    "databaseUrl": "https://www.notion.so/0fb35f86619e4fa5873b01afca847c36",
+    "databaseId": "0fb35f86619e4fa5873b01afca847c36",
+    "dataSourceId": "edb714a881ba43498d56787e7e5698ff"
   },
   "views": [
     {
       "name": "Portfolio Home",
-      "viewId": "326c21f1-caf0-81c3-ab0a-000c1384cc25",
       "type": "table",
       "purpose": "Default decision view for scanning what each project is, where it stands, and what to do next.",
       "configure": "SHOW \"Name\", \"Current State\", \"Portfolio Call\", \"One-Line Pitch\", \"Next Move\", \"Biggest Blocker\", \"Momentum\", \"Last Active\"; SORT BY \"Last Active\" DESC"
     },
     {
       "name": "Resume Now",
-      "viewId": "326c21f1-caf0-81dc-8903-000cadb44c92",
       "type": "table",
       "purpose": "Projects that are already active and easiest to pick back up quickly.",
       "configure": "FILTER \"Current State\" = \"Active Build\"; SHOW \"Name\", \"Next Move\", \"Start Here\", \"Primary Run Command\", \"Setup Friction\", \"Runs Locally\", \"Last Meaningful Work\", \"Last Active\"; SORT BY \"Last Active\" DESC"
     },
     {
       "name": "Worth Finishing",
-      "viewId": "326c21f1-caf0-81e3-98d2-000c609345f8",
       "type": "table",
       "purpose": "Projects with enough maturity that a focused push could get them demoable or shipped.",
       "configure": "FILTER \"Portfolio Call\" = \"Finish\"; SHOW \"Name\", \"Build Maturity\", \"Ship Readiness\", \"Effort to Demo\", \"Effort to Ship\", \"Next Move\", \"Biggest Blocker\", \"Last Active\"; SORT BY \"Last Active\" DESC"
     },
     {
       "name": "Needs Decision",
-      "viewId": "326c21f1-caf0-81f5-84f7-000c2255f70f",
       "type": "table",
       "purpose": "Projects whose next step is strategic judgment rather than more implementation.",
       "configure": "FILTER \"Current State\" = \"Needs Decision\"; SHOW \"Name\", \"Portfolio Call\", \"One-Line Pitch\", \"Value / Outcome\", \"Biggest Blocker\", \"Monetization / Strategic Value\", \"Last Active\"; SORT BY \"Last Active\" DESC"
     },
     {
       "name": "Needs Review",
-      "viewId": "326c21f1-caf0-81ab-be9c-000ca77b6a70",
       "type": "table",
       "purpose": "Rows where the evidence is thin or the generated summary still needs a human check.",
       "configure": "FILTER \"Needs Review\" = true; SHOW \"Name\", \"Evidence Confidence\", \"Docs Quality\", \"Test Posture\", \"Start Here\", \"Next Move\", \"Biggest Blocker\"; SORT BY \"Last Active\" DESC"
     },
     {
       "name": "Cold Storage",
-      "viewId": "326c21f1-caf0-8128-9146-000cb30b8a9d",
       "type": "table",
       "purpose": "Parked, archived, or otherwise low-momentum projects kept out of the main operating view.",
       "configure": "FILTER \"Momentum\" = \"Cold\"; SHOW \"Name\", \"Current State\", \"Portfolio Call\", \"One-Line Pitch\", \"Next Move\", \"Last Active\"; SORT BY \"Last Active\" DESC"
     },
     {
       "name": "By Category",
-      "viewId": "326c21f1-caf0-8114-b8a7-000cff9a7e85",
       "type": "board",
       "purpose": "Grouped portfolio scan for spotting clusters, gaps, and category-level imbalance.",
       "configure": "GROUP BY \"Category\"; SHOW \"Current State\", \"Portfolio Call\", \"Momentum\", \"Next Move\", \"Last Active\""
     },
     {
       "name": "Gallery Snapshot",
-      "viewId": "326c21f1-caf0-8188-bab8-000cd4a77cd1",
       "type": "gallery",
       "purpose": "Visual skim view for understanding each project at a glance without opening the full page.",
       "configure": "SHOW \"One-Line Pitch\", \"Current State\", \"Portfolio Call\", \"Next Move\", \"Biggest Blocker\", \"Last Active\"; SORT BY \"Last Active\" DESC"

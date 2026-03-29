@@ -228,29 +228,25 @@ export async function runOperationalRolloutCommand(
         approve: flags.approvePilot || flags.runPilotLive,
       });
 
-      const postCreateSteps = await runRolloutCommandSteps([
-        { key: "requestSyncAfterCreate", script: "portfolio-audit:action-request-sync", args: ["--live"] },
-        { key: "githubSignalSync", script: "portfolio-audit:external-signal-sync", args: ["--provider", "github", "--live"] },
-      ]);
+      const pilotSteps = buildOperationalRolloutPilotStepGroups({
+        pilotCandidate: plan.pilotCandidate,
+        pilotRequestId: pilotRequest.id,
+        runPilotDryRun: flags.runPilotDryRun,
+        runPilotLive: flags.runPilotLive,
+      });
+
+      const postCreateSteps = await runRolloutCommandSteps(pilotSteps.postCreate);
       Object.assign(pilotRuns, postCreateSteps.results);
       pilotRunFailures.push(...postCreateSteps.failures);
 
-      if (flags.runPilotDryRun || flags.runPilotLive) {
-        const dryRunSteps = await runRolloutCommandSteps([
-          { key: "dryRun", script: "portfolio-audit:action-dry-run", args: ["--request", pilotRequest.id], title: plan.pilotCandidate.projectTitle },
-          { key: "requestSyncAfterDryRun", script: "portfolio-audit:action-request-sync", args: ["--live"] },
-        ]);
+      if (pilotSteps.dryRun.length > 0) {
+        const dryRunSteps = await runRolloutCommandSteps(pilotSteps.dryRun);
         Object.assign(pilotRuns, dryRunSteps.results);
         pilotRunFailures.push(...dryRunSteps.failures);
       }
 
-      if (flags.runPilotLive) {
-        const liveSteps = await runRolloutCommandSteps([
-          { key: "liveRun", script: "portfolio-audit:action-runner", args: ["--mode", "live", "--request", pilotRequest.id], title: plan.pilotCandidate.projectTitle },
-          { key: "requestSyncAfterLive", script: "portfolio-audit:action-request-sync", args: ["--live"] },
-          { key: "webhookDrain", script: "portfolio-audit:webhook-shadow-drain", args: [] },
-          { key: "webhookReconcile", script: "portfolio-audit:webhook-reconcile", args: ["--provider", "github"] },
-        ]);
+      if (pilotSteps.live.length > 0) {
+        const liveSteps = await runRolloutCommandSteps(pilotSteps.live);
         Object.assign(pilotRuns, liveSteps.results);
         pilotRunFailures.push(...liveSteps.failures);
       }
@@ -780,6 +776,53 @@ export async function runRolloutCommandSteps(
   }
 
   return { results, failures };
+}
+
+export function buildOperationalRolloutPilotStepGroups(input: {
+  pilotCandidate?: Pick<OperationalRolloutCandidate, "projectTitle">;
+  pilotRequestId?: string;
+  runPilotDryRun: boolean;
+  runPilotLive: boolean;
+}): {
+  postCreate: RolloutCommandStep[];
+  dryRun: RolloutCommandStep[];
+  live: RolloutCommandStep[];
+} {
+  if (!input.pilotCandidate || !input.pilotRequestId) {
+    return { postCreate: [], dryRun: [], live: [] };
+  }
+
+  return {
+    postCreate: [
+      { key: "requestSyncAfterCreate", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+      { key: "githubSignalSync", script: "portfolio-audit:external-signal-sync", args: ["--provider", "github", "--live"] },
+    ],
+    dryRun:
+      input.runPilotDryRun || input.runPilotLive
+        ? [
+            {
+              key: "dryRun",
+              script: "portfolio-audit:action-dry-run",
+              args: ["--request", input.pilotRequestId],
+              title: input.pilotCandidate.projectTitle,
+            },
+            { key: "requestSyncAfterDryRun", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+          ]
+        : [],
+    live: input.runPilotLive
+      ? [
+          {
+            key: "liveRun",
+            script: "portfolio-audit:action-runner",
+            args: ["--mode", "live", "--request", input.pilotRequestId],
+            title: input.pilotCandidate.projectTitle,
+          },
+          { key: "requestSyncAfterLive", script: "portfolio-audit:action-request-sync", args: ["--live"] },
+          { key: "webhookDrain", script: "portfolio-audit:webhook-shadow-drain", args: [] },
+          { key: "webhookReconcile", script: "portfolio-audit:webhook-reconcile", args: ["--provider", "github"] },
+        ]
+      : [],
+  };
 }
 
 export function renderDecisionMarkdown(candidate: OperationalRolloutCandidate): string {

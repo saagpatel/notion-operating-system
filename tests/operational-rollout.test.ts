@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  buildOperationalRolloutPilotStepGroups,
   buildOperationalRolloutPlan,
   classifyOperationalRolloutProject,
   runRolloutCommandSteps,
@@ -159,6 +160,56 @@ describe("operational rollout", () => {
         title: "Pilot",
         error: "Permission Failure: blocked",
       }),
+    ]);
+  });
+
+  test("skips pilot follow-up steps when no safe pilot exists", () => {
+    expect(
+      buildOperationalRolloutPilotStepGroups({
+        pilotCandidate: undefined,
+        pilotRequestId: undefined,
+        runPilotDryRun: true,
+        runPilotLive: true,
+      }),
+    ).toEqual({
+      postCreate: [],
+      dryRun: [],
+      live: [],
+    });
+  });
+
+  test("gates pilot dry-run and live follow-up steps from the rollout flags", () => {
+    const dryOnly = buildOperationalRolloutPilotStepGroups({
+      pilotCandidate: { projectTitle: "Pilot Project" },
+      pilotRequestId: "request-1",
+      runPilotDryRun: true,
+      runPilotLive: false,
+    });
+    const live = buildOperationalRolloutPilotStepGroups({
+      pilotCandidate: { projectTitle: "Pilot Project" },
+      pilotRequestId: "request-1",
+      runPilotDryRun: false,
+      runPilotLive: true,
+    });
+
+    expect(dryOnly.postCreate.map((step) => step.key)).toEqual([
+      "requestSyncAfterCreate",
+      "githubSignalSync",
+    ]);
+    expect(dryOnly.dryRun.map((step) => step.key)).toEqual([
+      "dryRun",
+      "requestSyncAfterDryRun",
+    ]);
+    expect(dryOnly.live).toEqual([]);
+    expect(live.dryRun.map((step) => step.key)).toEqual([
+      "dryRun",
+      "requestSyncAfterDryRun",
+    ]);
+    expect(live.live.map((step) => step.key)).toEqual([
+      "liveRun",
+      "requestSyncAfterLive",
+      "webhookDrain",
+      "webhookReconcile",
     ]);
   });
 });

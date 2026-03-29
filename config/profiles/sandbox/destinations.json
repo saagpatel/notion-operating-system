@@ -5,8 +5,8 @@
       "alias": "weekly_reviews",
       "description": "Create a weekly review entry inside the Weekly Reviews data source.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/c0446ae6958a4f8c9cd8acf246a9cc39",
-      "resolvedId": "f7cff9c6-eda4-47a8-b0ef-187c607684ca",
+      "sourceUrl": "https://www.notion.so/c55903cd80af4db4bff01239ffbdb663",
+      "resolvedId": "dad6fc396568428fba58b7091f064eb5",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -20,36 +20,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "f7cff9c6-eda4-47a8-b0ef-187c607684ca",
-        "title": "📅 Weekly Reviews",
-        "titlePropertyName": "Week",
-        "properties": {
-          "Week": {
-            "name": "Week",
-            "type": "title",
-            "writable": true
-          },
-          "Tags": {
-            "name": "Tags",
-            "type": "multi_select",
-            "writable": true
-          },
-          "What Shipped": {
-            "name": "What Shipped",
-            "type": "rich_text",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "build_log",
       "description": "Create a new build session log entry.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/a9425ce5c89640f2a227265988e2718f",
-      "resolvedId": "0927e24f-1c0a-4be2-9753-feae194afe91",
+      "sourceUrl": "https://www.notion.so/cf472b3e9fd045018fb527f0c8bb903b",
+      "resolvedId": "38964a8dba6d434bbda8b616c545c388",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -63,36 +41,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "0927e24f-1c0a-4be2-9753-feae194afe91",
-        "title": "🔨 Build Log",
-        "titlePropertyName": "Session Title",
-        "properties": {
-          "Session Title": {
-            "name": "Session Title",
-            "type": "title",
-            "writable": true
-          },
-          "Session Date": {
-            "name": "Session Date",
-            "type": "date",
-            "writable": true
-          },
-          "Tags": {
-            "name": "Tags",
-            "type": "multi_select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "project_portfolio",
       "description": "Create a new project portfolio entry.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/ef5ed25b039d47ec8c228646137d7bed",
-      "resolvedId": "35e04e4d-bcd8-45c0-b783-238edef210f7",
+      "sourceUrl": "https://www.notion.so/e5037bc0f7f04cffa6ae57ce5a335e2a",
+      "resolvedId": "9fceb0629b1b47d5b7950604c4b12e13",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -106,36 +62,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "35e04e4d-bcd8-45c0-b783-238edef210f7",
-        "title": "📦 Project Portfolio",
-        "titlePropertyName": "Project Name",
-        "properties": {
-          "Project Name": {
-            "name": "Project Name",
-            "type": "title",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "select",
-            "writable": true
-          },
-          "Verdict": {
-            "name": "Verdict",
-            "type": "select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "local_portfolio_projects",
       "description": "Create a new row inside the Local Portfolio Projects operating database.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/1258652152454b6a81325eb988ec04d4",
-      "resolvedId": "7858b551-4ce9-4bc3-ad1d-07b187d7117b",
+      "sourceUrl": "https://www.notion.so/0fb35f86619e4fa5873b01afca847c36",
+      "resolvedId": "edb714a881ba43498d56787e7e5698ff",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -149,36 +83,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "7858b551-4ce9-4bc3-ad1d-07b187d7117b",
-        "title": "Local Portfolio Projects",
-        "titlePropertyName": "Name",
-        "properties": {
-          "Name": {
-            "name": "Name",
-            "type": "title",
-            "writable": true
-          },
-          "Current State": {
-            "name": "Current State",
-            "type": "select",
-            "writable": true
-          },
-          "Portfolio Call": {
-            "name": "Portfolio Call",
-            "type": "select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "local_portfolio_command_center",
       "description": "Bootstrap or refresh the Local Portfolio Command Center page.",
       "destinationType": "page",
-      "sourceUrl": "https://www.notion.so/Local-Portfolio-Command-Center-326c21f1caf0810c8467c8c46678deaa",
-      "resolvedId": "326c21f1-caf0-810c-8467-c8c46678deaa",
+      "sourceUrl": "https://www.notion.so/Local-Portfolio-Command-Center-3321d293302881afa932cc4d686f6fba",
+      "resolvedId": "3321d293302881afa932cc4d686f6fba",
       "templateMode": "none",
       "titleRule": {
         "source": "literal",
@@ -198,8 +110,8 @@
       "alias": "project_decisions",
       "description": "Create a new material project decision entry.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/b9cd82aebfbe4bbe8b126ee11e888ab9",
-      "resolvedId": "e20e2d6e-96de-49a3-848a-774e50291e01",
+      "sourceUrl": "https://www.notion.so/70251cb0fa1a4aed978637022131a1b1",
+      "resolvedId": "7bd20f7650fe4499ab7938e7d327d343",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -213,36 +125,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "e20e2d6e-96de-49a3-848a-774e50291e01",
-        "title": "Project Decisions",
-        "titlePropertyName": "Decision",
-        "properties": {
-          "Decision": {
-            "name": "Decision",
-            "type": "title",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "select",
-            "writable": true
-          },
-          "Local Project": {
-            "name": "Local Project",
-            "type": "relation",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "work_packets",
       "description": "Create a new work packet entry.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/55357ce591904cb7bf029471c46c4e74",
-      "resolvedId": "d6fbb741-3572-41b8-87c5-1f42e9d05150",
+      "sourceUrl": "https://www.notion.so/2ba0b69e69604a718ccacbdfcf04dd67",
+      "resolvedId": "4ea99047102a44a5ad7afdeb71602836",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -256,36 +146,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "d6fbb741-3572-41b8-87c5-1f42e9d05150",
-        "title": "Work Packets",
-        "titlePropertyName": "Packet",
-        "properties": {
-          "Packet": {
-            "name": "Packet",
-            "type": "title",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "status",
-            "writable": true
-          },
-          "Priority": {
-            "name": "Priority",
-            "type": "select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "execution_tasks",
       "description": "Create a new execution task entry.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/d7493b89b5194040bce489d893c7c5aa",
-      "resolvedId": "00dfe9ee-8a32-4b5e-9af5-ded9409df74b",
+      "sourceUrl": "https://www.notion.so/15a6a8f851504ef9b68dfd7bcf48f2ca",
+      "resolvedId": "d42cd8bfc64546e7b4491ba5086e9541",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -299,36 +167,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "00dfe9ee-8a32-4b5e-9af5-ded9409df74b",
-        "title": "Execution Tasks",
-        "titlePropertyName": "Task",
-        "properties": {
-          "Task": {
-            "name": "Task",
-            "type": "title",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "status",
-            "writable": true
-          },
-          "Work Packet": {
-            "name": "Work Packet",
-            "type": "relation",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "skills_library",
       "description": "Create or expand a skill entry in the skills library.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/46e7148752bd439fa9cd8912db368440",
-      "resolvedId": "89be2dd1-960d-4d0e-89bc-452eacd9215e",
+      "sourceUrl": "https://www.notion.so/7916928d807f476ba820d1837eb9c96f",
+      "resolvedId": "47c55ae1287e476d81f951d9bfdd887d",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -342,36 +188,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "89be2dd1-960d-4d0e-89bc-452eacd9215e",
-        "title": "🤹 Skills Library",
-        "titlePropertyName": "Skill",
-        "properties": {
-          "Skill": {
-            "name": "Skill",
-            "type": "title",
-            "writable": true
-          },
-          "Category": {
-            "name": "Category",
-            "type": "select",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "research_library",
       "description": "Create a new research note entry.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/e709092eb9d643548a1899d66e8cb657",
-      "resolvedId": "fd70f600-1a76-40b7-9946-e77a208b3e1b",
+      "sourceUrl": "https://www.notion.so/75cdeb9a7ac04324b2482f7cfcf763e4",
+      "resolvedId": "d37da7a10eb845949409762844d3f37a",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -385,36 +209,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "fd70f600-1a76-40b7-9946-e77a208b3e1b",
-        "title": "📚 Research Library",
-        "titlePropertyName": "Topic",
-        "properties": {
-          "Topic": {
-            "name": "Topic",
-            "type": "title",
-            "writable": true
-          },
-          "Category": {
-            "name": "Category",
-            "type": "select",
-            "writable": true
-          },
-          "Tags": {
-            "name": "Tags",
-            "type": "multi_select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "ai_tool_site_matrix",
       "description": "Create a new tool entry in the AI tool matrix.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/61a758394c7a40fd83afdd9553dd8972",
-      "resolvedId": "62bba59c-6004-4b8e-9161-3f336a99bc50",
+      "sourceUrl": "https://www.notion.so/e8318a6bda8d41dab97fcebca31b896b",
+      "resolvedId": "447617dccb1c428db91b6fafb1b118a8",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -428,36 +230,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "62bba59c-6004-4b8e-9161-3f336a99bc50",
-        "title": "🧠 AI Tool & Site Matrix",
-        "titlePropertyName": "Tool Name",
-        "properties": {
-          "Tool Name": {
-            "name": "Tool Name",
-            "type": "title",
-            "writable": true
-          },
-          "Category": {
-            "name": "Category",
-            "type": "select",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "recommendation_runs",
       "description": "Create a new recommendation-run record.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/9a512d863fcb496f88f1097cbf3afc70",
-      "resolvedId": "11bae136-7b7c-4f1e-8bf1-7f16ad9134f7",
+      "sourceUrl": "https://www.notion.so/e6789fc9f5094bf88b4d0234891e91ae",
+      "resolvedId": "4039f27a000e49ba8a76319481ab1919",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -471,36 +251,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "11bae136-7b7c-4f1e-8bf1-7f16ad9134f7",
-        "title": "Recommendation Runs",
-        "titlePropertyName": "Name",
-        "properties": {
-          "Name": {
-            "name": "Name",
-            "type": "title",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "select",
-            "writable": true
-          },
-          "Run Type": {
-            "name": "Run Type",
-            "type": "select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "link_suggestions",
       "description": "Create a new link-suggestion review record.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/a14f6e546773430aa35e9f4ae1d3eb88",
-      "resolvedId": "453cda16-4274-4ed6-8327-4dcffaaa1bdb",
+      "sourceUrl": "https://www.notion.so/ca7dfba6a12b42a897f0d2d2fad0fbaa",
+      "resolvedId": "7a927869788c446288e6f3599c6ca25c",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -514,36 +272,14 @@
         "allowDeletingContent": false,
         "templatePollIntervalMs": 1500,
         "templatePollTimeoutMs": 30000
-      },
-      "schemaSnapshot": {
-        "id": "453cda16-4274-4ed6-8327-4dcffaaa1bdb",
-        "title": "Link Suggestions",
-        "titlePropertyName": "Name",
-        "properties": {
-          "Name": {
-            "name": "Name",
-            "type": "title",
-            "writable": true
-          },
-          "Status": {
-            "name": "Status",
-            "type": "select",
-            "writable": true
-          },
-          "Suggestion Type": {
-            "name": "Suggestion Type",
-            "type": "select",
-            "writable": true
-          }
-        }
       }
     },
     {
       "alias": "local_portfolio_native_briefs",
       "description": "Update the repo-owned Local Portfolio Native Briefs page.",
       "destinationType": "page",
-      "sourceUrl": "https://www.notion.so/Local-Portfolio-Native-Briefs-326c21f1caf081e09955eab43e2ce6a1",
-      "resolvedId": "326c21f1-caf0-81e0-9955-eab43e2ce6a1",
+      "sourceUrl": "https://www.notion.so/Local-Portfolio-Native-Briefs-3321d29330288110bf0fee118538848a",
+      "resolvedId": "3321d29330288110bf0fee118538848a",
       "templateMode": "none",
       "titleRule": {
         "source": "literal",
@@ -563,8 +299,8 @@
       "alias": "external_signal_sources",
       "description": "Create or update external source mapping rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/6d05a3305679435e89cb1b70e433476c",
-      "resolvedId": "775e18d3-9985-4871-980b-5570a21e30c1",
+      "sourceUrl": "https://www.notion.so/90c4842fecff405296dc0ffd0168e9fb",
+      "resolvedId": "ecac78cb94064113918be0a73e6168d0",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -584,8 +320,8 @@
       "alias": "external_signal_events",
       "description": "Create external telemetry event ledger rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/0a15456eabcf4bf7962d41831c05ebb5",
-      "resolvedId": "b7694451-672f-47d8-9613-e10ede111e0f",
+      "sourceUrl": "https://www.notion.so/5e1928f4a8f74b7baed424f16d61c664",
+      "resolvedId": "1a674b385f494e1c9cfd88e3c80d3ddd",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -605,8 +341,8 @@
       "alias": "external_signal_sync_runs",
       "description": "Create external-signal sync-run audit records.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/72c94777445b4c89b6fabaca2d06cb6f",
-      "resolvedId": "d9be5cd5-5a18-4a6d-adc3-5b73299d6376",
+      "sourceUrl": "https://www.notion.so/7e66f6897202435ea5f268216dde6694",
+      "resolvedId": "f73d6fcc79ab48a3b7a6ec80fd23f5d2",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -626,8 +362,8 @@
       "alias": "external_action_policies",
       "description": "Create or update external action policies rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/4391b4f2ea0e46b39bff5d940a369805",
-      "resolvedId": "c8f79d13-4b7b-426d-b4ac-2490e4712abe",
+      "sourceUrl": "https://www.notion.so/44a022df679f4a66bd729c291f8a97dd",
+      "resolvedId": "915302aa7ee44b58831eff0ec3fccd71",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -647,8 +383,8 @@
       "alias": "external_action_requests",
       "description": "Create or update external action requests rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/5a44a25903824dbdb4876f1739b667c3",
-      "resolvedId": "478c198a-4ca3-4b62-b907-ad077e57bf81",
+      "sourceUrl": "https://www.notion.so/2bc05bb37eae4b21b8294daae2a0c9f5",
+      "resolvedId": "3e1aa7faa31e4791ba6e90511fbb4e30",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -668,8 +404,8 @@
       "alias": "webhook_endpoints",
       "description": "Create or update webhook endpoints rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/8501590c7ca347e694cb495301541341",
-      "resolvedId": "e0012d3c-f606-4c68-af40-aedf1da5610d",
+      "sourceUrl": "https://www.notion.so/c2e3630c7c2441f4b2c1e49ad1a61932",
+      "resolvedId": "b1a20d83456d48bd9d78fc0d3a68f534",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -689,8 +425,8 @@
       "alias": "webhook_deliveries",
       "description": "Create or update webhook deliveries rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/fc7bd961163a4e5d822d62a78c67d559",
-      "resolvedId": "398aab9b-8783-466c-b80a-a6d4718e6ce6",
+      "sourceUrl": "https://www.notion.so/b32f0d731cc7456f9fe5f1a5984408ee",
+      "resolvedId": "6caaeb290839402c95aad39c9b04cda0",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -710,8 +446,8 @@
       "alias": "webhook_receipts",
       "description": "Create or update webhook receipts rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/06140c994fd9438490d3352905296da0",
-      "resolvedId": "bbdf81cd-8fdf-4f47-8e81-19cbb74ec1d5",
+      "sourceUrl": "https://www.notion.so/8f84a4cca9f94eaca9b5937978801213",
+      "resolvedId": "60bfef6502d64e34a57110e40f433cdc",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",
@@ -731,8 +467,8 @@
       "alias": "external_action_executions",
       "description": "Create or update external action execution rows.",
       "destinationType": "data_source",
-      "sourceUrl": "https://www.notion.so/8c397a5f5c6e476a947b36cbec127038",
-      "resolvedId": "c5bc574d-0963-499f-a9ea-c8661aeb555e",
+      "sourceUrl": "https://www.notion.so/c48192d4584c4a0dafe489c156b2238a",
+      "resolvedId": "5fafe67514634b1f89483c0ea9f526a9",
       "templateMode": "none",
       "titleRule": {
         "source": "frontmatter",

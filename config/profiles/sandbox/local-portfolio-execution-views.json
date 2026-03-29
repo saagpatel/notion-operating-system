@@ -14,39 +14,35 @@
       "key": "decisions",
       "database": {
         "name": "Project Decisions",
-        "databaseUrl": "https://www.notion.so/b9cd82aebfbe4bbe8b126ee11e888ab9",
-        "databaseId": "b9cd82ae-bfbe-4bbe-8b12-6ee11e888ab9",
-        "dataSourceId": "e20e2d6e-96de-49a3-848a-774e50291e01",
+        "databaseUrl": "https://www.notion.so/70251cb0fa1a4aed978637022131a1b1",
+        "databaseId": "70251cb0fa1a4aed978637022131a1b1",
+        "dataSourceId": "7bd20f7650fe4499ab7938e7d327d343",
         "destinationAlias": "project_decisions"
       },
       "views": [
         {
           "name": "Open Decisions",
-          "viewId": "326c21f1-caf0-81c9-8ba6-000caac8fa41",
           "type": "table",
           "purpose": "Show material project decisions that still need commitment.",
-          "configure": "FILTER \"Status\" = \"Proposed\"; SORT BY \"Proposed On\" ASC; SHOW \"Decision\", \"Status\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
+          "configure": "FILTER \"Status\" = \"Proposed\"; SORT BY \"Proposed On\" ASC; SHOW \"Name\", \"Status\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
         },
         {
           "name": "Decision Queue",
-          "viewId": "326c21f1-caf0-8163-8139-000c0fdaf837",
           "type": "board",
           "purpose": "See the decision flow grouped by status.",
-          "configure": "GROUP BY \"Status\"; SHOW \"Decision\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
+          "configure": "GROUP BY \"Status\"; SHOW \"Name\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
         },
         {
           "name": "Decision History",
-          "viewId": "326c21f1-caf0-81c1-bf1c-000c94edcf12",
           "type": "table",
           "purpose": "Review committed and superseded decisions over time.",
-          "configure": "SORT BY \"Decided On\" DESC; SHOW \"Decision\", \"Status\", \"Decision Type\", \"Local Project\", \"Decided On\", \"Chosen Option\""
+          "configure": "SORT BY \"Decided On\" DESC; SHOW \"Name\", \"Status\", \"Decision Type\", \"Local Project\", \"Decided On\", \"Chosen Option\""
         },
         {
           "name": "Revisit Soon",
-          "viewId": "326c21f1-caf0-8112-8b91-000c4f82956d",
           "type": "table",
           "purpose": "Keep revisit dates visible even before formal premium reminders exist.",
-          "configure": "SORT BY \"Revisit By\" ASC; SHOW \"Decision\", \"Status\", \"Local Project\", \"Revisit By\", \"Expected Impact\""
+          "configure": "SORT BY \"Revisit By\" ASC; SHOW \"Name\", \"Status\", \"Local Project\", \"Revisit By\", \"Expected Impact\""
         }
       ]
     },
@@ -54,53 +50,47 @@
       "key": "packets",
       "database": {
         "name": "Work Packets",
-        "databaseUrl": "https://www.notion.so/55357ce591904cb7bf029471c46c4e74",
-        "databaseId": "55357ce5-9190-4cb7-bf02-9471c46c4e74",
-        "dataSourceId": "d6fbb741-3572-41b8-87c5-1f42e9d05150",
+        "databaseUrl": "https://www.notion.so/2ba0b69e69604a718ccacbdfcf04dd67",
+        "databaseId": "2ba0b69e69604a718ccacbdfcf04dd67",
+        "dataSourceId": "4ea99047102a44a5ad7afdeb71602836",
         "destinationAlias": "work_packets"
       },
       "views": [
         {
           "name": "Now",
-          "viewId": "326c21f1-caf0-81ae-95d5-000cce3f5636",
           "type": "table",
           "purpose": "Keep the one active weekly packet front and center.",
-          "configure": "FILTER \"Priority\" = \"Now\"; SORT BY \"Target Finish\" ASC; SHOW \"Packet\", \"Status\", \"Priority\", \"Local Project\", \"Target Finish\", \"Goal\""
+          "configure": "FILTER \"Priority\" = \"Now\"; SORT BY \"Target Finish\" ASC; SHOW \"Name\", \"Status\", \"Priority\", \"Local Project\", \"Target Finish\", \"Goal\""
         },
         {
           "name": "Standby",
-          "viewId": "326c21f1-caf0-81b4-a50e-000c3dd3c5fd",
           "type": "table",
           "purpose": "Show the one fallback packet that can replace the current work quickly.",
-          "configure": "FILTER \"Priority\" = \"Standby\"; SORT BY \"Target Start\" ASC; SHOW \"Packet\", \"Status\", \"Priority\", \"Local Project\", \"Target Start\", \"Why Now\""
+          "configure": "FILTER \"Priority\" = \"Standby\"; SORT BY \"Target Start\" ASC; SHOW \"Name\", \"Status\", \"Priority\", \"Local Project\", \"Target Start\", \"Why Now\""
         },
         {
           "name": "Blocked",
-          "viewId": "326c21f1-caf0-81ac-a449-000c9d4de49e",
           "type": "table",
           "purpose": "Keep blocked packets visible and easy to clear.",
-          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Target Finish\" ASC; SHOW \"Packet\", \"Status\", \"Local Project\", \"Driving Decision\", \"Blocker Summary\""
+          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Target Finish\" ASC; SHOW \"Name\", \"Status\", \"Local Project\", \"Driving Decision\", \"Blocker Summary\""
         },
         {
           "name": "Done This Week",
-          "viewId": "326c21f1-caf0-8164-92d5-000ca2c2a56f",
           "type": "table",
           "purpose": "Review packets that landed recently.",
-          "configure": "FILTER \"Execution State\" = \"Done\"; SORT BY \"Target Finish\" DESC; SHOW \"Packet\", \"Local Project\", \"Target Finish\", \"Goal\""
+          "configure": "FILTER \"Execution State\" = \"Done\"; SORT BY \"Target Finish\" DESC; SHOW \"Name\", \"Local Project\", \"Target Finish\", \"Goal\""
         },
         {
           "name": "By Project",
-          "viewId": "326c21f1-caf0-8132-bf0d-000cd0fdbbc4",
           "type": "table",
           "purpose": "Review packet history in project context without embedding giant databases elsewhere.",
-          "configure": "SHOW \"Packet\", \"Local Project\", \"Status\", \"Priority\", \"Packet Type\", \"Target Finish\"; SORT BY \"Target Finish\" DESC"
+          "configure": "SHOW \"Name\", \"Local Project\", \"Status\", \"Priority\", \"Packet Type\", \"Target Finish\"; SORT BY \"Target Finish\" DESC"
         },
         {
           "name": "Rollover Risk",
-          "viewId": "326c21f1-caf0-812e-9a95-000c7df8ccb4",
           "type": "table",
           "purpose": "Spot packets that keep slipping so they can be narrowed or dropped.",
-          "configure": "SORT BY \"Rollover Count\" DESC; SHOW \"Packet\", \"Local Project\", \"Status\", \"Rollover Count\", \"Why Now\""
+          "configure": "SORT BY \"Rollover Count\" DESC; SHOW \"Name\", \"Local Project\", \"Status\", \"Rollover Count\", \"Why Now\""
         }
       ]
     },
@@ -108,53 +98,47 @@
       "key": "tasks",
       "database": {
         "name": "Execution Tasks",
-        "databaseUrl": "https://www.notion.so/d7493b89b5194040bce489d893c7c5aa",
-        "databaseId": "d7493b89-b519-4040-bce4-89d893c7c5aa",
-        "dataSourceId": "00dfe9ee-8a32-4b5e-9af5-ded9409df74b",
+        "databaseUrl": "https://www.notion.so/15a6a8f851504ef9b68dfd7bcf48f2ca",
+        "databaseId": "15a6a8f851504ef9b68dfd7bcf48f2ca",
+        "dataSourceId": "d42cd8bfc64546e7b4491ba5086e9541",
         "destinationAlias": "execution_tasks"
       },
       "views": [
         {
           "name": "My Tasks",
-          "viewId": "326c21f1-caf0-815a-a789-000c46fded7b",
           "type": "table",
           "purpose": "Give the operator a simple daily execution inbox.",
-          "configure": "SHOW \"Task\", \"Status\", \"Assignee\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\"; SORT BY \"Due Date\" ASC"
+          "configure": "SHOW \"Name\", \"Status\", \"Assignee\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\"; SORT BY \"Due Date\" ASC"
         },
         {
           "name": "Today",
-          "viewId": "326c21f1-caf0-812a-b677-000c0ebbb5ca",
           "type": "table",
           "purpose": "Keep the near-term task horizon clean and visible.",
-          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Status\", \"Due Date\", \"Priority\", \"Work Packet\""
+          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Status\", \"Due Date\", \"Priority\", \"Work Packet\""
         },
         {
           "name": "This Week",
-          "viewId": "326c21f1-caf0-8120-ba6f-000ce99ccc9c",
           "type": "table",
           "purpose": "Show the weekly execution flow without turning this into a heavy sprint board.",
-          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Status\", \"Due Date\", \"Priority\", \"Task Type\", \"Work Packet\", \"Local Project\""
+          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Status\", \"Due Date\", \"Priority\", \"Task Type\", \"Work Packet\", \"Local Project\""
         },
         {
           "name": "Blocked",
-          "viewId": "326c21f1-caf0-8139-a1c6-000cdaac68f1",
           "type": "table",
           "purpose": "Keep blocked task work visible enough to clear fast.",
-          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Due Date\", \"Priority\", \"Work Packet\", \"Task Notes\""
+          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Due Date\", \"Priority\", \"Work Packet\", \"Task Notes\""
         },
         {
           "name": "By Packet",
-          "viewId": "326c21f1-caf0-81da-91f1-000cbd4f56b4",
           "type": "table",
           "purpose": "Review packet-level task flow from one place.",
-          "configure": "SHOW \"Task\", \"Work Packet\", \"Status\", \"Due Date\", \"Priority\", \"Local Project\"; SORT BY \"Due Date\" ASC"
+          "configure": "SHOW \"Name\", \"Work Packet\", \"Status\", \"Due Date\", \"Priority\", \"Local Project\"; SORT BY \"Due Date\" ASC"
         },
         {
           "name": "Ready Queue",
-          "viewId": "326c21f1-caf0-81df-a675-000c41194d0a",
           "type": "table",
           "purpose": "Surface tasks that are ready to be pulled into active work.",
-          "configure": "FILTER \"Execution State\" = \"Ready\"; SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\""
+          "configure": "FILTER \"Execution State\" = \"Ready\"; SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\""
         }
       ]
     }

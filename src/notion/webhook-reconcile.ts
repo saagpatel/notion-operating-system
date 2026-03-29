@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { Client } from "@notionhq/client";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";

@@ -17,6 +17,8 @@ import {
   loadLocalPortfolioControlTowerConfig,
   renderCommandCenterMarkdown,
   saveLocalPortfolioControlTowerConfig,
+  type ControlTowerMetrics,
+  type LocalPortfolioControlTowerConfig,
   type ControlTowerProjectRecord,
 } from "./local-portfolio-control-tower.js";
 import {
@@ -98,23 +100,14 @@ export async function runControlTowerSyncCommand(
         changedRows += 1;
       }
     } else {
-      changedRows = derivedProjects.filter((project) => {
-        const previous = projects.find((entry) => entry.id === project.id);
-        return Object.keys(buildDerivedPropertyUpdates(previous, project)).length > 0;
-      }).length;
+      changedRows = countControlTowerChangedRows(projects, derivedProjects);
     }
 
     const metrics = calculateControlTowerMetrics(derivedProjects, recentBuildSessions, today);
-    const baselineCaptured = !config.phaseState.baselineMetrics;
+    const phaseStateUpdate = buildNextControlTowerPhaseState(config.phaseState, metrics, today);
     const nextConfig = {
       ...config,
-      phaseState: {
-        ...config.phaseState,
-        baselineCapturedAt: baselineCaptured ? today : config.phaseState.baselineCapturedAt,
-        baselineMetrics: baselineCaptured ? metrics : config.phaseState.baselineMetrics,
-        lastSyncAt: today,
-        lastSyncMetrics: metrics,
-      },
+      phaseState: phaseStateUpdate.phaseState,
     };
 
     const markdown = renderCommandCenterMarkdown({
@@ -161,7 +154,7 @@ export async function runControlTowerSyncCommand(
     ok: true,
     live,
     changedRows,
-    baselineCaptured,
+    baselineCaptured: phaseStateUpdate.baselineCaptured,
     commandCenterPageId: commandCenterSummary.pageId ?? nextConfig.commandCenter.pageId,
     commandCenterPageUrl: commandCenterSummary.pageUrl ?? nextConfig.commandCenter.pageUrl,
     metrics,
@@ -199,7 +192,7 @@ async function publishCommandCenter(input: {
   }
 }
 
-function buildDerivedPropertyUpdates(
+export function buildDerivedPropertyUpdates(
   previous: ControlTowerProjectRecord | undefined,
   next: ControlTowerProjectRecord,
 ): Record<string, unknown> {
@@ -216,6 +209,37 @@ function buildDerivedPropertyUpdates(
       : { select: null };
   }
   return updates;
+}
+
+export function countControlTowerChangedRows(
+  previousProjects: ControlTowerProjectRecord[],
+  nextProjects: ControlTowerProjectRecord[],
+): number {
+  return nextProjects.filter((project) => {
+    const previous = previousProjects.find((entry) => entry.id === project.id);
+    return Object.keys(buildDerivedPropertyUpdates(previous, project)).length > 0;
+  }).length;
+}
+
+export function buildNextControlTowerPhaseState(
+  phaseState: LocalPortfolioControlTowerConfig["phaseState"],
+  metrics: ControlTowerMetrics,
+  today: string,
+): {
+  baselineCaptured: boolean;
+  phaseState: LocalPortfolioControlTowerConfig["phaseState"];
+} {
+  const baselineCaptured = !phaseState.baselineMetrics;
+  return {
+    baselineCaptured,
+    phaseState: {
+      ...phaseState,
+      baselineCapturedAt: baselineCaptured ? today : phaseState.baselineCapturedAt,
+      baselineMetrics: baselineCaptured ? metrics : phaseState.baselineMetrics,
+      lastSyncAt: today,
+      lastSyncMetrics: metrics,
+    },
+  };
 }
 
 function diffDays(fromDate: string, toDate: string): number {

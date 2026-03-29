@@ -53,6 +53,7 @@ export interface RuntimeConfig {
     sourceConfigVersion: number;
     name: string;
     label: string;
+    kind: "primary" | "sandbox";
     implicit: boolean;
     registryPath?: string;
     descriptorPath?: string;
@@ -96,6 +97,7 @@ interface RuntimeConfigOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   profile?: string;
+  hydrateEnvFile?: boolean;
 }
 
 type RuntimeConfigParseResult =
@@ -113,7 +115,8 @@ export function loadRuntimeConfig(options: RuntimeConfigOptions = {}): RuntimeCo
 
 export function safeLoadRuntimeConfig(options: RuntimeConfigOptions = {}): RuntimeConfigParseResult {
   const cwd = path.resolve(options.cwd ?? process.cwd());
-  const env = options.env ?? process.env;
+  const sourceEnv = options.env ?? process.env;
+  const env = { ...sourceEnv };
   let profile: WorkspaceProfile;
   const profileIssues: string[] = [];
 
@@ -128,7 +131,9 @@ export function safeLoadRuntimeConfig(options: RuntimeConfigOptions = {}): Runti
     profileIssues.push(`profile: ${toIssueMessage(error)}`);
   }
 
-  hydrateEnv(env, profile.envFile);
+  if (options.hydrateEnvFile !== false) {
+    hydrateEnv(env, profile.envFile);
+  }
   const parsed = runtimeEnvSchema.safeParse(env);
 
   if (!parsed.success) {
@@ -176,6 +181,7 @@ function buildRuntimeConfig(env: RuntimeEnv, cwd: string, profile: WorkspaceProf
       sourceConfigVersion: profile.sourceConfigVersion,
       name: profile.name,
       label: profile.label,
+      kind: profile.kind,
       implicit: profile.implicit,
       registryPath: profile.registryPath,
       descriptorPath: profile.descriptorPath,
@@ -226,6 +232,7 @@ function buildFallbackRuntimeConfig(cwd: string, env: NodeJS.ProcessEnv, profile
       sourceConfigVersion: profile.sourceConfigVersion,
       name: profile.name,
       label: profile.label,
+      kind: profile.kind,
       implicit: profile.implicit,
       registryPath: profile.registryPath,
       descriptorPath: profile.descriptorPath,

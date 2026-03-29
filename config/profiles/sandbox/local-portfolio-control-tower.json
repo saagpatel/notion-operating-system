@@ -2,17 +2,17 @@
   "version": 1,
   "database": {
     "name": "Local Portfolio Projects",
-    "databaseUrl": "https://www.notion.so/1258652152454b6a81325eb988ec04d4",
-    "databaseId": "12586521-5245-4b6a-8132-5eb988ec04d4",
-    "dataSourceId": "7858b551-4ce9-4bc3-ad1d-07b187d7117b",
+    "databaseUrl": "https://www.notion.so/0fb35f86619e4fa5873b01afca847c36",
+    "databaseId": "0fb35f86-619e-4fa5-873b-01afca847c36",
+    "dataSourceId": "edb714a8-81ba-4349-8d56-787e7e5698ff",
     "destinationAlias": "local_portfolio_projects"
   },
   "relatedDataSources": {
-    "buildLogId": "0927e24f-1c0a-4be2-9753-feae194afe91",
-    "weeklyReviewsId": "f7cff9c6-eda4-47a8-b0ef-187c607684ca",
-    "researchId": "fd70f600-1a76-40b7-9946-e77a208b3e1b",
-    "skillsId": "89be2dd1-960d-4d0e-89bc-452eacd9215e",
-    "toolsId": "62bba59c-6004-4b8e-9161-3f336a99bc50"
+    "buildLogId": "38964a8d-ba6d-434b-bda8-b616c545c388",
+    "weeklyReviewsId": "dad6fc39-6568-428f-ba58-b7091f064eb5",
+    "researchId": "d37da7a1-0eb8-4594-9409-762844d3f37a",
+    "skillsId": "47c55ae1-287e-476d-81f9-51d9bfdd887d",
+    "toolsId": "447617dc-cb1c-428d-b91b-6fafb1b118a8"
   },
   "destinations": {
     "commandCenterAlias": "local_portfolio_command_center",
@@ -21,9 +21,9 @@
   },
   "commandCenter": {
     "title": "Local Portfolio Command Center",
-    "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-326c21f1caf0810c8467c8c46678deaa",
-    "pageId": "326c21f1-caf0-810c-8467-c8c46678deaa"
+    "parentPageUrl": "https://www.notion.so/Local-Portfolio-Audit-Sandbox-3321d2933028816db23fff8bb276677e",
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-3321d293302881afa932cc4d686f6fba",
+    "pageId": "3321d293-3028-81af-a932-cc4d686f6fba"
   },
   "fieldOwnership": {
     "manual": [
@@ -103,37 +103,27 @@
     "Cold Storage",
     "Watch"
   ],
-  "viewIds": {
-    "Portfolio Home": "326c21f1-caf0-81c3-ab0a-000c1384cc25",
-    "Resume Now": "326c21f1-caf0-81dc-8903-000cadb44c92",
-    "Worth Finishing": "326c21f1-caf0-81e3-98d2-000c609345f8",
-    "Needs Decision": "326c21f1-caf0-81f5-84f7-000c2255f70f",
-    "Needs Review": "326c21f1-caf0-81ab-be9c-000ca77b6a70",
-    "Cold Storage": "326c21f1-caf0-8128-9146-000cb30b8a9d",
-    "By Category": "326c21f1-caf0-8114-b8a7-000cff9a7e85",
-    "Gallery Snapshot": "326c21f1-caf0-8188-bab8-000cd4a77cd1"
-  },
+  "viewIds": {},
   "phase2Execution": {
-    "defaultOwnerUserId": "282d872b-594c-8133-b751-000210b452e3",
     "decisions": {
       "name": "Project Decisions",
-      "databaseUrl": "https://www.notion.so/b9cd82aebfbe4bbe8b126ee11e888ab9",
-      "databaseId": "b9cd82ae-bfbe-4bbe-8b12-6ee11e888ab9",
-      "dataSourceId": "e20e2d6e-96de-49a3-848a-774e50291e01",
+      "databaseUrl": "https://www.notion.so/70251cb0fa1a4aed978637022131a1b1",
+      "databaseId": "70251cb0-fa1a-4aed-9786-37022131a1b1",
+      "dataSourceId": "7bd20f76-50fe-4499-ab79-38e7d327d343",
       "destinationAlias": "project_decisions"
     },
     "packets": {
       "name": "Work Packets",
-      "databaseUrl": "https://www.notion.so/55357ce591904cb7bf029471c46c4e74",
-      "databaseId": "55357ce5-9190-4cb7-bf02-9471c46c4e74",
-      "dataSourceId": "d6fbb741-3572-41b8-87c5-1f42e9d05150",
+      "databaseUrl": "https://www.notion.so/2ba0b69e69604a718ccacbdfcf04dd67",
+      "databaseId": "2ba0b69e-6960-4a71-8cca-cbdfcf04dd67",
+      "dataSourceId": "4ea99047-102a-44a5-ad7a-fdeb71602836",
       "destinationAlias": "work_packets"
     },
     "tasks": {
       "name": "Execution Tasks",
-      "databaseUrl": "https://www.notion.so/d7493b89b5194040bce489d893c7c5aa",
-      "databaseId": "d7493b89-b519-4040-bce4-89d893c7c5aa",
-      "dataSourceId": "00dfe9ee-8a32-4b5e-9af5-ded9409df74b",
+      "databaseUrl": "https://www.notion.so/15a6a8f851504ef9b68dfd7bcf48f2ca",
+      "databaseId": "15a6a8f8-5150-4ef9-b68d-fd7bcf48f2ca",
+      "dataSourceId": "d42cd8bf-c645-46e7-b449-1ba5086e9541",
       "destinationAlias": "execution_tasks"
     },
     "wipRules": {
@@ -163,28 +153,9 @@
       ]
     },
     "viewIds": {
-      "decisions": {
-        "Open Decisions": "326c21f1-caf0-81c9-8ba6-000caac8fa41",
-        "Decision Queue": "326c21f1-caf0-8163-8139-000c0fdaf837",
-        "Decision History": "326c21f1-caf0-81c1-bf1c-000c94edcf12",
-        "Revisit Soon": "326c21f1-caf0-8112-8b91-000c4f82956d"
-      },
-      "packets": {
-        "Now": "326c21f1-caf0-81ae-95d5-000cce3f5636",
-        "Standby": "326c21f1-caf0-81b4-a50e-000c3dd3c5fd",
-        "Blocked": "326c21f1-caf0-81ac-a449-000c9d4de49e",
-        "Done This Week": "326c21f1-caf0-8164-92d5-000ca2c2a56f",
-        "By Project": "326c21f1-caf0-8132-bf0d-000cd0fdbbc4",
-        "Rollover Risk": "326c21f1-caf0-812e-9a95-000c7df8ccb4"
-      },
-      "tasks": {
-        "My Tasks": "326c21f1-caf0-815a-a789-000c46fded7b",
-        "Today": "326c21f1-caf0-812a-b677-000c0ebbb5ca",
-        "This Week": "326c21f1-caf0-8120-ba6f-000ce99ccc9c",
-        "Blocked": "326c21f1-caf0-8139-a1c6-000cdaac68f1",
-        "By Packet": "326c21f1-caf0-81da-91f1-000cbd4f56b4",
-        "Ready Queue": "326c21f1-caf0-81df-a675-000c41194d0a"
-      }
+      "decisions": {},
+      "packets": {},
+      "tasks": {}
     },
     "phaseMemory": {
       "phase1GaveUs": "Phase 1 gave us the project control tower, saved views, derived PM signals, weekly reviews, and durable roadmap memory.",
@@ -206,42 +177,34 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-03-22",
+    "lastSyncAt": "2026-03-29",
     "lastSyncMetrics": {
       "openDecisions": 0,
-      "nowPackets": 19,
-      "standbyPackets": 6,
+      "nowPackets": 0,
+      "standbyPackets": 0,
       "blockedPackets": 0,
-      "blockedTasks": 1,
+      "blockedTasks": 0,
       "overdueTasks": 0,
-      "tasksCompletedThisWeek": 58,
-      "packetsCompletedThisWeek": 21,
-      "rolloverPackets": 1,
-      "projectsWithExecutionDrift": 2,
-      "wipViolations": [
-        "WIP violation: 19 Now packets are active, but the limit is 1.",
-        "WIP violation: 6 Standby packets are active, but the limit is 1.",
-        "Task \"LegalDocsReview - restore dependency baseline\" must belong to exactly one work packet.",
-        "Task \"LegalDocsReview - rerun lint and typecheck\" must belong to exactly one work packet.",
-        "Task \"Activate Relay GitHub source in Notion\" must belong to exactly one work packet.",
-        "Task \"RealEstate - triage PR #1 and PR #3 failures\" must belong to exactly one work packet.",
-        "Task \"RealEstate - pause placeholder source rows\" must belong to exactly one work packet."
-      ]
+      "tasksCompletedThisWeek": 0,
+      "packetsCompletedThisWeek": 0,
+      "rolloverPackets": 0,
+      "projectsWithExecutionDrift": 0,
+      "wipViolations": []
     }
   },
   "phase3Intelligence": {
     "recommendationRuns": {
       "name": "Recommendation Runs",
-      "databaseUrl": "https://www.notion.so/9a512d863fcb496f88f1097cbf3afc70",
-      "databaseId": "9a512d86-3fcb-496f-88f1-097cbf3afc70",
-      "dataSourceId": "11bae136-7b7c-4f1e-8bf1-7f16ad9134f7",
+      "databaseUrl": "https://www.notion.so/e6789fc9f5094bf88b4d0234891e91ae",
+      "databaseId": "e6789fc9-f509-4bf8-8b4d-0234891e91ae",
+      "dataSourceId": "4039f27a-000e-49ba-8a76-319481ab1919",
       "destinationAlias": "recommendation_runs"
     },
     "linkSuggestions": {
       "name": "Link Suggestions",
-      "databaseUrl": "https://www.notion.so/a14f6e546773430aa35e9f4ae1d3eb88",
-      "databaseId": "a14f6e54-6773-430a-a35e-9f4ae1d3eb88",
-      "dataSourceId": "453cda16-4274-4ed6-8327-4dcffaaa1bdb",
+      "databaseUrl": "https://www.notion.so/ca7dfba6a12b42a897f0d2d2fad0fbaa",
+      "databaseId": "ca7dfba6-a12b-42a8-97f0-d2d2fad0fbaa",
+      "dataSourceId": "7a927869-788c-4462-88e6-f3599c6ca25c",
       "destinationAlias": "link_suggestions"
     },
     "scoringModelVersion": "balanced-hybrid-v2",
@@ -257,24 +220,9 @@
       "weeklyRequiresHumanReview": true
     },
     "viewIds": {
-      "projects": {
-        "Recommended Resume": "326c21f1-caf0-8155-afee-000c4d040b85",
-        "Recommended Finish": "326c21f1-caf0-8109-87df-000cb25746c0",
-        "Investigate Now": "326c21f1-caf0-8104-ae49-000cf9817968",
-        "Defer Candidates": "326c21f1-caf0-81c1-b360-000c0c754fd4",
-        "Support Gaps": "326c21f1-caf0-8153-a598-000c8b6ab3d0"
-      },
-      "recommendationRuns": {
-        "Latest Weekly": "326c21f1-caf0-8117-94ab-000c39e2dc1b",
-        "Daily Focus": "326c21f1-caf0-81eb-9f80-000c4c53788c",
-        "History": "326c21f1-caf0-81ba-a985-000c7c932828"
-      },
-      "linkSuggestions": {
-        "Review Queue": "326c21f1-caf0-8193-8b14-000cd1c83f49",
-        "Accepted": "326c21f1-caf0-8178-a466-000cb3504d4c",
-        "Rejected": "326c21f1-caf0-81ff-bf06-000c7718e9d8",
-        "By Project": "326c21f1-caf0-81b5-8813-000c3559ff86"
-      }
+      "projects": {},
+      "recommendationRuns": {},
+      "linkSuggestions": {}
     },
     "phaseMemory": {
       "phase1GaveUs": "Phase 1 gave us the project control tower, saved views, derived PM signals, weekly reviews, and durable roadmap memory.",
@@ -322,8 +270,7 @@
       "portfolio": {
         "name": "Portfolio Dashboard",
         "databaseKey": "projects",
-        "viewId": "326c21f1-caf0-81f5-98a3-000c9cf31a4a",
-        "url": "https://www.notion.so/1258652152454b6a81325eb988ec04d4?v=326c21f1caf081f598a3000c9cf31a4a",
+        "url": "https://www.notion.so/0fb35f86619e4fa5873b01afca847c36",
         "widgetCount": 7,
         "status": "deferred",
         "notes": "Dashboard view shell exists, but the live workspace still shows an upgrade prompt before meaningful dashboard composition."
@@ -331,8 +278,7 @@
       "execution": {
         "name": "Execution Dashboard",
         "databaseKey": "tasks",
-        "viewId": "326c21f1-caf0-8160-a934-000cd27bb090",
-        "url": "https://www.notion.so/d7493b89b5194040bce489d893c7c5aa?v=326c21f1caf08160a934000cd27bb090",
+        "url": "https://www.notion.so/15a6a8f851504ef9b68dfd7bcf48f2ca",
         "widgetCount": 7,
         "status": "deferred",
         "notes": "Dashboard view shell exists, but the live workspace still shows an upgrade prompt before meaningful dashboard composition."
@@ -382,8 +328,8 @@
         "notes": "Pilot remains human-reviewed and separate from canonical project or recommendation state.",
         "deferReason": "Custom agents are visible, but the live summary-draft pilot is deferred until the dashboard layer proves worth augmenting.",
         "destinationAlias": "local_portfolio_native_briefs",
-        "pageId": "326c21f1-caf0-81e0-9955-eab43e2ce6a1",
-        "pageUrl": "https://www.notion.so/Local-Portfolio-Native-Briefs-326c21f1caf081e09955eab43e2ce6a1"
+        "pageId": "3321d293-3028-8110-bf0f-ee118538848a",
+        "pageUrl": "https://www.notion.so/Local-Portfolio-Native-Briefs-3321d29330288110bf0fee118538848a"
       }
     },
     "phaseMemory": {
@@ -408,23 +354,23 @@
   "phase5ExternalSignals": {
     "sources": {
       "name": "External Signal Sources",
-      "databaseUrl": "https://www.notion.so/6d05a3305679435e89cb1b70e433476c",
-      "databaseId": "6d05a330-5679-435e-89cb-1b70e433476c",
-      "dataSourceId": "775e18d3-9985-4871-980b-5570a21e30c1",
+      "databaseUrl": "https://www.notion.so/90c4842fecff405296dc0ffd0168e9fb",
+      "databaseId": "90c4842f-ecff-4052-96dc-0ffd0168e9fb",
+      "dataSourceId": "ecac78cb-9406-4113-918b-e0a73e6168d0",
       "destinationAlias": "external_signal_sources"
     },
     "events": {
       "name": "External Signal Events",
-      "databaseUrl": "https://www.notion.so/0a15456eabcf4bf7962d41831c05ebb5",
-      "databaseId": "0a15456e-abcf-4bf7-962d-41831c05ebb5",
-      "dataSourceId": "b7694451-672f-47d8-9613-e10ede111e0f",
+      "databaseUrl": "https://www.notion.so/5e1928f4a8f74b7baed424f16d61c664",
+      "databaseId": "5e1928f4-a8f7-4b7b-aed4-24f16d61c664",
+      "dataSourceId": "1a674b38-5f49-4e1c-9cfd-88e3c80d3ddd",
       "destinationAlias": "external_signal_events"
     },
     "syncRuns": {
       "name": "External Signal Sync Runs",
-      "databaseUrl": "https://www.notion.so/72c94777445b4c89b6fabaca2d06cb6f",
-      "databaseId": "72c94777-445b-4c89-b6fa-baca2d06cb6f",
-      "dataSourceId": "d9be5cd5-5a18-4a6d-adc3-5b73299d6376",
+      "databaseUrl": "https://www.notion.so/7e66f6897202435ea5f268216dde6694",
+      "databaseId": "7e66f689-7202-435e-a5f2-68216dde6694",
+      "dataSourceId": "f73d6fcc-79ab-48a3-b7a6-ec80fd23f5d2",
       "destinationAlias": "external_signal_sync_runs"
     },
     "providerEnablement": {
@@ -443,26 +389,10 @@
     },
     "scoringModelVersion": "balanced-hybrid-v2",
     "viewIds": {
-      "sources": {
-        "Needs Mapping": "327c21f1-caf0-819c-a1b7-000cbff2f33a",
-        "Active GitHub": "327c21f1-caf0-811c-8c7f-000cf773c8ce",
-        "Active Deployments": "327c21f1-caf0-810e-82fa-000c7f0945c1"
-      },
-      "events": {
-        "Recent Risk Events": "327c21f1-caf0-81bd-9ab1-000c7a2a8cb3",
-        "Recent Deployments": "327c21f1-caf0-819d-9cb0-000cb7376621",
-        "Recent Workflow Failures": "327c21f1-caf0-81c1-afbb-000c3c804e44",
-        "By Project": "327c21f1-caf0-815d-939e-000c760b69d5"
-      },
-      "syncRuns": {
-        "Latest Runs": "327c21f1-caf0-810a-987c-000cbffb370a",
-        "Failures": "327c21f1-caf0-8154-86ee-000c0ad3da4c",
-        "History": "327c21f1-caf0-81d5-b13a-000c78087438"
-      },
-      "projects": {
-        "Telemetry Coverage": "327c21f1-caf0-8162-83ac-000c93c9f7c3",
-        "Delivery Risk": "327c21f1-caf0-813f-ab47-000c87638dcb"
-      }
+      "sources": {},
+      "events": {},
+      "syncRuns": {},
+      "projects": {}
     },
     "phaseMemory": {
       "phase1GaveUs": "Phase 1 gave us the project control tower, saved views, derived PM signals, weekly reviews, and durable roadmap memory.",
@@ -483,51 +413,51 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-03-24",
+    "lastSyncAt": "2026-03-29",
     "lastSyncMetrics": {
-      "mappedProjects": 86,
-      "projectsNeedingMapping": 7,
-      "activeSources": 86,
-      "riskEvents": 239,
+      "mappedProjects": 0,
+      "projectsNeedingMapping": 0,
+      "activeSources": 0,
+      "riskEvents": 0,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 239,
-      "contradictionProjects": 26
+      "failedWorkflowRuns": 0,
+      "contradictionProjects": 0
     }
   },
   "phase6Governance": {
     "policies": {
       "name": "External Action Policies",
-      "databaseUrl": "https://www.notion.so/4391b4f2ea0e46b39bff5d940a369805",
-      "databaseId": "4391b4f2-ea0e-46b3-9bff-5d940a369805",
-      "dataSourceId": "c8f79d13-4b7b-426d-b4ac-2490e4712abe",
+      "databaseUrl": "https://www.notion.so/44a022df679f4a66bd729c291f8a97dd",
+      "databaseId": "44a022df-679f-4a66-bd72-9c291f8a97dd",
+      "dataSourceId": "915302aa-7ee4-4b58-831e-ff0ec3fccd71",
       "destinationAlias": "external_action_policies"
     },
     "actionRequests": {
       "name": "External Action Requests",
-      "databaseUrl": "https://www.notion.so/5a44a25903824dbdb4876f1739b667c3",
-      "databaseId": "5a44a259-0382-4dbd-b487-6f1739b667c3",
-      "dataSourceId": "478c198a-4ca3-4b62-b907-ad077e57bf81",
+      "databaseUrl": "https://www.notion.so/2bc05bb37eae4b21b8294daae2a0c9f5",
+      "databaseId": "2bc05bb3-7eae-4b21-b829-4daae2a0c9f5",
+      "dataSourceId": "3e1aa7fa-a31e-4791-ba6e-90511fbb4e30",
       "destinationAlias": "external_action_requests"
     },
     "webhookEndpoints": {
       "name": "Webhook Endpoints",
-      "databaseUrl": "https://www.notion.so/8501590c7ca347e694cb495301541341",
-      "databaseId": "8501590c-7ca3-47e6-94cb-495301541341",
-      "dataSourceId": "e0012d3c-f606-4c68-af40-aedf1da5610d",
+      "databaseUrl": "https://www.notion.so/c2e3630c7c2441f4b2c1e49ad1a61932",
+      "databaseId": "c2e3630c-7c24-41f4-b2c1-e49ad1a61932",
+      "dataSourceId": "b1a20d83-456d-48bd-9d78-fc0d3a68f534",
       "destinationAlias": "webhook_endpoints"
     },
     "webhookDeliveries": {
       "name": "Webhook Deliveries",
-      "databaseUrl": "https://www.notion.so/fc7bd961163a4e5d822d62a78c67d559",
-      "databaseId": "fc7bd961-163a-4e5d-822d-62a78c67d559",
-      "dataSourceId": "398aab9b-8783-466c-b80a-a6d4718e6ce6",
+      "databaseUrl": "https://www.notion.so/b32f0d731cc7456f9fe5f1a5984408ee",
+      "databaseId": "b32f0d73-1cc7-456f-9fe5-f1a5984408ee",
+      "dataSourceId": "6caaeb29-0839-402c-95aa-d39c9b04cda0",
       "destinationAlias": "webhook_deliveries"
     },
     "webhookReceipts": {
       "name": "Webhook Receipts",
-      "databaseUrl": "https://www.notion.so/06140c994fd9438490d3352905296da0",
-      "databaseId": "06140c99-4fd9-4384-90d3-352905296da0",
-      "dataSourceId": "bbdf81cd-8fdf-4f47-8e81-19cbb74ec1d5",
+      "databaseUrl": "https://www.notion.so/8f84a4cca9f94eaca9b5937978801213",
+      "databaseId": "8f84a4cc-a9f9-4eac-a9b5-937978801213",
+      "dataSourceId": "60bfef65-02d6-4e34-a571-10e40f433cdc",
       "destinationAlias": "webhook_receipts"
     },
     "receiver": {
@@ -577,33 +507,11 @@
       ]
     },
     "viewIds": {
-      "policies": {
-        "Disabled Policies": "327c21f1-caf0-8117-bf63-000cf4a8a032",
-        "Shadow Policies": "327c21f1-caf0-81d4-813f-000c7b22a6aa",
-        "Future Live Candidates": "327c21f1-caf0-8186-9d5e-000c2f0dcae6"
-      },
-      "actionRequests": {
-        "Pending Approval": "327c21f1-caf0-81b6-abf7-000cdf3689e6",
-        "Approved Ready": "327c21f1-caf0-8100-b969-000cce3a859e",
-        "Rejected / Expired": "327c21f1-caf0-81b8-b78c-000c77a8937c",
-        "By Project": "327c21f1-caf0-8177-bc29-000c7a118235"
-      },
-      "endpoints": {
-        "Disabled": "327c21f1-caf0-81f9-ae34-000cde1ee754",
-        "Shadow Ready": "327c21f1-caf0-8188-a0cb-000c61da1495",
-        "Misconfigured": "327c21f1-caf0-811a-bd57-000c8ab2214a"
-      },
-      "deliveries": {
-        "Recent Verified": "327c21f1-caf0-812e-8310-000c5413f038",
-        "Duplicates": "327c21f1-caf0-81a2-9b88-000cdbc8b233",
-        "Rejected": "327c21f1-caf0-81c6-ad92-000c2ec3780a",
-        "Needs Reconcile": "327c21f1-caf0-819d-ae1c-000cfcb87856"
-      },
-      "receipts": {
-        "Recent Receipts": "327c21f1-caf0-815d-985e-000c72341fb6",
-        "Drain Failures": "327c21f1-caf0-8168-94f6-000c1e4050ac",
-        "Rejected Signatures": "327c21f1-caf0-81f9-aeba-000cb251cc12"
-      }
+      "policies": {},
+      "actionRequests": {},
+      "endpoints": {},
+      "deliveries": {},
+      "receipts": {}
     },
     "phaseMemory": {
       "phase1GaveUs": "Phase 1 gave us the project control tower, saved views, derived PM signals, weekly reviews, and durable roadmap memory.",
@@ -619,9 +527,9 @@
   "phase7Actuation": {
     "executions": {
       "name": "External Action Executions",
-      "databaseUrl": "https://www.notion.so/8c397a5f5c6e476a947b36cbec127038",
-      "databaseId": "8c397a5f-5c6e-476a-947b-36cbec127038",
-      "dataSourceId": "c5bc574d-0963-499f-a9ea-c8661aeb555e",
+      "databaseUrl": "https://www.notion.so/c48192d4584c4a0dafe489c156b2238a",
+      "databaseId": "c48192d4-584c-4a0d-afe4-89c156b2238a",
+      "dataSourceId": "5fafe675-1463-4b1f-8948-3c0ea9f526a9",
       "destinationAlias": "external_action_executions"
     },
     "rolloutProfile": "github_first_issues_then_comments",
@@ -651,21 +559,9 @@
       "approvalToExecutionHours": "approval_to_execution_hours"
     },
     "viewIds": {
-      "actionRequests": {
-        "Ready to Dry Run": "327c21f1-caf0-815a-9bbf-000ca2932433",
-        "Approved for Live": "327c21f1-caf0-81a2-98cd-000c739bb5fa",
-        "Executed": "327c21f1-caf0-816a-bc4c-000ca65f8125",
-        "Actuation Failures": "327c21f1-caf0-8103-9feb-000cd7d67b54"
-      },
-      "executions": {
-        "Dry Runs": "327c21f1-caf0-819b-8228-000c7efaa920",
-        "Live Successes": "327c21f1-caf0-817b-9687-000c9a3e02cf",
-        "Failures": "327c21f1-caf0-8194-a2a1-000c49b0623e",
-        "Compensation Needed": "327c21f1-caf0-81f2-b6c7-000c23b864f8"
-      },
-      "sources": {
-        "GitHub Targets Ready": "327c21f1-caf0-81df-b24c-000cd94bcae0"
-      }
+      "actionRequests": {},
+      "executions": {},
+      "sources": {}
     },
     "phaseMemory": {
       "phase1GaveUs": "Phase 1 gave us the project control tower, saved views, derived PM signals, weekly reviews, and durable roadmap memory.",
@@ -719,23 +615,9 @@
       "reconcileConfirmationRate": "reconcile_confirmation_rate"
     },
     "viewIds": {
-      "actionRequests": {
-        "Issue Creates": "32ac21f1-caf0-8031-97c4-000cea2d58b4",
-        "Issue Updates": "32ac21f1-caf0-8078-bc89-000c3f38003e",
-        "Issue Labels": "32ac21f1-caf0-8013-a2df-000c6712e31c",
-        "Issue Assignees": "32ac21f1-caf0-80e3-82d8-000c3319e1e5",
-        "Issue Comments": "32ac21f1-caf0-8008-ba4f-000cc7c56979",
-        "PR Comments": "32ac21f1-caf0-8057-b177-000cc50b8da5",
-        "Failures": "32ac21f1-caf0-80d5-a9da-000caa8f7845"
-      },
-      "executions": {
-        "Live Successes": "327c21f1-caf0-817b-9687-000c9a3e02cf",
-        "Failures": "327c21f1-caf0-8194-a2a1-000c49b0623e",
-        "Reconcile Needed": "32ac21f1-caf0-8077-9f4c-000c073d858d"
-      },
-      "sources": {
-        "GitHub Targets Ready": "327c21f1-caf0-81df-b24c-000cd94bcae0"
-      }
+      "actionRequests": {},
+      "executions": {},
+      "sources": {}
     },
     "phaseMemory": {
       "phase1GaveUs": "Phase 1 gave us the project control tower, saved views, derived PM signals, weekly reviews, and durable roadmap memory.",

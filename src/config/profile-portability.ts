@@ -236,6 +236,7 @@ export function descriptorFromProfile(profile: WorkspaceProfile, cwd: string): W
   return buildWorkspaceProfileDescriptor({
     name: profile.name,
     label: profile.label,
+    kind: profile.kind,
     envFile: path.relative(cwd, profile.envFile) || ".env",
     destinationsPath: path.relative(cwd, profile.destinationsPath) || "./config/destinations.json",
     controlTowerConfigPath:
@@ -247,10 +248,12 @@ export function descriptorFromBundleProfile(
   profile: WorkspaceProfileDescriptor,
   targetName = profile.name,
   label?: string,
+  kind = profile.kind,
 ): WorkspaceProfileDescriptor {
   return buildWorkspaceProfileDescriptor({
     name: targetName,
     label: label ?? (targetName === profile.name ? profile.label : undefined),
+    kind,
   });
 }
 

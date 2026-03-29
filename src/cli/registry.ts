@@ -65,6 +65,13 @@ const commonOptions = {
   },
 } as const;
 
+const localPortfolioViewsConfigOption = {
+  name: "config",
+  description: "Path to the saved-view plan file.",
+  type: "string",
+  valueName: "path",
+} as const;
+
 export const cliRegistry: CliCommandDefinition[] = [
   {
     name: "publish",
@@ -164,6 +171,13 @@ export const cliRegistry: CliCommandDefinition[] = [
           { name: "source", description: "Source profile name.", type: "string", valueName: "name", required: true },
           { name: "target", description: "Target profile name.", type: "string", valueName: "name", required: true },
           { name: "label", description: "Optional label for the target profile.", type: "string", valueName: "text" },
+          {
+            name: "kind",
+            description: "Optional profile kind for the target profile.",
+            type: "enum",
+            valueName: "kind",
+            choices: ["primary", "sandbox"],
+          },
           { name: "write", description: "Persist the cloned profile files.", type: "boolean" },
           { name: "json", description: "Emit the clone plan as JSON.", type: "boolean" },
         ],
@@ -172,6 +186,7 @@ export const cliRegistry: CliCommandDefinition[] = [
             source: asString(parsed.options.source),
             target: asString(parsed.options.target),
             label: asString(parsed.options.label),
+            kind: asEnum(parsed.options.kind, ["primary", "sandbox"]),
             write: asBoolean(parsed.options.write),
             json: asBoolean(parsed.options.json),
           }),
@@ -182,6 +197,13 @@ export const cliRegistry: CliCommandDefinition[] = [
         options: [
           { name: "target", description: "Target profile name.", type: "string", valueName: "name", required: true },
           { name: "from-bundle", description: "Optional bundle JSON path to bootstrap from.", type: "string", valueName: "path" },
+          {
+            name: "kind",
+            description: "Optional profile kind for the target profile.",
+            type: "enum",
+            valueName: "kind",
+            choices: ["primary", "sandbox"],
+          },
           { name: "write", description: "Persist only the missing profile files.", type: "boolean" },
           { name: "json", description: "Emit the bootstrap plan as JSON.", type: "boolean" },
         ],
@@ -189,6 +211,7 @@ export const cliRegistry: CliCommandDefinition[] = [
           runProfilesBootstrapCommand({
             target: asString(parsed.options.target),
             fromBundle: asString(parsed.options["from-bundle"]),
+            kind: asEnum(parsed.options.kind, ["primary", "sandbox"]),
             write: asBoolean(parsed.options.write),
             json: asBoolean(parsed.options.json),
           }),
@@ -265,14 +288,14 @@ export const cliRegistry: CliCommandDefinition[] = [
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
-    buildConfigCommand("views-plan", "Print the saved-view sync plan.", [commonOptions.config], ({ parsed }) =>
+    buildConfigCommand("views-plan", "Print the saved-view sync plan.", [localPortfolioViewsConfigOption], ({ parsed }) =>
       runLocalPortfolioViewsPlanCommand({
-        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+        config: asString(parsed.options.config) ?? parsed.positionals[0],
       }),
     ),
-    buildConfigCommand("views-validate", "Validate the saved-view plan against the live schema.", [commonOptions.config], ({ parsed }) =>
+    buildConfigCommand("views-validate", "Validate the saved-view plan against the live schema.", [localPortfolioViewsConfigOption], ({ parsed }) =>
       runLocalPortfolioViewsValidateCommand({
-        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+        config: asString(parsed.options.config) ?? parsed.positionals[0],
       }),
     ),
   ]),
@@ -482,4 +505,11 @@ function asStringArray(value: boolean | string | number | string[] | undefined):
 
 function asNumber(value: boolean | string | number | string[] | undefined): number | undefined {
   return typeof value === "number" ? value : undefined;
+}
+
+function asEnum<T extends string>(
+  value: boolean | string | number | string[] | undefined,
+  choices: readonly T[],
+): T | undefined {
+  return typeof value === "string" && choices.includes(value as T) ? (value as T) : undefined;
 }

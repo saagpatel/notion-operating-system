@@ -70,7 +70,7 @@ If you are touching risky advanced workflows, also rehearse from the sandbox pro
 
 The repo already includes the tracked `sandbox` profile config. In most cases you only need a local `.env.sandbox`, which should remain untracked.
 
-Treat the tracked sandbox as a same-shape rehearsal lane by default. Before any live sandbox write, repoint its credentials and Notion target IDs to isolated sandbox targets instead of assuming the cloned defaults are already safe.
+Treat the tracked sandbox as a same-shape rehearsal lane by default. Before any live sandbox write, repoint its credentials and Notion target IDs to isolated sandbox targets instead of assuming the cloned defaults are already safe. `notion-os --profile sandbox doctor` is now the proof gate: it fails on token overlap, target overlap, and path masking.
 
 If you touch CLI behavior, add or update CLI tests.
 
@@ -94,3 +94,4 @@ If you touch Notion publishing behavior, preserve existing dry-run and schema-va
 - GitHub runs a scheduled dependency hygiene workflow weekly
 - Dependabot is the default updater for npm and GitHub Actions dependencies
 - npm overrides should be treated as temporary mitigations and revisited when upstream fixes land cleanly
+- the recurring maintenance rhythm now lives in `docs/maintenance-playbook.md`

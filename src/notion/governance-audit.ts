@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import {

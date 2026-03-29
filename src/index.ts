@@ -13,6 +13,7 @@ export {
   toWorkspaceProfileSummary,
   type WorkspaceProfile,
   type WorkspaceProfileDescriptor,
+  type WorkspaceProfileKind,
   type WorkspaceProfileRegistry,
   type WorkspaceProfileSummary,
 } from "./config/profiles.js";
