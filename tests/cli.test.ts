@@ -110,6 +110,34 @@ describe("cli smoke tests", () => {
     expect(report.checks.some((check: { id: string }) => check.id === "destinations-schema")).toBe(true);
   });
 
+  test("keeps sandbox doctor isolated from default .env leakage during cli startup", async () => {
+    const tempDir = await createSandboxCliWorkspace();
+
+    const result = await runCliForTest(["doctor", "--json"], {
+      cwd: tempDir,
+      env: {
+        NOTION_PROFILE: "sandbox",
+        NOTION_TOKEN: undefined,
+        NOTION_DESTINATIONS_PATH: undefined,
+        NOTION_LOG_DIR: undefined,
+        NOTION_RETRY_MAX_ATTEMPTS: undefined,
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    const report = JSON.parse(result.stdout);
+    expect(report.runtime.profile.name).toBe("sandbox");
+    expect(report.runtime.paths.destinationsPath).toContain(
+      path.join("config", "profiles", "sandbox", "destinations.json"),
+    );
+    expect(report.checks.find((check: { id: string }) => check.id === "sandbox-path-overrides")).toEqual(
+      expect.objectContaining({ status: "pass" }),
+    );
+    expect(report.checks.find((check: { id: string }) => check.id === "sandbox-token-isolation")).toEqual(
+      expect.objectContaining({ status: "pass" }),
+    );
+  });
+
   test("records command lifecycle events for successful runs", async () => {
     const tempDir = await createTempWorkspace();
     const logDir = path.join(tempDir, "logs");
@@ -843,6 +871,108 @@ async function createProfiledWorkspace(): Promise<string> {
     "utf8",
   );
   await writeFile(path.join(tempDir, ".env.work"), "", "utf8");
+
+  return tempDir;
+}
+
+async function createSandboxCliWorkspace(): Promise<string> {
+  const tempDir = await createTempWorkspace();
+  const sandboxDir = path.join(tempDir, "config", "profiles", "sandbox");
+  await mkdir(sandboxDir, { recursive: true });
+
+  await writeFile(
+    path.join(tempDir, "config", "profiles.json"),
+    JSON.stringify({
+      version: 1,
+      defaultProfile: "sandbox",
+      profiles: ["default", "sandbox"],
+    }),
+    "utf8",
+  );
+  await mkdir(path.join(tempDir, "config", "profiles"), { recursive: true });
+  await writeFile(
+    path.join(tempDir, "config", "profiles", "default.json"),
+    JSON.stringify({
+      configVersion: 1,
+      name: "default",
+      label: "Default Workspace",
+      kind: "primary",
+      envFile: ".env",
+      destinationsPath: "./config/destinations.json",
+      controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, "config", "profiles", "sandbox.json"),
+    JSON.stringify({
+      configVersion: 1,
+      name: "sandbox",
+      label: "Sandbox Workspace",
+      kind: "sandbox",
+      envFile: ".env.sandbox",
+      destinationsPath: "./config/profiles/sandbox/destinations.json",
+      controlTowerConfigPath: "./config/profiles/sandbox/local-portfolio-control-tower.json",
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, ".env"),
+    ["NOTION_TOKEN=default-token", "NOTION_DESTINATIONS_PATH=./config/destinations.json"].join("\n"),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, ".env.sandbox"),
+    [
+      "NOTION_TOKEN=sandbox-token",
+      "NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
+    ].join("\n"),
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, "config", "local-portfolio-control-tower.json"),
+    JSON.stringify({
+      version: 1,
+      relatedDataSources: {
+        buildLogId: "11111111-1111-1111-1111-111111111111",
+      },
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(sandboxDir, "local-portfolio-control-tower.json"),
+    JSON.stringify({
+      version: 1,
+      relatedDataSources: {
+        buildLogId: "22222222-2222-2222-2222-222222222222",
+      },
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(sandboxDir, "destinations.json"),
+    JSON.stringify({
+      version: 1,
+      destinations: [
+        {
+          alias: "sandbox_center",
+          destinationType: "page",
+          sourceUrl: "https://www.notion.so/sandbox-center-22222222222222222222222222222222",
+          templateMode: "none",
+          titleRule: { source: "literal", value: "Sandbox Center" },
+          fixedProperties: {},
+          defaultProperties: {},
+          mode: "create_new_page",
+          safeDefaults: {
+            allowDeletingContent: false,
+            templatePollIntervalMs: 1000,
+            templatePollTimeoutMs: 5000,
+          },
+        },
+      ],
+    }),
+    "utf8",
+  );
 
   return tempDir;
 }

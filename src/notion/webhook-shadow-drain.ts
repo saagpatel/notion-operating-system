@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { readdir, readFile, rename, mkdir } from "node:fs/promises";
 import path from "node:path";
 

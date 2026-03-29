@@ -114,7 +114,8 @@ export function loadRuntimeConfig(options: RuntimeConfigOptions = {}): RuntimeCo
 
 export function safeLoadRuntimeConfig(options: RuntimeConfigOptions = {}): RuntimeConfigParseResult {
   const cwd = path.resolve(options.cwd ?? process.cwd());
-  const env = options.env ?? process.env;
+  const sourceEnv = options.env ?? process.env;
+  const env = { ...sourceEnv };
   let profile: WorkspaceProfile;
   const profileIssues: string[] = [];
 
