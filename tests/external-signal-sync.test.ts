@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 
 import {
+  deriveExternalSignalSyncFailureCategories,
   deriveExternalSignalSyncStatus,
   deriveExternalSignalSyncWarningCategories,
   normalizeProviderName,
@@ -143,6 +144,40 @@ describe("external signal sync hardening", () => {
 
     expect(deriveExternalSignalSyncStatus(results)).toBe("warning");
     expect(deriveExternalSignalSyncWarningCategories(results)).toEqual(["missing_credentials"]);
+    expect(deriveExternalSignalSyncFailureCategories(results)).toBeUndefined();
+  });
+
+  test("classifies provider-shape failures separately from missing credentials", () => {
+    const results: ProviderSyncResult[] = [
+      {
+        provider: "GitHub",
+        status: "Failed",
+        itemsSeen: 0,
+        itemsWritten: 0,
+        itemsDeduped: 0,
+        failures: 1,
+        notes: ["Source owner/repo is missing a linked Local Project."],
+        cursor: "",
+        events: [],
+        syncedSourceIds: [],
+      },
+      {
+        provider: "Vercel",
+        status: "Failed",
+        itemsSeen: 0,
+        itemsWritten: 0,
+        itemsDeduped: 0,
+        failures: 1,
+        notes: ["Unexpected provider failure while loading deployment events."],
+        cursor: "",
+        events: [],
+        syncedSourceIds: [],
+      },
+    ];
+
+    expect(deriveExternalSignalSyncFailureCategories(results)).toEqual(
+      expect.arrayContaining(["validation_error", "provider_error"]),
+    );
   });
 });
 

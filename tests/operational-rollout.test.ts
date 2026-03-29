@@ -4,6 +4,9 @@ import {
   buildOperationalRolloutPilotStepGroups,
   buildOperationalRolloutPlan,
   classifyOperationalRolloutProject,
+  deriveOperationalRolloutFailureCategories,
+  deriveOperationalRolloutSummaryStatus,
+  deriveOperationalRolloutWarningCategories,
   runRolloutCommandSteps,
 } from "../src/notion/operational-rollout.js";
 import type { LocalPortfolioActuationTargetConfig } from "../src/notion/local-portfolio-actuation.js";
@@ -211,6 +214,35 @@ describe("operational rollout", () => {
       "webhookDrain",
       "webhookReconcile",
     ]);
+  });
+
+  test("summarizes rollout follow-up failures as partial with stable categories", () => {
+    const failures = [
+      {
+        key: "dry-run",
+        script: "portfolio-audit:action-runner",
+        args: ["--mode", "dry-run"],
+        error: "Policy blocked until pilot approval is refreshed.",
+      },
+      {
+        key: "webhook-reconcile",
+        script: "portfolio-audit:webhook-reconcile",
+        args: ["--provider", "github"],
+        error: "Provider mismatch while reconciling webhook state.",
+      },
+    ];
+
+    expect(deriveOperationalRolloutSummaryStatus(failures)).toBe("partial");
+    expect(deriveOperationalRolloutWarningCategories(failures)).toEqual(["partial_success"]);
+    expect(deriveOperationalRolloutFailureCategories(failures)).toEqual(
+      expect.arrayContaining(["policy_blocked", "provider_error"]),
+    );
+  });
+
+  test("keeps clean rollout follow-up runs completed without warning categories", () => {
+    expect(deriveOperationalRolloutSummaryStatus([])).toBe("completed");
+    expect(deriveOperationalRolloutWarningCategories([])).toBeUndefined();
+    expect(deriveOperationalRolloutFailureCategories([])).toBeUndefined();
   });
 });
 

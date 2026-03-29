@@ -482,6 +482,7 @@ export async function runActionRunnerCommand(
       mode,
       status: deriveActionRunnerSummaryStatus(results),
       warningCategories: deriveActionRunnerWarningCategories(results),
+      failureCategories: deriveActionRunnerFailureCategories(results),
       metadata: {
         resultCount: results.length,
       },
@@ -556,4 +557,10 @@ export function deriveActionRunnerWarningCategories(
     categories.add("validation_gap");
   }
   return categories.size > 0 ? [...categories] : undefined;
+}
+
+export function deriveActionRunnerFailureCategories(
+  results: ActionRunnerResult[],
+): Array<"provider_error"> | undefined {
+  return results.some((result) => result.status === "Failed") ? ["provider_error"] : undefined;
 }

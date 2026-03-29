@@ -201,6 +201,44 @@ describe("local portfolio control tower rules", () => {
     });
   });
 
+  test("emits no live updates when derived fields are unchanged", () => {
+    const stable = baseProject({
+      operatingQueue: "Resume Now",
+      nextReviewDate: "2026-03-20",
+      evidenceFreshness: "Fresh",
+    });
+
+    expect(buildDerivedPropertyUpdates(stable, { ...stable })).toEqual({});
+  });
+
+  test("keeps changed-row counting stable when multiple fields change on one row", () => {
+    const previousProjects = [
+      baseProject({
+        id: "project-1",
+        operatingQueue: "Worth Finishing",
+        nextReviewDate: "2026-03-20",
+        evidenceFreshness: "Aging",
+      }),
+      baseProject({
+        id: "project-2",
+        operatingQueue: "Resume Now",
+        nextReviewDate: "2026-03-18",
+        evidenceFreshness: "Fresh",
+      }),
+    ];
+    const nextProjects = [
+      {
+        ...previousProjects[0]!,
+        operatingQueue: "Resume Now" as const,
+        nextReviewDate: "2026-03-27",
+        evidenceFreshness: "Stale" as const,
+      },
+      previousProjects[1]!,
+    ];
+
+    expect(countControlTowerChangedRows(previousProjects, nextProjects)).toBe(1);
+  });
+
   test("captures the baseline once and keeps later sync metrics deterministic", () => {
     const metrics = {
       totalProjects: 1,

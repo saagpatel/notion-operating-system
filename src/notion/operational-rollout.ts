@@ -88,6 +88,32 @@ export interface RolloutCommandFailure {
   error: string;
 }
 
+export function deriveOperationalRolloutSummaryStatus(
+  failures: RolloutCommandFailure[],
+): "completed" | "partial" {
+  return failures.length > 0 ? "partial" : "completed";
+}
+
+export function deriveOperationalRolloutWarningCategories(
+  failures: RolloutCommandFailure[],
+): Array<"partial_success"> | undefined {
+  return failures.length > 0 ? ["partial_success"] : undefined;
+}
+
+export function deriveOperationalRolloutFailureCategories(
+  failures: RolloutCommandFailure[],
+): Array<"provider_error" | "policy_blocked"> | undefined {
+  const categories = new Set<"provider_error" | "policy_blocked">();
+  for (const failure of failures) {
+    if (/policy|approval|blocked/i.test(failure.error)) {
+      categories.add("policy_blocked");
+    } else {
+      categories.add("provider_error");
+    }
+  }
+  return categories.size > 0 ? [...categories] : undefined;
+}
+
 export interface EnsureGitHubCreateIssueActionRequestInput {
   api: DirectNotionClient;
   config: RolloutContext["config"];
@@ -274,8 +300,9 @@ export async function runOperationalRolloutCommand(
       },
       {
         mode: "live",
-        status: pilotRunFailures.length > 0 ? "partial" : "completed",
-        warningCategories: pilotRunFailures.length > 0 ? ["partial_success"] : undefined,
+        status: deriveOperationalRolloutSummaryStatus(pilotRunFailures),
+        warningCategories: deriveOperationalRolloutWarningCategories(pilotRunFailures),
+        failureCategories: deriveOperationalRolloutFailureCategories(pilotRunFailures),
         metadata: {
           shortlistedProjects: plan.wave1Shortlist.length,
         },
