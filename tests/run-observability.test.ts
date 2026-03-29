@@ -7,9 +7,12 @@ import { afterEach, describe, expect, test } from "vitest";
 import {
   getCurrentCommandLogger,
   incrementCommandSummary,
+  getCommandRunSummary,
   logCommandCompleted,
   logCommandFailed,
   mergeCommandSummary,
+  recordCommandFailureCategory,
+  recordCommandWarningCategory,
   withCommandRunContext,
 } from "../src/cli/run-observability.js";
 
@@ -86,5 +89,53 @@ describe("run observability", () => {
         failureCount: 1,
       }),
     );
+  });
+
+  test("upgrades clean, warning, partial, and failed summaries predictably", async () => {
+    const statuses: Array<string | undefined> = [];
+
+    await withCommandRunContext(
+      {
+        commandPath: ["signals", "sync"],
+        parsed: { options: { live: true }, positionals: [], helpRequested: false },
+      },
+      async () => {
+        statuses.push(getCommandRunSummary()?.status);
+        recordCommandWarningCategory("retry_recovered");
+        statuses.push(getCommandRunSummary()?.status);
+        mergeCommandSummary({
+          recordsUpdated: 2,
+          failureCount: 1,
+          warningCategories: ["partial_success"],
+        });
+        statuses.push(getCommandRunSummary()?.status);
+        recordCommandFailureCategory("provider_error");
+        statuses.push(getCommandRunSummary()?.status);
+      },
+    );
+
+    expect(statuses).toEqual(["completed", "warning", "partial", "failed"]);
+  });
+
+  test("deduplicates warning and failure categories", async () => {
+    let summary: ReturnType<typeof getCommandRunSummary>;
+
+    await withCommandRunContext(
+      {
+        commandPath: ["governance", "audit"],
+        parsed: { options: {}, positionals: [], helpRequested: false },
+      },
+      async () => {
+        recordCommandWarningCategory("validation_gap");
+        recordCommandWarningCategory("validation_gap");
+        recordCommandFailureCategory("unexpected_response");
+        recordCommandFailureCategory("unexpected_response");
+        summary = getCommandRunSummary();
+      },
+    );
+
+    expect(summary?.warningCategories).toEqual(["validation_gap"]);
+    expect(summary?.failureCategories).toEqual(["unexpected_response"]);
+    expect(summary?.warningsCount).toBe(1);
   });
 });
