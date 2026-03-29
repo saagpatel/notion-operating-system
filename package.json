@@ -49,6 +49,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepare": "npm run build",
     "smoke:built-cli": "node scripts/built-cli-smoke.mjs",
     "pack:tarball": "node scripts/pack-release.mjs",
     "smoke:packed-install": "node scripts/packed-install-smoke.mjs",

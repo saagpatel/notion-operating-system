@@ -37,6 +37,7 @@ describe("release readiness", () => {
     expect(packageJson.files).toEqual(
       expect.arrayContaining(["dist/", "README.md", "LICENSE", "CHANGELOG.md"]),
     );
+    expect(packageJson.scripts?.prepare).toBe("npm run build");
     expect(packageJson.scripts?.["pack:tarball"]).toBe("node scripts/pack-release.mjs");
     expect(packageJson.scripts?.["smoke:packed-install"]).toBe("node scripts/packed-install-smoke.mjs");
     expect(packageJson.scripts?.["release:prepare"]).toBe("npm run verify && npm run pack:tarball");

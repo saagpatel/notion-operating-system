@@ -53,6 +53,8 @@ For the core toolkit surface, you can install directly from GitHub:
 npm install github:saagpatel/notion-operating-system#v0.2.0
 ```
 
+That git-ref install works because the package now builds its distributable files during `prepare`. If you want the most locked-down install path, use the tarball attached to a GitHub release draft or release instead.
+
 Then import the reusable toolkit pieces:
 
 ```ts

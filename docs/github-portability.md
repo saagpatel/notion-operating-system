@@ -126,6 +126,8 @@ Core toolkit install example:
 npm install github:saagpatel/notion-operating-system#v0.2.0
 ```
 
+That git-ref install relies on the package building its distributable files during `prepare`.
+
 If you want a verified packaged artifact instead of a git ref, use the tarball attached to a GitHub Release draft or release.
 
 For release preparation details, see `docs/release-process.md`.
