@@ -1,44 +1,83 @@
-# Session Handoff — 2026-03-22/24
+# Notion Operating System Handoff
 
-## Status: Complete
+## Current repo state
 
-## Completed
+- Repo: `/Users/d/Notion`
+- Remote: `saagpatel/notion-operating-system`
+- Branch: `codex/phase-4-observability-hardening`
+- Base remote commit on `main`: `39e4cdd`
+- The worktree contains the accumulated local Phase 1 through Phase 4 changes on top of that base
 
-### 5 Projects Pushed Through Notion + GitHub Pipeline
-1. **thought-trails** → `saagpatel/thought-trails` (private)
-2. **ReturnRadar** → `saagpatel/ReturnRadar` (private)
-3. **TradeOffAtlas** → `saagpatel/TradeOffAtlas` (private)
-4. **TideEngine** → `saagpatel/TideEngine` (private)
-5. **RoomTone** → `saagpatel/RoomTone` (private)
+## Completed roadmap phases
 
-For each project:
-- Created private GitHub repo and pushed code
-- Published build log entry linked to project via `Local Project` relation
-- Published skills (2-3 per project) to Skills Library with `Related Local Projects` relation
-- Published research entry (1 per project) to Research Library with `Related Local Projects` relation
-- Published tool entries where applicable to AI Tool & Site Matrix
-- Added signal source config to `local-portfolio-external-signal-sources.json`
-- Seeded signal source rows in Notion
-- Ran signal sync + overhaul (first 4 projects) or set counts directly via MCP (RoomTone)
-- Set all project properties: Current State=Shipped, Build Maturity=Feature Complete, Ship Readiness=Ship-Ready, plus all detail fields
+### Phase 1
 
-### Other Actions
-- Archived stale thought-trails row from old Project Portfolio database
-- Updated all project states from "Active Build" to "Shipped"
-- Identified and documented pipeline performance optimization
+- GitHub Actions CI for `npm ci`, `npm run typecheck`, and `npm test`
+- shared runtime config and environment validation
+- expanded `.env.example`
+- `doctor` command
+- package identity aligned to `Notion Operating System`
 
-## Key Decisions
-- **Scoped pipeline operations** (saved as feedback memory): never run full-portfolio commands (overhaul-notion, external-signal-sync, control-tower-sync) for single-project pushes. Set counts and properties directly via Notion MCP instead. Saves ~10 min per project.
-- GitHub repos are **private** under `saagpatel/` org
-- Projects only tracked in **Local Portfolio Projects**, not old Project Portfolio database
+### Phase 2
 
-## Files Changed
-- `config/local-portfolio-external-signal-sources.json` — added 5 signal source entries
-- `examples/content/` — added ~15 markdown files (build logs, skills, research, tools)
-- `.claude/projects/-Users-d/memory/feedback_scoped_pipeline.md` — new feedback memory
-- `.claude/projects/-Users-d/memory/MEMORY.md` — added Feedback section
+- shared CLI registry and central command runner
+- built-in help and standardized flag parsing
+- compatibility wrappers for covered legacy entrypoints
+- onboarding docs, contributor guide, and architecture overview
 
-## Next Steps
-- Use the fast scoped pipeline for any new projects (see feedback memory)
-- Copypasteable Codex message was generated for cross-tool consistency
-- Run weekly sync sequence when ready to refresh full portfolio signals
+### Phase 3
+
+- workspace profiles and profile-aware path resolution
+- profile bundle import/export and migration commands
+- installable `notion-os` package bin
+- clearer core package exports vs `./advanced`
+
+### Phase 4
+
+- shared command lifecycle logging with:
+  - `command_started`
+  - `command_completed`
+  - `command_failed`
+- shared run summary recording for the covered CLI workflow families
+- richer Notion HTTP retry, timeout, and failure logging
+- canonical `npm run verify` release gate
+- CI build coverage plus built-CLI smoke check
+- optional pre-commit hook flow in `.githooks/`
+- updated operator docs around profiles, verify, logs, and hooks
+
+## Verification checklist for this branch
+
+Run these before landing or after pulling onto a new machine:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+npm run verify
+npm run doctor -- --json
+node dist/src/cli.js --help
+```
+
+## Useful operator commands
+
+```bash
+notion-os --help
+notion-os profiles show
+npm run doctor
+npm run verify
+npm run hooks:install
+```
+
+## Remaining backlog after Phase 4
+
+- broader observability inside still-excluded one-off batch and backfill scripts
+- deeper advanced-path test coverage for more provider and webhook edge cases
+- public release/distribution workflow if this should become more than a local-package CLI
+- selective cleanup of older internal docs and historical artifacts
+
+## Known assumptions and risks
+
+- Compatibility remains the default: legacy npm scripts still exist and many excluded one-off scripts still lean on the older default-path assumptions
+- The shared run summaries improve logs first; they do not intentionally change existing JSON stdout contracts
+- Secrets still remain operator-managed in local env files and must never be committed
+- The local README rewrite was preserved and extended instead of being replaced
