@@ -5,11 +5,15 @@ import {
 } from "./framework.js";
 import { runDestinationsCheckCommand, runDestinationsResolveCommand, runDoctorCommand, runPublishCommand } from "./core-commands.js";
 import {
+  runProfilesBootstrapCommand,
+  runProfilesCloneCommand,
+  runProfilesDiffCommand,
   runProfilesExportCommand,
   runProfilesImportCommand,
   runProfilesListCommand,
   runProfilesMigrateCommand,
   runProfilesShowCommand,
+  runProfilesUpgradeCommand,
 } from "./profile-commands.js";
 import { runLogsRecentCommand } from "./log-commands.js";
 import { resolveOptionalControlTowerConfigPath } from "./context.js";
@@ -137,6 +141,70 @@ export const cliRegistry: CliCommandDefinition[] = [
         description: "Export the active profile into a portable non-secret bundle.",
         options: [{ name: "output", description: "Path to the bundle JSON file.", type: "string", valueName: "path", required: true }],
         run: async ({ parsed }) => runProfilesExportCommand({ output: asString(parsed.options.output) }),
+      },
+      {
+        name: "diff",
+        description: "Compare the active profile against another profile or profile bundle.",
+        options: [
+          { name: "against-profile", description: "Profile name to compare against.", type: "string", valueName: "name" },
+          { name: "against-bundle", description: "Path to a profile bundle JSON file.", type: "string", valueName: "path" },
+          { name: "json", description: "Emit the diff as JSON.", type: "boolean" },
+        ],
+        run: async ({ parsed }) =>
+          runProfilesDiffCommand({
+            againstProfile: asString(parsed.options["against-profile"]),
+            againstBundle: asString(parsed.options["against-bundle"]),
+            json: asBoolean(parsed.options.json),
+          }),
+      },
+      {
+        name: "clone",
+        description: "Create or refresh a profile from another profile's portable config state.",
+        options: [
+          { name: "source", description: "Source profile name.", type: "string", valueName: "name", required: true },
+          { name: "target", description: "Target profile name.", type: "string", valueName: "name", required: true },
+          { name: "label", description: "Optional label for the target profile.", type: "string", valueName: "text" },
+          { name: "write", description: "Persist the cloned profile files.", type: "boolean" },
+          { name: "json", description: "Emit the clone plan as JSON.", type: "boolean" },
+        ],
+        run: async ({ parsed }) =>
+          runProfilesCloneCommand({
+            source: asString(parsed.options.source),
+            target: asString(parsed.options.target),
+            label: asString(parsed.options.label),
+            write: asBoolean(parsed.options.write),
+            json: asBoolean(parsed.options.json),
+          }),
+      },
+      {
+        name: "bootstrap",
+        description: "Initialize a profile safely from the active setup or a non-secret bundle.",
+        options: [
+          { name: "target", description: "Target profile name.", type: "string", valueName: "name", required: true },
+          { name: "from-bundle", description: "Optional bundle JSON path to bootstrap from.", type: "string", valueName: "path" },
+          { name: "write", description: "Persist only the missing profile files.", type: "boolean" },
+          { name: "json", description: "Emit the bootstrap plan as JSON.", type: "boolean" },
+        ],
+        run: async ({ parsed }) =>
+          runProfilesBootstrapCommand({
+            target: asString(parsed.options.target),
+            fromBundle: asString(parsed.options["from-bundle"]),
+            write: asBoolean(parsed.options.write),
+            json: asBoolean(parsed.options.json),
+          }),
+      },
+      {
+        name: "upgrade",
+        description: "Preview or apply profile config-version migrations for the active profile.",
+        options: [
+          { name: "write", description: "Persist the migrated profile descriptor.", type: "boolean" },
+          { name: "json", description: "Emit the upgrade plan as JSON.", type: "boolean" },
+        ],
+        run: async ({ parsed }) =>
+          runProfilesUpgradeCommand({
+            write: asBoolean(parsed.options.write),
+            json: asBoolean(parsed.options.json),
+          }),
       },
       {
         name: "import",

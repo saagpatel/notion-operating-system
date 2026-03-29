@@ -137,17 +137,26 @@ export function parseCliArgs(argv: string[], options: CliOptionDefinition[] = []
     index += 1;
   }
 
-  for (const option of options) {
-    if (option.required && parsedOptions[option.name] === undefined) {
-      throw new AppError(`--${option.name} is required`);
-    }
-  }
-
   return {
     options: parsedOptions,
     positionals,
     helpRequested,
   };
+}
+
+export function validateRequiredCliOptions(
+  parsed: ParsedCliArgs,
+  options: CliOptionDefinition[] = [],
+): void {
+  if (parsed.helpRequested) {
+    return;
+  }
+
+  for (const option of options) {
+    if (option.required && parsed.options[option.name] === undefined) {
+      throw new AppError(`--${option.name} is required`);
+    }
+  }
 }
 
 export function renderCommandHelp(command: CliCommandDefinition, commandPath: string[] = []): string {

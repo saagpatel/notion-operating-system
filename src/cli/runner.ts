@@ -1,5 +1,6 @@
 import {
   parseCliArgs,
+  validateRequiredCliOptions,
   renderCommandHelp,
   renderRootHelp,
   matchCommand,
@@ -47,6 +48,7 @@ export async function runCli(argv: string[], io: CliIo = defaultCliIo): Promise<
       io.stdout(renderCommandHelp(command, commandPath.slice(0, -1)));
       return;
     }
+    validateRequiredCliOptions(parsed, command.options);
 
     if (command.subcommands?.length && !command.run) {
       io.stdout(renderCommandHelp(command, commandPath.slice(0, -1)));
