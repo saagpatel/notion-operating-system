@@ -8,8 +8,10 @@ import { AppError } from "../utils/errors.js";
 export const DEFAULT_PROFILE_NAME = "default";
 export const DEFAULT_PROFILE_REGISTRY_PATH = "./config/profiles.json";
 export const DEFAULT_PROFILE_DESCRIPTOR_DIR = "./config/profiles";
+export const CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION = 1;
 
 export interface WorkspaceProfileDescriptor {
+  configVersion: number;
   name: string;
   label: string;
   envFile: string;
@@ -47,6 +49,8 @@ export interface WorkspaceProfileOwnedPaths {
 }
 
 export interface WorkspaceProfile {
+  configVersion: number;
+  sourceConfigVersion: number;
   name: string;
   label: string;
   implicit: boolean;
@@ -59,6 +63,7 @@ export interface WorkspaceProfile {
 }
 
 export interface WorkspaceProfileSummary {
+  configVersion: number;
   name: string;
   label: string;
   implicit: boolean;
@@ -75,6 +80,7 @@ const workspaceProfileRegistrySchema = z.object({
 });
 
 const workspaceProfileDescriptorSchema = z.object({
+  configVersion: z.coerce.number().int().nonnegative().default(CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION),
   name: z.string().min(1),
   label: z.string().min(1),
   envFile: z.string().min(1),
@@ -140,9 +146,10 @@ export function resolveWorkspaceProfile(options: {
     throw new AppError(`Workspace profile descriptor was not found at ${descriptorPath}`);
   }
 
-  const descriptor = parseWorkspaceProfileDescriptor(readJsonFileSync(descriptorPath), selectedProfileName);
+  const { descriptor, sourceConfigVersion } = parseWorkspaceProfileDescriptor(readJsonFileSync(descriptorPath), selectedProfileName);
   return buildResolvedWorkspaceProfile(cwd, descriptor, {
     implicit: false,
+    sourceConfigVersion,
     registryPath,
     descriptorPath,
   });
@@ -166,10 +173,11 @@ export function listWorkspaceProfiles(options: {
       throw new AppError(`Workspace profile descriptor was not found at ${descriptorPath}`);
     }
 
-    const descriptor = parseWorkspaceProfileDescriptor(readJsonFileSync(descriptorPath), profileName);
+    const { descriptor, sourceConfigVersion } = parseWorkspaceProfileDescriptor(readJsonFileSync(descriptorPath), profileName);
     return toWorkspaceProfileSummary(
       buildResolvedWorkspaceProfile(cwd, descriptor, {
         implicit: false,
+        sourceConfigVersion,
         registryPath,
         descriptorPath,
       }),
@@ -178,6 +186,7 @@ export function listWorkspaceProfiles(options: {
 }
 
 export function buildWorkspaceProfileDescriptor(input: {
+  configVersion?: number;
   name?: string;
   label?: string;
   envFile?: string;
@@ -186,6 +195,7 @@ export function buildWorkspaceProfileDescriptor(input: {
 } = {}): WorkspaceProfileDescriptor {
   const name = input.name ?? DEFAULT_PROFILE_NAME;
   return {
+    configVersion: input.configVersion ?? CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION,
     name,
     label: input.label ?? toProfileLabel(name),
     envFile: input.envFile ?? (name === DEFAULT_PROFILE_NAME ? ".env" : `./.env.${name}`),
@@ -225,6 +235,7 @@ export function toWorkspaceProfileSummary(profile: WorkspaceProfile): WorkspaceP
     name: profile.name,
     label: profile.label,
     implicit: profile.implicit,
+    configVersion: profile.configVersion,
     descriptorPath: profile.descriptorPath,
     envFile: profile.envFile,
     destinationsPath: profile.destinationsPath,
@@ -243,6 +254,7 @@ function buildResolvedWorkspaceProfile(
   descriptor: WorkspaceProfileDescriptor,
   options: {
     implicit: boolean;
+    sourceConfigVersion?: number;
     registryPath?: string;
     descriptorPath?: string;
   },
@@ -253,6 +265,8 @@ function buildResolvedWorkspaceProfile(
   const profileConfigDir = path.dirname(controlTowerConfigPath);
 
   return {
+    configVersion: descriptor.configVersion,
+    sourceConfigVersion: options.sourceConfigVersion ?? descriptor.configVersion,
     name: descriptor.name,
     label: descriptor.label,
     implicit: options.implicit,
@@ -277,7 +291,14 @@ function parseWorkspaceProfileRegistry(raw: unknown): WorkspaceProfileRegistry {
   return workspaceProfileRegistrySchema.parse(raw);
 }
 
-function parseWorkspaceProfileDescriptor(raw: unknown, expectedName: string): WorkspaceProfileDescriptor {
+export function parseWorkspaceProfileDescriptor(
+  raw: unknown,
+  expectedName: string,
+): { descriptor: WorkspaceProfileDescriptor; sourceConfigVersion: number } {
+  const sourceConfigVersion =
+    raw && typeof raw === "object" && "configVersion" in raw && typeof raw.configVersion === "number"
+      ? raw.configVersion
+      : 0;
   const descriptor = workspaceProfileDescriptorSchema.parse(raw);
   if (descriptor.name !== expectedName) {
     throw new AppError(
@@ -285,7 +306,13 @@ function parseWorkspaceProfileDescriptor(raw: unknown, expectedName: string): Wo
     );
   }
 
-  return descriptor;
+  return {
+    descriptor: {
+      ...descriptor,
+      configVersion: CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION,
+    },
+    sourceConfigVersion,
+  };
 }
 
 function readJsonFileSync(filePath: string): unknown {

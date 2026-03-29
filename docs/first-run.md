@@ -31,6 +31,13 @@ If you want to materialize the legacy layout into explicit profile files:
 notion-os profiles migrate --write
 ```
 
+If you want to prepare an additional profile safely:
+
+```bash
+notion-os profiles clone --source default --target sandbox
+notion-os profiles bootstrap --target sandbox
+```
+
 ## 3. Create local env
 
 Copy `.env.example` to `.env`, then fill in the values you actually have.

@@ -16,6 +16,11 @@ async function run() {
   const workspace = await createTempWorkspace();
 
   await expectSuccess(["--help"]);
+  await expectSuccess(["profiles", "--help"]);
+  await expectSuccess(["profiles", "diff", "--help"]);
+  await expectSuccess(["profiles", "clone", "--help"]);
+  await expectSuccess(["profiles", "bootstrap", "--help"]);
+  await expectSuccess(["profiles", "upgrade", "--help"]);
   await expectSuccess(["logs", "--help"]);
   await expectSuccess(["logs", "recent", "--help"]);
   await expectSuccess(["control-tower", "--help"]);
