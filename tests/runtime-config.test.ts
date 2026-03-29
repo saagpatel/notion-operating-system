@@ -18,6 +18,7 @@ describe("runtime config", () => {
     expect(config.notion.retryMaxAttempts).toBe(5);
     expect(config.notion.httpTimeoutMs).toBe(90_000);
     expect(config.profile.name).toBe("default");
+    expect(config.profile.kind).toBe("primary");
     expect(config.paths.logDir).toBe(path.resolve("/tmp/notion-os", "./logs"));
     expect(config.paths.destinationsPath).toBe(path.resolve("/tmp/notion-os", "./config/destinations.json"));
     expect(config.paths.controlTowerConfigPath).toBe(
@@ -86,6 +87,7 @@ describe("runtime config", () => {
     });
 
     expect(config.profile.name).toBe("beta");
+    expect(config.profile.kind).toBe("primary");
     expect(config.profile.configVersion).toBe(1);
     expect(config.profile.sourceConfigVersion).toBe(0);
     expect(config.paths.envFile).toBe(path.resolve(tempDir, ".env.beta"));

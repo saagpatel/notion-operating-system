@@ -94,7 +94,7 @@ interface NormalizedSignalEvent {
   rawExcerpt: string;
 }
 
-interface ProviderSyncResult {
+export interface ProviderSyncResult {
   provider: ExternalSignalSyncRunRecord["provider"];
   status: ExternalSignalSyncRunRecord["status"];
   itemsSeen: number;
@@ -515,7 +515,7 @@ function logLoopProgress(live: boolean, scope: string, label: string, index: num
   }
 }
 
-function deriveExternalSignalSyncStatus(
+export function deriveExternalSignalSyncStatus(
   providerResults: ProviderSyncResult[],
 ): "completed" | "warning" | "partial" | undefined {
   if (providerResults.some((result) => result.status === "Partial")) {
@@ -531,7 +531,7 @@ function deriveExternalSignalSyncStatus(
   return undefined;
 }
 
-function deriveExternalSignalSyncWarningCategories(
+export function deriveExternalSignalSyncWarningCategories(
   providerResults: ProviderSyncResult[],
 ): Array<"partial_success" | "missing_credentials" | "unsupported_provider"> | undefined {
   const categories = new Set<"partial_success" | "missing_credentials" | "unsupported_provider">();

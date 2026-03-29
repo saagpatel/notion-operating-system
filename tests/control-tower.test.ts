@@ -15,6 +15,11 @@ import {
   type ControlTowerProjectRecord,
 } from "../src/notion/local-portfolio-control-tower.js";
 import {
+  buildDerivedPropertyUpdates,
+  buildNextControlTowerPhaseState,
+  countControlTowerChangedRows,
+} from "../src/notion/control-tower-sync.js";
+import {
   buildRoadmapPhases,
   renderLocalPortfolioAdrMarkdown,
   renderNotionRoadmapMarkdown,
@@ -135,6 +140,118 @@ describe("local portfolio control tower rules", () => {
     expect(metrics.missingNextMove).toBe(1);
     expect(metrics.missingLastActive).toBe(1);
     expect(metrics.orphanedProjects).toBe(1);
+  });
+
+  test("counts only the rows whose derived properties actually changed", async () => {
+    const config = await loadConfig();
+    const previousProjects = [
+      applyDerivedSignals(
+        baseProject({
+          id: "project-stable",
+          title: "Stable",
+          currentState: "Active Build",
+          portfolioCall: "Build Now",
+          lastActive: "2026-03-16",
+          lastBuildSessionDate: "2026-03-16",
+          dateUpdated: "2026-03-16",
+        }),
+        config,
+        TODAY,
+      ),
+      applyDerivedSignals(
+        baseProject({
+          id: "project-changed",
+          title: "Changed",
+          currentState: "Active Build",
+          portfolioCall: "Build Now",
+          lastActive: "2026-01-01",
+          lastBuildSessionDate: "2026-01-01",
+          dateUpdated: "2026-01-01",
+        }),
+        config,
+        TODAY,
+      ),
+    ];
+
+    const nextProjects = [
+      previousProjects[0]!,
+      {
+        ...previousProjects[1]!,
+        evidenceFreshness: "Stale" as const,
+        nextReviewDate: "2026-03-18",
+      },
+    ];
+
+    expect(countControlTowerChangedRows(previousProjects, nextProjects)).toBe(1);
+  });
+
+  test("builds live updates only for changed derived fields", () => {
+    const previous = baseProject({
+      operatingQueue: "Resume Now",
+      nextReviewDate: "2026-03-20",
+      evidenceFreshness: "Fresh",
+    });
+    const next = {
+      ...previous,
+      nextReviewDate: "2026-03-27",
+    };
+
+    expect(buildDerivedPropertyUpdates(previous, next)).toEqual({
+      "Next Review Date": { date: { start: "2026-03-27" } },
+    });
+  });
+
+  test("captures the baseline once and keeps later sync metrics deterministic", () => {
+    const metrics = {
+      totalProjects: 1,
+      queueCounts: {
+        Shipped: 0,
+        "Needs Review": 0,
+        "Needs Decision": 0,
+        "Worth Finishing": 0,
+        "Resume Now": 1,
+        "Cold Storage": 0,
+        Watch: 0,
+      },
+      overdueReviews: 0,
+      staleActiveProjects: 0,
+      missingNextMove: 0,
+      missingLastActive: 0,
+      orphanedProjects: 0,
+      recentBuildSessions: 1,
+    };
+
+    const initial = buildNextControlTowerPhaseState(
+      {
+        currentPhase: 1,
+        currentPhaseStatus: "Active",
+      },
+      metrics,
+      "2026-03-17",
+    );
+    const followUp = buildNextControlTowerPhaseState(
+      {
+        ...initial.phaseState,
+        baselineMetrics: metrics,
+        baselineCapturedAt: "2026-03-17",
+      },
+      {
+        ...metrics,
+        recentBuildSessions: 2,
+      },
+      "2026-03-24",
+    );
+
+    expect(initial.baselineCaptured).toBe(true);
+    expect(initial.phaseState.baselineCapturedAt).toBe("2026-03-17");
+    expect(initial.phaseState.lastSyncMetrics).toEqual(metrics);
+    expect(followUp.baselineCaptured).toBe(false);
+    expect(followUp.phaseState.baselineCapturedAt).toBe("2026-03-17");
+    expect(followUp.phaseState.baselineMetrics).toEqual(metrics);
+    expect(followUp.phaseState.lastSyncMetrics).toEqual({
+      ...metrics,
+      recentBuildSessions: 2,
+    });
   });
 
   test("renders command-center, review-packet, roadmap, and ADR artifacts", async () => {

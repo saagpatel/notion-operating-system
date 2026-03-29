@@ -10,10 +10,13 @@ export const DEFAULT_PROFILE_REGISTRY_PATH = "./config/profiles.json";
 export const DEFAULT_PROFILE_DESCRIPTOR_DIR = "./config/profiles";
 export const CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION = 1;
 
+export type WorkspaceProfileKind = "primary" | "sandbox";
+
 export interface WorkspaceProfileDescriptor {
   configVersion: number;
   name: string;
   label: string;
+  kind: WorkspaceProfileKind;
   envFile: string;
   destinationsPath: string;
   controlTowerConfigPath: string;
@@ -53,6 +56,7 @@ export interface WorkspaceProfile {
   sourceConfigVersion: number;
   name: string;
   label: string;
+  kind: WorkspaceProfileKind;
   implicit: boolean;
   registryPath?: string;
   descriptorPath?: string;
@@ -66,6 +70,7 @@ export interface WorkspaceProfileSummary {
   configVersion: number;
   name: string;
   label: string;
+  kind: WorkspaceProfileKind;
   implicit: boolean;
   descriptorPath?: string;
   envFile: string;
@@ -83,6 +88,7 @@ const workspaceProfileDescriptorSchema = z.object({
   configVersion: z.coerce.number().int().nonnegative().default(CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION),
   name: z.string().min(1),
   label: z.string().min(1),
+  kind: z.enum(["primary", "sandbox"]).optional(),
   envFile: z.string().min(1),
   destinationsPath: z.string().min(1),
   controlTowerConfigPath: z.string().min(1),
@@ -189,6 +195,7 @@ export function buildWorkspaceProfileDescriptor(input: {
   configVersion?: number;
   name?: string;
   label?: string;
+  kind?: WorkspaceProfileKind;
   envFile?: string;
   destinationsPath?: string;
   controlTowerConfigPath?: string;
@@ -198,6 +205,7 @@ export function buildWorkspaceProfileDescriptor(input: {
     configVersion: input.configVersion ?? CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION,
     name,
     label: input.label ?? toProfileLabel(name),
+    kind: input.kind ?? defaultWorkspaceProfileKind(name),
     envFile: input.envFile ?? (name === DEFAULT_PROFILE_NAME ? ".env" : `./.env.${name}`),
     destinationsPath:
       input.destinationsPath ??
@@ -234,6 +242,7 @@ export function toWorkspaceProfileSummary(profile: WorkspaceProfile): WorkspaceP
   return {
     name: profile.name,
     label: profile.label,
+    kind: profile.kind,
     implicit: profile.implicit,
     configVersion: profile.configVersion,
     descriptorPath: profile.descriptorPath,
@@ -269,6 +278,7 @@ function buildResolvedWorkspaceProfile(
     sourceConfigVersion: options.sourceConfigVersion ?? descriptor.configVersion,
     name: descriptor.name,
     label: descriptor.label,
+    kind: descriptor.kind,
     implicit: options.implicit,
     registryPath: options.registryPath,
     descriptorPath: options.descriptorPath,
@@ -309,6 +319,7 @@ export function parseWorkspaceProfileDescriptor(
   return {
     descriptor: {
       ...descriptor,
+      kind: descriptor.kind ?? defaultWorkspaceProfileKind(descriptor.name),
       configVersion: CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION,
     },
     sourceConfigVersion,
@@ -330,4 +341,8 @@ function toProfileLabel(name: string): string {
     .filter(Boolean)
     .map((part) => part[0]?.toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function defaultWorkspaceProfileKind(name: string): WorkspaceProfileKind {
+  return name.trim().toLowerCase() === "sandbox" ? "sandbox" : "primary";
 }

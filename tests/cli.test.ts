@@ -358,6 +358,7 @@ describe("profiles cli", () => {
       profiles: [
         expect.objectContaining({
           name: "default",
+          kind: "primary",
           implicit: true,
           configVersion: 1,
           isActive: true,
@@ -374,6 +375,7 @@ describe("profiles cli", () => {
 
     expect(result.exitCode).toBe(0);
     expect(payload.profile.name).toBe("work");
+    expect(payload.profile.kind).toBe("primary");
     expect(payload.profile.implicit).toBe(false);
     expect(payload.profile.configVersion).toBe(1);
     expect(payload.profile.sourceConfigVersion).toBe(0);
@@ -518,12 +520,12 @@ describe("profiles cli", () => {
     );
   });
 
-  test("clones a profile preview-first and preserves an existing env file on write", async () => {
+  test("clones a profile preview-first and defaults sandbox targets to sandbox kind on write", async () => {
     const tempDir = await createProfiledWorkspace();
-    await writeFile(path.join(tempDir, ".env.clone"), "NOTION_TOKEN=keep_me\n", "utf8");
+    await writeFile(path.join(tempDir, ".env.sandbox"), "NOTION_TOKEN=keep_me\n", "utf8");
 
     const preview = await runCliForTest(
-      ["profiles", "clone", "--source", "work", "--target", "clone", "--json"],
+      ["profiles", "clone", "--source", "work", "--target", "sandbox", "--json"],
       { cwd: tempDir },
     );
     expect(preview.exitCode).toBe(0);
@@ -532,25 +534,26 @@ describe("profiles cli", () => {
         wrote: false,
         actions: expect.arrayContaining([
           expect.objectContaining({ action: "create" }),
-          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.clone") }),
+          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.sandbox") }),
         ]),
       }),
     );
 
     const written = await runCliForTest(
-      ["profiles", "clone", "--source", "work", "--target", "clone", "--write", "--json"],
+      ["profiles", "clone", "--source", "work", "--target", "sandbox", "--write", "--json"],
       { cwd: tempDir },
     );
     expect(written.exitCode).toBe(0);
-    const clonedDescriptor = JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "clone.json"), "utf8"));
+    const clonedDescriptor = JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "sandbox.json"), "utf8"));
     expect(clonedDescriptor.configVersion).toBe(1);
-    expect(JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "clone", "destinations.json"), "utf8"))).toEqual(
-      expect.objectContaining({ version: 1 }),
-    );
-    expect(await readFile(path.join(tempDir, ".env.clone"), "utf8")).toContain("keep_me");
+    expect(clonedDescriptor.kind).toBe("sandbox");
+    expect(
+      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "sandbox", "destinations.json"), "utf8")),
+    ).toEqual(expect.objectContaining({ version: 1 }));
+    expect(await readFile(path.join(tempDir, ".env.sandbox"), "utf8")).toContain("keep_me");
   });
 
-  test("bootstraps only missing files from defaults or a bundle", async () => {
+  test("bootstraps only missing files from defaults or a bundle and preserves sandbox kind", async () => {
     const tempDir = await createProfiledWorkspace();
     const bootstrapDir = path.join(tempDir, "config", "profiles", "bootstrap");
     await mkdir(bootstrapDir, { recursive: true });
@@ -593,10 +596,13 @@ describe("profiles cli", () => {
     const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
     await runCliForTest(["--profile", "work", "profiles", "export", "--output", bundlePath], { cwd: tempDir });
     const bundleBootstrap = await runCliForTest(
-      ["profiles", "bootstrap", "--target", "bundlecopy", "--from-bundle", bundlePath, "--write", "--json"],
+      ["profiles", "bootstrap", "--target", "bundlecopy", "--kind", "sandbox", "--from-bundle", bundlePath, "--write", "--json"],
       { cwd: tempDir },
     );
     expect(bundleBootstrap.exitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "bundlecopy.json"), "utf8")),
+    ).toEqual(expect.objectContaining({ kind: "sandbox" }));
     expect(
       JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "bundlecopy", "destinations.json"), "utf8")),
     ).toEqual(expect.objectContaining({ version: 1 }));

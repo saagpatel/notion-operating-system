@@ -238,6 +238,7 @@ export async function runProfilesCloneCommand(options: {
   source?: string;
   target?: string;
   label?: string;
+  kind?: "primary" | "sandbox";
   write?: boolean;
   json?: boolean;
 } = {}): Promise<void> {
@@ -260,6 +261,7 @@ export async function runProfilesCloneCommand(options: {
   const targetDescriptor = buildWorkspaceProfileDescriptor({
     name: options.target,
     label: options.label,
+    kind: options.kind,
   });
   const actions = await planProfileRestoreActions({
     cwd,
@@ -290,6 +292,7 @@ export async function runProfilesCloneCommand(options: {
 export async function runProfilesBootstrapCommand(options: {
   target?: string;
   fromBundle?: string;
+  kind?: "primary" | "sandbox";
   write?: boolean;
   json?: boolean;
 } = {}): Promise<void> {
@@ -302,8 +305,8 @@ export async function runProfilesBootstrapCommand(options: {
     ? parseWorkspaceProfileBundle(JSON.parse(await readFile(path.resolve(options.fromBundle), "utf8")) as unknown)
     : await buildActiveProfileBundle(cwd);
   const targetDescriptor = options.fromBundle
-    ? descriptorFromBundleProfile(sourceBundle.profile, options.target)
-    : buildWorkspaceProfileDescriptor({ name: options.target });
+    ? descriptorFromBundleProfile(sourceBundle.profile, options.target, undefined, options.kind)
+    : buildWorkspaceProfileDescriptor({ name: options.target, kind: options.kind });
   const actions = await planProfileRestoreActions({
     cwd,
     targetDescriptor,
@@ -575,6 +578,7 @@ function diffDescriptors(
     "configVersion",
     "name",
     "label",
+    "kind",
     "envFile",
     "destinationsPath",
     "controlTowerConfigPath",
@@ -640,6 +644,7 @@ function serializeProfile(profile: WorkspaceProfile) {
   return {
     name: profile.name,
     label: profile.label,
+    kind: profile.kind,
     implicit: profile.implicit,
     configVersion: profile.configVersion,
     sourceConfigVersion: profile.sourceConfigVersion,

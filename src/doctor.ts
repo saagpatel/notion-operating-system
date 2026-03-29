@@ -1,6 +1,11 @@
 import { access } from "node:fs/promises";
 
 import { DestinationRegistry } from "./config/destination-registry.js";
+import {
+  collectSandboxNotionRefOccurrences,
+  findSandboxNotionRefOverlaps,
+  summarizeSandboxNotionRefOverlaps,
+} from "./config/sandbox-isolation.js";
 import type { DestinationConfig } from "./types.js";
 import { safeLoadRuntimeConfig, type RuntimeConfig } from "./config/runtime-config.js";
 import { DirectNotionClient } from "./notion/direct-notion-client.js";
@@ -47,9 +52,10 @@ interface DoctorOptions {
 }
 
 export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorReport> {
+  const runtimeEnv = { ...(options.env ?? process.env) };
   const runtimeResult = safeLoadRuntimeConfig({
     cwd: options.cwd,
-    env: options.env,
+    env: runtimeEnv,
   });
   const runtimeConfig = runtimeResult.config;
   const checks: DoctorCheck[] = [];
@@ -192,6 +198,9 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
   }
 
   checks.push(buildOptionalCredentialCheck(runtimeConfig));
+  if (runtimeConfig.profile.kind === "sandbox") {
+    checks.push(...(await buildSandboxIsolationChecks(runtimeConfig, { ...(options.env ?? process.env) })));
+  }
 
   return {
     ok: checks.every((check) => check.status !== "fail"),
@@ -218,6 +227,7 @@ export function formatDoctorReport(report: DoctorReport): string {
     report.ok ? "Doctor summary: setup looks healthy." : "Doctor summary: setup needs attention.",
     `Node.js: ${report.nodeVersion}`,
     `Active profile: ${report.runtime.profile.name}${report.runtime.profile.implicit ? " (implicit legacy default)" : ""}`,
+    `Profile kind: ${report.runtime.profile.kind}`,
     `Env file: ${report.runtime.paths.envFile}`,
     `Destinations path: ${report.runtime.paths.destinationsPath}`,
     `Control tower path: ${report.runtime.paths.controlTowerConfigPath}`,
@@ -249,6 +259,71 @@ function buildOptionalCredentialCheck(runtimeConfig: RuntimeConfig): DoctorCheck
     status: "warn",
     message: `No optional advanced credentials are configured yet. Missing: ${missing.join(", ")}.`,
   };
+}
+
+async function buildSandboxIsolationChecks(
+  runtimeConfig: RuntimeConfig,
+  env: NodeJS.ProcessEnv,
+): Promise<DoctorCheck[]> {
+  const checks: DoctorCheck[] = [];
+  const defaultRuntime = safeLoadRuntimeConfig({
+    cwd: runtimeConfig.cwd,
+    env: { ...env },
+    profile: "default",
+  }).config;
+
+  const sandboxDescriptorDestinationsPath = safeLoadRuntimeConfig({
+    cwd: runtimeConfig.cwd,
+    env: {},
+    profile: runtimeConfig.profile.name,
+  }).config.paths.destinationsPath;
+
+  if (runtimeConfig.paths.destinationsPath !== sandboxDescriptorDestinationsPath) {
+    checks.push({
+      id: "sandbox-path-overrides",
+      label: "Sandbox path isolation",
+      status: "fail",
+      message:
+        `Sandbox is resolving destinations from ${runtimeConfig.paths.destinationsPath}, which masks the profile-owned path ` +
+        `${sandboxDescriptorDestinationsPath}. Unset NOTION_DESTINATIONS_PATH before live sandbox use.`,
+    });
+  } else {
+    checks.push({
+      id: "sandbox-path-overrides",
+      label: "Sandbox path isolation",
+      status: "pass",
+      message: "Sandbox is resolving the profile-owned destinations path without an env override collision.",
+    });
+  }
+
+  const sandboxToken = runtimeConfig.notion.token?.trim();
+  const defaultToken = defaultRuntime.notion.token?.trim();
+  const sameToken = Boolean(sandboxToken && defaultToken && sandboxToken === defaultToken);
+  checks.push({
+    id: "sandbox-token-isolation",
+    label: "Sandbox token isolation",
+    status: sameToken ? "fail" : "pass",
+    message: sameToken
+      ? "Sandbox and primary profiles are using the same effective NOTION_TOKEN. Point sandbox at a separate workspace token."
+      : "Sandbox and primary profiles are using different effective Notion tokens.",
+  });
+
+  const [sandboxRefs, defaultRefs] = await Promise.all([
+    collectSandboxNotionRefOccurrences(runtimeConfig.paths),
+    collectSandboxNotionRefOccurrences(defaultRuntime.paths),
+  ]);
+  const overlaps = findSandboxNotionRefOverlaps(defaultRefs, sandboxRefs);
+  checks.push({
+    id: "sandbox-target-isolation",
+    label: "Sandbox target isolation",
+    status: overlaps.length > 0 ? "fail" : "pass",
+    message:
+      overlaps.length > 0
+        ? `Sandbox still overlaps the primary profile's Notion targets. ${summarizeSandboxNotionRefOverlaps(overlaps)}`
+        : "Sandbox Notion target references are isolated from the primary profile.",
+  });
+
+  return checks;
 }
 
 function checkNodeVersion(nodeVersion: string): DoctorCheck {

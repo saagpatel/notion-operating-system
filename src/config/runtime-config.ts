@@ -53,6 +53,7 @@ export interface RuntimeConfig {
     sourceConfigVersion: number;
     name: string;
     label: string;
+    kind: "primary" | "sandbox";
     implicit: boolean;
     registryPath?: string;
     descriptorPath?: string;
@@ -176,6 +177,7 @@ function buildRuntimeConfig(env: RuntimeEnv, cwd: string, profile: WorkspaceProf
       sourceConfigVersion: profile.sourceConfigVersion,
       name: profile.name,
       label: profile.label,
+      kind: profile.kind,
       implicit: profile.implicit,
       registryPath: profile.registryPath,
       descriptorPath: profile.descriptorPath,
@@ -226,6 +228,7 @@ function buildFallbackRuntimeConfig(cwd: string, env: NodeJS.ProcessEnv, profile
       sourceConfigVersion: profile.sourceConfigVersion,
       name: profile.name,
       label: profile.label,
+      kind: profile.kind,
       implicit: profile.implicit,
       registryPath: profile.registryPath,
       descriptorPath: profile.descriptorPath,

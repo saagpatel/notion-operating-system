@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, test } from "vitest";
 
 import {
+  deriveExternalSignalSyncStatus,
+  deriveExternalSignalSyncWarningCategories,
   normalizeProviderName,
+  type ProviderSyncResult,
   syncGithubSources,
   syncProviders,
 } from "../src/notion/external-signal-sync.js";
@@ -86,6 +89,60 @@ describe("external signal sync hardening", () => {
       }),
     );
     expect(result[0]?.notes[0]).toContain("No active GitHub sources are ready for sync.");
+  });
+
+  test("classifies mixed-provider partial success with stable warning categories", () => {
+    const results: ProviderSyncResult[] = [
+      {
+        provider: "GitHub",
+        status: "Succeeded",
+        itemsSeen: 3,
+        itemsWritten: 2,
+        itemsDeduped: 1,
+        failures: 0,
+        notes: [],
+        cursor: "",
+        events: [],
+        syncedSourceIds: ["source-1"],
+      },
+      {
+        provider: "Vercel",
+        status: "Partial",
+        itemsSeen: 0,
+        itemsWritten: 0,
+        itemsDeduped: 0,
+        failures: 0,
+        notes: ["Provider scaffold exists, but live sync is intentionally deferred in the first Phase 5 slice."],
+        cursor: "",
+        events: [],
+        syncedSourceIds: [],
+      },
+    ];
+
+    expect(deriveExternalSignalSyncStatus(results)).toBe("partial");
+    expect(deriveExternalSignalSyncWarningCategories(results)).toEqual(
+      expect.arrayContaining(["partial_success", "unsupported_provider"]),
+    );
+  });
+
+  test("classifies missing provider credentials as a warning", () => {
+    const results: ProviderSyncResult[] = [
+      {
+        provider: "GitHub",
+        status: "Failed",
+        itemsSeen: 0,
+        itemsWritten: 0,
+        itemsDeduped: 0,
+        failures: 1,
+        notes: ["Missing GITHUB_TOKEN for live GitHub sync."],
+        cursor: "",
+        events: [],
+        syncedSourceIds: [],
+      },
+    ];
+
+    expect(deriveExternalSignalSyncStatus(results)).toBe("warning");
+    expect(deriveExternalSignalSyncWarningCategories(results)).toEqual(["missing_credentials"]);
   });
 });
 

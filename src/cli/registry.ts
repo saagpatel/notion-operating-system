@@ -164,6 +164,13 @@ export const cliRegistry: CliCommandDefinition[] = [
           { name: "source", description: "Source profile name.", type: "string", valueName: "name", required: true },
           { name: "target", description: "Target profile name.", type: "string", valueName: "name", required: true },
           { name: "label", description: "Optional label for the target profile.", type: "string", valueName: "text" },
+          {
+            name: "kind",
+            description: "Optional profile kind for the target profile.",
+            type: "enum",
+            valueName: "kind",
+            choices: ["primary", "sandbox"],
+          },
           { name: "write", description: "Persist the cloned profile files.", type: "boolean" },
           { name: "json", description: "Emit the clone plan as JSON.", type: "boolean" },
         ],
@@ -172,6 +179,7 @@ export const cliRegistry: CliCommandDefinition[] = [
             source: asString(parsed.options.source),
             target: asString(parsed.options.target),
             label: asString(parsed.options.label),
+            kind: asEnum(parsed.options.kind, ["primary", "sandbox"]),
             write: asBoolean(parsed.options.write),
             json: asBoolean(parsed.options.json),
           }),
@@ -182,6 +190,13 @@ export const cliRegistry: CliCommandDefinition[] = [
         options: [
           { name: "target", description: "Target profile name.", type: "string", valueName: "name", required: true },
           { name: "from-bundle", description: "Optional bundle JSON path to bootstrap from.", type: "string", valueName: "path" },
+          {
+            name: "kind",
+            description: "Optional profile kind for the target profile.",
+            type: "enum",
+            valueName: "kind",
+            choices: ["primary", "sandbox"],
+          },
           { name: "write", description: "Persist only the missing profile files.", type: "boolean" },
           { name: "json", description: "Emit the bootstrap plan as JSON.", type: "boolean" },
         ],
@@ -189,6 +204,7 @@ export const cliRegistry: CliCommandDefinition[] = [
           runProfilesBootstrapCommand({
             target: asString(parsed.options.target),
             fromBundle: asString(parsed.options["from-bundle"]),
+            kind: asEnum(parsed.options.kind, ["primary", "sandbox"]),
             write: asBoolean(parsed.options.write),
             json: asBoolean(parsed.options.json),
           }),
@@ -482,4 +498,11 @@ function asStringArray(value: boolean | string | number | string[] | undefined):
 
 function asNumber(value: boolean | string | number | string[] | undefined): number | undefined {
   return typeof value === "number" ? value : undefined;
+}
+
+function asEnum<T extends string>(
+  value: boolean | string | number | string[] | undefined,
+  choices: readonly T[],
+): T | undefined {
+  return typeof value === "string" && choices.includes(value as T) ? (value as T) : undefined;
 }

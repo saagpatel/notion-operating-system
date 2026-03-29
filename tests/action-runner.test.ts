@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 
 import {
   classifyActionRunnerFailure,
+  deriveActionRunnerSummaryStatus,
+  deriveActionRunnerWarningCategories,
   evaluateActionRunnerDecision,
   summarizeActionRunnerResults,
   type ActionRunnerResult,
@@ -68,17 +70,22 @@ describe("action runner hardening", () => {
   });
 
   test("summarizes mixed batch results cleanly", () => {
-    const summary = summarizeActionRunnerResults([
+    const results = [
       { requestId: "request-1", status: "Succeeded" },
-      { requestId: "request-2", status: "Skipped", notes: "Already executed." },
+      { requestId: "request-2", status: "Skipped", notes: "Policy blocked until validation passes." },
       { requestId: "request-3", status: "Failed", notes: "boom" },
-    ] satisfies ActionRunnerResult[]);
+    ] satisfies ActionRunnerResult[];
+    const summary = summarizeActionRunnerResults(results);
 
     expect(summary).toEqual({
       recordsUpdated: 1,
       recordsSkipped: 1,
       failureCount: 1,
     });
+    expect(deriveActionRunnerSummaryStatus(results)).toBe("partial");
+    expect(deriveActionRunnerWarningCategories(results)).toEqual(
+      expect.arrayContaining(["partial_success", "validation_gap"]),
+    );
   });
 
   test("classifies provider failures for stable operator output", () => {
@@ -88,6 +95,16 @@ describe("action runner hardening", () => {
 
     expect(failure.failureNotes).toContain("Permission Failure");
     expect(failure.failureClassification).toBe("Permission Failure");
+  });
+
+  test("treats all-failed batches as failed without warning categories", () => {
+    const results = [
+      { requestId: "request-1", status: "Failed", notes: "provider down" },
+      { requestId: "request-2", status: "Failed", notes: "provider down" },
+    ] satisfies ActionRunnerResult[];
+
+    expect(deriveActionRunnerSummaryStatus(results)).toBe("failed");
+    expect(deriveActionRunnerWarningCategories(results)).toBeUndefined();
   });
 });
 
