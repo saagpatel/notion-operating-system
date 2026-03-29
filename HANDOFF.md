@@ -4,7 +4,7 @@
 
 - Repo: `/Users/d/Notion`
 - Remote: `saagpatel/notion-operating-system`
-- Branch: `codex/phase-6-cli-coverage`
+- Branch: `codex/phase-8-profile-portability`
 - Base remote commit on `main`: `39e4cdd`
 - The worktree now contains the accumulated local Phase 1 through Phase 6 changes on top of that base
 
@@ -92,6 +92,17 @@
 - added `logs recent` as a read-only operator command for inspecting recent command outcomes from the active log directory
 - upgraded representative advanced workflows so their run summaries are more explicit about warnings, partial success, and diagnosis
 
+### Phase 8
+
+- extended the existing `profiles` family with:
+  - `diff`
+  - `clone`
+  - `bootstrap`
+  - `upgrade`
+- added preview-first profile portability flows so profile movement stays non-secret and safe by default
+- introduced profile descriptor config versioning with compatibility for legacy unversioned descriptors and old bundle exports
+- centralized the portable profile asset manifest so export, import, diff, clone, bootstrap, and upgrade all use the same profile-owned file set
+
 ## Verification checklist for this branch
 
 Run these before landing or after pulling onto a new machine:
@@ -110,23 +121,24 @@ node dist/src/cli.js --help
 ```bash
 notion-os --help
 notion-os profiles show
+notion-os profiles diff --against-profile default
+notion-os profiles clone --source default --target sandbox
 npm run doctor
 npm run verify
 npm run hooks:install
 ```
 
-## Remaining backlog after Phase 7
+## Remaining backlog after Phase 8
 
 - The concrete post-Phase-4 repo roadmap now lives in `docs/repo-post-phase4-roadmap.md`
-- Recommended next repo phase: **Phase 8 - Profile Portability and Config Lifecycle**
+- Recommended next repo phase: **Phase 9 - Product-Shape Cleanup**
 - Later roadmap buckets include:
-  - profile portability and config lifecycle
   - product-shape cleanup
   - optional public release readiness
 
 ## Verified on this branch
 
-These should be rerun successfully before landing the Phase 7 branch:
+These should be rerun successfully before landing the Phase 8 branch:
 
 ```bash
 npm run typecheck
@@ -135,6 +147,10 @@ npm run build
 npm run smoke:built-cli
 npm run verify
 node dist/src/cli.js --help
+node dist/src/cli.js profiles diff --help
+node dist/src/cli.js profiles clone --help
+node dist/src/cli.js profiles bootstrap --help
+node dist/src/cli.js profiles upgrade --help
 node dist/src/cli.js logs recent --help
 node dist/src/cli.js governance audit --help
 node dist/src/cli.js signals sync --help
@@ -148,3 +164,4 @@ node dist/src/cli.js signals sync --help
 - The local README rewrite was preserved and extended instead of being replaced
 - The current script surface classification lives in `docs/script-surface-classification.md`
 - `logs recent` is the operator-facing entrypoint for recent run inspection in this phase
+- Profile portability stays preview-first and never exports or overwrites live secret values

@@ -76,6 +76,12 @@ npm run doctor
 # Show the active workspace profile and resolved paths
 notion-os profiles show
 
+# Preview profile portability differences
+notion-os profiles diff --against-profile default
+
+# Clone a profile safely first
+notion-os profiles clone --source default --target sandbox
+
 # Inspect the most recent command runs
 notion-os logs recent
 
@@ -159,6 +165,10 @@ Useful commands:
 notion-os profiles list
 notion-os profiles show
 notion-os profiles migrate --write
+notion-os profiles diff --against-profile default
+notion-os profiles clone --source default --target sandbox --write
+notion-os profiles bootstrap --target sandbox --write
+notion-os profiles upgrade --write
 notion-os --profile default doctor
 ```
 

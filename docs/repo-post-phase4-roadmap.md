@@ -180,17 +180,19 @@ Completed outcomes:
 
 ## Phase 8: Profile Portability and Config Lifecycle
 
+Status: Completed on the local Phase 8 branch state.
+
 Primary outcomes:
 
 - smoother multi-machine operation
 - safer profile migration and bootstrap
 
-Docket:
+Completed outcomes:
 
-- profile clone/bootstrap helpers
-- profile diff previews
-- config versioning and migrations
-- broader non-secret state import/export support
+- extended the existing `profiles` family with `diff`, `clone`, `bootstrap`, and `upgrade`
+- added preview-first profile portability flows that never export or overwrite secrets
+- introduced profile descriptor config versioning plus a first migration path from legacy unversioned descriptors and bundles
+- centralized the portable profile asset manifest so export, import, diff, clone, bootstrap, and upgrade all use the same file set
 
 ## Phase 9: Product-Shape Cleanup
 
@@ -217,23 +219,23 @@ Primary outcomes:
 
 ## Recommended Immediate Next Phase
 
-The next phase should be **Phase 8: Profile Portability and Config Lifecycle**.
+The next phase should be **Phase 9: Product-Shape Cleanup**.
 
 Why this should come next:
 
-- the observability gap is now materially smaller after Phase 7
-- the next most valuable repo improvement is smoother multi-machine and multi-workspace movement
-- profile portability work is easier now that the command surface and run-diagnosis layers are both clearer
+- the repo now has a stronger profile lifecycle and portability story after Phase 8
+- the next best leverage is reducing leftover historical clutter and clarifying what is core versus advanced
+- that cleanup will make any future public-release decision cleaner and lower-risk
 
-## Immediate Phase 8 Docket
+## Immediate Phase 9 Docket
 
 If planning starts now, use this as the working docket:
 
-1. Add safer profile diffing and preview flows
-2. Add profile clone and bootstrap helpers
-3. Add config versioning and migration support
-4. Broaden non-secret import/export support for important repo-owned state
-5. Re-review whether product-shape cleanup should follow immediately after the portability pass
+1. Clean up stale docs and old narrow publisher naming that no longer matches the product
+2. Re-review root package exports versus `./advanced` and tighten that boundary where useful
+3. Quarantine or remove low-value internal artifacts that still look like part of the durable surface
+4. Revisit whether any remaining historical utilities should move behind clearer internal-only labeling
+5. Decide what documentation belongs in public-facing docs versus operator-only memory
 
 ## Not Yet Recommended
 
