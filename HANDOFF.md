@@ -4,128 +4,54 @@
 
 - Repo: `/Users/d/Notion`
 - Remote: `saagpatel/notion-operating-system`
-- Branch: `codex/phase-10-github-release-readiness`
-- Base remote commit on `main`: `39e4cdd`
-- The worktree now contains the accumulated local Phase 1 through Phase 10 changes on top of that base
+- Branch: `main`
+- Package version: `0.2.0`
+- Package posture:
+  - GitHub-installable
+  - not published to npm
+  - root toolkit first, `./advanced` secondary and repo-specific
 
-## Completed roadmap phases
+## Structural work completed
 
-### Phase 1
+The repo has completed the Phase 1 through Phase 10 cleanup and product-shape program:
 
-- GitHub Actions CI for `npm ci`, `npm run typecheck`, and `npm test`
-- shared runtime config and environment validation
-- expanded `.env.example`
-- `doctor` command
-- package identity aligned to `Notion Operating System`
+1. CI, runtime config, env guidance, doctor, and package identity cleanup
+2. shared CLI, help output, standardized flag parsing, onboarding docs, and wrapper compatibility
+3. workspace profiles, profile portability, installable `notion-os` bin, and core versus advanced package separation
+4. shared command observability, stronger verification, built-package coverage, and git-hook hygiene
+5. advanced workflow hardening for governance, provider-edge, webhook, and rollout flows
+6. script reduction and shared CLI coverage for durable audit and validation commands
+7. deeper observability and operator diagnosis with recent-run inspection
+8. profile portability, bootstrap, diff, clone, upgrade, and config lifecycle support
+9. product-shape cleanup, modern npm aliases, and internal utility quarantine
+10. GitHub installability plus manual release readiness
 
-### Phase 2
+## Post-Phase-10 hardening track
 
-- shared CLI registry and central command runner
-- built-in help and standardized flag parsing
-- compatibility wrappers for covered legacy entrypoints
-- onboarding docs, contributor guide, and architecture overview
+The repo now also includes the operational hardening pass that landed after Phase 10:
 
-### Phase 3
+- protected-branch posture for `main` with pull-request-first governance
+- CI lanes for:
+  - workflow linting
+  - source quality gates
+  - built CLI smoke
+  - packed-install smoke
+  - git-ref install smoke
+  - fresh workspace verification
+- scheduled dependency hygiene via weekly audit workflow plus Dependabot
+- explicit sandbox-profile discipline for risky advanced workflow changes
+- refreshed docs around consumer install modes, release readiness, and merged-main reality
 
-- workspace profiles and profile-aware path resolution
-- profile bundle import/export and migration commands
-- installable `notion-os` package bin
-- clearer core package exports vs `./advanced`
+## Canonical local verification
 
-### Phase 4
-
-- shared command lifecycle logging with:
-  - `command_started`
-  - `command_completed`
-  - `command_failed`
-- shared run summary recording for the covered CLI workflow families
-- richer Notion HTTP retry, timeout, and failure logging
-- canonical `npm run verify` release gate
-- CI build coverage plus built-CLI smoke check
-- optional pre-commit hook flow in `.githooks/`
-- updated operator docs around profiles, verify, logs, and hooks
-
-### Phase 5
-
-- targeted hardening tests for:
-  - `action-runner`
-  - `action-dry-run`
-  - external-signal/provider edge handling
-  - webhook shadow/reconcile behavior
-  - rollout follow-up sequencing and failure isolation
-- low-risk internal helpers to keep advanced failure-path behavior testable without broad CLI redesign
-- safer webhook helper imports by guarding direct execution in:
-  - `webhook-shadow-drain`
-  - `webhook-reconcile`
-- stronger built-package smoke verification via `npm run smoke:built-cli`
-- `npm run verify` now covers:
-  - `npm run typecheck`
-  - `npm test`
-  - `npm run build`
-  - `npm run smoke:built-cli`
-- CI now runs the stronger built CLI smoke script instead of only `node dist/src/cli.js --help`
-
-### Phase 6
-
-- migrated durable audit and validation commands into the shared CLI under the existing families:
-  - `governance audit`
-  - `governance views-validate`
-  - `governance actuation-audit`
-  - `governance webhook-shadow-drain`
-  - `governance webhook-reconcile`
-  - `execution views-validate`
-  - `intelligence views-validate`
-  - `signals views-validate`
-  - `signals provider-expansion-audit`
-- kept the old script entrypoints as compatibility wrappers so existing npm scripts still work
-- documented the shared-cli vs wrapper vs one-off script split in `docs/script-surface-classification.md`
-- expanded CLI help, wrapper coverage, and built-cli smoke checks for the migrated command set
-
-### Phase 7
-
-- enriched shared run summaries with:
-  - `status`
-  - `warningCategories`
-  - `failureCategories`
-- standardized the first bounded observability taxonomy for warnings and failures
-- improved HTTP retry and timeout classification so recovered retries and terminal failures show up more clearly in run logs
-- added `logs recent` as a read-only operator command for inspecting recent command outcomes from the active log directory
-- upgraded representative advanced workflows so their run summaries are more explicit about warnings, partial success, and diagnosis
-
-### Phase 8
-
-- extended the existing `profiles` family with:
-  - `diff`
-  - `clone`
-  - `bootstrap`
-  - `upgrade`
-- added preview-first profile portability flows so profile movement stays non-secret and safe by default
-- introduced profile descriptor config versioning with compatibility for legacy unversioned descriptors and old bundle exports
-- centralized the portable profile asset manifest so export, import, diff, clone, bootstrap, and upgrade all use the same profile-owned file set
-
-### Phase 9
-
-- added modern npm aliases for the durable advanced workflow families while keeping legacy `portfolio-audit:*` names working for compatibility
-- tightened the root package surface so it reads more clearly as a reusable toolkit, with repo-specific operating-system modules staying behind `./advanced`
-- quarantined the clearest internal-only historical utilities under `src/internal/portfolio-audit/`
-- refreshed repo docs so the preferred operator surface is `notion-os ...` plus modern npm aliases, with older script names labeled as compatibility aliases
-
-### Phase 10
-
-- hardened the package metadata so the repo is GitHub-installable while still keeping npm publishing disabled in this phase
-- added `LICENSE`, `CHANGELOG.md`, tarball packing, installed-consumer smoke validation, and a manual `npm run release:prepare` gate
-- added a manual GitHub Actions `Release` workflow that creates or updates a draft release with a verified tarball and checksum
-- refreshed the public docs so the root toolkit is the main outside-facing story and `./advanced` stays clearly secondary
-
-## Verification checklist for this branch
-
-Run these before landing or after pulling onto a new machine:
+Run these before shipping or after pulling onto a new machine:
 
 ```bash
 npm run typecheck
 npm test
 npm run build
 npm run verify
+npm run verify:fresh-clone
 npm run release:prepare
 npm run doctor -- --json
 node dist/src/cli.js --help
@@ -135,56 +61,52 @@ node dist/src/cli.js --help
 
 ```bash
 notion-os --help
+notion-os doctor
 notion-os profiles show
 notion-os profiles diff --against-profile default
-notion-os profiles clone --source default --target sandbox
+notion-os profiles clone --source default --target sandbox --write
+notion-os profiles bootstrap --target sandbox --write
+notion-os --profile sandbox doctor
+notion-os logs recent
 npm run control-tower:sync
 npm run governance:audit
 npm run signals:sync
-npm run doctor
 npm run verify
 npm run release:prepare
-npm run hooks:install
 ```
 
-## Remaining backlog after Phase 10
+## Governance and release posture
 
-- The concrete post-Phase-4 repo roadmap now lives in `docs/repo-post-phase4-roadmap.md`
-- No mandatory structural phase remains after Phase 10
-- Later roadmap buckets include:
-  - optional future npm/distribution work if public package publishing is ever desired
+- `main` is intended to stay protected and pull-request-only
+- merge commits remain the preferred merge strategy so the repo history stays readable
+- `npm run release:prepare` is the mandatory local release gate
+- the `Release` GitHub Actions workflow stays manual through `workflow_dispatch`
+- release inputs should match the version already set in `package.json`
 
-## Verified on this branch
+## Sandbox profile rule
 
-These should be rerun successfully before landing the Phase 10 branch:
+Use a `sandbox` profile as the default proving ground before live changes that touch:
 
-```bash
-npm run typecheck
-npm test
-npm run build
-npm run smoke:built-cli
-npm run smoke:packed-install
-npm run verify
-npm run release:prepare
-node dist/src/cli.js --help
-node dist/src/cli.js profiles diff --help
-node dist/src/cli.js profiles clone --help
-node dist/src/cli.js profiles bootstrap --help
-node dist/src/cli.js profiles upgrade --help
-node dist/src/cli.js logs recent --help
-node dist/src/cli.js governance audit --help
-node dist/src/cli.js signals sync --help
-```
+- `control-tower`
+- `signals`
+- `governance`
+- `rollout`
+- profile import, export, clone, bootstrap, or upgrade flows
 
-## Known assumptions and risks
+Stay dry-run first there unless the operator is explicitly rehearsing a live path.
 
-- Compatibility remains the default: legacy npm scripts still exist and many excluded one-off scripts still lean on the older default-path assumptions
-- The shared run summaries improve logs first; they do not intentionally change existing JSON stdout contracts
-- Secrets still remain operator-managed in local env files and must never be committed
-- The local README rewrite was preserved and extended instead of being replaced
-- The current script surface classification lives in `docs/script-surface-classification.md`
-- `logs recent` is the operator-facing entrypoint for recent run inspection in this phase
-- Profile portability stays preview-first and never exports or overwrites live secret values
-- Modern npm aliases are now the preferred npm surface for durable workflows; legacy `portfolio-audit:*` names remain compatibility aliases
-- Phase 10 makes the repo GitHub-installable, but it is still intentionally not published to npm
-- The outside-facing public story is the root toolkit first; `./advanced` remains secondary and repo-specific
+## Remaining backlog
+
+- no required structural phase remains after Phase 10
+- current follow-up work is operational maturity:
+  - dependency review and override cleanup as upstream fixes land
+  - continued docs accuracy
+  - optional future public npm distribution only if explicitly desired later
+
+## Known assumptions
+
+- compatibility remains the default: legacy npm scripts still exist where the repo intentionally preserves them
+- shared run summaries improve logs first and do not intentionally break existing JSON stdout contracts
+- secrets remain operator-managed in local env files and must never be committed
+- profile portability stays preview-first and never exports or overwrites live secret values
+- the current script-surface source of truth lives in `docs/script-surface-classification.md`

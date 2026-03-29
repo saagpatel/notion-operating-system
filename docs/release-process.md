@@ -31,6 +31,19 @@ If you only want a tarball artifact without the full gate, run:
 npm run pack:tarball
 ```
 
+## Release checklist
+
+Use this checklist every time:
+
+1. bump `package.json` and `package-lock.json` to the intended pre-1.0 version
+2. update `CHANGELOG.md`
+3. run `npm run release:prepare`
+4. confirm the packed tarball, checksum input, and manifest exist under `tmp/release/`
+5. run the manual `Release` workflow with:
+   - `ref`: the branch or tag you want to release from
+   - `version`: the exact version without the leading `v`
+6. confirm the draft GitHub Release contains the tarball and checksum for `vX.Y.Z`
+
 ## Manual GitHub release workflow
 
 Use the `Release` workflow in GitHub Actions when you are ready to create or update a draft release.
@@ -47,6 +60,8 @@ The workflow will:
 3. create a checksum for the packed tarball
 4. upload the tarball, checksum, and manifest as workflow artifacts
 5. create or update a **draft** GitHub Release for `vX.Y.Z`
+
+The workflow also validates that the requested release version matches `package.json` before it drafts anything.
 
 ## Install posture
 

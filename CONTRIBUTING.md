@@ -8,6 +8,13 @@
 4. Confirm the active profile points at the right config files
 5. Run `npm run doctor`
 
+## Repo governance
+
+- `main` is protected
+- all work should land through pull requests
+- merge commits remain the preferred merge strategy for this repo
+- do not treat `npm run release:prepare` as a bypass around CI; it is an additional gate
+
 ## Main development commands
 
 ```bash
@@ -16,6 +23,7 @@ npm test
 npm run build
 npm run verify
 npm run smoke:packed-install
+npm run smoke:git-install
 npm run release:prepare
 npm run doctor
 npm run hooks:install
@@ -56,6 +64,8 @@ If you are touching package metadata, install posture, or release automation, al
 npm run release:prepare
 ```
 
+If you are touching risky advanced workflows, also rehearse from the sandbox profile first.
+
 If you touch CLI behavior, add or update CLI tests.
 
 If you touch Notion publishing behavior, preserve existing dry-run and schema-validation safety expectations.
@@ -72,3 +82,9 @@ If you touch Notion publishing behavior, preserve existing dry-run and schema-va
 - this repo is GitHub-installable in Phase 10, but still not published to npm
 - the public-facing story is the core toolkit first; `./advanced` remains secondary and repo-specific
 - manual release guidance lives in `docs/release-process.md`
+
+## Dependency hygiene
+
+- GitHub runs a scheduled dependency hygiene workflow weekly
+- Dependabot is the default updater for npm and GitHub Actions dependencies
+- npm overrides should be treated as temporary mitigations and revisited when upstream fixes land cleanly

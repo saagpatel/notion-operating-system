@@ -227,14 +227,35 @@ Completed outcomes:
 - added a manual GitHub Actions release workflow that creates or updates draft releases with verified tarball artifacts
 - refreshed the docs so the public-facing story is the core toolkit first, with `./advanced` clearly secondary and repo-specific
 
+## Post-Phase-10 Operational Hardening Track
+
+Status: Completed on `main`.
+
+This is the current recommended maintenance track after the numbered structural phases.
+
+Completed outcomes:
+
+- hardened `main` with pull-request-first governance and preserved merge-commit history
+- expanded CI so it now proves:
+  - source correctness
+  - built CLI correctness
+  - packed-artifact installability
+  - git-ref installability
+  - fresh-workspace verification
+- added workflow linting for GitHub Actions definitions
+- added weekly dependency hygiene automation plus Dependabot
+- documented sandbox-profile discipline for risky advanced workflow changes
+- refreshed the handoff and install docs so they match the merged-main reality instead of the earlier phase-branch era
+
 ## Recommended Immediate Next Track
 
-There is no required structural next phase after Phase 10. The repo is now in a healthier maintenance state, and any further productization should be treated as an explicit new track rather than a mandatory continuation.
+There is no required structural next phase after Phase 10. The repo is now in a healthier maintenance state, and any further work should be treated as explicit maintenance or productization rather than a mandatory continuation.
 
 Why that changes now:
 
 - the GitHub-installable and manual-release posture is now in place
-- the remaining work is optional distribution expansion, not structural cleanup
+- the operational hardening track is now in place as well
+- the remaining work is optional distribution expansion or normal maintenance, not structural cleanup
 - any move beyond this point should be driven by actual audience and support commitments
 
 ## Optional Future Distribution Track

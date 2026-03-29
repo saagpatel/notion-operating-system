@@ -38,6 +38,8 @@ notion-os profiles clone --source default --target sandbox
 notion-os profiles bootstrap --target sandbox
 ```
 
+The recommended extra profile is `sandbox`. Use it as the proving environment before live changes to governance, signals, rollout, control-tower, or profile-lifecycle flows.
+
 ## 3. Create local env
 
 Copy `.env.example` to `.env`, then fill in the values you actually have.
@@ -98,6 +100,8 @@ npm run verify
 ```
 
 That covers typecheck, tests, and the built package path.
+
+For risky operational workflow changes, also rehearse from the sandbox profile before using live production state.
 
 ## 7. First dry-run publish
 
