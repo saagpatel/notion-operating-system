@@ -55,6 +55,22 @@ describe("cli smoke tests", () => {
     }
   });
 
+  test("renders help for the new profile portability commands", async () => {
+    const commands = [
+      ["profiles", "diff"],
+      ["profiles", "clone"],
+      ["profiles", "bootstrap"],
+      ["profiles", "upgrade"],
+    ];
+
+    for (const command of commands) {
+      const result = await runCliForTest([...command, "--help"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(command[command.length - 1]!);
+      expect(result.stderr).toBe("");
+    }
+  });
+
   test("renders help for the migrated durable subcommands", async () => {
     const commands = [
       ["governance", "audit"],
@@ -343,6 +359,7 @@ describe("profiles cli", () => {
         expect.objectContaining({
           name: "default",
           implicit: true,
+          configVersion: 1,
           isActive: true,
         }),
       ],
@@ -358,6 +375,8 @@ describe("profiles cli", () => {
     expect(result.exitCode).toBe(0);
     expect(payload.profile.name).toBe("work");
     expect(payload.profile.implicit).toBe(false);
+    expect(payload.profile.configVersion).toBe(1);
+    expect(payload.profile.sourceConfigVersion).toBe(0);
     expect(payload.profile.destinationsPath).toContain(path.join("config", "profiles", "work", "destinations.json"));
   });
 
@@ -399,6 +418,8 @@ describe("profiles cli", () => {
     const bundleText = await readFile(bundlePath, "utf8");
     expect(bundleText).not.toContain("secret_value");
     const bundle = JSON.parse(bundleText);
+    expect(bundle.version).toBe(2);
+    expect(bundle.profile.configVersion).toBe(1);
     expect(bundle.files.some((file: { relativePath: string }) => file.relativePath === "env.template")).toBe(true);
 
     const targetDir = await createTempWorkspace();
@@ -423,8 +444,231 @@ describe("profiles cli", () => {
     const importedDescriptor = JSON.parse(
       await readFile(path.join(targetDir, "config", "profiles", "imported.json"), "utf8"),
     );
+    expect(importedDescriptor.configVersion).toBe(1);
     expect(importedDescriptor.name).toBe("imported");
     expect(await readFile(path.join(targetDir, ".env.imported"), "utf8")).toContain("NOTION_TOKEN");
+  });
+
+  test("diffs the active profile against another profile and a bundle", async () => {
+    const tempDir = await createProfiledWorkspace();
+    const secondProfileDir = path.join(tempDir, "config", "profiles", "personal");
+    await mkdir(secondProfileDir, { recursive: true });
+    await writeFile(
+      path.join(tempDir, "config", "profiles.json"),
+      JSON.stringify({
+        version: 1,
+        defaultProfile: "work",
+        profiles: ["personal", "work"],
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(tempDir, "config", "profiles", "personal.json"),
+      JSON.stringify({
+        configVersion: 1,
+        name: "personal",
+        label: "Personal Workspace",
+        envFile: ".env.personal",
+        destinationsPath: "./config/profiles/personal/destinations.json",
+        controlTowerConfigPath: "./config/profiles/personal/local-portfolio-control-tower.json",
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(secondProfileDir, "destinations.json"),
+      JSON.stringify({ version: 1, destinations: [] }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(secondProfileDir, "local-portfolio-control-tower.json"),
+      JSON.stringify({ version: 1, profile: "personal" }),
+      "utf8",
+    );
+    const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
+    await runCliForTest(["--profile", "work", "profiles", "export", "--output", bundlePath], { cwd: tempDir });
+
+    const profileDiff = await runCliForTest(
+      ["--profile", "work", "profiles", "diff", "--against-profile", "personal", "--json"],
+      { cwd: tempDir },
+    );
+    expect(profileDiff.exitCode).toBe(0);
+    expect(JSON.parse(profileDiff.stdout)).toEqual(
+      expect.objectContaining({
+        ok: true,
+        targetType: "profile",
+        descriptorDifferences: expect.arrayContaining([
+          expect.objectContaining({ field: "name", target: "personal" }),
+        ]),
+        files: expect.arrayContaining([
+          expect.objectContaining({ status: "changed" }),
+        ]),
+      }),
+    );
+
+    const bundleDiff = await runCliForTest(
+      ["--profile", "work", "profiles", "diff", "--against-bundle", bundlePath, "--json"],
+      { cwd: tempDir },
+    );
+    expect(bundleDiff.exitCode).toBe(0);
+    expect(JSON.parse(bundleDiff.stdout)).toEqual(
+      expect.objectContaining({
+        ok: true,
+        targetType: "bundle",
+      }),
+    );
+  });
+
+  test("clones a profile preview-first and preserves an existing env file on write", async () => {
+    const tempDir = await createProfiledWorkspace();
+    await writeFile(path.join(tempDir, ".env.clone"), "NOTION_TOKEN=keep_me\n", "utf8");
+
+    const preview = await runCliForTest(
+      ["profiles", "clone", "--source", "work", "--target", "clone", "--json"],
+      { cwd: tempDir },
+    );
+    expect(preview.exitCode).toBe(0);
+    expect(JSON.parse(preview.stdout)).toEqual(
+      expect.objectContaining({
+        wrote: false,
+        actions: expect.arrayContaining([
+          expect.objectContaining({ action: "create" }),
+          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.clone") }),
+        ]),
+      }),
+    );
+
+    const written = await runCliForTest(
+      ["profiles", "clone", "--source", "work", "--target", "clone", "--write", "--json"],
+      { cwd: tempDir },
+    );
+    expect(written.exitCode).toBe(0);
+    const clonedDescriptor = JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "clone.json"), "utf8"));
+    expect(clonedDescriptor.configVersion).toBe(1);
+    expect(JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "clone", "destinations.json"), "utf8"))).toEqual(
+      expect.objectContaining({ version: 1 }),
+    );
+    expect(await readFile(path.join(tempDir, ".env.clone"), "utf8")).toContain("keep_me");
+  });
+
+  test("bootstraps only missing files from defaults or a bundle", async () => {
+    const tempDir = await createProfiledWorkspace();
+    const bootstrapDir = path.join(tempDir, "config", "profiles", "bootstrap");
+    await mkdir(bootstrapDir, { recursive: true });
+    await writeFile(path.join(tempDir, ".env.bootstrap"), "NOTION_TOKEN=existing\n", "utf8");
+    await writeFile(
+      path.join(tempDir, "config", "profiles", "bootstrap.json"),
+      JSON.stringify({
+        configVersion: 1,
+        name: "bootstrap",
+        label: "Bootstrap Workspace",
+        envFile: ".env.bootstrap",
+        destinationsPath: "./config/profiles/bootstrap/destinations.json",
+        controlTowerConfigPath: "./config/profiles/bootstrap/local-portfolio-control-tower.json",
+      }),
+      "utf8",
+    );
+
+    const preview = await runCliForTest(["profiles", "bootstrap", "--target", "bootstrap", "--json"], {
+      cwd: tempDir,
+    });
+    expect(preview.exitCode).toBe(0);
+    expect(JSON.parse(preview.stdout)).toEqual(
+      expect.objectContaining({
+        wrote: false,
+        actions: expect.arrayContaining([
+          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.bootstrap") }),
+        ]),
+      }),
+    );
+
+    const writeResult = await runCliForTest(["profiles", "bootstrap", "--target", "bootstrap", "--write", "--json"], {
+      cwd: tempDir,
+    });
+    expect(writeResult.exitCode).toBe(0);
+    expect(JSON.parse(await readFile(path.join(bootstrapDir, "destinations.json"), "utf8"))).toEqual(
+      expect.objectContaining({ version: 1 }),
+    );
+    expect(await readFile(path.join(tempDir, ".env.bootstrap"), "utf8")).toContain("existing");
+
+    const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
+    await runCliForTest(["--profile", "work", "profiles", "export", "--output", bundlePath], { cwd: tempDir });
+    const bundleBootstrap = await runCliForTest(
+      ["profiles", "bootstrap", "--target", "bundlecopy", "--from-bundle", bundlePath, "--write", "--json"],
+      { cwd: tempDir },
+    );
+    expect(bundleBootstrap.exitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "bundlecopy", "destinations.json"), "utf8")),
+    ).toEqual(expect.objectContaining({ version: 1 }));
+  });
+
+  test("upgrades legacy descriptors and still imports legacy bundles", async () => {
+    const tempDir = await createProfiledWorkspace();
+
+    const previewUpgrade = await runCliForTest(["--profile", "work", "profiles", "upgrade", "--json"], {
+      cwd: tempDir,
+    });
+    expect(previewUpgrade.exitCode).toBe(0);
+    expect(JSON.parse(previewUpgrade.stdout)).toEqual(
+      expect.objectContaining({
+        wrote: false,
+        alreadyCurrent: false,
+        fromConfigVersion: 0,
+        toConfigVersion: 1,
+      }),
+    );
+
+    const writeUpgrade = await runCliForTest(["--profile", "work", "profiles", "upgrade", "--write", "--json"], {
+      cwd: tempDir,
+    });
+    expect(writeUpgrade.exitCode).toBe(0);
+    expect(JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "work.json"), "utf8"))).toEqual(
+      expect.objectContaining({ configVersion: 1 }),
+    );
+
+    const legacyBundlePath = path.join(tempDir, "tmp", "legacy.bundle.json");
+    await mkdir(path.dirname(legacyBundlePath), { recursive: true });
+    await writeFile(
+      legacyBundlePath,
+      JSON.stringify({
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        profile: {
+          name: "legacy",
+          label: "Legacy Workspace",
+          envFile: ".env.legacy",
+          destinationsPath: "./config/profiles/legacy/destinations.json",
+          controlTowerConfigPath: "./config/profiles/legacy/local-portfolio-control-tower.json",
+        },
+        files: [
+          {
+            kind: "json",
+            relativePath: "config/profiles/legacy/destinations.json",
+            content: { version: 1, destinations: [] },
+          },
+          {
+            kind: "json",
+            relativePath: "config/profiles/legacy/local-portfolio-control-tower.json",
+            content: { version: 1, profile: "legacy" },
+          },
+          {
+            kind: "text",
+            relativePath: "env.template",
+            content: "NOTION_TOKEN=\n",
+          },
+        ],
+      }),
+      "utf8",
+    );
+
+    const legacyImport = await runCliForTest(
+      ["profiles", "import", "--bundle", legacyBundlePath, "--target", "legacycopy", "--write"],
+      { cwd: tempDir },
+    );
+    expect(legacyImport.exitCode).toBe(0);
+    expect(
+      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "legacycopy.json"), "utf8")),
+    ).toEqual(expect.objectContaining({ configVersion: 1, name: "legacycopy" }));
   });
 });
 
