@@ -97,6 +97,7 @@ interface RuntimeConfigOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   profile?: string;
+  hydrateEnvFile?: boolean;
 }
 
 type RuntimeConfigParseResult =
@@ -130,7 +131,9 @@ export function safeLoadRuntimeConfig(options: RuntimeConfigOptions = {}): Runti
     profileIssues.push(`profile: ${toIssueMessage(error)}`);
   }
 
-  hydrateEnv(env, profile.envFile);
+  if (options.hydrateEnvFile !== false) {
+    hydrateEnv(env, profile.envFile);
+  }
   const parsed = runtimeEnvSchema.safeParse(env);
 
   if (!parsed.success) {

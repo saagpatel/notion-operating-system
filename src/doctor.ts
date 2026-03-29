@@ -6,6 +6,7 @@ import {
   findSandboxNotionRefOverlaps,
   summarizeSandboxNotionRefOverlaps,
 } from "./config/sandbox-isolation.js";
+import { resolvePrimaryWorkspaceProfileName } from "./config/profiles.js";
 import type { DestinationConfig } from "./types.js";
 import { safeLoadRuntimeConfig, type RuntimeConfig } from "./config/runtime-config.js";
 import { DirectNotionClient } from "./notion/direct-notion-client.js";
@@ -266,16 +267,21 @@ async function buildSandboxIsolationChecks(
   env: NodeJS.ProcessEnv,
 ): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
-  const defaultRuntime = safeLoadRuntimeConfig({
+  const primaryProfileName = resolvePrimaryWorkspaceProfileName({
+    cwd: runtimeConfig.cwd,
+    env,
+  });
+  const primaryRuntime = safeLoadRuntimeConfig({
     cwd: runtimeConfig.cwd,
     env: { ...env },
-    profile: "default",
+    profile: primaryProfileName,
   }).config;
 
   const sandboxDescriptorDestinationsPath = safeLoadRuntimeConfig({
     cwd: runtimeConfig.cwd,
     env: {},
     profile: runtimeConfig.profile.name,
+    hydrateEnvFile: false,
   }).config.paths.destinationsPath;
 
   if (runtimeConfig.paths.destinationsPath !== sandboxDescriptorDestinationsPath) {
@@ -297,30 +303,30 @@ async function buildSandboxIsolationChecks(
   }
 
   const sandboxToken = runtimeConfig.notion.token?.trim();
-  const defaultToken = defaultRuntime.notion.token?.trim();
-  const sameToken = Boolean(sandboxToken && defaultToken && sandboxToken === defaultToken);
+  const primaryToken = primaryRuntime.notion.token?.trim();
+  const sameToken = Boolean(sandboxToken && primaryToken && sandboxToken === primaryToken);
   checks.push({
     id: "sandbox-token-isolation",
     label: "Sandbox token isolation",
     status: sameToken ? "fail" : "pass",
     message: sameToken
-      ? "Sandbox and primary profiles are using the same effective NOTION_TOKEN. Point sandbox at a separate workspace token."
-      : "Sandbox and primary profiles are using different effective Notion tokens.",
+      ? `Sandbox and primary profile "${primaryProfileName}" are using the same effective NOTION_TOKEN. Point sandbox at a separate workspace token.`
+      : `Sandbox and primary profile "${primaryProfileName}" are using different effective Notion tokens.`,
   });
 
-  const [sandboxRefs, defaultRefs] = await Promise.all([
+  const [sandboxRefs, primaryRefs] = await Promise.all([
     collectSandboxNotionRefOccurrences(runtimeConfig.paths),
-    collectSandboxNotionRefOccurrences(defaultRuntime.paths),
+    collectSandboxNotionRefOccurrences(primaryRuntime.paths),
   ]);
-  const overlaps = findSandboxNotionRefOverlaps(defaultRefs, sandboxRefs);
+  const overlaps = findSandboxNotionRefOverlaps(primaryRefs, sandboxRefs);
   checks.push({
     id: "sandbox-target-isolation",
     label: "Sandbox target isolation",
     status: overlaps.length > 0 ? "fail" : "pass",
     message:
       overlaps.length > 0
-        ? `Sandbox still overlaps the primary profile's Notion targets. ${summarizeSandboxNotionRefOverlaps(overlaps)}`
-        : "Sandbox Notion target references are isolated from the primary profile.",
+        ? `Sandbox still overlaps primary profile "${primaryProfileName}" Notion targets. ${summarizeSandboxNotionRefOverlaps(overlaps)}`
+        : `Sandbox Notion target references are isolated from primary profile "${primaryProfileName}".`,
   });
 
   return checks;

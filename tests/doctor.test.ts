@@ -166,6 +166,55 @@ describe("doctor", () => {
     );
   });
 
+  test("fails sandbox doctor when .env.sandbox masks the profile-owned destinations path", async () => {
+    const tempDir = await createSandboxWorkspace({
+      defaultToken: "default-token",
+      sandboxToken: "sandbox-token",
+      defaultDestinationId: "11111111-1111-1111-1111-111111111111",
+      sandboxDestinationId: "22222222-2222-2222-2222-222222222222",
+      defaultControlTowerId: "33333333-3333-3333-3333-333333333333",
+      sandboxControlTowerId: "44444444-4444-4444-4444-444444444444",
+      sandboxEnvExtraLines: ["NOTION_DESTINATIONS_PATH=./config/destinations.json"],
+    });
+
+    const report = await runDoctor({
+      cwd: tempDir,
+      env: {},
+      createNotionClient: createPassingNotionClient,
+    });
+
+    expect(report.checks.find((check) => check.id === "sandbox-path-overrides")).toEqual(
+      expect.objectContaining({
+        status: "fail",
+      }),
+    );
+  });
+
+  test("compares sandbox against the real primary profile instead of hardcoding default", async () => {
+    const tempDir = await createSandboxWorkspace({
+      primaryProfileName: "alpha",
+      defaultToken: "primary-token",
+      sandboxToken: "primary-token",
+      defaultDestinationId: "11111111-1111-1111-1111-111111111111",
+      sandboxDestinationId: "22222222-2222-2222-2222-222222222222",
+      defaultControlTowerId: "33333333-3333-3333-3333-333333333333",
+      sandboxControlTowerId: "44444444-4444-4444-4444-444444444444",
+    });
+
+    const report = await runDoctor({
+      cwd: tempDir,
+      env: {},
+      createNotionClient: createPassingNotionClient,
+    });
+
+    expect(report.checks.find((check) => check.id === "sandbox-token-isolation")).toEqual(
+      expect.objectContaining({
+        status: "fail",
+        message: expect.stringContaining('primary profile "alpha"'),
+      }),
+    );
+  });
+
   test("passes sandbox doctor when tokens and notion refs are isolated", async () => {
     const tempDir = await createSandboxWorkspace({
       defaultToken: "default-token",
@@ -196,15 +245,18 @@ describe("doctor", () => {
 });
 
 async function createSandboxWorkspace(input: {
+  primaryProfileName?: string;
   defaultToken: string;
   sandboxToken: string;
   defaultDestinationId: string;
   sandboxDestinationId: string;
   defaultControlTowerId: string;
   sandboxControlTowerId: string;
+  sandboxEnvExtraLines?: string[];
 }): Promise<string> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-doctor-sandbox-"));
   const sandboxDir = path.join(tempDir, "config", "profiles", "sandbox");
+  const primaryProfileName = input.primaryProfileName ?? "default";
   await mkdir(sandboxDir, { recursive: true });
 
   await writeFile(
@@ -212,20 +264,26 @@ async function createSandboxWorkspace(input: {
     JSON.stringify({
       version: 1,
       defaultProfile: "sandbox",
-      profiles: ["default", "sandbox"],
+      profiles: [primaryProfileName, "sandbox"],
     }),
     "utf8",
   );
   await writeFile(
-    path.join(tempDir, "config", "profiles", "default.json"),
+    path.join(tempDir, "config", "profiles", `${primaryProfileName}.json`),
     JSON.stringify({
       configVersion: 1,
-      name: "default",
-      label: "Default Workspace",
+      name: primaryProfileName,
+      label: "Primary Workspace",
       kind: "primary",
-      envFile: ".env",
-      destinationsPath: "./config/destinations.json",
-      controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
+      envFile: primaryProfileName === "default" ? ".env" : `.env.${primaryProfileName}`,
+      destinationsPath:
+        primaryProfileName === "default"
+          ? "./config/destinations.json"
+          : `./config/profiles/${primaryProfileName}/destinations.json`,
+      controlTowerConfigPath:
+        primaryProfileName === "default"
+          ? "./config/local-portfolio-control-tower.json"
+          : `./config/profiles/${primaryProfileName}/local-portfolio-control-tower.json`,
     }),
     "utf8",
   );
@@ -242,11 +300,24 @@ async function createSandboxWorkspace(input: {
     }),
     "utf8",
   );
-  await writeFile(path.join(tempDir, ".env"), `NOTION_TOKEN=${input.defaultToken}\n`, "utf8");
-  await writeFile(path.join(tempDir, ".env.sandbox"), `NOTION_TOKEN=${input.sandboxToken}\n`, "utf8");
+  await writeFile(
+    path.join(tempDir, primaryProfileName === "default" ? ".env" : `.env.${primaryProfileName}`),
+    `NOTION_TOKEN=${input.defaultToken}\n`,
+    "utf8",
+  );
+  await writeFile(
+    path.join(tempDir, ".env.sandbox"),
+    [`NOTION_TOKEN=${input.sandboxToken}`, ...(input.sandboxEnvExtraLines ?? [])].join("\n").concat("\n"),
+    "utf8",
+  );
 
   await writeDestinationConfig(
-    path.join(tempDir, "config", "destinations.json"),
+    path.join(
+      tempDir,
+      primaryProfileName === "default"
+        ? "config/destinations.json"
+        : `config/profiles/${primaryProfileName}/destinations.json`,
+    ),
     input.defaultDestinationId,
   );
   await writeDestinationConfig(
@@ -254,7 +325,12 @@ async function createSandboxWorkspace(input: {
     input.sandboxDestinationId,
   );
   await writeControlTowerConfig(
-    path.join(tempDir, "config", "local-portfolio-control-tower.json"),
+    path.join(
+      tempDir,
+      primaryProfileName === "default"
+        ? "config/local-portfolio-control-tower.json"
+        : `config/profiles/${primaryProfileName}/local-portfolio-control-tower.json`,
+    ),
     input.defaultControlTowerId,
   );
   await writeControlTowerConfig(

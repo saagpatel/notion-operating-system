@@ -191,6 +191,35 @@ export function listWorkspaceProfiles(options: {
   });
 }
 
+export function resolvePrimaryWorkspaceProfileName(options: {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+} = {}): string {
+  const cwd = path.resolve(options.cwd ?? process.cwd());
+  const registryPath = getWorkspaceProfileRegistryPath(cwd);
+
+  if (!existsSync(registryPath)) {
+    return DEFAULT_PROFILE_NAME;
+  }
+
+  const registry = parseWorkspaceProfileRegistry(readJsonFileSync(registryPath));
+  const orderedNames = [registry.defaultProfile, ...registry.profiles.filter((name) => name !== registry.defaultProfile)];
+
+  for (const profileName of orderedNames) {
+    const descriptorPath = getWorkspaceProfileDescriptorPath(cwd, profileName);
+    if (!existsSync(descriptorPath)) {
+      continue;
+    }
+
+    const { descriptor } = parseWorkspaceProfileDescriptor(readJsonFileSync(descriptorPath), profileName);
+    if ((descriptor.kind ?? defaultWorkspaceProfileKind(descriptor.name)) === "primary") {
+      return descriptor.name;
+    }
+  }
+
+  return registry.defaultProfile;
+}
+
 export function buildWorkspaceProfileDescriptor(input: {
   configVersion?: number;
   name?: string;

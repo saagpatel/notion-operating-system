@@ -65,6 +65,13 @@ const commonOptions = {
   },
 } as const;
 
+const localPortfolioViewsConfigOption = {
+  name: "config",
+  description: "Path to the saved-view plan file.",
+  type: "string",
+  valueName: "path",
+} as const;
+
 export const cliRegistry: CliCommandDefinition[] = [
   {
     name: "publish",
@@ -281,14 +288,14 @@ export const cliRegistry: CliCommandDefinition[] = [
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
-    buildConfigCommand("views-plan", "Print the saved-view sync plan.", [commonOptions.config], ({ parsed }) =>
+    buildConfigCommand("views-plan", "Print the saved-view sync plan.", [localPortfolioViewsConfigOption], ({ parsed }) =>
       runLocalPortfolioViewsPlanCommand({
-        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+        config: asString(parsed.options.config) ?? parsed.positionals[0],
       }),
     ),
-    buildConfigCommand("views-validate", "Validate the saved-view plan against the live schema.", [commonOptions.config], ({ parsed }) =>
+    buildConfigCommand("views-validate", "Validate the saved-view plan against the live schema.", [localPortfolioViewsConfigOption], ({ parsed }) =>
       runLocalPortfolioViewsValidateCommand({
-        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+        config: asString(parsed.options.config) ?? parsed.positionals[0],
       }),
     ),
   ]),

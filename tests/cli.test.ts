@@ -581,6 +581,21 @@ describe("profiles cli", () => {
     expect(await readFile(path.join(tempDir, ".env.sandbox"), "utf8")).toContain("keep_me");
   });
 
+  test("preserves the source profile kind when cloning a sandbox profile to a non-sandbox name", async () => {
+    const tempDir = await createSandboxCliWorkspace();
+
+    const written = await runCliForTest(
+      ["profiles", "clone", "--source", "sandbox", "--target", "rehearsal", "--write", "--json"],
+      { cwd: tempDir },
+    );
+
+    expect(written.exitCode).toBe(0);
+    const clonedDescriptor = JSON.parse(
+      await readFile(path.join(tempDir, "config", "profiles", "rehearsal.json"), "utf8"),
+    );
+    expect(clonedDescriptor.kind).toBe("sandbox");
+  });
+
   test("bootstraps only missing files from defaults or a bundle and preserves sandbox kind", async () => {
     const tempDir = await createProfiledWorkspace();
     const bootstrapDir = path.join(tempDir, "config", "profiles", "bootstrap");

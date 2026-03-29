@@ -258,10 +258,13 @@ export async function runProfilesCloneCommand(options: {
     envTemplate,
     files: await collectWorkspaceProfileBundleFiles(sourceProfile, cwd, envTemplate),
   });
+  const targetKind =
+    options.kind ??
+    (sourceProfile.kind === "sandbox" ? "sandbox" : options.target === "sandbox" ? "sandbox" : "primary");
   const targetDescriptor = buildWorkspaceProfileDescriptor({
     name: options.target,
     label: options.label,
-    kind: options.kind,
+    kind: targetKind,
   });
   const actions = await planProfileRestoreActions({
     cwd,

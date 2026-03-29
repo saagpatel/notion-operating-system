@@ -3,16 +3,16 @@
   "database": {
     "name": "Local Portfolio Projects",
     "databaseUrl": "https://www.notion.so/0fb35f86619e4fa5873b01afca847c36",
-    "databaseId": "0fb35f86619e4fa5873b01afca847c36",
-    "dataSourceId": "edb714a881ba43498d56787e7e5698ff",
+    "databaseId": "0fb35f86-619e-4fa5-873b-01afca847c36",
+    "dataSourceId": "edb714a8-81ba-4349-8d56-787e7e5698ff",
     "destinationAlias": "local_portfolio_projects"
   },
   "relatedDataSources": {
-    "buildLogId": "38964a8dba6d434bbda8b616c545c388",
-    "weeklyReviewsId": "dad6fc396568428fba58b7091f064eb5",
-    "researchId": "d37da7a10eb845949409762844d3f37a",
-    "skillsId": "47c55ae1287e476d81f951d9bfdd887d",
-    "toolsId": "447617dccb1c428db91b6fafb1b118a8"
+    "buildLogId": "38964a8d-ba6d-434b-bda8-b616c545c388",
+    "weeklyReviewsId": "dad6fc39-6568-428f-ba58-b7091f064eb5",
+    "researchId": "d37da7a1-0eb8-4594-9409-762844d3f37a",
+    "skillsId": "47c55ae1-287e-476d-81f9-51d9bfdd887d",
+    "toolsId": "447617dc-cb1c-428d-b91b-6fafb1b118a8"
   },
   "destinations": {
     "commandCenterAlias": "local_portfolio_command_center",
@@ -23,7 +23,7 @@
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/Local-Portfolio-Audit-Sandbox-3321d2933028816db23fff8bb276677e",
     "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-3321d293302881afa932cc4d686f6fba",
-    "pageId": "3321d293302881afa932cc4d686f6fba"
+    "pageId": "3321d293-3028-81af-a932-cc4d686f6fba"
   },
   "fieldOwnership": {
     "manual": [
@@ -108,22 +108,22 @@
     "decisions": {
       "name": "Project Decisions",
       "databaseUrl": "https://www.notion.so/70251cb0fa1a4aed978637022131a1b1",
-      "databaseId": "70251cb0fa1a4aed978637022131a1b1",
-      "dataSourceId": "7bd20f7650fe4499ab7938e7d327d343",
+      "databaseId": "70251cb0-fa1a-4aed-9786-37022131a1b1",
+      "dataSourceId": "7bd20f76-50fe-4499-ab79-38e7d327d343",
       "destinationAlias": "project_decisions"
     },
     "packets": {
       "name": "Work Packets",
       "databaseUrl": "https://www.notion.so/2ba0b69e69604a718ccacbdfcf04dd67",
-      "databaseId": "2ba0b69e69604a718ccacbdfcf04dd67",
-      "dataSourceId": "4ea99047102a44a5ad7afdeb71602836",
+      "databaseId": "2ba0b69e-6960-4a71-8cca-cbdfcf04dd67",
+      "dataSourceId": "4ea99047-102a-44a5-ad7a-fdeb71602836",
       "destinationAlias": "work_packets"
     },
     "tasks": {
       "name": "Execution Tasks",
       "databaseUrl": "https://www.notion.so/15a6a8f851504ef9b68dfd7bcf48f2ca",
-      "databaseId": "15a6a8f851504ef9b68dfd7bcf48f2ca",
-      "dataSourceId": "d42cd8bfc64546e7b4491ba5086e9541",
+      "databaseId": "15a6a8f8-5150-4ef9-b68d-fd7bcf48f2ca",
+      "dataSourceId": "d42cd8bf-c645-46e7-b449-1ba5086e9541",
       "destinationAlias": "execution_tasks"
     },
     "wipRules": {
@@ -177,42 +177,34 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-03-22",
+    "lastSyncAt": "2026-03-29",
     "lastSyncMetrics": {
       "openDecisions": 0,
-      "nowPackets": 19,
-      "standbyPackets": 6,
+      "nowPackets": 0,
+      "standbyPackets": 0,
       "blockedPackets": 0,
-      "blockedTasks": 1,
+      "blockedTasks": 0,
       "overdueTasks": 0,
-      "tasksCompletedThisWeek": 58,
-      "packetsCompletedThisWeek": 21,
-      "rolloverPackets": 1,
-      "projectsWithExecutionDrift": 2,
-      "wipViolations": [
-        "WIP violation: 19 Now packets are active, but the limit is 1.",
-        "WIP violation: 6 Standby packets are active, but the limit is 1.",
-        "Task \"LegalDocsReview - restore dependency baseline\" must belong to exactly one work packet.",
-        "Task \"LegalDocsReview - rerun lint and typecheck\" must belong to exactly one work packet.",
-        "Task \"Activate Relay GitHub source in Notion\" must belong to exactly one work packet.",
-        "Task \"RealEstate - triage PR #1 and PR #3 failures\" must belong to exactly one work packet.",
-        "Task \"RealEstate - pause placeholder source rows\" must belong to exactly one work packet."
-      ]
+      "tasksCompletedThisWeek": 0,
+      "packetsCompletedThisWeek": 0,
+      "rolloverPackets": 0,
+      "projectsWithExecutionDrift": 0,
+      "wipViolations": []
     }
   },
   "phase3Intelligence": {
     "recommendationRuns": {
       "name": "Recommendation Runs",
       "databaseUrl": "https://www.notion.so/e6789fc9f5094bf88b4d0234891e91ae",
-      "databaseId": "e6789fc9f5094bf88b4d0234891e91ae",
-      "dataSourceId": "4039f27a000e49ba8a76319481ab1919",
+      "databaseId": "e6789fc9-f509-4bf8-8b4d-0234891e91ae",
+      "dataSourceId": "4039f27a-000e-49ba-8a76-319481ab1919",
       "destinationAlias": "recommendation_runs"
     },
     "linkSuggestions": {
       "name": "Link Suggestions",
       "databaseUrl": "https://www.notion.so/ca7dfba6a12b42a897f0d2d2fad0fbaa",
-      "databaseId": "ca7dfba6a12b42a897f0d2d2fad0fbaa",
-      "dataSourceId": "7a927869788c446288e6f3599c6ca25c",
+      "databaseId": "ca7dfba6-a12b-42a8-97f0-d2d2fad0fbaa",
+      "dataSourceId": "7a927869-788c-4462-88e6-f3599c6ca25c",
       "destinationAlias": "link_suggestions"
     },
     "scoringModelVersion": "balanced-hybrid-v2",
@@ -336,7 +328,7 @@
         "notes": "Pilot remains human-reviewed and separate from canonical project or recommendation state.",
         "deferReason": "Custom agents are visible, but the live summary-draft pilot is deferred until the dashboard layer proves worth augmenting.",
         "destinationAlias": "local_portfolio_native_briefs",
-        "pageId": "3321d29330288110bf0fee118538848a",
+        "pageId": "3321d293-3028-8110-bf0f-ee118538848a",
         "pageUrl": "https://www.notion.so/Local-Portfolio-Native-Briefs-3321d29330288110bf0fee118538848a"
       }
     },
@@ -363,22 +355,22 @@
     "sources": {
       "name": "External Signal Sources",
       "databaseUrl": "https://www.notion.so/90c4842fecff405296dc0ffd0168e9fb",
-      "databaseId": "90c4842fecff405296dc0ffd0168e9fb",
-      "dataSourceId": "ecac78cb94064113918be0a73e6168d0",
+      "databaseId": "90c4842f-ecff-4052-96dc-0ffd0168e9fb",
+      "dataSourceId": "ecac78cb-9406-4113-918b-e0a73e6168d0",
       "destinationAlias": "external_signal_sources"
     },
     "events": {
       "name": "External Signal Events",
       "databaseUrl": "https://www.notion.so/5e1928f4a8f74b7baed424f16d61c664",
-      "databaseId": "5e1928f4a8f74b7baed424f16d61c664",
-      "dataSourceId": "1a674b385f494e1c9cfd88e3c80d3ddd",
+      "databaseId": "5e1928f4-a8f7-4b7b-aed4-24f16d61c664",
+      "dataSourceId": "1a674b38-5f49-4e1c-9cfd-88e3c80d3ddd",
       "destinationAlias": "external_signal_events"
     },
     "syncRuns": {
       "name": "External Signal Sync Runs",
       "databaseUrl": "https://www.notion.so/7e66f6897202435ea5f268216dde6694",
-      "databaseId": "7e66f6897202435ea5f268216dde6694",
-      "dataSourceId": "f73d6fcc79ab48a3b7a6ec80fd23f5d2",
+      "databaseId": "7e66f689-7202-435e-a5f2-68216dde6694",
+      "dataSourceId": "f73d6fcc-79ab-48a3-b7a6-ec80fd23f5d2",
       "destinationAlias": "external_signal_sync_runs"
     },
     "providerEnablement": {
@@ -421,51 +413,51 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-03-24",
+    "lastSyncAt": "2026-03-29",
     "lastSyncMetrics": {
-      "mappedProjects": 86,
-      "projectsNeedingMapping": 7,
-      "activeSources": 86,
-      "riskEvents": 239,
+      "mappedProjects": 0,
+      "projectsNeedingMapping": 0,
+      "activeSources": 0,
+      "riskEvents": 0,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 239,
-      "contradictionProjects": 26
+      "failedWorkflowRuns": 0,
+      "contradictionProjects": 0
     }
   },
   "phase6Governance": {
     "policies": {
       "name": "External Action Policies",
       "databaseUrl": "https://www.notion.so/44a022df679f4a66bd729c291f8a97dd",
-      "databaseId": "44a022df679f4a66bd729c291f8a97dd",
-      "dataSourceId": "915302aa7ee44b58831eff0ec3fccd71",
+      "databaseId": "44a022df-679f-4a66-bd72-9c291f8a97dd",
+      "dataSourceId": "915302aa-7ee4-4b58-831e-ff0ec3fccd71",
       "destinationAlias": "external_action_policies"
     },
     "actionRequests": {
       "name": "External Action Requests",
       "databaseUrl": "https://www.notion.so/2bc05bb37eae4b21b8294daae2a0c9f5",
-      "databaseId": "2bc05bb37eae4b21b8294daae2a0c9f5",
-      "dataSourceId": "3e1aa7faa31e4791ba6e90511fbb4e30",
+      "databaseId": "2bc05bb3-7eae-4b21-b829-4daae2a0c9f5",
+      "dataSourceId": "3e1aa7fa-a31e-4791-ba6e-90511fbb4e30",
       "destinationAlias": "external_action_requests"
     },
     "webhookEndpoints": {
       "name": "Webhook Endpoints",
       "databaseUrl": "https://www.notion.so/c2e3630c7c2441f4b2c1e49ad1a61932",
-      "databaseId": "c2e3630c7c2441f4b2c1e49ad1a61932",
-      "dataSourceId": "b1a20d83456d48bd9d78fc0d3a68f534",
+      "databaseId": "c2e3630c-7c24-41f4-b2c1-e49ad1a61932",
+      "dataSourceId": "b1a20d83-456d-48bd-9d78-fc0d3a68f534",
       "destinationAlias": "webhook_endpoints"
     },
     "webhookDeliveries": {
       "name": "Webhook Deliveries",
       "databaseUrl": "https://www.notion.so/b32f0d731cc7456f9fe5f1a5984408ee",
-      "databaseId": "b32f0d731cc7456f9fe5f1a5984408ee",
-      "dataSourceId": "6caaeb290839402c95aad39c9b04cda0",
+      "databaseId": "b32f0d73-1cc7-456f-9fe5-f1a5984408ee",
+      "dataSourceId": "6caaeb29-0839-402c-95aa-d39c9b04cda0",
       "destinationAlias": "webhook_deliveries"
     },
     "webhookReceipts": {
       "name": "Webhook Receipts",
       "databaseUrl": "https://www.notion.so/8f84a4cca9f94eaca9b5937978801213",
-      "databaseId": "8f84a4cca9f94eaca9b5937978801213",
-      "dataSourceId": "60bfef6502d64e34a57110e40f433cdc",
+      "databaseId": "8f84a4cc-a9f9-4eac-a9b5-937978801213",
+      "dataSourceId": "60bfef65-02d6-4e34-a571-10e40f433cdc",
       "destinationAlias": "webhook_receipts"
     },
     "receiver": {
@@ -536,8 +528,8 @@
     "executions": {
       "name": "External Action Executions",
       "databaseUrl": "https://www.notion.so/c48192d4584c4a0dafe489c156b2238a",
-      "databaseId": "c48192d4584c4a0dafe489c156b2238a",
-      "dataSourceId": "5fafe67514634b1f89483c0ea9f526a9",
+      "databaseId": "c48192d4-584c-4a0d-afe4-89c156b2238a",
+      "dataSourceId": "5fafe675-1463-4b1f-8948-3c0ea9f526a9",
       "destinationAlias": "external_action_executions"
     },
     "rolloutProfile": "github_first_issues_then_comments",

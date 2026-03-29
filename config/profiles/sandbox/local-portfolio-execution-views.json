@@ -24,25 +24,25 @@
           "name": "Open Decisions",
           "type": "table",
           "purpose": "Show material project decisions that still need commitment.",
-          "configure": "FILTER \"Status\" = \"Proposed\"; SORT BY \"Proposed On\" ASC; SHOW \"Decision\", \"Status\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
+          "configure": "FILTER \"Status\" = \"Proposed\"; SORT BY \"Proposed On\" ASC; SHOW \"Name\", \"Status\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
         },
         {
           "name": "Decision Queue",
           "type": "board",
           "purpose": "See the decision flow grouped by status.",
-          "configure": "GROUP BY \"Status\"; SHOW \"Decision\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
+          "configure": "GROUP BY \"Status\"; SHOW \"Name\", \"Decision Type\", \"Local Project\", \"Decision Owner\", \"Revisit By\""
         },
         {
           "name": "Decision History",
           "type": "table",
           "purpose": "Review committed and superseded decisions over time.",
-          "configure": "SORT BY \"Decided On\" DESC; SHOW \"Decision\", \"Status\", \"Decision Type\", \"Local Project\", \"Decided On\", \"Chosen Option\""
+          "configure": "SORT BY \"Decided On\" DESC; SHOW \"Name\", \"Status\", \"Decision Type\", \"Local Project\", \"Decided On\", \"Chosen Option\""
         },
         {
           "name": "Revisit Soon",
           "type": "table",
           "purpose": "Keep revisit dates visible even before formal premium reminders exist.",
-          "configure": "SORT BY \"Revisit By\" ASC; SHOW \"Decision\", \"Status\", \"Local Project\", \"Revisit By\", \"Expected Impact\""
+          "configure": "SORT BY \"Revisit By\" ASC; SHOW \"Name\", \"Status\", \"Local Project\", \"Revisit By\", \"Expected Impact\""
         }
       ]
     },
@@ -60,37 +60,37 @@
           "name": "Now",
           "type": "table",
           "purpose": "Keep the one active weekly packet front and center.",
-          "configure": "FILTER \"Priority\" = \"Now\"; SORT BY \"Target Finish\" ASC; SHOW \"Packet\", \"Status\", \"Priority\", \"Local Project\", \"Target Finish\", \"Goal\""
+          "configure": "FILTER \"Priority\" = \"Now\"; SORT BY \"Target Finish\" ASC; SHOW \"Name\", \"Status\", \"Priority\", \"Local Project\", \"Target Finish\", \"Goal\""
         },
         {
           "name": "Standby",
           "type": "table",
           "purpose": "Show the one fallback packet that can replace the current work quickly.",
-          "configure": "FILTER \"Priority\" = \"Standby\"; SORT BY \"Target Start\" ASC; SHOW \"Packet\", \"Status\", \"Priority\", \"Local Project\", \"Target Start\", \"Why Now\""
+          "configure": "FILTER \"Priority\" = \"Standby\"; SORT BY \"Target Start\" ASC; SHOW \"Name\", \"Status\", \"Priority\", \"Local Project\", \"Target Start\", \"Why Now\""
         },
         {
           "name": "Blocked",
           "type": "table",
           "purpose": "Keep blocked packets visible and easy to clear.",
-          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Target Finish\" ASC; SHOW \"Packet\", \"Status\", \"Local Project\", \"Driving Decision\", \"Blocker Summary\""
+          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Target Finish\" ASC; SHOW \"Name\", \"Status\", \"Local Project\", \"Driving Decision\", \"Blocker Summary\""
         },
         {
           "name": "Done This Week",
           "type": "table",
           "purpose": "Review packets that landed recently.",
-          "configure": "FILTER \"Execution State\" = \"Done\"; SORT BY \"Target Finish\" DESC; SHOW \"Packet\", \"Local Project\", \"Target Finish\", \"Goal\""
+          "configure": "FILTER \"Execution State\" = \"Done\"; SORT BY \"Target Finish\" DESC; SHOW \"Name\", \"Local Project\", \"Target Finish\", \"Goal\""
         },
         {
           "name": "By Project",
           "type": "table",
           "purpose": "Review packet history in project context without embedding giant databases elsewhere.",
-          "configure": "SHOW \"Packet\", \"Local Project\", \"Status\", \"Priority\", \"Packet Type\", \"Target Finish\"; SORT BY \"Target Finish\" DESC"
+          "configure": "SHOW \"Name\", \"Local Project\", \"Status\", \"Priority\", \"Packet Type\", \"Target Finish\"; SORT BY \"Target Finish\" DESC"
         },
         {
           "name": "Rollover Risk",
           "type": "table",
           "purpose": "Spot packets that keep slipping so they can be narrowed or dropped.",
-          "configure": "SORT BY \"Rollover Count\" DESC; SHOW \"Packet\", \"Local Project\", \"Status\", \"Rollover Count\", \"Why Now\""
+          "configure": "SORT BY \"Rollover Count\" DESC; SHOW \"Name\", \"Local Project\", \"Status\", \"Rollover Count\", \"Why Now\""
         }
       ]
     },
@@ -108,37 +108,37 @@
           "name": "My Tasks",
           "type": "table",
           "purpose": "Give the operator a simple daily execution inbox.",
-          "configure": "SHOW \"Task\", \"Status\", \"Assignee\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\"; SORT BY \"Due Date\" ASC"
+          "configure": "SHOW \"Name\", \"Status\", \"Assignee\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\"; SORT BY \"Due Date\" ASC"
         },
         {
           "name": "Today",
           "type": "table",
           "purpose": "Keep the near-term task horizon clean and visible.",
-          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Status\", \"Due Date\", \"Priority\", \"Work Packet\""
+          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Status\", \"Due Date\", \"Priority\", \"Work Packet\""
         },
         {
           "name": "This Week",
           "type": "table",
           "purpose": "Show the weekly execution flow without turning this into a heavy sprint board.",
-          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Status\", \"Due Date\", \"Priority\", \"Task Type\", \"Work Packet\", \"Local Project\""
+          "configure": "SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Status\", \"Due Date\", \"Priority\", \"Task Type\", \"Work Packet\", \"Local Project\""
         },
         {
           "name": "Blocked",
           "type": "table",
           "purpose": "Keep blocked task work visible enough to clear fast.",
-          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Due Date\", \"Priority\", \"Work Packet\", \"Task Notes\""
+          "configure": "FILTER \"Execution State\" = \"Blocked\"; SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Due Date\", \"Priority\", \"Work Packet\", \"Task Notes\""
         },
         {
           "name": "By Packet",
           "type": "table",
           "purpose": "Review packet-level task flow from one place.",
-          "configure": "SHOW \"Task\", \"Work Packet\", \"Status\", \"Due Date\", \"Priority\", \"Local Project\"; SORT BY \"Due Date\" ASC"
+          "configure": "SHOW \"Name\", \"Work Packet\", \"Status\", \"Due Date\", \"Priority\", \"Local Project\"; SORT BY \"Due Date\" ASC"
         },
         {
           "name": "Ready Queue",
           "type": "table",
           "purpose": "Surface tasks that are ready to be pulled into active work.",
-          "configure": "FILTER \"Execution State\" = \"Ready\"; SORT BY \"Due Date\" ASC; SHOW \"Task\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\""
+          "configure": "FILTER \"Execution State\" = \"Ready\"; SORT BY \"Due Date\" ASC; SHOW \"Name\", \"Due Date\", \"Priority\", \"Work Packet\", \"Local Project\""
         }
       ]
     }
