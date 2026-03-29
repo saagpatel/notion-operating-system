@@ -1,5 +1,7 @@
 import "dotenv/config";
 
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   loadLocalPortfolioExecutionViewPlan,
@@ -7,30 +9,32 @@ import {
 } from "./local-portfolio-execution-views.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 
+export async function runExecutionViewsValidateCommand(): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required to validate local portfolio execution views");
+  const api = new DirectNotionClient(token);
+  const plan = await loadLocalPortfolioExecutionViewPlan();
+  const schemas = Object.fromEntries(
+    await Promise.all(
+      plan.collections.map(async (collection) => [
+        collection.key,
+        await api.retrieveDataSource(collection.database.dataSourceId),
+      ]),
+    ),
+  ) as Record<(typeof plan.collections)[number]["key"], Awaited<ReturnType<typeof api.retrieveDataSource>>>;
+
+  const summary = validateLocalPortfolioExecutionViewPlanAgainstSchemas(plan, schemas);
+  console.log(JSON.stringify({ ok: true, ...summary }, null, 2));
+}
+
 async function main(): Promise<void> {
   try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required to validate local portfolio execution views");
-    }
-
-    const api = new DirectNotionClient(token);
-    const plan = await loadLocalPortfolioExecutionViewPlan();
-    const schemas = Object.fromEntries(
-      await Promise.all(
-        plan.collections.map(async (collection) => [
-          collection.key,
-          await api.retrieveDataSource(collection.database.dataSourceId),
-        ]),
-      ),
-    ) as Record<(typeof plan.collections)[number]["key"], Awaited<ReturnType<typeof api.retrieveDataSource>>>;
-
-    const summary = validateLocalPortfolioExecutionViewPlanAgainstSchemas(plan, schemas);
-    console.log(JSON.stringify({ ok: true, ...summary }, null, 2));
+    await runExecutionViewsValidateCommand();
   } catch (error) {
     console.error(toErrorMessage(error));
     process.exitCode = 1;
   }
 }
 
-void main();
+if (isDirectExecution(import.meta.url)) {
+  void runLegacyCliPath(["execution", "views-validate"]);
+}

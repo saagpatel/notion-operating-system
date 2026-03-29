@@ -5,7 +5,8 @@ import path from "node:path";
 
 import { Client } from "@notionhq/client";
 
-import { isDirectExecution } from "../cli/legacy.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -34,306 +35,313 @@ interface GitHubReconcileCandidate {
   actionKeys: string[];
 }
 
-async function main(): Promise<void> {
-  try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for webhook shadow drain");
+export interface WebhookShadowDrainCommandOptions {
+  config?: string;
+}
+
+export async function runWebhookShadowDrainCommand(
+  options: WebhookShadowDrainCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for webhook shadow drain");
+  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  const providerConfig = await loadLocalPortfolioWebhookProviderConfig();
+  const pendingDir = path.resolve(providerConfig.spoolDirectory, "pending");
+  const processedDir = path.resolve(providerConfig.spoolDirectory, "processed");
+  await mkdir(processedDir, { recursive: true });
+
+  const entries = (await readdir(pendingDir)).filter((entry) => entry.endsWith(".json")).sort();
+  const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+  let config = await loadLocalPortfolioControlTowerConfig(configPath);
+  config = await ensurePhase6GovernanceSchema(sdk, config);
+
+  const api = new DirectNotionClient(token);
+  const phase5 = requirePhase5ExternalSignals(config);
+  const phase6 = config.phase6Governance!;
+  const executionSchemaPromise = config.phase7Actuation
+    ? api.retrieveDataSource(config.phase7Actuation.executions.dataSourceId)
+    : Promise.resolve(undefined);
+  const [deliverySchema, receiptSchema, endpointSchema, sourceSchema, eventSchema, executionSchema] = await Promise.all([
+    api.retrieveDataSource(phase6.webhookDeliveries.dataSourceId),
+    api.retrieveDataSource(phase6.webhookReceipts.dataSourceId),
+    api.retrieveDataSource(phase6.webhookEndpoints.dataSourceId),
+    api.retrieveDataSource(phase5.sources.dataSourceId),
+    api.retrieveDataSource(phase5.events.dataSourceId),
+    executionSchemaPromise,
+  ]);
+
+  const executionPagesPromise =
+    config.phase7Actuation && executionSchema
+      ? fetchAllPages(sdk, config.phase7Actuation.executions.dataSourceId, executionSchema.titlePropertyName)
+      : Promise.resolve([]);
+  const [deliveryPages, endpointPages, sourcePages, eventPages, executionPages] = await Promise.all([
+    fetchAllPages(sdk, phase6.webhookDeliveries.dataSourceId, deliverySchema.titlePropertyName),
+    fetchAllPages(sdk, phase6.webhookEndpoints.dataSourceId, endpointSchema.titlePropertyName),
+    fetchAllPages(sdk, phase5.sources.dataSourceId, sourceSchema.titlePropertyName),
+    fetchAllPages(sdk, phase5.events.dataSourceId, eventSchema.titlePropertyName),
+    executionPagesPromise,
+  ]);
+
+  const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));
+  const endpoints = endpointPages.map((page) => toWebhookEndpointRecord(page));
+  const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
+  const executions = executionPages.map((page) => toExternalActionExecutionRecord(page));
+  const existingEventKeys = new Set(eventPages.map((page) => page.properties["Event Key"]?.rich_text?.map((item) => item.plain_text ?? "").join("").trim() ?? ""));
+  const deliveryMap = new Map(deliveries.map((delivery) => [`${delivery.provider}::${delivery.deliveryId}`, delivery]));
+
+  let receiptCount = 0;
+  let createdDeliveryCount = 0;
+  let updatedDeliveryCount = 0;
+  let createdEventCount = 0;
+
+  for (const entry of entries) {
+    const absolute = path.join(pendingDir, entry);
+    let envelope: WebhookReceiptEnvelope;
+    try {
+      envelope = JSON.parse(await readFile(absolute, "utf8")) as WebhookReceiptEnvelope;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        continue;
+      }
+      throw error;
     }
-
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    const providerConfig = await loadLocalPortfolioWebhookProviderConfig();
-    const pendingDir = path.resolve(providerConfig.spoolDirectory, "pending");
-    const processedDir = path.resolve(providerConfig.spoolDirectory, "processed");
-    await mkdir(processedDir, { recursive: true });
-
-    const entries = (await readdir(pendingDir)).filter((entry) => entry.endsWith(".json")).sort();
-    const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
-    let config = await loadLocalPortfolioControlTowerConfig(configPath);
-    config = await ensurePhase6GovernanceSchema(sdk, config);
-
-    const api = new DirectNotionClient(token);
-    const phase5 = requirePhase5ExternalSignals(config);
-    const phase6 = config.phase6Governance!;
-    const executionSchemaPromise = config.phase7Actuation
-      ? api.retrieveDataSource(config.phase7Actuation.executions.dataSourceId)
-      : Promise.resolve(undefined);
-    const [deliverySchema, receiptSchema, endpointSchema, sourceSchema, eventSchema, executionSchema] = await Promise.all([
-      api.retrieveDataSource(phase6.webhookDeliveries.dataSourceId),
-      api.retrieveDataSource(phase6.webhookReceipts.dataSourceId),
-      api.retrieveDataSource(phase6.webhookEndpoints.dataSourceId),
-      api.retrieveDataSource(phase5.sources.dataSourceId),
-      api.retrieveDataSource(phase5.events.dataSourceId),
-      executionSchemaPromise,
-    ]);
-
-    const executionPagesPromise =
-      config.phase7Actuation && executionSchema
-        ? fetchAllPages(sdk, config.phase7Actuation.executions.dataSourceId, executionSchema.titlePropertyName)
-        : Promise.resolve([]);
-    const [deliveryPages, endpointPages, sourcePages, eventPages, executionPages] = await Promise.all([
-      fetchAllPages(sdk, phase6.webhookDeliveries.dataSourceId, deliverySchema.titlePropertyName),
-      fetchAllPages(sdk, phase6.webhookEndpoints.dataSourceId, endpointSchema.titlePropertyName),
-      fetchAllPages(sdk, phase5.sources.dataSourceId, sourceSchema.titlePropertyName),
-      fetchAllPages(sdk, phase5.events.dataSourceId, eventSchema.titlePropertyName),
-      executionPagesPromise,
-    ]);
-
-    const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));
-    const endpoints = endpointPages.map((page) => toWebhookEndpointRecord(page));
-    const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
-    const executions = executionPages.map((page) => toExternalActionExecutionRecord(page));
-    const existingEventKeys = new Set(eventPages.map((page) => page.properties["Event Key"]?.rich_text?.map((item) => item.plain_text ?? "").join("").trim() ?? ""));
-    const deliveryMap = new Map(deliveries.map((delivery) => [`${delivery.provider}::${delivery.deliveryId}`, delivery]));
-
-    let receiptCount = 0;
-    let createdDeliveryCount = 0;
-    let updatedDeliveryCount = 0;
-    let createdEventCount = 0;
-
-    for (const entry of entries) {
-      const absolute = path.join(pendingDir, entry);
-      let envelope: WebhookReceiptEnvelope;
-      try {
-        envelope = JSON.parse(await readFile(absolute, "utf8")) as WebhookReceiptEnvelope;
-      } catch (error) {
-        // Another drain pass may have already moved the same pending file.
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          continue;
-        }
-        throw error;
-      }
-      const providerName = envelope.provider === "github" ? "GitHub" : envelope.provider === "vercel" ? "Vercel" : "Google Calendar";
-      const endpoint = endpoints.find(
-        (candidate) =>
-          candidate.provider === providerName && candidate.receiverPath === envelope.endpointPath,
+    const providerName = envelope.provider === "github" ? "GitHub" : envelope.provider === "vercel" ? "Vercel" : "Google Calendar";
+    const endpoint = endpoints.find(
+      (candidate) =>
+        candidate.provider === providerName && candidate.receiverPath === envelope.endpointPath,
+    );
+    const deliveryKey = `${providerName}::${envelope.deliveryId}`;
+    const existingDelivery = deliveryMap.get(deliveryKey);
+    const normalizedEvent = envelope.verificationResult === "Valid" ? createWebhookReceiptEnvelopeToEvent(envelope) : undefined;
+    const matchedSource =
+      normalizedEvent &&
+      sources.find(
+        (source) =>
+          source.provider === providerName &&
+          (source.identifier === normalizedEvent.sourceIdValue || source.sourceUrl === normalizedEvent.sourceUrl),
       );
-      const deliveryKey = `${providerName}::${envelope.deliveryId}`;
-      const existingDelivery = deliveryMap.get(deliveryKey);
-      const normalizedEvent = envelope.verificationResult === "Valid" ? createWebhookReceiptEnvelopeToEvent(envelope) : undefined;
-      const matchedSource =
-        normalizedEvent &&
-        sources.find(
-          (source) =>
-            source.provider === providerName &&
-            (source.identifier === normalizedEvent.sourceIdValue || source.sourceUrl === normalizedEvent.sourceUrl),
-        );
-      const localProjectIds = matchedSource?.localProjectIds ?? [];
-      let externalEventId: string | undefined;
+    const localProjectIds = matchedSource?.localProjectIds ?? [];
+    let externalEventId: string | undefined;
 
-      if (!existingDelivery) {
-        const created = await api.createPageWithMarkdown({
-          parent: { data_source_id: phase6.webhookDeliveries.dataSourceId },
-          properties: {
-            [deliverySchema.titlePropertyName]: titleValue(`${providerName} delivery ${envelope.deliveryId}`),
-          },
-          markdown: [
-            `# ${providerName} delivery ${envelope.deliveryId}`,
-            "",
-            `- Provider: ${providerName}`,
-            `- Event type: ${envelope.eventType}`,
-            `- Verification result: ${envelope.verificationResult}`,
-            "",
-            envelope.failureNotes || "Verified shadow-mode delivery.",
-          ].join("\n"),
-        });
-        await api.updatePageProperties({
-          pageId: created.id,
-          properties: {
-            Endpoint: relationValue(endpoint ? [endpoint.id] : []),
-            "Local Project": relationValue(localProjectIds),
-            Provider: { select: { name: providerName } },
-            Status: { select: { name: envelope.status } },
-            "Event Type": { rich_text: [{ type: "text", text: { content: envelope.eventType } }] },
-            "Delivery ID": { rich_text: [{ type: "text", text: { content: envelope.deliveryId } }] },
-            "Received At": { date: { start: envelope.receivedAt.slice(0, 10) } },
-            "Verification Result": { select: { name: envelope.verificationResult } },
-            "Event Key": { rich_text: [{ type: "text", text: { content: envelope.eventKey } }] },
-            "Body Digest": { rich_text: [{ type: "text", text: { content: envelope.bodyDigest } }] },
-            "Headers Excerpt": { rich_text: [{ type: "text", text: { content: JSON.stringify(envelope.headers) } }] },
-            "Raw Excerpt": { rich_text: [{ type: "text", text: { content: envelope.body.slice(0, 1900) } }] },
-            "Failure Notes": { rich_text: [{ type: "text", text: { content: envelope.failureNotes || "" } }] },
-            "First Seen At": { date: { start: envelope.receivedAt.slice(0, 10) } },
-            "Last Seen At": { date: { start: envelope.receivedAt.slice(0, 10) } },
-            "Receipt Count": { number: 1 },
-          },
-        });
-        const createdRecord = {
-          id: created.id,
-          url: created.url,
-          title: `${providerName} delivery ${envelope.deliveryId}`,
-          provider: providerName as (typeof deliveries)[number]["provider"],
-          endpointIds: endpoint ? [endpoint.id] : [],
-          localProjectIds,
-          externalSignalEventIds: [],
-          status: envelope.status,
-          eventType: envelope.eventType,
-          deliveryId: envelope.deliveryId,
-          receivedAt: envelope.receivedAt.slice(0, 10),
-          verificationResult: envelope.verificationResult,
-          eventKey: envelope.eventKey,
-          bodyDigest: envelope.bodyDigest,
-          headersExcerpt: JSON.stringify(envelope.headers),
-          rawExcerpt: envelope.body.slice(0, 280),
-          failureNotes: envelope.failureNotes,
-          firstSeenAt: envelope.receivedAt.slice(0, 10),
-          lastSeenAt: envelope.receivedAt.slice(0, 10),
-          receiptCount: 1,
-        };
-        deliveryMap.set(deliveryKey, createdRecord);
-        createdDeliveryCount += 1;
-      } else {
-        await api.updatePageProperties({
-          pageId: existingDelivery.id,
-          properties: {
-            Status: { select: { name: "Duplicate" } },
-            "Last Seen At": { date: { start: envelope.receivedAt.slice(0, 10) } },
-            "Receipt Count": { number: existingDelivery.receiptCount + 1 },
-            "Failure Notes": { rich_text: [{ type: "text", text: { content: envelope.failureNotes || existingDelivery.failureNotes || "" } }] },
-          },
-        });
-        existingDelivery.status = "Duplicate";
-        existingDelivery.receiptCount += 1;
-        existingDelivery.lastSeenAt = envelope.receivedAt.slice(0, 10);
-        updatedDeliveryCount += 1;
-      }
-
-      const activeDelivery = deliveryMap.get(deliveryKey)!;
-      if (normalizedEvent && matchedSource && !existingEventKeys.has(normalizedEvent.eventKey) && envelope.verificationResult === "Valid") {
-        const createdEvent = await api.createPageWithMarkdown({
-          parent: { data_source_id: phase5.events.dataSourceId },
-          properties: {
-            [eventSchema.titlePropertyName]: titleValue(normalizedEvent.title),
-          },
-          markdown: [
-            `# ${normalizedEvent.title}`,
-            "",
-            normalizedEvent.summary,
-            "",
-            `Raw excerpt: ${normalizedEvent.rawExcerpt}`,
-          ].join("\n"),
-        });
-        externalEventId = createdEvent.id;
-        existingEventKeys.add(normalizedEvent.eventKey);
-        await api.updatePageProperties({
-          pageId: createdEvent.id,
-          properties: {
-            "Local Project": relationValue(localProjectIds),
-            Source: relationValue([matchedSource.id]),
-            Provider: { select: { name: normalizedEvent.provider } },
-            "Signal Type": { select: { name: normalizedEvent.signalType } },
-            "Occurred At": { date: { start: normalizedEvent.occurredAt } },
-            Status: { rich_text: [{ type: "text", text: { content: normalizedEvent.status } }] },
-            Environment: { select: { name: normalizedEvent.environment } },
-            Severity: { select: { name: normalizedEvent.severity } },
-            "Source ID": { rich_text: [{ type: "text", text: { content: normalizedEvent.sourceIdValue } }] },
-            "Source URL": { url: normalizedEvent.sourceUrl || null },
-            "Event Key": { rich_text: [{ type: "text", text: { content: normalizedEvent.eventKey } }] },
-            Summary: { rich_text: [{ type: "text", text: { content: normalizedEvent.summary } }] },
-            "Raw Excerpt": { rich_text: [{ type: "text", text: { content: normalizedEvent.rawExcerpt } }] },
-          },
-        });
-        createdEventCount += 1;
-      }
-
-      const receipt = await api.createPageWithMarkdown({
-        parent: { data_source_id: phase6.webhookReceipts.dataSourceId },
+    if (!existingDelivery) {
+      const created = await api.createPageWithMarkdown({
+        parent: { data_source_id: phase6.webhookDeliveries.dataSourceId },
         properties: {
-          [receiptSchema.titlePropertyName]: titleValue(`${providerName} receipt ${envelope.requestId}`),
+          [deliverySchema.titlePropertyName]: titleValue(`${providerName} delivery ${envelope.deliveryId}`),
         },
         markdown: [
-          `# ${providerName} receipt ${envelope.requestId}`,
+          `# ${providerName} delivery ${envelope.deliveryId}`,
           "",
-          `- Verification: ${envelope.verificationResult}`,
+          `- Provider: ${providerName}`,
           `- Event type: ${envelope.eventType}`,
-          `- Delivery id: ${envelope.deliveryId}`,
+          `- Verification result: ${envelope.verificationResult}`,
           "",
-          envelope.failureNotes || "Shadow-mode receipt captured successfully.",
+          envelope.failureNotes || "Verified shadow-mode delivery.",
         ].join("\n"),
       });
       await api.updatePageProperties({
-        pageId: receipt.id,
+        pageId: created.id,
         properties: {
           Endpoint: relationValue(endpoint ? [endpoint.id] : []),
-          Delivery: relationValue(activeDelivery ? [activeDelivery.id] : []),
+          "Local Project": relationValue(localProjectIds),
           Provider: { select: { name: providerName } },
+          Status: { select: { name: envelope.status } },
+          "Event Type": { rich_text: [{ type: "text", text: { content: envelope.eventType } }] },
+          "Delivery ID": { rich_text: [{ type: "text", text: { content: envelope.deliveryId } }] },
           "Received At": { date: { start: envelope.receivedAt.slice(0, 10) } },
           "Verification Result": { select: { name: envelope.verificationResult } },
-          Duplicate: { checkbox: Boolean(existingDelivery) },
-          "Drain Status": { select: { name: "Written" } },
-          "Delivery ID": { rich_text: [{ type: "text", text: { content: envelope.deliveryId } }] },
-          "Event Type": { rich_text: [{ type: "text", text: { content: envelope.eventType } }] },
           "Event Key": { rich_text: [{ type: "text", text: { content: envelope.eventKey } }] },
           "Body Digest": { rich_text: [{ type: "text", text: { content: envelope.bodyDigest } }] },
           "Headers Excerpt": { rich_text: [{ type: "text", text: { content: JSON.stringify(envelope.headers) } }] },
           "Raw Excerpt": { rich_text: [{ type: "text", text: { content: envelope.body.slice(0, 1900) } }] },
           "Failure Notes": { rich_text: [{ type: "text", text: { content: envelope.failureNotes || "" } }] },
+          "First Seen At": { date: { start: envelope.receivedAt.slice(0, 10) } },
+          "Last Seen At": { date: { start: envelope.receivedAt.slice(0, 10) } },
+          "Receipt Count": { number: 1 },
         },
       });
-      receiptCount += 1;
+      const createdRecord = {
+        id: created.id,
+        url: created.url,
+        title: `${providerName} delivery ${envelope.deliveryId}`,
+        provider: providerName as (typeof deliveries)[number]["provider"],
+        endpointIds: endpoint ? [endpoint.id] : [],
+        localProjectIds,
+        externalSignalEventIds: [],
+        status: envelope.status,
+        eventType: envelope.eventType,
+        deliveryId: envelope.deliveryId,
+        receivedAt: envelope.receivedAt.slice(0, 10),
+        verificationResult: envelope.verificationResult,
+        eventKey: envelope.eventKey,
+        bodyDigest: envelope.bodyDigest,
+        headersExcerpt: JSON.stringify(envelope.headers),
+        rawExcerpt: envelope.body.slice(0, 280),
+        failureNotes: envelope.failureNotes,
+        firstSeenAt: envelope.receivedAt.slice(0, 10),
+        lastSeenAt: envelope.receivedAt.slice(0, 10),
+        receiptCount: 1,
+      };
+      deliveryMap.set(deliveryKey, createdRecord);
+      createdDeliveryCount += 1;
+    } else {
+      await api.updatePageProperties({
+        pageId: existingDelivery.id,
+        properties: {
+          Status: { select: { name: "Duplicate" } },
+          "Last Seen At": { date: { start: envelope.receivedAt.slice(0, 10) } },
+          "Receipt Count": { number: existingDelivery.receiptCount + 1 },
+          "Failure Notes": { rich_text: [{ type: "text", text: { content: envelope.failureNotes || existingDelivery.failureNotes || "" } }] },
+        },
+      });
+      existingDelivery.status = "Duplicate";
+      existingDelivery.receiptCount += 1;
+      existingDelivery.lastSeenAt = envelope.receivedAt.slice(0, 10);
+      updatedDeliveryCount += 1;
+    }
 
-      if (externalEventId) {
-        await api.updatePageProperties({
-          pageId: activeDelivery.id,
-          properties: {
-            "External Signal Event": relationValue([externalEventId]),
-            Status: { select: { name: "Processed" } },
-          },
-        });
-      }
+    const activeDelivery = deliveryMap.get(deliveryKey)!;
+    if (normalizedEvent && matchedSource && !existingEventKeys.has(normalizedEvent.eventKey) && envelope.verificationResult === "Valid") {
+      const createdEvent = await api.createPageWithMarkdown({
+        parent: { data_source_id: phase5.events.dataSourceId },
+        properties: {
+          [eventSchema.titlePropertyName]: titleValue(normalizedEvent.title),
+        },
+        markdown: [
+          `# ${normalizedEvent.title}`,
+          "",
+          normalizedEvent.summary,
+          "",
+          `Raw excerpt: ${normalizedEvent.rawExcerpt}`,
+        ].join("\n"),
+      });
+      externalEventId = createdEvent.id;
+      existingEventKeys.add(normalizedEvent.eventKey);
+      await api.updatePageProperties({
+        pageId: createdEvent.id,
+        properties: {
+          "Local Project": relationValue(localProjectIds),
+          Source: relationValue([matchedSource.id]),
+          Provider: { select: { name: normalizedEvent.provider } },
+          "Signal Type": { select: { name: normalizedEvent.signalType } },
+          "Occurred At": { date: { start: normalizedEvent.occurredAt } },
+          Status: { rich_text: [{ type: "text", text: { content: normalizedEvent.status } }] },
+          Environment: { select: { name: normalizedEvent.environment } },
+          Severity: { select: { name: normalizedEvent.severity } },
+          "Source ID": { rich_text: [{ type: "text", text: { content: normalizedEvent.sourceIdValue } }] },
+          "Source URL": { url: normalizedEvent.sourceUrl || null },
+          "Event Key": { rich_text: [{ type: "text", text: { content: normalizedEvent.eventKey } }] },
+          Summary: { rich_text: [{ type: "text", text: { content: normalizedEvent.summary } }] },
+          "Raw Excerpt": { rich_text: [{ type: "text", text: { content: normalizedEvent.rawExcerpt } }] },
+        },
+      });
+      createdEventCount += 1;
+    }
 
-      if (config.phase7Actuation && envelope.verificationResult === "Valid" && providerName === "GitHub") {
-        const candidate = extractGitHubReconcileCandidate(envelope.body, envelope.eventType);
-        if (candidate) {
-          const matchingExecution = matchedSource
-            ? findMatchingGitHubExecutionForReceipt({
-                executions,
-                matchedSourceId: matchedSource.id,
-                candidate,
-              })
-            : undefined;
-          if (matchingExecution) {
-            await api.updatePageProperties({
-              pageId: matchingExecution.id,
-              properties: {
-                "Reconcile Status": { select: { name: "Confirmed" } },
-                "Response Summary": {
-                  rich_text: [{ type: "text", text: { content: `${matchingExecution.responseSummary} Webhook feedback confirmed the GitHub outcome.`.trim() } }],
-                },
+    const receipt = await api.createPageWithMarkdown({
+      parent: { data_source_id: phase6.webhookReceipts.dataSourceId },
+      properties: {
+        [receiptSchema.titlePropertyName]: titleValue(`${providerName} receipt ${envelope.requestId}`),
+      },
+      markdown: [
+        `# ${providerName} receipt ${envelope.requestId}`,
+        "",
+        `- Verification: ${envelope.verificationResult}`,
+        `- Event type: ${envelope.eventType}`,
+        `- Delivery id: ${envelope.deliveryId}`,
+        "",
+        envelope.failureNotes || "Shadow-mode receipt captured successfully.",
+      ].join("\n"),
+    });
+    await api.updatePageProperties({
+      pageId: receipt.id,
+      properties: {
+        Endpoint: relationValue(endpoint ? [endpoint.id] : []),
+        Delivery: relationValue(activeDelivery ? [activeDelivery.id] : []),
+        Provider: { select: { name: providerName } },
+        "Received At": { date: { start: envelope.receivedAt.slice(0, 10) } },
+        "Verification Result": { select: { name: envelope.verificationResult } },
+        Duplicate: { checkbox: Boolean(existingDelivery) },
+        "Drain Status": { select: { name: "Written" } },
+        "Delivery ID": { rich_text: [{ type: "text", text: { content: envelope.deliveryId } }] },
+        "Event Type": { rich_text: [{ type: "text", text: { content: envelope.eventType } }] },
+        "Event Key": { rich_text: [{ type: "text", text: { content: envelope.eventKey } }] },
+        "Body Digest": { rich_text: [{ type: "text", text: { content: envelope.bodyDigest } }] },
+        "Headers Excerpt": { rich_text: [{ type: "text", text: { content: JSON.stringify(envelope.headers) } }] },
+        "Raw Excerpt": { rich_text: [{ type: "text", text: { content: envelope.body.slice(0, 1900) } }] },
+        "Failure Notes": { rich_text: [{ type: "text", text: { content: envelope.failureNotes || "" } }] },
+      },
+    });
+    receiptCount += 1;
+
+    if (externalEventId) {
+      await api.updatePageProperties({
+        pageId: activeDelivery.id,
+        properties: {
+          "External Signal Event": relationValue([externalEventId]),
+          Status: { select: { name: "Processed" } },
+        },
+      });
+    }
+
+    if (config.phase7Actuation && envelope.verificationResult === "Valid" && providerName === "GitHub") {
+      const candidate = extractGitHubReconcileCandidate(envelope.body, envelope.eventType);
+      if (candidate) {
+        const matchingExecution = matchedSource
+          ? findMatchingGitHubExecutionForReceipt({
+              executions,
+              matchedSourceId: matchedSource.id,
+              candidate,
+            })
+          : undefined;
+        if (matchingExecution) {
+          await api.updatePageProperties({
+            pageId: matchingExecution.id,
+            properties: {
+              "Reconcile Status": { select: { name: "Confirmed" } },
+              "Response Summary": {
+                rich_text: [{ type: "text", text: { content: `${matchingExecution.responseSummary} Webhook feedback confirmed the GitHub outcome.`.trim() } }],
               },
-            });
-            matchingExecution.reconcileStatus = "Confirmed";
-            matchingExecution.responseSummary = `${matchingExecution.responseSummary} Webhook feedback confirmed the GitHub outcome.`.trim();
-          }
-        }
-      }
-
-      try {
-        await rename(absolute, path.join(processedDir, entry));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          throw error;
+            },
+          });
+          matchingExecution.reconcileStatus = "Confirmed";
+          matchingExecution.responseSummary = `${matchingExecution.responseSummary} Webhook feedback confirmed the GitHub outcome.`.trim();
         }
       }
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          drainedFiles: entries.length,
-          receiptCount,
-          createdDeliveryCount,
-          updatedDeliveryCount,
-          createdEventCount,
-        },
-        null,
-        2,
-      ),
-    );
+    try {
+      await rename(absolute, path.join(processedDir, entry));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        drainedFiles: entries.length,
+        receiptCount,
+        createdDeliveryCount,
+        updatedDeliveryCount,
+        createdEventCount,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function main(): Promise<void> {
+  try {
+    await runWebhookShadowDrainCommand({
+      config:
+        process.argv[2]?.startsWith("--")
+          ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
+          : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+    });
   } catch (error) {
     console.error(toErrorMessage(error));
     process.exitCode = 1;
@@ -542,5 +550,5 @@ export function extractGitHubReconcileCandidate(
 }
 
 if (isDirectExecution(import.meta.url)) {
-  void main();
+  void runLegacyCliPath(["governance", "webhook-shadow-drain"]);
 }

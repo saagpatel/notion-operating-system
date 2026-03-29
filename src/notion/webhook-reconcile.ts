@@ -2,7 +2,8 @@ import "dotenv/config";
 
 import { Client } from "@notionhq/client";
 
-import { isDirectExecution } from "../cli/legacy.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -12,48 +13,59 @@ import { fetchAllPages } from "./local-portfolio-control-tower-live.js";
 import { requirePhase6Governance } from "./local-portfolio-governance.js";
 import type { WebhookDeliveryRecord } from "./local-portfolio-governance.js";
 import { toWebhookDeliveryRecord } from "./local-portfolio-governance-live.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { toErrorMessage } from "../utils/errors.js";
+
+export interface WebhookReconcileCommandOptions {
+  provider?: "github" | "vercel" | "google_calendar";
+  config?: string;
+}
+
+export async function runWebhookReconcileCommand(
+  options: WebhookReconcileCommandOptions = {},
+): Promise<void> {
+  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for webhook reconcile");
+  const config = await loadLocalPortfolioControlTowerConfig(
+    options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  );
+  const phase6 = requirePhase6Governance(config);
+
+  const api = new DirectNotionClient(token);
+  const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+  const deliverySchema = await api.retrieveDataSource(phase6.webhookDeliveries.dataSourceId);
+  const deliveryPages = await fetchAllPages(sdk, phase6.webhookDeliveries.dataSourceId, deliverySchema.titlePropertyName);
+  const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));
+  const provider = options.provider ?? "github";
+  const reconcileNeeded = findWebhookDeliveriesNeedingReconcile(deliveries, provider);
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        provider,
+        reconcileNeeded: reconcileNeeded.map((delivery) => ({
+          title: delivery.title,
+          url: delivery.url,
+          status: delivery.status,
+          verificationResult: delivery.verificationResult,
+          receiptCount: delivery.receiptCount,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
+}
 
 async function main(): Promise<void> {
   try {
-    const token = process.env.NOTION_TOKEN?.trim();
-    if (!token) {
-      throw new AppError("NOTION_TOKEN is required for webhook reconcile");
-    }
-
     const flags = parseWebhookReconcileFlags(process.argv.slice(2));
-    const configPath =
-      process.argv[2]?.startsWith("--")
-        ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-        : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-    const config = await loadLocalPortfolioControlTowerConfig(configPath);
-    const phase6 = requirePhase6Governance(config);
-
-    const api = new DirectNotionClient(token);
-    const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
-    const deliverySchema = await api.retrieveDataSource(phase6.webhookDeliveries.dataSourceId);
-    const deliveryPages = await fetchAllPages(sdk, phase6.webhookDeliveries.dataSourceId, deliverySchema.titlePropertyName);
-    const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));
-
-    const reconcileNeeded = findWebhookDeliveriesNeedingReconcile(deliveries, flags.provider);
-
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          provider: flags.provider,
-          reconcileNeeded: reconcileNeeded.map((delivery) => ({
-            title: delivery.title,
-            url: delivery.url,
-            status: delivery.status,
-            verificationResult: delivery.verificationResult,
-            receiptCount: delivery.receiptCount,
-          })),
-        },
-        null,
-        2,
-      ),
-    );
+    await runWebhookReconcileCommand({
+      provider: flags.provider,
+      config:
+        process.argv[2]?.startsWith("--")
+          ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
+          : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+    });
   } catch (error) {
     console.error(toErrorMessage(error));
     process.exitCode = 1;
@@ -88,5 +100,5 @@ export function findWebhookDeliveriesNeedingReconcile(
 }
 
 if (isDirectExecution(import.meta.url)) {
-  void main();
+  void runLegacyCliPath(["governance", "webhook-reconcile"]);
 }

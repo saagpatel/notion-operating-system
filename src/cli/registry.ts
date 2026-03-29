@@ -19,15 +19,24 @@ import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfoli
 import { runLocalPortfolioViewsValidateCommand } from "../notion/validate-local-portfolio-views.js";
 import { runExecutionSyncCommand } from "../notion/execution-sync.js";
 import { runWeeklyPlanCommand } from "../notion/weekly-plan.js";
+import { runExecutionViewsValidateCommand } from "../notion/validate-local-portfolio-execution-views.js";
 import { runIntelligenceSyncCommand } from "../notion/intelligence-sync.js";
 import { runRecommendationRunCommand } from "../notion/recommendation-run.js";
 import { runLinkSuggestionsSyncCommand } from "../notion/link-suggestions-sync.js";
+import { runIntelligenceViewsValidateCommand } from "../notion/validate-local-portfolio-intelligence-views.js";
 import { runExternalSignalSyncCommand } from "../notion/external-signal-sync.js";
 import { runExternalSignalSeedMappingsCommand } from "../notion/external-signal-seed-mappings.js";
 import { runActivityRefreshCommand } from "../notion/activity-refresh.js";
+import { runExternalSignalViewsValidateCommand } from "../notion/validate-local-portfolio-external-signal-views.js";
+import { runProviderExpansionAuditCommand } from "../notion/provider-expansion-audit.js";
 import { runActionRequestSyncCommand } from "../notion/action-request-sync.js";
 import { runActionDryRunCommand } from "../notion/action-dry-run.js";
 import { runActionRunnerCommand } from "../notion/action-runner.js";
+import { runGovernanceAuditCommand } from "../notion/governance-audit.js";
+import { runGovernanceViewsValidateCommand } from "../notion/validate-local-portfolio-governance-views.js";
+import { runActuationAuditCommand } from "../notion/actuation-audit.js";
+import { runWebhookShadowDrainCommand } from "../notion/webhook-shadow-drain.js";
+import { runWebhookReconcileCommand } from "../notion/webhook-reconcile.js";
 import { runOperationalRolloutCommand } from "../notion/operational-rollout.js";
 import { runCohortRolloutCommand } from "../notion/cohort-rollout.js";
 
@@ -187,6 +196,11 @@ export const cliRegistry: CliCommandDefinition[] = [
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
+    {
+      name: "views-validate",
+      description: "Validate the execution saved-view plan against the live schema.",
+      run: async () => runExecutionViewsValidateCommand(),
+    },
     buildConfigCommand("weekly-plan", "Generate or publish the weekly execution planning packet.", [commonOptions.live, commonOptions.today, commonOptions.config, { name: "include-next-phase", description: "Include the next-phase brief in the weekly packet.", type: "boolean" }], ({ parsed }) =>
       runWeeklyPlanCommand({
         live: asBoolean(parsed.options.live),
@@ -201,6 +215,11 @@ export const cliRegistry: CliCommandDefinition[] = [
       runIntelligenceSyncCommand({
         live: asBoolean(parsed.options.live),
         today: asString(parsed.options.today),
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+    buildConfigCommand("views-validate", "Validate the intelligence saved-view plan against the live schema.", [commonOptions.config], ({ parsed }) =>
+      runIntelligenceViewsValidateCommand({
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
@@ -242,12 +261,37 @@ export const cliRegistry: CliCommandDefinition[] = [
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
+    buildConfigCommand("views-validate", "Validate the external-signal saved-view plan against the live schema.", [commonOptions.config], ({ parsed }) =>
+      runExternalSignalViewsValidateCommand({
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+    buildConfigCommand("provider-expansion-audit", "Audit whether non-GitHub provider expansion is ready for a bounded pilot.", [commonOptions.config], ({ parsed }) =>
+      runProviderExpansionAuditCommand({
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
   ]),
   buildFamily("governance", "Run governance and actuation workflows.", [
+    buildConfigCommand("audit", "Audit the governance policy and webhook posture.", [commonOptions.config], ({ parsed }) =>
+      runGovernanceAuditCommand({
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+    buildConfigCommand("views-validate", "Validate the governance saved-view plan against the live schema.", [commonOptions.config], ({ parsed }) =>
+      runGovernanceViewsValidateCommand({
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
     buildConfigCommand("action-request-sync", "Refresh action-request, governance, and actuation summaries.", [commonOptions.live, commonOptions.today, commonOptions.config], ({ parsed }) =>
       runActionRequestSyncCommand({
         live: asBoolean(parsed.options.live),
         today: asString(parsed.options.today),
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+    buildConfigCommand("actuation-audit", "Audit the GitHub actuation lane and allowlisted target posture.", [commonOptions.config], ({ parsed }) =>
+      runActuationAuditCommand({
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
@@ -262,6 +306,17 @@ export const cliRegistry: CliCommandDefinition[] = [
         request: asString(parsed.options.request),
         mode: (asString(parsed.options.mode) as "dry-run" | "live" | undefined) ?? "dry-run",
         limit: asNumber(parsed.options.limit),
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+    buildConfigCommand("webhook-shadow-drain", "Drain captured webhook receipts into Notion governance records.", [commonOptions.config], ({ parsed }) =>
+      runWebhookShadowDrainCommand({
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+    buildConfigCommand("webhook-reconcile", "List webhook deliveries that still need reconcile follow-up.", [commonOptions.config, { name: "provider", description: "Provider selection.", type: "enum", valueName: "provider", choices: ["github", "vercel", "google_calendar"], defaultValue: "github" }], ({ parsed }) =>
+      runWebhookReconcileCommand({
+        provider: (asString(parsed.options.provider) as "github" | "vercel" | "google_calendar" | undefined) ?? "github",
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
