@@ -128,7 +128,7 @@ Run this checklist only after cutover approval is granted.
 
 ### 1. Final Pre-Cutover Review
 
-- confirm [`docs/weekly-refresh-rollout-scorecard.md`](/Users/d/Notion/docs/weekly-refresh-rollout-scorecard.md) still reads as pass
+- confirm [`weekly-refresh-rollout-scorecard.md`](./weekly-refresh-rollout-scorecard.md) still reads as pass
 - confirm `main` is clean locally
 - confirm `weekly-refresh-shadow` is still `ACTIVE`
 - confirm `weekly-github-notion-maintenance` is still `ACTIVE`
