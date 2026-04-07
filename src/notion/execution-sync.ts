@@ -36,6 +36,7 @@ import { AppError, toErrorMessage } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
+import { isNotionPolicyBlockedError, syncManagedMarkdownSection } from "./managed-markdown-sync.js";
 
 const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
 const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
@@ -77,11 +78,15 @@ export async function runExecutionSyncCommand(
 
     logLiveStage(live, "Loading execution schemas");
     const viewPlan = await loadLocalPortfolioExecutionViewPlan();
-    const [projectSchema, buildSchema, decisionsSchema, packetsSchema, tasksSchema] = await Promise.all([
+    const [projectSchema, buildSchema] = await Promise.all([
       api.retrieveDataSource(config.database.dataSourceId),
       api.retrieveDataSource(config.relatedDataSources.buildLogId),
+    ]);
+    const [decisionsSchema, packetsSchema] = await Promise.all([
       api.retrieveDataSource(config.phase2Execution.decisions.dataSourceId),
       api.retrieveDataSource(config.phase2Execution.packets.dataSourceId),
+    ]);
+    const [tasksSchema] = await Promise.all([
       api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId),
     ]);
 
@@ -92,12 +97,16 @@ export async function runExecutionSyncCommand(
     });
 
     logLiveStage(live, "Fetching execution datasets");
-    const [projectPages, buildPages, decisionPages, packetPages, taskPages] = await Promise.all([
-      fetchAllPages(sdk, config.database.dataSourceId, projectSchema.titlePropertyName),
-      fetchAllPages(sdk, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
-      fetchAllPages(sdk, config.phase2Execution.decisions.dataSourceId, decisionsSchema.titlePropertyName),
-      fetchAllPages(sdk, config.phase2Execution.packets.dataSourceId, packetsSchema.titlePropertyName),
-      fetchAllPages(sdk, config.phase2Execution.tasks.dataSourceId, tasksSchema.titlePropertyName),
+    const [projectPages, buildPages] = await Promise.all([
+      fetchAllPages(api, config.database.dataSourceId, projectSchema.titlePropertyName),
+      fetchAllPages(api, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
+    ]);
+    const [decisionPages, packetPages] = await Promise.all([
+      fetchAllPages(api, config.phase2Execution.decisions.dataSourceId, decisionsSchema.titlePropertyName),
+      fetchAllPages(api, config.phase2Execution.packets.dataSourceId, packetsSchema.titlePropertyName),
+    ]);
+    const [taskPages] = await Promise.all([
+      fetchAllPages(api, config.phase2Execution.tasks.dataSourceId, tasksSchema.titlePropertyName),
     ]);
 
     const projects = projectPages.map((page) => applyDerivedSignals(toControlTowerProjectRecord(page), config, today));
@@ -158,18 +167,38 @@ export async function runExecutionSyncCommand(
       normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown);
 
     let changedProjectPages = 0;
+    const blockedMarkdownProjects: string[] = [];
+    const fallbackMarkdownProjects: string[] = [];
     if (live) {
       logLiveStage(live, "Refreshing project execution briefs", { projectCount: projects.length });
       for (const [index, brief] of projectBriefs.entries()) {
         logLoopProgress(live, "execution-sync", "Project brief", index + 1, projectBriefs.length);
         if (brief.changed) {
-          assertSafeReplacement(brief.previousMarkdown, brief.nextMarkdown);
-          await api.patchPageMarkdown({
-            pageId: brief.projectId,
-            command: "replace_content",
-            newMarkdown: buildReplaceCommand(brief.nextMarkdown),
-          });
-          changedProjectPages += 1;
+          try {
+            const mode = await syncManagedMarkdownSection({
+              api,
+              pageId: brief.projectId,
+              previousMarkdown: brief.previousMarkdown,
+              nextMarkdown: brief.nextMarkdown,
+              startMarker: EXECUTION_BRIEF_START,
+              endMarker: EXECUTION_BRIEF_END,
+            });
+            changedProjectPages += 1;
+            const projectTitle = projects.find((project) => project.id === brief.projectId)?.title ?? brief.projectId;
+            if (mode === "append_tail_update") {
+              fallbackMarkdownProjects.push(projectTitle);
+            }
+          } catch (error) {
+            if (!isNotionPolicyBlockedError(error)) {
+              throw error;
+            }
+            const projectTitle = projects.find((project) => project.id === brief.projectId)?.title ?? brief.projectId;
+            blockedMarkdownProjects.push(projectTitle);
+            logLiveStage(live, "Skipping blocked project markdown patch", {
+              projectId: brief.projectId,
+              projectTitle,
+            });
+          }
         }
       }
 
@@ -212,19 +241,31 @@ export async function runExecutionSyncCommand(
       changedProjectPages,
       projectExecutionBriefsWouldChange,
       executionCommandCenterSectionWouldChange,
+      blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+      markdownFallbackProjectPages: fallbackMarkdownProjects.length,
       metrics,
     };
+    const warnings = [
+      ...summarizeProjectWarnings("Execution brief markdown used a fallback write for", fallbackMarkdownProjects),
+      ...summarizeProjectWarnings("Execution brief markdown remained blocked for", blockedMarkdownProjects),
+    ];
     const contract = buildWeeklyStepContract({
       live,
+      status: blockedMarkdownProjects.length > 0 ? "partial" : undefined,
       wouldChange:
-        projectExecutionBriefsWouldChange > 0 || executionCommandCenterSectionWouldChange,
+        blockedMarkdownProjects.length > 0 ||
+        projectExecutionBriefsWouldChange > 0 ||
+        executionCommandCenterSectionWouldChange,
       summaryCounts: {
         projectExecutionBriefsWouldChange,
         executionCommandCenterSectionWouldChange: executionCommandCenterSectionWouldChange ? 1 : 0,
+        blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+        markdownFallbackProjectPages: fallbackMarkdownProjects.length,
         projectsWithExecutionDrift: metrics.projectsWithExecutionDrift,
         blockedTasks: metrics.blockedTasks,
         overdueTasks: metrics.overdueTasks,
       },
+      warnings,
     });
     output.status = contract.status;
     output.wouldChange = contract.wouldChange;
@@ -252,6 +293,16 @@ function logLoopProgress(live: boolean, scope: string, label: string, index: num
   if (index === 1 || index === total || index % 10 === 0) {
     console.error(`[${scope}] ${label} ${index}/${total}`);
   }
+}
+
+function summarizeProjectWarnings(prefix: string, projectTitles: string[]): string[] {
+  if (projectTitles.length === 0) {
+    return [];
+  }
+
+  const preview = projectTitles.slice(0, 3).join(", ");
+  const suffix = projectTitles.length > 3 ? `, +${projectTitles.length - 3} more` : "";
+  return [`${prefix} ${projectTitles.length} project page(s): ${preview}${suffix}.`];
 }
 
 function serializeExecutionMetrics(metrics: ReturnType<typeof calculateExecutionMetrics>): Record<string, number | string[]> {

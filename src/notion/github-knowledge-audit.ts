@@ -3,8 +3,6 @@ import "dotenv/config";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { Client } from "@notionhq/client";
-
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
@@ -37,6 +35,7 @@ import {
   upsertPageByTitle,
   type DataSourcePageRef,
 } from "./local-portfolio-control-tower-live.js";
+import { mapWithConcurrencyLimit } from "../utils/async.js";
 
 const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
@@ -644,30 +643,30 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
   );
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
   const sourceConfig = await readJsonFile<LocalPortfolioExternalSignalSourceConfig>(flags.sourceConfig);
-  const sdk = new Client({
-    auth: token,
-    notionVersion: "2026-03-11",
-  });
   const api = new DirectNotionClient(token);
   if (!config.phase5ExternalSignals) {
     throw new AppError("Control tower config is missing phase5ExternalSignals");
   }
 
-  const [projectSchema, skillSchema, researchSchema, toolSchema, sourceSchema, repos] = await Promise.all([
+  const [projectSchema, skillSchema, researchSchema] = await Promise.all([
     api.retrieveDataSource(config.database.dataSourceId),
     api.retrieveDataSource(config.relatedDataSources.skillsId),
     api.retrieveDataSource(config.relatedDataSources.researchId),
+  ]);
+  const [toolSchema, sourceSchema, repos] = await Promise.all([
     api.retrieveDataSource(config.relatedDataSources.toolsId),
     api.retrieveDataSource(config.phase5ExternalSignals.sources.dataSourceId),
     listGitHubRepos(flags.owner, flags.limit),
   ]);
 
-  const [projectPages, skillPages, researchPages, toolPages, sourcePages] = await Promise.all([
-    fetchAllPages(sdk, config.database.dataSourceId, projectSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
-    fetchAllPages(sdk, config.phase5ExternalSignals.sources.dataSourceId, sourceSchema.titlePropertyName),
+  const [projectPages, skillPages, researchPages] = await Promise.all([
+    fetchAllPages(api, config.database.dataSourceId, projectSchema.titlePropertyName),
+    fetchAllPages(api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
+    fetchAllPages(api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
+  ]);
+  const [toolPages, sourcePages] = await Promise.all([
+    fetchAllPages(api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
+    fetchAllPages(api, config.phase5ExternalSignals.sources.dataSourceId, sourceSchema.titlePropertyName),
   ]);
 
   const projectById = new Map(projectPages.map((page) => [page.id, page]));
@@ -762,7 +761,7 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
   });
 
   const toolPagesAfterSeeds = await fetchAllPages(
-    sdk,
+    api,
     config.relatedDataSources.toolsId,
     toolSchema.titlePropertyName,
   );
@@ -785,9 +784,9 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
   });
 
   const [toolPagesFinal, skillPagesFinal, researchPagesFinal] = await Promise.all([
-    fetchAllPages(sdk, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
+    fetchAllPages(api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
+    fetchAllPages(api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
+    fetchAllPages(api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
   ]);
 
   const existingToolRefreshes = await refreshExistingToolLinks({
@@ -1878,8 +1877,10 @@ async function readMarkdownMap(
   api: DirectNotionClient,
   pages: DataSourcePageRef[],
 ): Promise<Map<string, string>> {
-  const entries = await Promise.all(
-    pages.map(async (page) => [page.id, (await api.readPageMarkdown(page.id)).markdown] as const),
+  const entries = await mapWithConcurrencyLimit(
+    pages,
+    4,
+    async (page) => [page.id, (await api.readPageMarkdown(page.id)).markdown] as const,
   );
   return new Map(entries);
 }

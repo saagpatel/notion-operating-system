@@ -56,7 +56,7 @@ describe("NotionHttp", () => {
       logger: { warn, error } as never,
     });
 
-    await expect(client.requestJson("/pages")).rejects.toThrow("timed out");
+    await expect(client.requestJson("/pages")).rejects.toThrow("retryable error responses");
     expect(warn).toHaveBeenCalledWith(
       "notion_http_retry",
       expect.objectContaining({
@@ -174,7 +174,7 @@ describe("NotionHttp", () => {
           token: "test-token",
           maxAttempts: 1,
         });
-        await expect(client.requestJson("/pages")).rejects.toThrow("socket closed");
+        await expect(client.requestJson("/pages")).rejects.toThrow("transport error");
         summary = getCommandRunSummary();
       },
     );

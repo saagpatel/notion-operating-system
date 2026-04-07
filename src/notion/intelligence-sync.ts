@@ -18,6 +18,8 @@ import {
   renderRecommendationBriefSection,
   requirePhase3Intelligence,
 } from "./local-portfolio-intelligence.js";
+import { buildExternalSignalSummary, requirePhase5ExternalSignals } from "./local-portfolio-external-signals.js";
+import { toExternalSignalEventRecord, toExternalSignalSourceRecord } from "./local-portfolio-external-signals-live.js";
 import {
   ensurePhase3IntelligenceSchema,
   toIntelligenceProjectRecord,
@@ -46,6 +48,7 @@ import { AppError } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
+import { isNotionPolicyBlockedError, syncManagedMarkdownSection } from "./managed-markdown-sync.js";
 
 const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
@@ -79,22 +82,30 @@ export async function runIntelligenceSyncCommand(
     }
 
     const phase3 = requirePhase3Intelligence(config);
+    const phase5 = config.phase5ExternalSignals ? requirePhase5ExternalSignals(config) : undefined;
     logLiveStage(live, "Loading intelligence view plan");
     const viewPlan = await loadLocalPortfolioIntelligenceViewPlan();
 
-    const [projectSchema, buildSchema, researchSchema, skillSchema, toolSchema, decisionSchema, packetSchema, taskSchema, runSchema, suggestionSchema] =
-      await Promise.all([
-        api.retrieveDataSource(config.database.dataSourceId),
-        api.retrieveDataSource(config.relatedDataSources.buildLogId),
-        api.retrieveDataSource(config.relatedDataSources.researchId),
-        api.retrieveDataSource(config.relatedDataSources.skillsId),
-        api.retrieveDataSource(config.relatedDataSources.toolsId),
-        api.retrieveDataSource(config.phase2Execution!.decisions.dataSourceId),
-        api.retrieveDataSource(config.phase2Execution!.packets.dataSourceId),
-        api.retrieveDataSource(config.phase2Execution!.tasks.dataSourceId),
-        api.retrieveDataSource(phase3.recommendationRuns.dataSourceId),
-        api.retrieveDataSource(phase3.linkSuggestions.dataSourceId),
-      ]);
+    const [projectSchema, buildSchema, researchSchema] = await Promise.all([
+      api.retrieveDataSource(config.database.dataSourceId),
+      api.retrieveDataSource(config.relatedDataSources.buildLogId),
+      api.retrieveDataSource(config.relatedDataSources.researchId),
+    ]);
+    const [skillSchema, toolSchema, decisionSchema] = await Promise.all([
+      api.retrieveDataSource(config.relatedDataSources.skillsId),
+      api.retrieveDataSource(config.relatedDataSources.toolsId),
+      api.retrieveDataSource(config.phase2Execution!.decisions.dataSourceId),
+    ]);
+    const [packetSchema, taskSchema, runSchema, suggestionSchema] = await Promise.all([
+      api.retrieveDataSource(config.phase2Execution!.packets.dataSourceId),
+      api.retrieveDataSource(config.phase2Execution!.tasks.dataSourceId),
+      api.retrieveDataSource(phase3.recommendationRuns.dataSourceId),
+      api.retrieveDataSource(phase3.linkSuggestions.dataSourceId),
+    ]);
+    const [sourceSchema, eventSchema] = await Promise.all([
+      phase5 ? api.retrieveDataSource(phase5.sources.dataSourceId) : Promise.resolve(undefined),
+      phase5 ? api.retrieveDataSource(phase5.events.dataSourceId) : Promise.resolve(undefined),
+    ]);
 
     logLiveStage(live, "Validating intelligence views");
     validateLocalPortfolioIntelligenceViewPlanAgainstSchemas(viewPlan, {
@@ -104,19 +115,26 @@ export async function runIntelligenceSyncCommand(
     });
 
     logLiveStage(live, "Fetching intelligence datasets");
-    const [projectPages, buildPages, researchPages, skillPages, toolPages, decisionPages, packetPages, taskPages, runPages, suggestionPages] =
-      await Promise.all([
-        fetchAllPages(sdk, config.database.dataSourceId, projectSchema.titlePropertyName),
-        fetchAllPages(sdk, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
-        fetchAllPages(sdk, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
-        fetchAllPages(sdk, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
-        fetchAllPages(sdk, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
-        fetchAllPages(sdk, config.phase2Execution!.decisions.dataSourceId, decisionSchema.titlePropertyName),
-        fetchAllPages(sdk, config.phase2Execution!.packets.dataSourceId, packetSchema.titlePropertyName),
-        fetchAllPages(sdk, config.phase2Execution!.tasks.dataSourceId, taskSchema.titlePropertyName),
-        fetchAllPages(sdk, phase3.recommendationRuns.dataSourceId, runSchema.titlePropertyName),
-        fetchAllPages(sdk, phase3.linkSuggestions.dataSourceId, suggestionSchema.titlePropertyName),
-      ]);
+    const [projectPages, buildPages, researchPages] = await Promise.all([
+      fetchAllPages(api, config.database.dataSourceId, projectSchema.titlePropertyName),
+      fetchAllPages(api, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
+      fetchAllPages(api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
+    ]);
+    const [skillPages, toolPages, decisionPages] = await Promise.all([
+      fetchAllPages(api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
+      fetchAllPages(api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
+      fetchAllPages(api, config.phase2Execution!.decisions.dataSourceId, decisionSchema.titlePropertyName),
+    ]);
+    const [packetPages, taskPages, runPages, suggestionPages] = await Promise.all([
+      fetchAllPages(api, config.phase2Execution!.packets.dataSourceId, packetSchema.titlePropertyName),
+      fetchAllPages(api, config.phase2Execution!.tasks.dataSourceId, taskSchema.titlePropertyName),
+      fetchAllPages(api, phase3.recommendationRuns.dataSourceId, runSchema.titlePropertyName),
+      fetchAllPages(api, phase3.linkSuggestions.dataSourceId, suggestionSchema.titlePropertyName),
+    ]);
+    const [sourcePages, eventPages] = await Promise.all([
+      phase5 && sourceSchema ? fetchAllPages(api, phase5.sources.dataSourceId, sourceSchema.titlePropertyName) : Promise.resolve([]),
+      phase5 && eventSchema ? fetchAllPages(api, phase5.events.dataSourceId, eventSchema.titlePropertyName) : Promise.resolve([]),
+    ]);
 
     const projects = projectPages.map((page) => toIntelligenceProjectRecord(page));
     const buildSessions = buildPages.map((page) => toBuildSessionRecord(page));
@@ -128,6 +146,8 @@ export async function runIntelligenceSyncCommand(
     const tasks = taskPages.map((page) => toExecutionTaskRecord(page));
     const runs = runPages.map((page) => toRecommendationRunRecord(page));
     const suggestions = suggestionPages.map((page) => toLinkSuggestionRecord(page));
+    const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
+    const events = eventPages.map((page) => toExternalSignalEventRecord(page));
 
     const contexts = projects.map((project) =>
       buildProjectIntelligenceContext({
@@ -142,7 +162,22 @@ export async function runIntelligenceSyncCommand(
         today,
       }),
     );
-    const recommendations = contexts.map((context) => buildRecommendation(context));
+    const externalSummaryByProjectId = new Map(
+      phase5
+        ? projects.map((project) => [
+            project.id,
+            buildExternalSignalSummary({
+              project,
+              sources,
+              events,
+              today,
+            }),
+          ])
+        : [],
+    );
+    const recommendations = contexts.map((context) =>
+      buildRecommendation(context, externalSummaryByProjectId.get(context.project.id)),
+    );
     const metrics = calculateIntelligenceMetrics({
       projects,
       recommendations,
@@ -219,6 +254,8 @@ export async function runIntelligenceSyncCommand(
       normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown);
 
     let changedProjectPages = 0;
+    const blockedMarkdownProjects: string[] = [];
+    const fallbackMarkdownProjects: string[] = [];
     if (live) {
       logLiveStage(live, "Applying accepted link suggestions", {
         suggestionCount: suggestions.filter((entry) => entry.status === "Accepted").length,
@@ -257,13 +294,29 @@ export async function runIntelligenceSyncCommand(
         });
 
         if (entry.changed) {
-          assertSafeReplacement(entry.previousMarkdown, entry.nextMarkdown);
-          await api.patchPageMarkdown({
-            pageId: context.project.id,
-            command: "replace_content",
-            newMarkdown: buildReplaceCommand(entry.nextMarkdown),
-          });
-          changedProjectPages += 1;
+          try {
+            const mode = await syncManagedMarkdownSection({
+              api,
+              pageId: context.project.id,
+              previousMarkdown: entry.previousMarkdown,
+              nextMarkdown: entry.nextMarkdown,
+              startMarker: RECOMMENDATION_BRIEF_START,
+              endMarker: RECOMMENDATION_BRIEF_END,
+            });
+            changedProjectPages += 1;
+            if (mode === "append_tail_update") {
+              fallbackMarkdownProjects.push(context.project.title);
+            }
+          } catch (error) {
+            if (!isNotionPolicyBlockedError(error)) {
+              throw error;
+            }
+            blockedMarkdownProjects.push(context.project.title);
+            logLiveStage(live, "Skipping blocked project markdown patch", {
+              projectId: context.project.id,
+              projectTitle: context.project.title,
+            });
+          }
         }
       }
 
@@ -306,21 +359,33 @@ export async function runIntelligenceSyncCommand(
       changedProjectPages,
       projectRecommendationBriefsWouldChange,
       intelligenceCommandCenterSectionWouldChange,
+      blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+      markdownFallbackProjectPages: fallbackMarkdownProjects.length,
       metrics,
       latestWeeklyRunId: latestWeeklyRun?.id,
       latestDailyRunId: latestDailyRun?.id,
     };
+    const warnings = [
+      ...summarizeProjectWarnings("Recommendation brief markdown used a fallback write for", fallbackMarkdownProjects),
+      ...summarizeProjectWarnings("Recommendation brief markdown remained blocked for", blockedMarkdownProjects),
+    ];
     const contract = buildWeeklyStepContract({
       live,
+      status: blockedMarkdownProjects.length > 0 ? "partial" : undefined,
       wouldChange:
-        projectRecommendationBriefsWouldChange > 0 || intelligenceCommandCenterSectionWouldChange,
+        blockedMarkdownProjects.length > 0 ||
+        projectRecommendationBriefsWouldChange > 0 ||
+        intelligenceCommandCenterSectionWouldChange,
       summaryCounts: {
         projectRecommendationBriefsWouldChange,
         intelligenceCommandCenterSectionWouldChange: intelligenceCommandCenterSectionWouldChange ? 1 : 0,
+        blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+        markdownFallbackProjectPages: fallbackMarkdownProjects.length,
         totalProjects: metrics.totalProjects,
         resumeCandidates: metrics.resumeCandidates,
         proposedLinkSuggestions: metrics.proposedLinkSuggestions,
       },
+      warnings,
     });
     output.status = contract.status;
     output.wouldChange = contract.wouldChange;
@@ -351,6 +416,16 @@ function logLoopProgress(live: boolean, scope: string, label: string, index: num
   }
 
   console.error(`[${scope}] ${label} ${index}/${total}`);
+}
+
+function summarizeProjectWarnings(prefix: string, projectTitles: string[]): string[] {
+  if (projectTitles.length === 0) {
+    return [];
+  }
+
+  const preview = projectTitles.slice(0, 3).join(", ");
+  const suffix = projectTitles.length > 3 ? `, +${projectTitles.length - 3} more` : "";
+  return [`${prefix} ${projectTitles.length} project page(s): ${preview}${suffix}.`];
 }
 
 async function applyAcceptedLinkSuggestions(input: {

@@ -39,6 +39,7 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 
 - Use [github-support-maintenance.md](./github-support-maintenance.md) as the operator guide for the Notion support-maintenance lane.
 - Use [weekly-refresh-maintenance.md](./weekly-refresh-maintenance.md) as the operator guide for the broader weekly refresh lane.
+- Use [weekly-refresh-rollout-scorecard.md](./weekly-refresh-rollout-scorecard.md) while the weekly refresh lane is still in rollout and cutover validation.
 - Keep `github-support-maintenance` as the narrow sub-lane for safe GitHub-backed refreshes and approved hygiene only.
 - Use `stale-support-audit` and `project-support-coverage-audit` as review-first commands before introducing broader cleanup or coverage work.
 - Use [weak-support-review-second-pass.md](./weak-support-review-second-pass.md) when the stale-support queue is down to specialist rows and you need to decide what should stay intentionally single-project.

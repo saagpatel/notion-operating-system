@@ -63,3 +63,24 @@ If the new weekly lane behaves badly:
 - Weekly: run `maintenance:weekly-refresh`
 - Review-first: use `stale-support-audit` and `project-support-coverage-audit` for broader cleanup or coverage work
 - Monthly: keep using the repo maintenance and verification cadence in `maintenance-playbook.md`
+
+## Phase 2A Reliability Hardening
+
+After the initial weekly orchestrator rollout work, a focused reliability-hardening pass tightened the dry-run path before cutover.
+
+That follow-up work:
+
+- moved key data-source reads and page queries onto the shared `DirectNotionClient` HTTP path so they use the same Notion retry and timeout policy
+- reduced broad Notion fetch bursts in the heaviest dry-run commands by staging the schema and dataset loads instead of fetching every dataset at once
+- limited markdown read fan-out in the GitHub support audit
+- added step-level failure categorization in the weekly orchestrator output so transport and timeout failures are easier to interpret
+- retried and rewrapped raw Notion transport failures centrally instead of surfacing only a bare `fetch failed`
+
+Result of the hardening pass on April 7, 2026:
+
+- `github-support-maintenance` now completes cleanly in dry-run mode
+- `execution:sync` now completes in dry-run drift mode
+- `intelligence:sync` now completes in dry-run drift mode
+- `maintenance:weekly-refresh` now completes preflight with drift only and no failed steps
+
+This means the remaining work before cutover is operational rollout validation, not more core reliability architecture.

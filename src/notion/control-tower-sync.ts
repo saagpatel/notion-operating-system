@@ -76,8 +76,8 @@ export async function runControlTowerSyncCommand(
     validateLocalPortfolioViewPlanAgainstSchema(viewPlan, schema);
 
     const [projectPages, buildPages] = await Promise.all([
-      fetchAllPages(sdk, config.database.dataSourceId, schema.titlePropertyName),
-      fetchAllPages(sdk, config.relatedDataSources.buildLogId, "Session Title"),
+      fetchAllPages(api, config.database.dataSourceId, schema.titlePropertyName),
+      fetchAllPages(api, config.relatedDataSources.buildLogId, "Session Title"),
     ]);
 
     const projects = projectPages.map((page) => toControlTowerProjectRecord(page));

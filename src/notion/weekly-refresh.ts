@@ -47,6 +47,7 @@ interface WeeklyRefreshStepResult extends WeeklyRefreshStepContract {
   durationMs: number;
   output?: Record<string, unknown>;
   error?: string;
+  failureCategory?: "transport_error" | "timeout_exhausted" | "validation_error" | "unexpected_response" | "provider_error";
   attempts?: number;
 }
 
@@ -320,6 +321,7 @@ async function runStep(step: WeeklyRefreshStepDefinition): Promise<WeeklyRefresh
       warnings: [],
     }),
     error: lastError instanceof Error ? lastError.message : String(lastError),
+    failureCategory: classifyStepError(lastError),
   };
 }
 
@@ -574,6 +576,25 @@ function logHumanMessage(message: string): void {
 function shouldRetryStepError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /fetch failed|ETIMEDOUT|ECONNRESET|ENETUNREACH|timed out/i.test(message);
+}
+
+function classifyStepError(
+  error: unknown,
+): WeeklyRefreshStepResult["failureCategory"] {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/timed out/i.test(message)) {
+    return "timeout_exhausted";
+  }
+  if (/fetch failed|ETIMEDOUT|ECONNRESET|ENETUNREACH|transport/i.test(message)) {
+    return "transport_error";
+  }
+  if (/provider request failed/i.test(message)) {
+    return "provider_error";
+  }
+  if (/validation/i.test(message)) {
+    return "validation_error";
+  }
+  return "unexpected_response";
 }
 
 function waitMs(ms: number): Promise<void> {

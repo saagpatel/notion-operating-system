@@ -95,10 +95,73 @@ This is driven by `config/local-portfolio-control-tower.json` plus a final fresh
 
 The intended rollout is:
 
-1. manual dry-run
-2. manual live pilot
+1. reliability hardening checkpoint
+2. manual dry-run
 3. shadow automation
-4. cut over to the weekly refresh automation
-5. pause the old support-only live automation after the new lane proves stable
+4. manual live pilot
+5. cut over to the weekly refresh automation
+6. pause the old support-only live automation after the new lane proves stable
 
 Until cutover is complete, keep the older support-only live automation available as the rollback lane.
+
+## Reliability Hardening Checkpoint
+
+Before the weekly lane is promoted, confirm the heavy Notion-backed dry-run steps no longer fail with opaque transport errors.
+
+Minimum verification:
+
+- `npm run portfolio-audit:github-support-maintenance`
+- `npm run execution:sync`
+- `npm run intelligence:sync`
+- `npm run maintenance:weekly-refresh`
+
+The hardening checkpoint is only complete when:
+
+- the three subcommands complete instead of failing with a bare `fetch failed`
+- the weekly preflight completes without any `failed` or `partial` steps
+- the command output is specific enough to distinguish clean state from real drift
+
+## Shadow Review Scorecard
+
+Review the first `weekly-refresh-shadow` run against this scorecard:
+
+- no failed steps
+- no partial steps
+- bounded runtime for a weekly dry run
+- readable output with clear clean vs drift step reporting
+- external-signals dry run remains bounded
+- no unexplained transport noise or retry storms
+
+If the first shadow run misses any scorecard item, fix the issue and require a second healthy shadow cycle before live promotion.
+
+## Manual Live Pilot Gate
+
+Only run the manual live pilot after:
+
+- the reliability hardening checkpoint is complete
+- at least one healthy shadow run exists
+
+Success criteria for the live pilot:
+
+- no operator interruption
+- overall status is `completed` or `clean`
+- no step ends `failed` or `partial`
+- freshness-by-layer state persists correctly
+- an immediate follow-up dry run has no failed or partial steps
+
+## Cutover And Rollback
+
+Promotion should create a separate live weekly-refresh automation instead of mutating the shadow job in place.
+
+Cutover sequence:
+
+1. create and enable the live weekly-refresh automation
+2. keep `weekly-command-center` unchanged
+3. pause `weekly-github-notion-maintenance` after the live weekly-refresh automation is active
+4. pause `weekly-refresh-shadow` after the first live automated weekly-refresh run succeeds
+
+If the first live automated weekly-refresh run is partial or failed:
+
+1. pause the new live weekly-refresh automation
+2. restore the old support-only lane as the active fallback
+3. return the weekly-refresh lane to shadow/debug posture until fixed

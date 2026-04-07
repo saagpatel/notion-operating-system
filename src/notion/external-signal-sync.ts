@@ -62,6 +62,7 @@ import {
   toProjectDecisionRecord,
   toWorkPacketRecord,
 } from "./local-portfolio-execution-live.js";
+import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
@@ -471,11 +472,11 @@ export async function runExternalSignalSyncCommand(
         }
         const projectBrief = projectBriefs[index];
         if (projectBrief?.changed) {
-          assertSafeReplacement(projectBrief.previousMarkdown, projectBrief.nextMarkdown);
-          await api.patchPageMarkdown({
+          await syncExternalSignalProjectBrief({
+            api,
             pageId: project.id,
-            command: "replace_content",
-            newMarkdown: buildReplaceCommand(projectBrief.nextMarkdown),
+            previousMarkdown: projectBrief.previousMarkdown,
+            nextMarkdown: projectBrief.nextMarkdown,
           });
           changedProjectPages += 1;
         }
@@ -651,6 +652,64 @@ function buildExternalSignalProjectPropertyUpdates(input: {
   }
 
   return updates;
+}
+
+async function syncExternalSignalProjectBrief(input: {
+  api: DirectNotionClient;
+  pageId: string;
+  previousMarkdown: string;
+  nextMarkdown: string;
+}): Promise<void> {
+  let currentMarkdown = input.previousMarkdown;
+
+  currentMarkdown = await syncProjectBriefSection({
+    ...input,
+    currentMarkdown,
+    startMarker: RECOMMENDATION_BRIEF_START,
+    endMarker: RECOMMENDATION_BRIEF_END,
+  });
+  currentMarkdown = await syncProjectBriefSection({
+    ...input,
+    currentMarkdown,
+    startMarker: EXTERNAL_SIGNAL_BRIEF_START,
+    endMarker: EXTERNAL_SIGNAL_BRIEF_END,
+  });
+
+  if (normalizeMarkdown(currentMarkdown) !== normalizeMarkdown(input.nextMarkdown)) {
+    assertSafeReplacement(currentMarkdown, input.nextMarkdown);
+    await input.api.patchPageMarkdown({
+      pageId: input.pageId,
+      command: "replace_content",
+      newMarkdown: buildReplaceCommand(input.nextMarkdown),
+      recordClientErrorAsFailure: false,
+    });
+    currentMarkdown = (await input.api.readPageMarkdown(input.pageId)).markdown;
+  }
+
+  if (normalizeMarkdown(currentMarkdown) !== normalizeMarkdown(input.nextMarkdown)) {
+    throw new AppError("External signal project brief did not converge after write", {
+      pageId: input.pageId,
+    });
+  }
+}
+
+async function syncProjectBriefSection(input: {
+  api: DirectNotionClient;
+  pageId: string;
+  currentMarkdown: string;
+  nextMarkdown: string;
+  startMarker: string;
+  endMarker: string;
+}): Promise<string> {
+  await syncManagedMarkdownSection({
+    api: input.api,
+    pageId: input.pageId,
+    previousMarkdown: input.currentMarkdown,
+    nextMarkdown: input.nextMarkdown,
+    startMarker: input.startMarker,
+    endMarker: input.endMarker,
+  });
+  return (await input.api.readPageMarkdown(input.pageId)).markdown;
 }
 
 function normalizedSignalEventToRecord(
