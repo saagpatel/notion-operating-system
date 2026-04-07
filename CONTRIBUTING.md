@@ -27,6 +27,7 @@ npm run verify
 npm run smoke:packed-install
 npm run smoke:git-install
 npm run release:prepare
+npm run sandbox:smoke
 npm run doctor
 npm run hooks:install
 notion-os --help
@@ -70,7 +71,9 @@ If you are touching risky advanced workflows, also rehearse from the sandbox pro
 
 The repo already includes the tracked `sandbox` profile config. In most cases you only need a local `.env.sandbox`, which should remain untracked.
 
-Treat the tracked sandbox as a same-shape rehearsal lane by default. Before any live sandbox write, repoint its credentials and Notion target IDs to isolated sandbox targets instead of assuming the cloned defaults are already safe. `notion-os --profile sandbox doctor` is now the proof gate: it fails on token overlap, target overlap, and path masking.
+Treat `notion-os --profile sandbox doctor` as the first proof gate and `npm run sandbox:smoke` as the fuller operational rehearsal. The smoke path runs from a temporary workspace copy so repo-tracked files do not get rewritten while you exercise the safe sandbox sequence.
+
+Before any live sandbox write, confirm the sandbox integration token and Notion targets are still isolated from the primary profile. The doctor now fails on token overlap, target overlap, and path masking.
 
 If you touch CLI behavior, add or update CLI tests.
 
@@ -95,3 +98,4 @@ If you touch Notion publishing behavior, preserve existing dry-run and schema-va
 - Dependabot is the default updater for npm and GitHub Actions dependencies
 - npm overrides should be treated as temporary mitigations and revisited when upstream fixes land cleanly
 - the recurring maintenance rhythm now lives in `docs/maintenance-playbook.md`
+- the sandbox rehearsal expectations now live in `docs/sandbox-rehearsal-runbook.md`

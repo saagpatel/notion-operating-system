@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   classifyActionRunnerFailure,
+  deriveActionRunnerFailureCategories,
   deriveActionRunnerSummaryStatus,
   deriveActionRunnerWarningCategories,
   evaluateActionRunnerDecision,
@@ -86,6 +87,7 @@ describe("action runner hardening", () => {
     expect(deriveActionRunnerWarningCategories(results)).toEqual(
       expect.arrayContaining(["partial_success", "validation_gap"]),
     );
+    expect(deriveActionRunnerFailureCategories(results)).toEqual(["provider_error"]);
   });
 
   test("classifies provider failures for stable operator output", () => {
@@ -105,6 +107,23 @@ describe("action runner hardening", () => {
 
     expect(deriveActionRunnerSummaryStatus(results)).toBe("failed");
     expect(deriveActionRunnerWarningCategories(results)).toBeUndefined();
+    expect(deriveActionRunnerFailureCategories(results)).toEqual(["provider_error"]);
+  });
+
+  test("keeps duplicate suppression and policy blocks stable in the same batch", () => {
+    const results = [
+      { requestId: "request-1", status: "Skipped", notes: "A successful live execution already exists." },
+      { requestId: "request-2", status: "Skipped", notes: "Policy blocked until approval is refreshed." },
+    ] satisfies ActionRunnerResult[];
+
+    expect(summarizeActionRunnerResults(results)).toEqual({
+      recordsUpdated: 0,
+      recordsSkipped: 2,
+      failureCount: 0,
+    });
+    expect(deriveActionRunnerSummaryStatus(results)).toBe("completed");
+    expect(deriveActionRunnerWarningCategories(results)).toEqual(["validation_gap"]);
+    expect(deriveActionRunnerFailureCategories(results)).toBeUndefined();
   });
 });
 

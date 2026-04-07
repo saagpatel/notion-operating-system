@@ -52,6 +52,7 @@
     "prepare": "npm run build",
     "smoke:built-cli": "node scripts/built-cli-smoke.mjs",
     "smoke:git-install": "node scripts/git-install-smoke.mjs",
+    "sandbox:smoke": "node scripts/sandbox-smoke.mjs",
     "pack:tarball": "node scripts/pack-release.mjs",
     "smoke:packed-install": "node scripts/packed-install-smoke.mjs",
     "verify": "npm run typecheck && npm test && npm run build && npm run smoke:built-cli && npm run smoke:packed-install && npm run smoke:git-install",
@@ -148,7 +149,18 @@
     "portfolio-audit:audit-batch-1": "tsx src/notion/audit-batch-1.ts",
     "portfolio-audit:review-packet": "tsx src/notion/review-packet.ts",
     "portfolio-audit:phase-closeout": "tsx src/notion/phase-closeout.ts",
-    "portfolio-audit:catch-up-selected-github-projects": "tsx src/notion/catch-up-selected-github-projects.ts"
+    "portfolio-audit:catch-up-selected-github-projects": "tsx src/notion/catch-up-selected-github-projects.ts",
+    "portfolio-audit:github-notion-catch-up": "tsx src/notion/github-notion-catch-up.ts",
+    "portfolio-audit:notion-hygiene-pass": "tsx src/notion/notion-hygiene-pass.ts",
+    "portfolio-audit:fill-empty-local-project-fields": "tsx src/notion/fill-empty-local-project-fields.ts",
+    "portfolio-audit:github-knowledge-audit": "tsx src/notion/github-knowledge-audit.ts",
+    "portfolio-audit:support-database-hygiene-pass": "tsx src/notion/support-database-hygiene-pass.ts",
+    "portfolio-audit:github-support-maintenance": "tsx src/notion/github-support-maintenance.ts",
+    "portfolio-audit:stale-support-audit": "tsx src/notion/stale-support-audit.ts",
+    "portfolio-audit:archive-low-risk-stale-support-batch": "tsx src/notion/archive-low-risk-stale-support-batch.ts",
+    "portfolio-audit:project-support-coverage-audit": "tsx src/notion/project-support-coverage-audit.ts",
+    "portfolio-audit:backfill-active-build-support-batch": "tsx src/notion/backfill-active-build-support-batch.ts",
+    "portfolio-audit:backfill-weak-support-reuse-batch": "tsx src/notion/backfill-weak-support-reuse-batch.ts"
   },
   "dependencies": {
     "@notionhq/client": "^5.12.0",

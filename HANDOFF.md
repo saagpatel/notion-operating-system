@@ -69,6 +69,7 @@ notion-os profiles clone --source default --target sandbox --write
 notion-os profiles bootstrap --target sandbox --write
 notion-os --profile sandbox profiles show
 notion-os --profile sandbox doctor
+npm run sandbox:smoke
 notion-os logs recent
 npm run control-tower:sync
 npm run governance:audit
@@ -100,9 +101,9 @@ Use a `sandbox` profile as the default proving ground before live changes that t
 
 Stay dry-run first there unless the operator is explicitly rehearsing a live path.
 
-The repo now includes the tracked `sandbox` profile descriptor and profile-owned JSON files. The local operator still needs to supply `.env.sandbox`, which must remain untracked. Shell-level overrides like `NOTION_DESTINATIONS_PATH` still take precedence over profile descriptor paths.
+The repo now includes the tracked `sandbox` profile descriptor and profile-owned JSON files, and the intended steady state is an isolated live sandbox workspace. The local operator still needs to supply `.env.sandbox`, which must remain untracked. Shell-level overrides like `NOTION_DESTINATIONS_PATH` still take precedence over profile descriptor paths.
 
-Important safety note: the tracked sandbox profile is a same-shape rehearsal lane by default, not an automatically isolated live sandbox. Before any live sandbox write, the operator must repoint sandbox credentials and Notion target IDs to separate sandbox targets. `notion-os --profile sandbox doctor` now enforces that rule and fails if the sandbox token matches the primary token, the sandbox refs overlap the primary profile, or an env override masks the sandbox-owned destinations path.
+Important safety note: `notion-os --profile sandbox doctor` is the first proof gate and `npm run sandbox:smoke` is the fuller operational rehearsal. The smoke path runs from a temporary workspace copy so repo-tracked files do not get rewritten while the sandbox sequence exercises dry-run, validation, live-safe sync, and recent-log inspection. If the doctor reports token overlap, target overlap, or env-path masking, fix the sandbox before any live rehearsal.
 
 ## Remaining backlog
 
@@ -110,8 +111,10 @@ Important safety note: the tracked sandbox profile is a same-shape rehearsal lan
 - current follow-up work is operational maturity:
   - dependency review and override cleanup as upstream fixes land
   - continued docs accuracy
+  - sandbox smoke rehearsal discipline for risky advanced workflows
   - optional future public npm distribution only if explicitly desired later
 - the recurring maintenance cadence now lives in `docs/maintenance-playbook.md`
+- the sandbox rehearsal workflow now lives in `docs/sandbox-rehearsal-runbook.md`
 
 ## Known assumptions
 

@@ -489,6 +489,7 @@ export async function runExternalSignalSyncCommand(
     recordCommandOutputSummary(output, {
       status: deriveExternalSignalSyncStatus(providerResults),
       warningCategories: deriveExternalSignalSyncWarningCategories(providerResults),
+      failureCategories: deriveExternalSignalSyncFailureCategories(providerResults),
       metadata: {
         provider,
         providerRunCount: providerResults.length,
@@ -547,6 +548,27 @@ export function deriveExternalSignalSyncWarningCategories(
         categories.add("unsupported_provider");
       }
     }
+  }
+  return categories.size > 0 ? [...categories] : undefined;
+}
+
+export function deriveExternalSignalSyncFailureCategories(
+  providerResults: ProviderSyncResult[],
+): Array<"validation_error" | "provider_error"> | undefined {
+  const categories = new Set<"validation_error" | "provider_error">();
+  for (const result of providerResults) {
+    if (result.status !== "Failed") {
+      continue;
+    }
+    const notes = result.notes.join(" ");
+    if (notes.includes("Missing ")) {
+      continue;
+    }
+    if (/missing a linked Local Project|missing linked Local Project/i.test(notes)) {
+      categories.add("validation_error");
+      continue;
+    }
+    categories.add("provider_error");
   }
   return categories.size > 0 ? [...categories] : undefined;
 }
