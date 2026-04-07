@@ -44,6 +44,7 @@ import { runWebhookShadowDrainCommand } from "../notion/webhook-shadow-drain.js"
 import { runWebhookReconcileCommand } from "../notion/webhook-reconcile.js";
 import { runOperationalRolloutCommand } from "../notion/operational-rollout.js";
 import { runCohortRolloutCommand } from "../notion/cohort-rollout.js";
+import { runWeeklyRefreshCommand } from "../notion/weekly-refresh.js";
 
 const commonOptions = {
   live: {
@@ -350,11 +351,13 @@ export const cliRegistry: CliCommandDefinition[] = [
     ),
   ]),
   buildFamily("signals", "Run external-signal and activity workflows.", [
-    buildConfigCommand("sync", "Sync external provider signals into the Notion system.", [commonOptions.live, commonOptions.today, commonOptions.config, { name: "provider", description: "Provider selection.", type: "enum", valueName: "provider", choices: ["github", "vercel", "all"], defaultValue: "all" }], ({ parsed }) =>
+    buildConfigCommand("sync", "Sync external provider signals into the Notion system.", [commonOptions.live, commonOptions.today, commonOptions.config, { name: "provider", description: "Provider selection.", type: "enum", valueName: "provider", choices: ["github", "vercel", "all"], defaultValue: "all" }, { name: "source-limit", description: "Optional maximum number of active sources to sync.", type: "number", valueName: "count" }, { name: "max-events-per-source", description: "Optional override for events fetched per source.", type: "number", valueName: "count" }], ({ parsed }) =>
       runExternalSignalSyncCommand({
         live: asBoolean(parsed.options.live),
         today: asString(parsed.options.today),
         provider: (asString(parsed.options.provider) as "github" | "vercel" | "all" | undefined) ?? "all",
+        sourceLimit: asNumber(parsed.options["source-limit"]),
+        maxEventsPerSource: asNumber(parsed.options["max-events-per-source"]),
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),
@@ -452,6 +455,18 @@ export const cliRegistry: CliCommandDefinition[] = [
         today: asString(parsed.options.today),
         projects: asString(parsed.options.projects),
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+  ]),
+  buildFamily("maintenance", "Run recurring portfolio maintenance workflows.", [
+    buildConfigCommand("weekly-refresh", "Run the safe weekly refresh orchestrator.", [commonOptions.live, commonOptions.today, commonOptions.config, { name: "owner", description: "GitHub owner used for support maintenance.", type: "string", valueName: "owner" }, { name: "signal-source-limit", description: "Optional cap for GitHub sources during the weekly external-signal step.", type: "number", valueName: "count" }, { name: "signal-max-events-per-source", description: "Optional cap for events fetched per GitHub source during the weekly external-signal step.", type: "number", valueName: "count" }], ({ parsed }) =>
+      runWeeklyRefreshCommand({
+        live: asBoolean(parsed.options.live),
+        today: asString(parsed.options.today),
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+        owner: asString(parsed.options.owner),
+        signalSourceLimit: asNumber(parsed.options["signal-source-limit"]),
+        signalMaxEventsPerSource: asNumber(parsed.options["signal-max-events-per-source"]),
       }),
     ),
   ]),

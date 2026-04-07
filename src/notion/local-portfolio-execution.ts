@@ -2,6 +2,7 @@ import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { AppError } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
+import { mergeManagedSection as mergeManagedSectionValue } from "../utils/markdown.js";
 import type {
   ControlTowerBuildSessionRecord,
   ControlTowerProjectRecord,
@@ -533,17 +534,7 @@ export function mergeManagedSection(
   startMarker: string,
   endMarker: string,
 ): string {
-  const trimmedSection = sectionMarkdown.trim();
-  const startIndex = existingMarkdown.indexOf(startMarker);
-  const endIndex = existingMarkdown.indexOf(endMarker);
-
-  if (startIndex >= 0 && endIndex > startIndex) {
-    const before = existingMarkdown.slice(0, startIndex).trimEnd();
-    const after = existingMarkdown.slice(endIndex + endMarker.length).trimStart();
-    return [before, trimmedSection, after].filter((part) => part.length > 0).join("\n\n").trim();
-  }
-
-  return [existingMarkdown.trim(), trimmedSection].filter((part) => part.length > 0).join("\n\n").trim();
+  return mergeManagedSectionValue(existingMarkdown, sectionMarkdown, startMarker, endMarker);
 }
 
 export function isWorkPacketClosed(status: string): boolean {

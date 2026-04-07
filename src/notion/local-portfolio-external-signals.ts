@@ -326,11 +326,13 @@ export function buildExternalSignalSummary(input: {
   events: ExternalSignalEventRecord[];
   today: string;
 }): ExternalSignalSummary {
-  const mappedSources = input.sources.filter((source) => source.localProjectIds.includes(input.project.id));
+  const mappedSources = input.sources
+    .filter((source) => source.localProjectIds.includes(input.project.id))
+    .sort(compareMappedSources);
   const activeSources = mappedSources.filter((source) => source.status === "Active");
   const recentEvents = input.events
     .filter((event) => event.localProjectIds.includes(input.project.id))
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+    .sort(compareRecentSignalEvents)
     .slice(0, 25);
 
   const hasRepo = activeSources.some((source) => source.sourceType === "Repo");
@@ -511,7 +513,10 @@ export function selectPriorityProjectsForExternalSignals(input: {
 export function renderExternalSignalBriefSection(input: {
   summary: ExternalSignalSummary;
 }): string {
-  const recentEvents = input.summary.recentEvents.slice(0, 5);
+  const recentEvents = [...input.summary.recentEvents]
+    .sort(compareRecentSignalEvents)
+    .slice(0, 5);
+  const mappedSources = [...input.summary.mappedSources].sort(compareMappedSources);
 
   return [
     "<!-- codex:notion-external-signal-brief:start -->",
@@ -525,8 +530,8 @@ export function renderExternalSignalBriefSection(input: {
     `- External posture: ${input.summary.contradictionLabel}`,
     "",
     "### Mapped Sources",
-    ...(input.summary.mappedSources.length > 0
-      ? input.summary.mappedSources.map((source) =>
+    ...(mappedSources.length > 0
+      ? mappedSources.map((source) =>
           `- [${source.title}](${source.url}) - ${source.provider} / ${source.status}${source.identifier ? ` / ${source.identifier}` : ""}`,
         )
       : ["- No external sources mapped yet."]),
@@ -608,9 +613,21 @@ export function renderWeeklyExternalSignalsSection(input: {
   summaries: ExternalSignalSummary[];
   syncRuns: ExternalSignalSyncRunRecord[];
 }): string {
-  const contradictions = input.summaries.filter((summary) => summary.contradictionLabel === "Contradicts").slice(0, 5);
-  const wins = input.summaries.filter((summary) => summary.latestDeploymentStatus === "Success").slice(0, 5);
-  const failures = input.summaries.filter((summary) => summary.recentFailedWorkflowRuns > 0).slice(0, 5);
+  const contradictions = input.summaries
+    .filter((summary) => summary.contradictionLabel === "Contradicts")
+    .sort(compareContradictionSummaries)
+    .slice(0, 5);
+  const wins = input.summaries
+    .filter((summary) => summary.latestDeploymentStatus === "Success")
+    .sort(compareWins)
+    .slice(0, 5);
+  const failures = input.summaries
+    .filter((summary) => summary.recentFailedWorkflowRuns > 0)
+    .sort(compareFailures)
+    .slice(0, 5);
+  const latestSyncRuns = [...input.syncRuns]
+    .sort(compareSyncRuns)
+    .slice(0, 5);
 
   return [
     "<!-- codex:notion-weekly-external-signals:start -->",
@@ -640,12 +657,63 @@ export function renderWeeklyExternalSignalsSection(input: {
       : ["- External telemetry is not strongly contradicting the current portfolio posture yet."]),
     "",
     "### Latest Sync Runs",
-    ...([...input.syncRuns]
-      .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
-      .slice(0, 5)
-      .map((run) => `- [${run.title}](${run.url}) - ${run.status}`) || ["- No sync runs yet."]),
+    ...(latestSyncRuns.length > 0
+      ? latestSyncRuns.map((run) => `- [${run.title}](${run.url}) - ${run.status}`)
+      : ["- No sync runs yet."]),
     "<!-- codex:notion-weekly-external-signals:end -->",
   ].join("\n");
+}
+
+function compareMappedSources(left: ExternalSignalSourceRecord, right: ExternalSignalSourceRecord): number {
+  return (
+    compareDescending(left.provider, right.provider) ||
+    compareDescending(left.status, right.status) ||
+    compareDescending(left.title, right.title) ||
+    compareDescending(left.id, right.id)
+  );
+}
+
+function compareRecentSignalEvents(left: ExternalSignalEventRecord, right: ExternalSignalEventRecord): number {
+  return (
+    compareDescending(left.occurredAt, right.occurredAt) ||
+    compareDescending(left.signalType, right.signalType) ||
+    compareDescending(left.status, right.status) ||
+    compareDescending(left.title, right.title) ||
+    compareDescending(left.id, right.id)
+  );
+}
+
+function compareWins(left: ExternalSignalSummary, right: ExternalSignalSummary): number {
+  return (
+    compareDescending(left.latestExternalActivity, right.latestExternalActivity) ||
+    compareDescending(left.projectId, right.projectId)
+  );
+}
+
+function compareFailures(left: ExternalSignalSummary, right: ExternalSignalSummary): number {
+  return (
+    right.recentFailedWorkflowRuns - left.recentFailedWorkflowRuns ||
+    compareDescending(left.projectId, right.projectId)
+  );
+}
+
+function compareContradictionSummaries(left: ExternalSignalSummary, right: ExternalSignalSummary): number {
+  return (
+    compareDescending(left.latestExternalActivity, right.latestExternalActivity) ||
+    compareDescending(left.projectId, right.projectId)
+  );
+}
+
+function compareSyncRuns(left: ExternalSignalSyncRunRecord, right: ExternalSignalSyncRunRecord): number {
+  return (
+    compareDescending(left.startedAt, right.startedAt) ||
+    compareDescending(left.url, right.url) ||
+    compareDescending(left.id, right.id)
+  );
+}
+
+function compareDescending(left: string, right: string): number {
+  return right.localeCompare(left);
 }
 
 export function calculateExternalSignalMetrics(input: {

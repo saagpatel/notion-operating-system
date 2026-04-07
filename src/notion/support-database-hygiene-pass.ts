@@ -1,7 +1,5 @@
 import "dotenv/config";
 
-import { Client } from "@notionhq/client";
-
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
@@ -121,24 +119,24 @@ export async function runSupportDatabaseHygienePass(
     "NOTION_TOKEN is required for the support database hygiene pass",
   );
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
-  const sdk = new Client({
-    auth: token,
-    notionVersion: "2026-03-11",
-  });
   const api = new DirectNotionClient(token);
 
-  const [projectSchema, researchSchema, skillSchema, toolSchema] = await Promise.all([
+  const [projectSchema, researchSchema] = await Promise.all([
     api.retrieveDataSource(config.database.dataSourceId),
     api.retrieveDataSource(config.relatedDataSources.researchId),
+  ]);
+  const [skillSchema, toolSchema] = await Promise.all([
     api.retrieveDataSource(config.relatedDataSources.skillsId),
     api.retrieveDataSource(config.relatedDataSources.toolsId),
   ]);
 
-  const [projectPages, researchPages, skillPages, toolPages] = await Promise.all([
-    fetchAllPages(sdk, config.database.dataSourceId, projectSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
-    fetchAllPages(sdk, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
+  const [projectPages, researchPages] = await Promise.all([
+    fetchAllPages(api, config.database.dataSourceId, projectSchema.titlePropertyName),
+    fetchAllPages(api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
+  ]);
+  const [skillPages, toolPages] = await Promise.all([
+    fetchAllPages(api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
+    fetchAllPages(api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
   ]);
 
   const plans = await buildSupportGroupPlans({
@@ -246,10 +244,7 @@ export async function runSupportDatabaseHygienePass(
       }
 
       for (const duplicatePage of plan.duplicatePages) {
-        await sdk.pages.update({
-          page_id: duplicatePage.id,
-          in_trash: true,
-        });
+        await api.archivePage(duplicatePage.id);
         archivedPages.push({
           kind: plan.kind,
           title: duplicatePage.title,
@@ -259,10 +254,7 @@ export async function runSupportDatabaseHygienePass(
     }
 
     for (const candidate of lowRiskArchiveCandidates) {
-      await sdk.pages.update({
-        page_id: candidate.id,
-        in_trash: true,
-      });
+      await api.archivePage(candidate.id);
       archivedLowRiskPages.push({
         kind: candidate.kind,
         title: candidate.title,
@@ -273,7 +265,6 @@ export async function runSupportDatabaseHygienePass(
     for (const plan of forcedNearDuplicateMergePlans) {
       await mergeForcedNearDuplicate({
         api,
-        sdk,
         projectById,
         plan,
         today: flags.today,
@@ -528,7 +519,6 @@ async function refreshCanonicalSupportPage(input: {
 
 async function mergeForcedNearDuplicate(input: {
   api: DirectNotionClient;
-  sdk: Client;
   projectById: Map<string, DataSourcePageRef>;
   plan: ForcedNearDuplicateMergePlan;
   today: string;
@@ -576,10 +566,7 @@ async function mergeForcedNearDuplicate(input: {
     }
   }
 
-  await input.sdk.pages.update({
-    page_id: input.plan.duplicatePage.id,
-    in_trash: true,
-  });
+  await input.api.archivePage(input.plan.duplicatePage.id);
 }
 
 function findDuplicateGroups(pages: DataSourcePageRef[]): DataSourcePageRef[][] {

@@ -11,6 +11,7 @@ import {
 interface RequestOptions {
   method?: string;
   body?: unknown;
+  recordClientErrorAsFailure?: boolean;
 }
 
 export class NotionHttp {
@@ -48,7 +49,7 @@ export class NotionHttp {
   public async requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const method = options.method ?? "GET";
     let recoveredAfterRetry = false;
-    let terminalCategory: "timeout_exhausted" | "unexpected_response" = "timeout_exhausted";
+    let terminalCategory: "timeout_exhausted" | "transport_error" | "unexpected_response" = "timeout_exhausted";
 
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       const controller = new AbortController();
@@ -95,15 +96,30 @@ export class NotionHttp {
           continue;
         }
 
-        recordCommandFailureCategory("transport_error");
-        await this.logger?.error("notion_http_failure", {
+        await this.logger?.warn("notion_http_retry", {
           path,
           method,
           attempt,
           classification: "transport_error",
           errorMessage: error instanceof Error ? error.message : String(error),
         });
-        throw error;
+        if (attempt === this.maxAttempts) {
+          recordCommandFailureCategory("transport_error");
+          terminalCategory = "transport_error";
+          await this.logger?.error("notion_http_retry_exhausted", {
+            path,
+            method,
+            attempts: this.maxAttempts,
+            classification: "transport_error",
+            errorMessage: error instanceof Error ? error.message : String(error),
+          });
+          break;
+        }
+
+        incrementCommandSummary("retryCount");
+        recoveredAfterRetry = true;
+        await sleep(Math.min(attempt * 1500, 8000));
+        continue;
       }
       clearTimeout(timeout);
 
@@ -144,9 +160,11 @@ export class NotionHttp {
       }
 
       const errorBody = await safeJson(response);
-      recordCommandFailureCategory(
-        response.status >= 400 && response.status < 500 ? "validation_error" : "unexpected_response",
-      );
+      if (options.recordClientErrorAsFailure ?? true) {
+        recordCommandFailureCategory(
+          response.status >= 400 && response.status < 500 ? "validation_error" : "unexpected_response",
+        );
+      }
       await this.logger?.error("notion_http_failure", {
         path,
         method,
@@ -168,8 +186,15 @@ export class NotionHttp {
       classification: terminalCategory,
       timeoutMs: this.timeoutMs,
     });
-    throw new AppError(`Notion request timed out after ${this.maxAttempts} attempt(s) for ${method} ${path}`, {
+    const errorMessage =
+      terminalCategory === "transport_error"
+        ? `Notion request transport error after ${this.maxAttempts} attempt(s) for ${method} ${path}`
+        : terminalCategory === "unexpected_response"
+          ? `Notion request returned retryable error responses after ${this.maxAttempts} attempt(s) for ${method} ${path}`
+          : `Notion request timed out after ${this.maxAttempts} attempt(s) for ${method} ${path}`;
+    throw new AppError(errorMessage, {
       timeoutMs: this.timeoutMs,
+      classification: terminalCategory,
     });
   }
 }
@@ -182,10 +207,15 @@ function isAbortError(error: unknown): boolean {
 }
 
 async function safeJson(response: Response): Promise<unknown> {
+  const raw = await response.text();
+  if (!raw) {
+    return "";
+  }
+
   try {
-    return await response.json();
+    return JSON.parse(raw);
   } catch {
-    return await response.text();
+    return raw;
   }
 }
 

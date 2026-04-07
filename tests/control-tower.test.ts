@@ -352,7 +352,11 @@ describe("local portfolio control tower rules", () => {
 
     expect(commandCenter).toContain("Local Portfolio Command Center");
     expect(commandCenter).toContain("Saved Views");
+    expect(commandCenter).toContain("codex:notion-freshness-command-center:start");
+    expect(commandCenter).toContain("Support maintenance");
+    expect(commandCenter).toContain("codex:notion-execution-command-center:start");
     expect(reviewPacket).toContain("## Next Phase");
+    expect(reviewPacket).toContain("codex:notion-weekly-external-signals:start");
     expect(roadmap).toContain("Phase: 2 - Project Execution System");
     expect(roadmap).toContain("## Phase Transition Memory");
     expect(roadmap).toContain("Build the project execution system around Local Portfolio Projects");

@@ -56,3 +56,130 @@ export function assertSafeReplacement(previousMarkdown: string, nextMarkdown: st
     );
   }
 }
+
+export function normalizeMarkdown(markdown: string): string {
+  return normalizeComparisonMarkdown(markdown).trim();
+}
+
+export function mergeManagedSection(
+  existingMarkdown: string,
+  sectionMarkdown: string,
+  startMarker: string,
+  endMarker: string,
+): string {
+  const trimmedSection = normalizeMarkdown(sectionMarkdown);
+  const match = findManagedSectionBounds(existingMarkdown, startMarker, endMarker);
+
+  if (match) {
+    const before = existingMarkdown.slice(0, match.startIndex).trimEnd();
+    const after = existingMarkdown.slice(match.endIndex + match.endMarker.length).trimStart();
+    return [before, trimmedSection, after].filter((part) => part.length > 0).join("\n\n").trim();
+  }
+
+  return [normalizeMarkdown(existingMarkdown), trimmedSection]
+    .filter((part) => part.length > 0)
+    .join("\n\n")
+    .trim();
+}
+
+export function extractManagedSection(
+  markdown: string,
+  startMarker: string,
+  endMarker: string,
+): string | undefined {
+  const match = findManagedSectionBounds(markdown, startMarker, endMarker);
+  if (!match) {
+    return undefined;
+  }
+
+  return markdown.slice(match.startIndex, match.endIndex + match.endMarker.length).trim();
+}
+
+export function preserveManagedSections(
+  nextMarkdown: string,
+  previousMarkdown: string,
+  sections: Array<{ startMarker: string; endMarker: string }>,
+): string {
+  let preserved = normalizeMarkdown(nextMarkdown);
+
+  for (const section of sections) {
+    const existing = extractManagedSection(previousMarkdown, section.startMarker, section.endMarker);
+    if (!existing) {
+      continue;
+    }
+    preserved = mergeManagedSection(preserved, existing, section.startMarker, section.endMarker);
+  }
+
+  return preserved;
+}
+
+function findManagedSectionBounds(
+  markdown: string,
+  startMarker: string,
+  endMarker: string,
+): { startIndex: number; endIndex: number; endMarker: string } | undefined {
+  for (const resolvedStartMarker of markerCandidates(startMarker)) {
+    const startIndex = markdown.indexOf(resolvedStartMarker);
+    if (startIndex < 0) {
+      continue;
+    }
+    for (const resolvedEndMarker of markerCandidates(endMarker)) {
+      const endIndex = markdown.indexOf(resolvedEndMarker, startIndex + resolvedStartMarker.length);
+      if (endIndex > startIndex) {
+        return {
+          startIndex,
+          endIndex,
+          endMarker: resolvedEndMarker,
+        };
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function markerCandidates(marker: string): string[] {
+  const escaped = escapeManagedMarker(marker);
+  return escaped === marker ? [marker] : [marker, escaped];
+}
+
+function escapeManagedMarker(marker: string): string {
+  return marker.replace("<", "\\<").replace(/>$/, "\\>");
+}
+
+function normalizeManagedMarkers(markdown: string): string {
+  return markdown.replace(/\\<!--/g, "<!--").replace(/--\\>/g, "-->");
+}
+
+function normalizeComparisonMarkdown(markdown: string): string {
+  return normalizeAdjacentDuplicateLinks(
+    normalizeManagedMarkers(markdown)
+    .replace(/\r\n/g, "\n")
+    .replace(/\\\|/g, "|")
+    .replace(/\\</g, "<")
+    .replace(/\\>/g, ">")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/(https:\/\/www\.notion\.so\/[^\s)#?]+)(?:\?[^\s)#]*)?(?:#[^\s)#]*)?/gi, "$1")
+    .replace(
+      /https:\/\/www\.notion\.so\/(?:[^/\s?#]+-)?([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi,
+      (_match, notionId: string) => `https://www.notion.so/${notionId}`,
+    ),
+  );
+}
+
+function normalizeAdjacentDuplicateLinks(markdown: string): string {
+  let normalized = markdown;
+
+  while (true) {
+    const next = normalized.replace(
+      /\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)\[([^\]]*)\]\(\2\)/g,
+      (_match, leftText: string, url: string, rightText: string) => `[${leftText}${rightText}](${url})`,
+    );
+
+    if (next === normalized) {
+      return normalized;
+    }
+
+    normalized = next;
+  }
+}

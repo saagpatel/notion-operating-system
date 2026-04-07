@@ -6,6 +6,8 @@ This is the operator guide for the GitHub-backed support-maintenance lane in `Lo
 
 Use this lane to keep the support databases aligned with live GitHub repo evidence without running a broader portfolio overhaul.
 
+This lane now also serves as the first step inside the broader weekly refresh orchestrator.
+
 It currently covers:
 
 - GitHub-backed support rows in the skills, research, and AI tools databases
@@ -79,8 +81,9 @@ The intentional-single-project classification list lives in `config/stale-suppor
 
 ## Weekly Rhythm
 
-1. Run `npm run portfolio-audit:github-support-maintenance`.
-2. If the dry run is clean, stop there.
-3. If it shows real drift, rerun with `-- --live`.
-4. Re-run the dry command to confirm the lane settled cleanly.
-5. Review `stale-support-audit` and `project-support-coverage-audit` outputs when you want to reduce long-tail support clutter or strengthen project support coverage.
+1. Default to `npm run maintenance:weekly-refresh` when you want the full weekly portfolio lane.
+2. Use `npm run portfolio-audit:github-support-maintenance` when you only want the narrow GitHub-backed support slice.
+3. If the dry run is clean, stop there.
+4. If it shows real drift, rerun with `-- --live`.
+5. Re-run the dry command to confirm the lane settled cleanly.
+6. Review `stale-support-audit` and `project-support-coverage-audit` outputs when you want to reduce long-tail support clutter or strengthen project support coverage.

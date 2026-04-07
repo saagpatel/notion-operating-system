@@ -10,9 +10,12 @@ import {
   parseLocalPortfolioExternalSignalProviderConfig,
   parseLocalPortfolioExternalSignalSourceConfig,
   parseLocalPortfolioExternalSignalViewPlan,
+  renderExternalSignalBriefSection,
+  renderWeeklyExternalSignalsSection,
   validateLocalPortfolioExternalSignalViewPlanAgainstSchemas,
   type ExternalSignalEventRecord,
   type ExternalSignalSourceRecord,
+  type ExternalSignalSyncRunRecord,
 } from "../src/notion/local-portfolio-external-signals.js";
 import { parseLocalPortfolioControlTowerConfig } from "../src/notion/local-portfolio-control-tower.js";
 import { renderNotionPhaseMemoryMarkdown } from "../src/notion/local-portfolio-roadmap.js";
@@ -253,6 +256,79 @@ describe("local portfolio external signals", () => {
     expect(markdown).toContain("## Phase 7");
     expect(markdown).toContain("Phase 5 gave us structured external telemetry");
   });
+
+  test("renders recent signal bullets in a stable order", () => {
+    const summary = buildExternalSignalSummary({
+      project: baseProject(),
+      sources: [
+        {
+          id: "source-1",
+          url: "https://notion.so/source-1",
+          title: "Repo",
+          localProjectIds: ["project-1"],
+          provider: "GitHub",
+          sourceType: "Repo",
+          identifier: "owner/repo",
+          sourceUrl: "https://github.com/owner/repo",
+          status: "Active",
+          environment: "N/A",
+          syncStrategy: "Poll",
+          lastSyncedAt: "2026-03-17",
+        },
+      ],
+      events: [
+        baseEvent({ id: "event-a", title: "B Event", occurredAt: "2026-03-17", status: "success" }),
+        baseEvent({ id: "event-b", title: "A Event", occurredAt: "2026-03-17", status: "success" }),
+      ],
+      today: "2026-03-17",
+    });
+
+    const markdown = renderExternalSignalBriefSection({ summary });
+
+    expect(markdown.indexOf("[B Event]")).toBeLessThan(markdown.indexOf("[A Event]"));
+  });
+
+  test("builds recent events in a stable order before truncation", () => {
+    const summary = buildExternalSignalSummary({
+      project: baseProject(),
+      sources: [
+        {
+          id: "source-1",
+          url: "https://notion.so/source-1",
+          title: "Repo",
+          localProjectIds: ["project-1"],
+          provider: "GitHub",
+          sourceType: "Repo",
+          identifier: "owner/repo",
+          sourceUrl: "https://github.com/owner/repo",
+          status: "Active",
+          environment: "N/A",
+          syncStrategy: "Poll",
+          lastSyncedAt: "2026-03-17",
+        },
+      ],
+      events: [
+        baseEvent({ id: "event-a", title: "B Event", occurredAt: "2026-03-17", status: "success" }),
+        baseEvent({ id: "event-c", title: "A Event", occurredAt: "2026-03-17", status: "failure" }),
+        baseEvent({ id: "event-b", title: "A Event", occurredAt: "2026-03-17", status: "success" }),
+      ],
+      today: "2026-03-17",
+    });
+
+    expect(summary.recentEvents.map((event) => event.id)).toEqual(["event-a", "event-b", "event-c"]);
+  });
+
+  test("renders latest sync runs in a stable order on identical dates", () => {
+    const markdown = renderWeeklyExternalSignalsSection({
+      summaries: [],
+      syncRuns: [
+        baseSyncRun({ id: "run-a", url: "https://notion.so/run-a", title: "GitHub sync - 2026-03-17", startedAt: "2026-03-17" }),
+        baseSyncRun({ id: "run-b", url: "https://notion.so/run-b", title: "GitHub sync - 2026-03-17", startedAt: "2026-03-17" }),
+      ],
+    });
+
+    expect(markdown.indexOf("run-b")).toBeLessThan(markdown.indexOf("run-a"));
+  });
 });
 
 async function readConfig(relativePath: string) {
@@ -357,5 +433,24 @@ function baseEvent(overrides: Partial<ExternalSignalEventRecord> = {}): External
     eventKey: overrides.eventKey ?? "event-1",
     summary: overrides.summary ?? "Workflow run finished successfully.",
     rawExcerpt: overrides.rawExcerpt ?? "success",
+  };
+}
+
+function baseSyncRun(overrides: Partial<ExternalSignalSyncRunRecord> = {}): ExternalSignalSyncRunRecord {
+  return {
+    id: overrides.id ?? "run-1",
+    url: overrides.url ?? "https://notion.so/run-1",
+    title: overrides.title ?? "GitHub sync - 2026-03-17",
+    provider: overrides.provider ?? "GitHub",
+    status: overrides.status ?? "Succeeded",
+    startedAt: overrides.startedAt ?? "2026-03-17",
+    completedAt: overrides.completedAt ?? "2026-03-17",
+    itemsSeen: overrides.itemsSeen ?? 1,
+    itemsWritten: overrides.itemsWritten ?? 1,
+    itemsDeduped: overrides.itemsDeduped ?? 0,
+    failures: overrides.failures ?? 0,
+    scope: overrides.scope ?? "Weekly refresh",
+    cursor: overrides.cursor ?? "",
+    notes: overrides.notes ?? "",
   };
 }

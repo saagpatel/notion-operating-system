@@ -5,6 +5,8 @@ import { toErrorMessage } from "../utils/errors.js";
 import { losAngelesToday } from "../utils/date.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  loadLocalPortfolioControlTowerConfig,
+  saveLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH,
@@ -17,6 +19,7 @@ import {
   runSupportDatabaseHygienePass,
   type SupportDatabaseHygieneFlags,
 } from "./support-database-hygiene-pass.js";
+import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 
 const TODAY = losAngelesToday();
 const DEFAULT_OWNER = "saagpatel";
@@ -77,7 +80,11 @@ async function main(): Promise<void> {
   try {
     const flags = parseFlags(process.argv.slice(2));
     const output = await runGitHubSupportMaintenance(flags);
-    recordCommandOutputSummary(output);
+    recordCommandOutputSummary(output, {
+      status: mapWeeklyStepStatusToCommandStatus(
+        typeof output.status === "string" ? output.status as Parameters<typeof mapWeeklyStepStatusToCommandStatus>[0] : "clean",
+      ),
+    });
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {
     console.error(toErrorMessage(error));
@@ -103,14 +110,67 @@ export async function runGitHubSupportMaintenance(flags: Flags): Promise<Record<
   const githubKnowledgeAudit = await runGitHubKnowledgeAudit(githubFlags);
   const supportDatabaseHygiene = await runSupportDatabaseHygienePass(supportFlags);
 
+  const githubRefreshCount = numberAt(githubKnowledgeAudit, ["skills", "new"]) +
+    numberAt(githubKnowledgeAudit, ["skills", "refreshNeeded"]) +
+    numberAt(githubKnowledgeAudit, ["research", "new"]) +
+    numberAt(githubKnowledgeAudit, ["research", "refreshNeeded"]) +
+    numberAt(githubKnowledgeAudit, ["tools", "new"]) +
+    numberAt(githubKnowledgeAudit, ["tools", "refreshNeeded"]) +
+    numberAt(githubKnowledgeAudit, ["existingToolUpdates", "refreshNeeded"]);
+  const hygieneActions =
+    numberAt(supportDatabaseHygiene, ["duplicateGroupCount"]) +
+    numberAt(supportDatabaseHygiene, ["lowRiskArchiveCount"]) +
+    numberAt(supportDatabaseHygiene, ["forcedNearDuplicateMergeCount"]);
+  const contract = buildWeeklyStepContract({
+    live: flags.live,
+    wouldChange: githubRefreshCount > 0 || hygieneActions > 0,
+    summaryCounts: {
+      githubRefreshCount,
+      hygieneActions,
+      touchedProjects: numberAt(githubKnowledgeAudit, ["touchedProjects", "count"]),
+      duplicateGroupCount: numberAt(supportDatabaseHygiene, ["duplicateGroupCount"]),
+      lowRiskArchiveCount: numberAt(supportDatabaseHygiene, ["lowRiskArchiveCount"]),
+      forcedNearDuplicateMergeCount: numberAt(supportDatabaseHygiene, ["forcedNearDuplicateMergeCount"]),
+    },
+  });
+
+  if (flags.live) {
+    const config = await loadLocalPortfolioControlTowerConfig(flags.config);
+    await saveLocalPortfolioControlTowerConfig(
+      {
+        ...config,
+        weeklyMaintenance: {
+          ...config.weeklyMaintenance,
+          supportMaintenanceLastSyncAt: flags.today,
+        },
+      },
+      flags.config,
+    );
+  }
+
   return {
     ok: true,
     live: flags.live,
+    status: contract.status,
+    wouldChange: contract.wouldChange,
+    summaryCounts: contract.summaryCounts,
+    warnings: contract.warnings,
     owner: flags.owner,
     today: flags.today,
     githubKnowledgeAudit,
     supportDatabaseHygiene,
   };
+}
+
+function numberAt(source: Record<string, unknown>, path: string[]): number {
+  let current: unknown = source;
+  for (const segment of path) {
+    if (!current || typeof current !== "object" || !(segment in current)) {
+      return 0;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return typeof current === "number" && Number.isFinite(current) ? current : 0;
 }
 
 if (process.argv[1]?.endsWith("github-support-maintenance.ts")) {

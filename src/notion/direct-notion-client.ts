@@ -1,5 +1,3 @@
-import { Client } from "@notionhq/client";
-
 import type {
   ContentUpdate,
   CreatePageInput,
@@ -23,27 +21,21 @@ import type { RunLogger } from "../logging/run-logger.js";
 import { getCurrentCommandLogger } from "../cli/run-observability.js";
 
 export class DirectNotionClient implements NotionApi {
-  private readonly sdk: Client;
-
   private readonly http: NotionHttp;
 
   public constructor(token: string, logger?: RunLogger) {
     const runtimeConfig = loadRuntimeConfig();
     const resolvedLogger = logger ?? getCurrentCommandLogger();
-    this.sdk = new Client({
-      auth: token,
-      notionVersion: runtimeConfig.notion.version,
-    });
     this.http = new NotionHttp({ token, notionVersion: runtimeConfig.notion.version, logger: resolvedLogger });
   }
 
   public async verifyAccess(): Promise<{ id: string; name: string; type: string }> {
-    const user = (await this.sdk.users.me({})) as {
+    const user = await this.http.requestJson<{
       id: string;
       name?: string;
       type?: string;
       bot?: { owner?: { type?: string } };
-    };
+    }>("/users/me");
 
     return {
       id: normalizeNotionId(user.id),
@@ -97,10 +89,10 @@ export class DirectNotionClient implements NotionApi {
         dataSourceId: dataSource.id,
       };
     } catch {
-      const database = (await this.sdk.request({
-        path: `databases/${objectId}`,
-        method: "get",
-      })) as { id: string; data_sources?: Array<{ id: string }> };
+      const database = await this.http.requestJson<{
+        id: string;
+        data_sources?: Array<{ id: string }>;
+      }>(`/databases/${objectId}`);
 
       const firstDataSource = database.data_sources?.[0];
       if (!firstDataSource) {
@@ -123,11 +115,11 @@ export class DirectNotionClient implements NotionApi {
   }
 
   public async retrievePage(pageId: string): Promise<PageSnapshot> {
-    const response = (await this.sdk.pages.retrieve({ page_id: pageId })) as {
+    const response = await this.http.requestJson<{
       id: string;
       url: string;
       properties?: Record<string, { type?: string; title?: Array<{ plain_text?: string }> }>;
-    };
+    }>(`/pages/${pageId}`);
     const title = findPageTitle(response.properties);
     return {
       id: normalizeNotionId(response.id),
@@ -137,15 +129,12 @@ export class DirectNotionClient implements NotionApi {
   }
 
   public async retrieveDataSource(dataSourceId: string): Promise<DataSourceSchemaSnapshot> {
-    const response = (await this.sdk.request({
-      path: `data_sources/${dataSourceId}`,
-      method: "get",
-    })) as {
+    const response = await this.http.requestJson<{
       id: string;
       title?: unknown;
       name?: string;
       properties: Record<string, { id?: string; name?: string; type: string }>;
-    };
+    }>(`/data_sources/${dataSourceId}`);
 
     const properties = Object.fromEntries(
       Object.entries(response.properties).map(([name, property]) => [
@@ -168,10 +157,9 @@ export class DirectNotionClient implements NotionApi {
   }
 
   public async listTemplates(dataSourceId: string): Promise<TemplateDescriptor[]> {
-    const response = (await this.sdk.request({
-      path: `data_sources/${dataSourceId}/templates`,
-      method: "get",
-    })) as { results?: Array<{ id: string; name?: string; is_default?: boolean }> };
+    const response = await this.http.requestJson<{
+      results?: Array<{ id: string; name?: string; is_default?: boolean }>;
+    }>(`/data_sources/${dataSourceId}/templates`);
 
     return (response.results ?? []).map((template) => ({
       id: normalizeNotionId(template.id),
@@ -188,14 +176,15 @@ export class DirectNotionClient implements NotionApi {
           equals: options.exactTitle,
         },
       };
-      const response = (await this.sdk.request({
-        path: `data_sources/${options.dataSourceId}/query`,
+      const response = await this.http.requestJson<{
+        results?: Array<{ id: string; url: string; properties?: Record<string, unknown> }>;
+      }>(`/data_sources/${options.dataSourceId}/query`, {
         method: "post",
         body: {
           filter,
           page_size: 1,
         },
-      })) as { results?: Array<{ id: string; url: string; properties?: Record<string, unknown> }> };
+      });
       const result = response.results?.[0];
       return result
         ? {
@@ -210,13 +199,18 @@ export class DirectNotionClient implements NotionApi {
       return null;
     }
 
-    const response = await this.sdk.search({
-      query: options.query ?? options.exactTitle ?? "",
-      filter: {
-        property: "object",
-        value: "page",
+    const response = await this.http.requestJson<{
+      results: Array<{ id: string; url: string }>;
+    }>("/search", {
+      method: "post",
+      body: {
+        query: options.query ?? options.exactTitle ?? "",
+        filter: {
+          property: "object",
+          value: "page",
+        },
+        page_size: 10,
       },
-      page_size: 10,
     });
 
     const result = response.results[0] as { id: string; url: string } | undefined;
@@ -247,15 +241,53 @@ export class DirectNotionClient implements NotionApi {
   }
 
   public async updatePageProperties(input: PageUpdateInput): Promise<PageSnapshot> {
-    const response = (await this.sdk.pages.update({
-      page_id: input.pageId,
-      properties: input.properties as never,
-    })) as { id: string; url: string };
+    const response = await this.http.requestJson<{ id: string; url: string }>(`/pages/${input.pageId}`, {
+      method: "PATCH",
+      body: {
+        properties: input.properties,
+      },
+    });
 
     return {
       id: normalizeNotionId(response.id),
       url: response.url,
     };
+  }
+
+  public async archivePage(pageId: string): Promise<void> {
+    await this.http.requestJson(`/pages/${pageId}`, {
+      method: "PATCH",
+      body: {
+        in_trash: true,
+      },
+    });
+  }
+
+  public async queryDataSourcePages(input: {
+    dataSourceId: string;
+    pageSize?: number;
+    startCursor?: string;
+    filter?: Record<string, unknown>;
+  }): Promise<{
+    results?: Array<{
+      id: string;
+      url: string;
+      created_time?: string;
+      in_trash?: boolean;
+      archived?: boolean;
+      properties?: Record<string, unknown>;
+    }>;
+    has_more?: boolean;
+    next_cursor?: string | null;
+  }> {
+    return this.http.requestJson(`/data_sources/${input.dataSourceId}/query`, {
+      method: "post",
+      body: {
+        page_size: input.pageSize ?? 100,
+        start_cursor: input.startCursor,
+        filter: input.filter,
+      },
+    });
   }
 
   public async readPageMarkdown(pageId: string): Promise<MarkdownReadResult> {
@@ -298,6 +330,7 @@ export class DirectNotionClient implements NotionApi {
     await this.http.requestJson(`/pages/${input.pageId}/markdown`, {
       method: "PATCH",
       body,
+      recordClientErrorAsFailure: input.recordClientErrorAsFailure,
     });
   }
 }

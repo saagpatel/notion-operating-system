@@ -1,6 +1,6 @@
 import { Client } from "@notionhq/client";
 
-import type { DirectNotionClient } from "./direct-notion-client.js";
+import { DirectNotionClient } from "./direct-notion-client.js";
 import type {
   ControlTowerBuildSessionRecord,
   ControlTowerProjectRecord,
@@ -69,7 +69,7 @@ export async function ensureLocalPortfolioControlTowerSchema(
 }
 
 export async function fetchAllPages(
-  sdk: Client,
+  client: Client | DirectNotionClient,
   dataSourceId: string,
   titlePropertyName: string,
 ): Promise<DataSourcePageRef[]> {
@@ -77,25 +77,31 @@ export async function fetchAllPages(
   let nextCursor: string | undefined;
 
   while (true) {
-    const response = (await sdk.request({
-      path: `data_sources/${dataSourceId}/query`,
-      method: "post",
-      body: {
-        page_size: 100,
-        start_cursor: nextCursor,
-      },
-    })) as {
-      results?: Array<{
-        id: string;
-        url: string;
-        created_time?: string;
-        in_trash?: boolean;
-        archived?: boolean;
-        properties?: Record<string, NotionPageProperty>;
-      }>;
-      has_more?: boolean;
-      next_cursor?: string | null;
-    };
+    const response = client instanceof DirectNotionClient
+      ? await client.queryDataSourcePages({
+          dataSourceId,
+          pageSize: 100,
+          startCursor: nextCursor,
+        })
+      : (await client.request({
+          path: `data_sources/${dataSourceId}/query`,
+          method: "post",
+          body: {
+            page_size: 100,
+            start_cursor: nextCursor,
+          },
+        })) as {
+          results?: Array<{
+            id: string;
+            url: string;
+            created_time?: string;
+            in_trash?: boolean;
+            archived?: boolean;
+            properties?: Record<string, NotionPageProperty>;
+          }>;
+          has_more?: boolean;
+          next_cursor?: string | null;
+        };
 
     for (const page of response.results ?? []) {
       if (page.in_trash || page.archived) {
@@ -105,8 +111,8 @@ export async function fetchAllPages(
         id: normalizeNotionId(page.id),
         url: page.url,
         createdTime: page.created_time,
-        title: titleFromProperty(page.properties?.[titlePropertyName]),
-        properties: page.properties ?? {},
+        title: titleFromProperty((page.properties as Record<string, NotionPageProperty> | undefined)?.[titlePropertyName]),
+        properties: (page.properties ?? {}) as Record<string, NotionPageProperty>,
       });
     }
 

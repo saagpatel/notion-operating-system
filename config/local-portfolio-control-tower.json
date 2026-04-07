@@ -206,26 +206,22 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-03-22",
+    "lastSyncAt": "2026-04-07",
     "lastSyncMetrics": {
       "openDecisions": 0,
-      "nowPackets": 19,
+      "nowPackets": 22,
       "standbyPackets": 6,
       "blockedPackets": 0,
       "blockedTasks": 1,
-      "overdueTasks": 0,
-      "tasksCompletedThisWeek": 58,
-      "packetsCompletedThisWeek": 21,
+      "overdueTasks": 96,
+      "tasksCompletedThisWeek": 0,
+      "packetsCompletedThisWeek": 0,
       "rolloverPackets": 1,
-      "projectsWithExecutionDrift": 2,
+      "projectsWithExecutionDrift": 0,
       "wipViolations": [
-        "WIP violation: 19 Now packets are active, but the limit is 1.",
+        "WIP violation: 22 Now packets are active, but the limit is 1.",
         "WIP violation: 6 Standby packets are active, but the limit is 1.",
-        "Task \"LegalDocsReview - restore dependency baseline\" must belong to exactly one work packet.",
-        "Task \"LegalDocsReview - rerun lint and typecheck\" must belong to exactly one work packet.",
-        "Task \"Activate Relay GitHub source in Notion\" must belong to exactly one work packet.",
-        "Task \"RealEstate - triage PR #1 and PR #3 failures\" must belong to exactly one work packet.",
-        "Task \"RealEstate - pause placeholder source rows\" must belong to exactly one work packet."
+        "Task \"Activate Relay GitHub source in Notion\" must belong to exactly one work packet."
       ]
     }
   },
@@ -296,16 +292,16 @@
       "proposedLinkSuggestions": 0,
       "acceptedLinkSuggestions": 0
     },
-    "lastSyncAt": "2026-03-22",
+    "lastSyncAt": "2026-04-07",
     "lastSyncMetrics": {
-      "totalProjects": 70,
-      "resumeCandidates": 54,
-      "finishCandidates": 16,
-      "investigateCandidates": 0,
-      "deferCandidates": 0,
-      "monitorProjects": 0,
-      "orphanedProjects": 33,
-      "supportGapProjects": 42,
+      "totalProjects": 113,
+      "resumeCandidates": 56,
+      "finishCandidates": 30,
+      "investigateCandidates": 2,
+      "deferCandidates": 19,
+      "monitorProjects": 6,
+      "orphanedProjects": 4,
+      "supportGapProjects": 4,
       "proposedLinkSuggestions": 63,
       "acceptedLinkSuggestions": 55
     }
@@ -483,15 +479,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-03-24",
+    "lastSyncAt": "2026-04-07",
     "lastSyncMetrics": {
-      "mappedProjects": 86,
+      "mappedProjects": 106,
       "projectsNeedingMapping": 7,
-      "activeSources": 86,
-      "riskEvents": 239,
+      "activeSources": 106,
+      "riskEvents": 411,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 239,
-      "contradictionProjects": 26
+      "failedWorkflowRuns": 317,
+      "contradictionProjects": 16
     }
   },
   "phase6Governance": {
@@ -772,7 +768,7 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-03-29",
+    "lastSyncAt": "2026-04-07",
     "lastSyncMetrics": {
       "totalProjects": 113,
       "queueCounts": {
@@ -784,13 +780,37 @@
         "Cold Storage": 2,
         "Watch": 2
       },
-      "overdueReviews": 22,
+      "overdueReviews": 71,
       "missingNextMove": 0,
       "missingLastActive": 0,
       "staleActiveProjects": 0,
-      "orphanedProjects": 25,
-      "recentBuildSessions": 83
+      "orphanedProjects": 4,
+      "recentBuildSessions": 0
     },
     "lastClosedPhase": 8
+  },
+  "weeklyMaintenance": {
+    "supportMaintenanceLastSyncAt": "2026-04-07",
+    "weeklyRefreshLastRunAt": "2026-04-07",
+    "weeklyRefreshLastStatus": "completed",
+    "weeklyRefreshLastSummary": {
+      "needsLiveWrite": "yes",
+      "liveExecuted": "yes",
+      "preflightTotalSteps": 6,
+      "preflightCleanSteps": 5,
+      "preflightDriftSteps": 1,
+      "preflightCompletedSteps": 0,
+      "preflightPartialSteps": 0,
+      "preflightFailedSteps": 0,
+      "preflightSkippedSteps": 0,
+      "liveTotalSteps": 6,
+      "liveCleanSteps": 5,
+      "liveDriftSteps": 0,
+      "liveCompletedSteps": 1,
+      "livePartialSteps": 0,
+      "liveFailedSteps": 0,
+      "liveSkippedSteps": 0
+    },
+    "weeklyReviewLastPublishedAt": "2026-04-07"
   }
 }
