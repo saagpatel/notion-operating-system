@@ -153,6 +153,8 @@ Success criteria for the live pilot:
 
 Promotion should create a separate live weekly-refresh automation instead of mutating the shadow job in place.
 
+Use [`weekly-refresh-cutover-review.md`](./weekly-refresh-cutover-review.md) as the concrete promotion and rollback checklist during the actual cutover window.
+
 Cutover sequence:
 
 1. create and enable the live weekly-refresh automation
