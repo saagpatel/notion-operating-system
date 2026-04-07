@@ -10,6 +10,7 @@ import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
   renderWeeklyReviewMarkdown,
+  saveLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import {
   fetchAllPages,
@@ -24,6 +25,9 @@ import {
 } from "./local-portfolio-control-tower-live.js";
 import { buildRoadmapPhases } from "./local-portfolio-roadmap.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
+import { normalizeMarkdown, preserveManagedSections } from "../utils/markdown.js";
+import { WEEKLY_EXTERNAL_SIGNALS_SECTION } from "./managed-markdown-sections.js";
+import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 
 export interface ReviewPacketCommandOptions {
   live?: boolean;
@@ -39,7 +43,7 @@ export async function runReviewPacketCommand(options: ReviewPacketCommandOptions
   const currentWeekStart = startOfWeekMonday(today);
   const weekTitle = `Week of ${currentWeekStart}`;
 
-  const config = await loadLocalPortfolioControlTowerConfig(
+  let config = await loadLocalPortfolioControlTowerConfig(
     options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   );
 
@@ -103,6 +107,17 @@ export async function runReviewPacketCommand(options: ReviewPacketCommandOptions
       topPrioritiesNextWeek: buildTopPriorities(projects),
       nextPhaseBrief,
     });
+    const existingWeeklyPage = weeklyPages.find((page) => page.title === weekTitle);
+    const previousWeeklyMarkdown = existingWeeklyPage
+      ? await api.readPageMarkdown(existingWeeklyPage.id)
+      : undefined;
+    const finalMarkdown = previousWeeklyMarkdown
+      ? preserveManagedSections(markdown, previousWeeklyMarkdown.markdown, [WEEKLY_EXTERNAL_SIGNALS_SECTION])
+      : markdown;
+    const weeklyReviewWouldChange = previousWeeklyMarkdown
+      ? normalizeMarkdown(finalMarkdown) !== normalizeMarkdown(previousWeeklyMarkdown.markdown)
+      : true;
+    const weeklyReviewPageExists = Boolean(existingWeeklyPage);
 
     const properties = {
       [weeklySchema.titlePropertyName]: titleValue(weekTitle),
@@ -122,23 +137,55 @@ export async function runReviewPacketCommand(options: ReviewPacketCommandOptions
         titlePropertyName: weeklySchema.titlePropertyName,
         title: weekTitle,
         properties,
-        markdown,
+        markdown: finalMarkdown,
       });
       pageId = result.id;
       pageUrl = result.url;
+      config = {
+        ...config,
+        weeklyMaintenance: {
+          ...config.weeklyMaintenance,
+          weeklyReviewLastPublishedAt: today,
+        },
+      };
+      await saveLocalPortfolioControlTowerConfig(
+        config,
+        options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+      );
     }
 
   const output = {
     ok: true,
     live,
+    status: "clean" as string,
+    wouldChange: false,
+    summaryCounts: {},
+    warnings: [] as string[],
     weekTitle,
     compareStartDate,
+    weeklyReviewWouldChange,
+    weeklyReviewPageExists,
     touchedProjects: touchedProjects.length,
     buildSessions: recentBuildSessions.length,
     pageId,
     pageUrl,
   };
+  const contract = buildWeeklyStepContract({
+    live,
+    wouldChange: weeklyReviewWouldChange,
+    summaryCounts: {
+      weeklyReviewWouldChange: weeklyReviewWouldChange ? 1 : 0,
+      weeklyReviewPageExists: weeklyReviewPageExists ? 1 : 0,
+      touchedProjects: touchedProjects.length,
+      buildSessions: recentBuildSessions.length,
+    },
+  });
+  output.status = contract.status;
+  output.wouldChange = contract.wouldChange;
+  output.summaryCounts = contract.summaryCounts;
+  output.warnings = contract.warnings;
   recordCommandOutputSummary(output, {
+    status: mapWeeklyStepStatusToCommandStatus(contract.status),
     metadata: {
       weekTitle,
     },

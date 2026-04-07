@@ -2,6 +2,12 @@ import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { readJsonFile, writeJsonFile } from "../utils/files.js";
 import { AppError } from "../utils/errors.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
+import {
+  COMMAND_CENTER_MANAGED_SECTIONS,
+  FRESHNESS_COMMAND_CENTER_SECTION,
+  WEEKLY_EXTERNAL_SIGNALS_SECTION,
+  renderManagedSectionPlaceholder,
+} from "./managed-markdown-sections.js";
 
 export const DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH = "./config/local-portfolio-control-tower.json";
 
@@ -527,6 +533,13 @@ export interface LocalPortfolioControlTowerConfig {
     lastSyncMetrics?: ControlTowerMetrics;
     lastClosedPhase?: number;
   };
+  weeklyMaintenance?: {
+    supportMaintenanceLastSyncAt?: string;
+    weeklyRefreshLastRunAt?: string;
+    weeklyRefreshLastStatus?: "clean" | "completed" | "partial" | "failed";
+    weeklyRefreshLastSummary?: Record<string, number | string | boolean>;
+    weeklyReviewLastPublishedAt?: string;
+  };
 }
 
 export interface ControlTowerProjectRecord {
@@ -634,6 +647,9 @@ export function parseLocalPortfolioControlTowerConfig(raw: unknown): LocalPortfo
     ? parsePhase8GithubDeepening(config.phase8GithubDeepening)
     : undefined;
   const phaseState = parsePhaseState(config.phaseState);
+  const weeklyMaintenance = config.weeklyMaintenance
+    ? parseWeeklyMaintenance(config.weeklyMaintenance)
+    : undefined;
 
   return {
     version: 1,
@@ -654,6 +670,7 @@ export function parseLocalPortfolioControlTowerConfig(raw: unknown): LocalPortfo
     phase7Actuation,
     phase8GithubDeepening,
     phaseState,
+    weeklyMaintenance,
   };
 }
 
@@ -846,6 +863,8 @@ export function renderCommandCenterMarkdown(input: {
     "",
     `Updated: ${input.generatedAt}`,
     "",
+    renderFreshnessByLayerSection(input.config),
+    "",
     "## Baseline Health Snapshot",
     `- Total projects: ${input.metrics.totalProjects}`,
     `- Overdue reviews: ${input.metrics.overdueReviews}`,
@@ -914,6 +933,12 @@ export function renderCommandCenterMarkdown(input: {
     "",
     "## Recent Build Activity",
     ...formatBuildSessionBullets(input.recentBuildSessions.slice(0, 8)),
+    "",
+    ...COMMAND_CENTER_MANAGED_SECTIONS.flatMap((section, index) =>
+      index === COMMAND_CENTER_MANAGED_SECTIONS.length - 1
+        ? [renderManagedSectionPlaceholder(section)]
+        : [renderManagedSectionPlaceholder(section), ""],
+    ),
   ];
 
   return lines.filter(Boolean).join("\n");
@@ -969,7 +994,42 @@ export function renderWeeklyReviewMarkdown(input: ReviewPacketContext): string {
     lines.push("", "## Next Phase", input.nextPhaseBrief);
   }
 
+  lines.push("", renderManagedSectionPlaceholder(WEEKLY_EXTERNAL_SIGNALS_SECTION));
+
   return lines.filter(Boolean).join("\n");
+}
+
+function renderFreshnessByLayer(
+  config: LocalPortfolioControlTowerConfig,
+): string[] {
+  const weekly = config.weeklyMaintenance;
+
+  return [
+    freshnessLine("Support maintenance", weekly?.supportMaintenanceLastSyncAt),
+    freshnessLine("Control tower", config.phaseState.lastSyncAt),
+    freshnessLine("Execution", config.phase2Execution?.lastSyncAt),
+    freshnessLine("Intelligence", config.phase3Intelligence?.lastSyncAt),
+    freshnessLine("External signals", config.phase5ExternalSignals?.lastSyncAt),
+    freshnessLine("Weekly review", weekly?.weeklyReviewLastPublishedAt),
+    freshnessLine("Weekly refresh", weekly?.weeklyRefreshLastRunAt, weekly?.weeklyRefreshLastStatus),
+  ];
+}
+
+export function renderFreshnessByLayerSection(
+  config: LocalPortfolioControlTowerConfig,
+): string {
+  return [
+    FRESHNESS_COMMAND_CENTER_SECTION.startMarker,
+    "## Freshness By Layer",
+    ...renderFreshnessByLayer(config),
+    FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
+  ].join("\n");
+}
+
+function freshnessLine(label: string, date?: string, suffix?: string): string {
+  const state = date ? date : "Never";
+  const statusSuffix = suffix ? ` (${suffix})` : "";
+  return `- ${label}: ${state}${statusSuffix}`;
 }
 
 export function buildTopPriorities(projects: ControlTowerProjectRecord[]): string[] {
@@ -1274,6 +1334,56 @@ function parsePhaseState(raw: unknown): LocalPortfolioControlTowerConfig["phaseS
     lastSyncMetrics: optionalMetrics(value.lastSyncMetrics, "phaseState.lastSyncMetrics"),
     lastClosedPhase:
       value.lastClosedPhase === undefined ? undefined : requiredPositiveNumber(value.lastClosedPhase, "phaseState.lastClosedPhase"),
+  };
+}
+
+function parseWeeklyMaintenance(
+  raw: unknown,
+): NonNullable<LocalPortfolioControlTowerConfig["weeklyMaintenance"]> {
+  if (!raw || typeof raw !== "object") {
+    throw new AppError("weeklyMaintenance must be an object when provided");
+  }
+
+  const value = raw as Record<string, unknown>;
+  const weeklyRefreshLastStatus = optionalString(
+    value.weeklyRefreshLastStatus,
+    "weeklyMaintenance.weeklyRefreshLastStatus",
+  );
+  if (
+    weeklyRefreshLastStatus &&
+    weeklyRefreshLastStatus !== "clean" &&
+    weeklyRefreshLastStatus !== "completed" &&
+    weeklyRefreshLastStatus !== "partial" &&
+    weeklyRefreshLastStatus !== "failed"
+  ) {
+    throw new AppError(
+      "weeklyMaintenance.weeklyRefreshLastStatus must be clean, completed, partial, or failed",
+    );
+  }
+
+  return {
+    supportMaintenanceLastSyncAt: optionalString(
+      value.supportMaintenanceLastSyncAt,
+      "weeklyMaintenance.supportMaintenanceLastSyncAt",
+    ),
+    weeklyRefreshLastRunAt: optionalString(
+      value.weeklyRefreshLastRunAt,
+      "weeklyMaintenance.weeklyRefreshLastRunAt",
+    ),
+    weeklyRefreshLastStatus: weeklyRefreshLastStatus as
+      | "clean"
+      | "completed"
+      | "partial"
+      | "failed"
+      | undefined,
+    weeklyRefreshLastSummary: optionalLooseMetrics(
+      value.weeklyRefreshLastSummary,
+      "weeklyMaintenance.weeklyRefreshLastSummary",
+    ) as Record<string, number | string | boolean> | undefined,
+    weeklyReviewLastPublishedAt: optionalString(
+      value.weeklyReviewLastPublishedAt,
+      "weeklyMaintenance.weeklyReviewLastPublishedAt",
+    ),
   };
 }
 

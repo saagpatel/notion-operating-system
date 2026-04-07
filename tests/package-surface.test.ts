@@ -38,10 +38,12 @@ describe("package surface", () => {
     expect(packageJson.scripts["governance:audit"]).toBe("tsx src/cli.ts governance audit");
     expect(packageJson.scripts["signals:sync"]).toBe("tsx src/cli.ts signals sync");
     expect(packageJson.scripts["rollout:operational"]).toBe("tsx src/cli.ts rollout operational");
+    expect(packageJson.scripts["maintenance:weekly-refresh"]).toBe("tsx src/cli.ts maintenance weekly-refresh");
 
     expect(packageJson.scripts["portfolio-audit:control-tower-sync"]).toBe("tsx src/notion/control-tower-sync.ts");
     expect(packageJson.scripts["portfolio-audit:governance-audit"]).toBe("tsx src/notion/governance-audit.ts");
     expect(packageJson.scripts["portfolio-audit:external-signal-sync"]).toBe("tsx src/notion/external-signal-sync.ts");
+    expect(packageJson.scripts["portfolio-audit:weekly-refresh"]).toBe("tsx src/notion/weekly-refresh.ts");
   });
 
   test("preferred and legacy npm aliases both work for representative durable workflows", async () => {
@@ -60,6 +62,11 @@ describe("package surface", () => {
         preferred: "signals:sync",
         legacy: "portfolio-audit:external-signal-sync",
         expected: "Sync external provider signals",
+      },
+      {
+        preferred: "maintenance:weekly-refresh",
+        legacy: "portfolio-audit:weekly-refresh",
+        expected: "Run the safe weekly refresh orchestrator",
       },
     ];
 

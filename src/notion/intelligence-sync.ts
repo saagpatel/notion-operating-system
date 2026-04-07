@@ -43,8 +43,9 @@ import {
 } from "./local-portfolio-intelligence.js";
 import { validateLocalPortfolioIntelligenceViewPlanAgainstSchemas } from "./local-portfolio-intelligence-views.js";
 import { AppError } from "../utils/errors.js";
-import { assertSafeReplacement, buildReplaceCommand } from "../utils/markdown.js";
+import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
+import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 
 const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
@@ -155,6 +156,68 @@ export async function runIntelligenceSyncCommand(
       .filter((run) => run.runType === "Daily Focus")
       .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
 
+    const recommendationBriefs = await Promise.all(
+      contexts.map(async (context, index) => {
+        const recommendation = recommendations[index];
+        const previous = await api.readPageMarkdown(context.project.id);
+        if (!recommendation) {
+          return {
+            projectId: context.project.id,
+            previousMarkdown: previous.markdown,
+            nextMarkdown: previous.markdown,
+            recommendation,
+            changed: false,
+          };
+        }
+        const nextMarkdown = mergeManagedSection(
+          previous.markdown,
+          renderRecommendationBriefSection({
+            context: {
+              ...context,
+              project: {
+                ...context.project,
+                recommendationLane: recommendation?.lane,
+                recommendationScore: recommendation?.score,
+                recommendationConfidence: recommendation?.confidence,
+                recommendationUpdated: today,
+              },
+            },
+            recommendation,
+          }),
+          RECOMMENDATION_BRIEF_START,
+          RECOMMENDATION_BRIEF_END,
+        );
+        return {
+          projectId: context.project.id,
+          previousMarkdown: previous.markdown,
+          nextMarkdown,
+          recommendation,
+          changed: Boolean(recommendation) &&
+            normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
+        };
+      }),
+    );
+    const projectRecommendationBriefsWouldChange = recommendationBriefs.filter((entry) => entry.changed).length;
+
+    const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId!);
+    const nextCommandCenter = mergeManagedSection(
+      previousCommandCenter.markdown,
+      renderIntelligenceCommandCenterSection({
+        recommendations,
+        projects: projects.map((project) => ({
+          ...project,
+          recommendationLane: recommendations.find((entry) => entry.projectId === project.id)?.lane,
+        })),
+        latestWeeklyRun,
+        latestDailyRun,
+        linkSuggestionQueue: suggestions,
+      }),
+      INTELLIGENCE_COMMAND_CENTER_START,
+      INTELLIGENCE_COMMAND_CENTER_END,
+    );
+    const intelligenceCommandCenterSectionWouldChange =
+      normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown);
+
     let changedProjectPages = 0;
     if (live) {
       logLiveStage(live, "Applying accepted link suggestions", {
@@ -175,10 +238,11 @@ export async function runIntelligenceSyncCommand(
         });
 
       logLiveStage(live, "Refreshing recommendation briefs", { projectCount: contexts.length });
-      for (const [index, context] of contexts.entries()) {
-        logLoopProgress(live, "intelligence-sync", "Project brief", index + 1, contexts.length);
-        const recommendation = recommendations.find((entry) => entry.projectId === context.project.id);
-        if (!recommendation) {
+      for (const [index, entry] of recommendationBriefs.entries()) {
+        logLoopProgress(live, "intelligence-sync", "Project brief", index + 1, recommendationBriefs.length);
+        const context = contexts[index];
+        const recommendation = entry?.recommendation;
+        if (!recommendation || !context) {
           continue;
         }
 
@@ -192,55 +256,19 @@ export async function runIntelligenceSyncCommand(
           },
         });
 
-        const previous = await api.readPageMarkdown(context.project.id);
-        const nextMarkdown = mergeManagedSection(
-          previous.markdown,
-          renderRecommendationBriefSection({
-            context: {
-              ...context,
-              project: {
-                ...context.project,
-                recommendationLane: recommendation.lane,
-                recommendationScore: recommendation.score,
-                recommendationConfidence: recommendation.confidence,
-                recommendationUpdated: today,
-              },
-            },
-            recommendation,
-          }),
-          RECOMMENDATION_BRIEF_START,
-          RECOMMENDATION_BRIEF_END,
-        );
-
-        if (nextMarkdown !== previous.markdown.trim()) {
-          assertSafeReplacement(previous.markdown, nextMarkdown);
+        if (entry.changed) {
+          assertSafeReplacement(entry.previousMarkdown, entry.nextMarkdown);
           await api.patchPageMarkdown({
             pageId: context.project.id,
             command: "replace_content",
-            newMarkdown: buildReplaceCommand(nextMarkdown),
+            newMarkdown: buildReplaceCommand(entry.nextMarkdown),
           });
           changedProjectPages += 1;
         }
       }
 
       logLiveStage(live, "Refreshing intelligence command center");
-      const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId!);
-      const nextCommandCenter = mergeManagedSection(
-        previousCommandCenter.markdown,
-        renderIntelligenceCommandCenterSection({
-          recommendations,
-          projects: projects.map((project) => ({
-            ...project,
-            recommendationLane: recommendations.find((entry) => entry.projectId === project.id)?.lane,
-          })),
-          latestWeeklyRun,
-          latestDailyRun,
-          linkSuggestionQueue: suggestions,
-        }),
-        INTELLIGENCE_COMMAND_CENTER_START,
-        INTELLIGENCE_COMMAND_CENTER_END,
-      );
-      if (nextCommandCenter !== previousCommandCenter.markdown.trim()) {
+      if (intelligenceCommandCenterSectionWouldChange) {
         assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
         await api.patchPageMarkdown({
           pageId: config.commandCenter.pageId!,
@@ -271,12 +299,35 @@ export async function runIntelligenceSyncCommand(
     const output = {
       ok: true,
       live,
+      status: "clean" as string,
+      wouldChange: false,
+      summaryCounts: {},
+      warnings: [] as string[],
       changedProjectPages,
+      projectRecommendationBriefsWouldChange,
+      intelligenceCommandCenterSectionWouldChange,
       metrics,
       latestWeeklyRunId: latestWeeklyRun?.id,
       latestDailyRunId: latestDailyRun?.id,
     };
+    const contract = buildWeeklyStepContract({
+      live,
+      wouldChange:
+        projectRecommendationBriefsWouldChange > 0 || intelligenceCommandCenterSectionWouldChange,
+      summaryCounts: {
+        projectRecommendationBriefsWouldChange,
+        intelligenceCommandCenterSectionWouldChange: intelligenceCommandCenterSectionWouldChange ? 1 : 0,
+        totalProjects: metrics.totalProjects,
+        resumeCandidates: metrics.resumeCandidates,
+        proposedLinkSuggestions: metrics.proposedLinkSuggestions,
+      },
+    });
+    output.status = contract.status;
+    output.wouldChange = contract.wouldChange;
+    output.summaryCounts = contract.summaryCounts;
+    output.warnings = contract.warnings;
     recordCommandOutputSummary(output, {
+      status: mapWeeklyStepStatusToCommandStatus(contract.status),
       metadata: {
         latestWeeklyRunId: latestWeeklyRun?.id,
         latestDailyRunId: latestDailyRun?.id,

@@ -32,6 +32,9 @@ import {
 import { loadLocalPortfolioViewPlan, validateLocalPortfolioViewPlanAgainstSchema } from "./local-portfolio-views.js";
 import { Publisher } from "../publishing/publisher.js";
 import { losAngelesToday } from "../utils/date.js";
+import { normalizeMarkdown, preserveManagedSections } from "../utils/markdown.js";
+import { COMMAND_CENTER_MANAGED_SECTIONS } from "./managed-markdown-sections.js";
+import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 
 export interface ControlTowerSyncCommandOptions {
   live?: boolean;
@@ -110,7 +113,11 @@ export async function runControlTowerSyncCommand(
       phaseState: phaseStateUpdate.phaseState,
     };
 
-    const markdown = renderCommandCenterMarkdown({
+    const previousCommandCenter = nextConfig.commandCenter.pageId
+      ? await api.readPageMarkdown(nextConfig.commandCenter.pageId)
+      : undefined;
+
+    const baseMarkdown = renderCommandCenterMarkdown({
       generatedAt: today,
       metrics,
       baselineMetrics: nextConfig.phaseState.baselineMetrics,
@@ -119,6 +126,12 @@ export async function runControlTowerSyncCommand(
       config: nextConfig,
       today,
     });
+    const markdown = previousCommandCenter
+      ? preserveManagedSections(baseMarkdown, previousCommandCenter.markdown, COMMAND_CENTER_MANAGED_SECTIONS)
+      : baseMarkdown;
+    const commandCenterWouldChange = previousCommandCenter
+      ? normalizeMarkdown(markdown) !== normalizeMarkdown(previousCommandCenter.markdown)
+      : true;
 
     const commandCenterBootstrap = !nextConfig.commandCenter.pageId;
     const commandCenterSummary = await publishCommandCenter({
@@ -153,13 +166,36 @@ export async function runControlTowerSyncCommand(
   const output = {
     ok: true,
     live,
+    status: "clean" as string,
+    wouldChange: false,
+    summaryCounts: {},
+    warnings: [] as string[],
     changedRows,
+    derivedRowsWouldChange: changedRows,
+    commandCenterWouldChange,
     baselineCaptured: phaseStateUpdate.baselineCaptured,
     commandCenterPageId: commandCenterSummary.pageId ?? nextConfig.commandCenter.pageId,
     commandCenterPageUrl: commandCenterSummary.pageUrl ?? nextConfig.commandCenter.pageUrl,
     metrics,
   };
-  recordCommandOutputSummary(output);
+  const contract = buildWeeklyStepContract({
+    live,
+    wouldChange: changedRows > 0 || commandCenterWouldChange,
+    summaryCounts: {
+      derivedRowsWouldChange: changedRows,
+      commandCenterWouldChange: commandCenterWouldChange ? 1 : 0,
+      totalProjects: metrics.totalProjects,
+      overdueReviews: metrics.overdueReviews,
+      orphanedProjects: metrics.orphanedProjects,
+    },
+  });
+  output.status = contract.status;
+  output.wouldChange = contract.wouldChange;
+  output.summaryCounts = contract.summaryCounts;
+  output.warnings = contract.warnings;
+  recordCommandOutputSummary(output, {
+    status: mapWeeklyStepStatusToCommandStatus(contract.status),
+  });
   console.log(JSON.stringify(output, null, 2));
 }
 

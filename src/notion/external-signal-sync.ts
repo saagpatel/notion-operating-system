@@ -63,8 +63,9 @@ import {
   toWorkPacketRecord,
 } from "./local-portfolio-execution-live.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
-import { assertSafeReplacement, buildReplaceCommand } from "../utils/markdown.js";
+import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
+import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 
 const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
@@ -76,6 +77,8 @@ const EXTERNAL_SIGNAL_COMMAND_CENTER_START = "<!-- codex:notion-external-signal-
 const EXTERNAL_SIGNAL_COMMAND_CENTER_END = "<!-- codex:notion-external-signal-command-center:end -->";
 const WEEKLY_EXTERNAL_SIGNALS_START = "<!-- codex:notion-weekly-external-signals:start -->";
 const WEEKLY_EXTERNAL_SIGNALS_END = "<!-- codex:notion-weekly-external-signals:end -->";
+const PROVIDER_SOURCE_CONCURRENCY = 6;
+const PROVIDER_FETCH_TIMEOUT_MS = 15_000;
 
 interface NormalizedSignalEvent {
   title: string;
@@ -92,6 +95,14 @@ interface NormalizedSignalEvent {
   eventKey: string;
   summary: string;
   rawExcerpt: string;
+}
+
+interface ProviderSourceSyncResult {
+  events: NormalizedSignalEvent[];
+  itemsSeen: number;
+  itemsDeduped: number;
+  failureNote?: string;
+  syncedSourceId?: string;
 }
 
 export interface ProviderSyncResult {
@@ -112,6 +123,8 @@ export interface ExternalSignalSyncCommandOptions {
   provider?: "github" | "vercel" | "all";
   today?: string;
   config?: string;
+  sourceLimit?: number;
+  maxEventsPerSource?: number;
 }
 
 export async function runExternalSignalSyncCommand(
@@ -218,24 +231,32 @@ export async function runExternalSignalSyncCommand(
     const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
     const existingEvents = eventPages.map((page) => toExternalSignalEventRecord(page));
     const existingSyncRuns = syncRunPages.map((page) => toExternalSignalSyncRunRecord(page));
+    const scopedSources = selectScopedSources({
+      provider,
+      providers: providerConfig.providers,
+      sources,
+      sourceLimit: options.sourceLimit,
+    });
 
     let createdEventCount = 0;
     let createdSyncRunCount = 0;
-    let providerResults: ProviderSyncResult[] = [];
     const eventKeySet = new Set(existingEvents.map((event) => event.eventKey));
     const sourceMap = new Map(sources.map((source) => [source.id, source]));
+    const providerResults = live
+      ? await syncProviders({
+          flags: { live, provider, today: options.today },
+          today,
+          phase5,
+          providers: providerConfig.providers,
+          sources,
+          eventKeySet: new Set(eventKeySet),
+          sourceLimit: options.sourceLimit,
+          maxEventsPerSource: options.maxEventsPerSource,
+        })
+      : [];
 
     if (live) {
       logLiveStage(live, "Syncing providers", { provider });
-      providerResults = await syncProviders({
-        flags: { live, provider, today: options.today },
-        today,
-        phase5,
-        providers: providerConfig.providers,
-        sources,
-        eventKeySet,
-      });
-
       logLiveStage(live, "Writing sync runs", { providerRunCount: providerResults.length });
       for (const result of providerResults) {
         const syncRun = await createSyncRunPage({
@@ -276,13 +297,16 @@ export async function runExternalSignalSyncCommand(
       }
     }
 
+    const summaryEvents = existingEvents;
+    const summarySyncRuns = existingSyncRuns;
+
     const summaryMap = new Map(
       projects.map((project) => [
         project.id,
         buildExternalSignalSummary({
           project,
           sources,
-          events: existingEvents,
+          events: summaryEvents,
           today,
         }),
       ]),
@@ -309,37 +333,24 @@ export async function runExternalSignalSyncCommand(
     const latestDailyRun = runs
       .filter((run) => run.runType === "Daily Focus")
       .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
+    const targetProjectIds = options.sourceLimit
+      ? deriveTargetProjectIdsFromSources(scopedSources)
+      : new Set(projects.map((project) => project.id));
+    const targetProjects = projects.filter((project) => targetProjectIds.has(project.id));
 
-    let changedProjectPages = 0;
-    if (live) {
-      logLiveStage(live, "Refreshing project signal briefs", { projectCount: projects.length });
-      for (const project of projects) {
-        logLoopProgress(live, "external-signal-sync", "Project brief", projects.indexOf(project) + 1, projects.length);
+    const projectBriefs = await Promise.all(
+      targetProjects.map(async (project) => {
         const recommendation = recommendations.find((entry) => entry.projectId === project.id);
         const summary = summaryMap.get(project.id);
+        const previous = await api.readPageMarkdown(project.id);
         if (!recommendation || !summary) {
-          continue;
+          return {
+            projectId: project.id,
+            previousMarkdown: previous.markdown,
+            nextMarkdown: previous.markdown,
+            changed: false,
+          };
         }
-
-        await api.updatePageProperties({
-          pageId: project.id,
-          properties: {
-            "Recommendation Lane": { select: { name: recommendation.lane } },
-            "Recommendation Score": { number: recommendation.score },
-            "Recommendation Confidence": { select: { name: recommendation.confidence } },
-            "Recommendation Updated": { date: { start: today } },
-            "External Signal Coverage": { select: { name: summary.coverage } },
-            "Latest External Activity": summary.latestExternalActivity
-              ? { date: { start: summary.latestExternalActivity } }
-              : { date: null },
-            "Latest Deployment Status": { select: { name: summary.latestDeploymentStatus } },
-            "Open PR Count": { number: summary.openPrCount },
-            "Recent Failed Workflow Runs": { number: summary.recentFailedWorkflowRuns },
-            "External Signal Updated": summary.externalSignalUpdated
-              ? { date: { start: summary.externalSignalUpdated } }
-              : { date: null },
-          },
-        });
 
         const context = buildProjectIntelligenceContext({
           project: {
@@ -365,7 +376,6 @@ export async function runExternalSignalSyncCommand(
           today,
         });
 
-        const previous = await api.readPageMarkdown(project.id);
         const withRecommendation = mergeManagedSection(
           previous.markdown,
           renderRecommendationBriefSection({ context, recommendation }),
@@ -379,45 +389,100 @@ export async function runExternalSignalSyncCommand(
           EXTERNAL_SIGNAL_BRIEF_END,
         );
 
-        if (nextMarkdown !== previous.markdown.trim()) {
-          assertSafeReplacement(previous.markdown, nextMarkdown);
+        return {
+          projectId: project.id,
+          previousMarkdown: previous.markdown,
+          nextMarkdown,
+          changed: normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
+        };
+      }),
+    );
+    const projectExternalSignalBriefsWouldChange = projectBriefs.filter((entry) => entry.changed).length;
+
+    const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId!);
+    const withIntelligence = mergeManagedSection(
+      previousCommandCenter.markdown,
+      renderIntelligenceCommandCenterSection({
+        recommendations,
+        projects: projects.map((project) => ({
+          ...project,
+          recommendationLane: recommendations.find((entry) => entry.projectId === project.id)?.lane,
+        })),
+        latestWeeklyRun,
+        latestDailyRun,
+        linkSuggestionQueue: suggestions,
+      }),
+      INTELLIGENCE_COMMAND_CENTER_START,
+      INTELLIGENCE_COMMAND_CENTER_END,
+    );
+    const intelligenceCommandCenterSectionWouldChange =
+      normalizeMarkdown(withIntelligence) !== normalizeMarkdown(previousCommandCenter.markdown);
+    const withExternalSignals = mergeManagedSection(
+      withIntelligence,
+      renderExternalSignalCommandCenterSection({
+        summaries: [...summaryMap.values()],
+        syncRuns: summarySyncRuns,
+        projects,
+      }),
+      EXTERNAL_SIGNAL_COMMAND_CENTER_START,
+      EXTERNAL_SIGNAL_COMMAND_CENTER_END,
+    );
+    const externalSignalsCommandCenterSectionWouldChange =
+      normalizeMarkdown(withExternalSignals) !== normalizeMarkdown(withIntelligence);
+    const weeklyReview = weeklyPages.find((page) => page.title === `Week of ${weekStart}`);
+    const previousWeeklyReview = weeklyReview ? await api.readPageMarkdown(weeklyReview.id) : undefined;
+    const nextWeeklyReview = previousWeeklyReview
+      ? mergeManagedSection(
+          previousWeeklyReview.markdown,
+          renderWeeklyExternalSignalsSection({
+            summaries: [...summaryMap.values()],
+            syncRuns: summarySyncRuns,
+          }),
+          WEEKLY_EXTERNAL_SIGNALS_START,
+          WEEKLY_EXTERNAL_SIGNALS_END,
+        )
+      : undefined;
+    const weeklyExternalSignalsSectionWouldChange = previousWeeklyReview && nextWeeklyReview
+      ? normalizeMarkdown(nextWeeklyReview) !== normalizeMarkdown(previousWeeklyReview.markdown)
+      : false;
+
+    let changedProjectPages = 0;
+    if (live) {
+      logLiveStage(live, "Refreshing project signal briefs", { projectCount: targetProjects.length });
+      for (const [index, project] of targetProjects.entries()) {
+        logLoopProgress(live, "external-signal-sync", "Project brief", index + 1, targetProjects.length);
+        const recommendation = recommendations.find((entry) => entry.projectId === project.id);
+        const summary = summaryMap.get(project.id);
+        if (!recommendation || !summary) {
+          continue;
+        }
+
+        const propertyUpdates = buildExternalSignalProjectPropertyUpdates({
+          project,
+          recommendation,
+          summary,
+          today,
+        });
+        if (Object.keys(propertyUpdates).length > 0) {
+          await api.updatePageProperties({
+            pageId: project.id,
+            properties: propertyUpdates,
+          });
+        }
+        const projectBrief = projectBriefs[index];
+        if (projectBrief?.changed) {
+          assertSafeReplacement(projectBrief.previousMarkdown, projectBrief.nextMarkdown);
           await api.patchPageMarkdown({
             pageId: project.id,
             command: "replace_content",
-            newMarkdown: buildReplaceCommand(nextMarkdown),
+            newMarkdown: buildReplaceCommand(projectBrief.nextMarkdown),
           });
           changedProjectPages += 1;
         }
       }
 
       logLiveStage(live, "Refreshing command center and weekly review");
-      const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId!);
-      const withIntelligence = mergeManagedSection(
-        previousCommandCenter.markdown,
-        renderIntelligenceCommandCenterSection({
-          recommendations,
-          projects: projects.map((project) => ({
-            ...project,
-            recommendationLane: recommendations.find((entry) => entry.projectId === project.id)?.lane,
-          })),
-          latestWeeklyRun,
-          latestDailyRun,
-          linkSuggestionQueue: suggestions,
-        }),
-        INTELLIGENCE_COMMAND_CENTER_START,
-        INTELLIGENCE_COMMAND_CENTER_END,
-      );
-      const withExternalSignals = mergeManagedSection(
-        withIntelligence,
-        renderExternalSignalCommandCenterSection({
-          summaries: [...summaryMap.values()],
-          syncRuns: existingSyncRuns,
-          projects,
-        }),
-        EXTERNAL_SIGNAL_COMMAND_CENTER_START,
-        EXTERNAL_SIGNAL_COMMAND_CENTER_END,
-      );
-      if (withExternalSignals !== previousCommandCenter.markdown.trim()) {
+      if (intelligenceCommandCenterSectionWouldChange || externalSignalsCommandCenterSectionWouldChange) {
         assertSafeReplacement(previousCommandCenter.markdown, withExternalSignals);
         await api.patchPageMarkdown({
           pageId: config.commandCenter.pageId!,
@@ -426,26 +491,13 @@ export async function runExternalSignalSyncCommand(
         });
       }
 
-      const weeklyReview = weeklyPages.find((page) => page.title === `Week of ${weekStart}`);
-      if (weeklyReview) {
-        const previous = await api.readPageMarkdown(weeklyReview.id);
-        const nextMarkdown = mergeManagedSection(
-          previous.markdown,
-          renderWeeklyExternalSignalsSection({
-            summaries: [...summaryMap.values()],
-            syncRuns: existingSyncRuns,
-          }),
-          WEEKLY_EXTERNAL_SIGNALS_START,
-          WEEKLY_EXTERNAL_SIGNALS_END,
-        );
-        if (nextMarkdown !== previous.markdown.trim()) {
-          assertSafeReplacement(previous.markdown, nextMarkdown);
-          await api.patchPageMarkdown({
-            pageId: weeklyReview.id,
-            command: "replace_content",
-            newMarkdown: buildReplaceCommand(nextMarkdown),
-          });
-        }
+      if (weeklyReview && previousWeeklyReview && nextWeeklyReview && weeklyExternalSignalsSectionWouldChange) {
+        assertSafeReplacement(previousWeeklyReview.markdown, nextWeeklyReview);
+        await api.patchPageMarkdown({
+          pageId: weeklyReview.id,
+          command: "replace_content",
+          newMarkdown: buildReplaceCommand(nextWeeklyReview),
+        });
       }
 
       const externalMetrics = calculateExternalSignalMetrics({
@@ -478,16 +530,55 @@ export async function runExternalSignalSyncCommand(
     const output = {
       ok: true,
       live,
+      status: "clean" as string,
+      wouldChange: false,
+      summaryCounts: {},
+      warnings: [] as string[],
       provider,
       createdEventCount,
       createdSyncRunCount,
       changedProjectPages,
+      projectExternalSignalBriefsWouldChange,
+      intelligenceCommandCenterSectionWouldChange,
+      externalSignalsCommandCenterSectionWouldChange,
+      weeklyExternalSignalsSectionWouldChange: weeklyExternalSignalsSectionWouldChange ? 1 : 0,
       metrics: calculateExternalSignalMetrics({
         summaries: [...summaryMap.values()],
       }),
     };
+    const providerWarnings = providerResults.flatMap((result) => result.notes);
+    const providerFailed = providerResults.some((result) => result.status === "Failed");
+    const providerPartial = providerResults.some((result) => result.status === "Partial");
+    const contract = buildWeeklyStepContract({
+      live,
+      status: providerFailed ? "failed" : providerPartial ? "partial" : undefined,
+      wouldChange:
+        createdEventCount > 0 ||
+        createdSyncRunCount > 0 ||
+        projectExternalSignalBriefsWouldChange > 0 ||
+        intelligenceCommandCenterSectionWouldChange ||
+        externalSignalsCommandCenterSectionWouldChange ||
+        weeklyExternalSignalsSectionWouldChange,
+      summaryCounts: {
+        createdEventCount,
+        createdSyncRunCount,
+        targetProjectCount: targetProjects.length,
+        syncedSourceCount: providerResults.reduce((sum, result) => sum + result.syncedSourceIds.length, 0),
+        projectExternalSignalBriefsWouldChange,
+        intelligenceCommandCenterSectionWouldChange: intelligenceCommandCenterSectionWouldChange ? 1 : 0,
+        externalSignalsCommandCenterSectionWouldChange: externalSignalsCommandCenterSectionWouldChange ? 1 : 0,
+        weeklyExternalSignalsSectionWouldChange: weeklyExternalSignalsSectionWouldChange ? 1 : 0,
+        mappedProjects: output.metrics.mappedProjects,
+        projectsNeedingMapping: output.metrics.projectsNeedingMapping,
+      },
+      warnings: providerWarnings,
+    });
+    output.status = contract.status;
+    output.wouldChange = contract.wouldChange;
+    output.summaryCounts = contract.summaryCounts;
+    output.warnings = contract.warnings;
     recordCommandOutputSummary(output, {
-      status: deriveExternalSignalSyncStatus(providerResults),
+      status: mapWeeklyStepStatusToCommandStatus(contract.status),
       warningCategories: deriveExternalSignalSyncWarningCategories(providerResults),
       failureCategories: deriveExternalSignalSyncFailureCategories(providerResults),
       metadata: {
@@ -514,6 +605,101 @@ function logLoopProgress(live: boolean, scope: string, label: string, index: num
   if (index === 1 || index === total || index % 10 === 0) {
     console.error(`[${scope}] ${label} ${index}/${total}`);
   }
+}
+
+function buildExternalSignalProjectPropertyUpdates(input: {
+  project: ReturnType<typeof toIntelligenceProjectRecord>;
+  recommendation: ReturnType<typeof buildRecommendation>;
+  summary: ReturnType<typeof buildExternalSignalSummary>;
+  today: string;
+}): Record<string, unknown> {
+  const updates: Record<string, unknown> = {};
+
+  if (input.project.recommendationLane !== input.recommendation.lane) {
+    updates["Recommendation Lane"] = { select: { name: input.recommendation.lane } };
+  }
+  if ((input.project.recommendationScore ?? 0) !== input.recommendation.score) {
+    updates["Recommendation Score"] = { number: input.recommendation.score };
+  }
+  if (input.project.recommendationConfidence !== input.recommendation.confidence) {
+    updates["Recommendation Confidence"] = { select: { name: input.recommendation.confidence } };
+  }
+  if (input.project.recommendationUpdated !== input.today) {
+    updates["Recommendation Updated"] = { date: { start: input.today } };
+  }
+  if (input.project.externalSignalCoverage !== input.summary.coverage) {
+    updates["External Signal Coverage"] = { select: { name: input.summary.coverage } };
+  }
+  if ((input.project.latestExternalActivity ?? "") !== (input.summary.latestExternalActivity ?? "")) {
+    updates["Latest External Activity"] = input.summary.latestExternalActivity
+      ? { date: { start: input.summary.latestExternalActivity } }
+      : { date: null };
+  }
+  if (input.project.latestDeploymentStatus !== input.summary.latestDeploymentStatus) {
+    updates["Latest Deployment Status"] = { select: { name: input.summary.latestDeploymentStatus } };
+  }
+  if ((input.project.openPrCount ?? 0) !== input.summary.openPrCount) {
+    updates["Open PR Count"] = { number: input.summary.openPrCount };
+  }
+  if ((input.project.recentFailedWorkflowRuns ?? 0) !== input.summary.recentFailedWorkflowRuns) {
+    updates["Recent Failed Workflow Runs"] = { number: input.summary.recentFailedWorkflowRuns };
+  }
+  if ((input.project.externalSignalUpdated ?? "") !== (input.summary.externalSignalUpdated ?? "")) {
+    updates["External Signal Updated"] = input.summary.externalSignalUpdated
+      ? { date: { start: input.summary.externalSignalUpdated } }
+      : { date: null };
+  }
+
+  return updates;
+}
+
+function normalizedSignalEventToRecord(
+  event: NormalizedSignalEvent,
+  resultIndex: number,
+  eventIndex: number,
+): ExternalSignalEventRecord {
+  return {
+    id: `preview-event-${resultIndex}-${eventIndex}`,
+    url: event.sourceUrl || `https://preview.local/events/${resultIndex}-${eventIndex}`,
+    title: event.title,
+    localProjectIds: [event.localProjectId],
+    sourceIds: [event.sourceId],
+    provider: event.provider,
+    signalType: event.signalType,
+    occurredAt: event.occurredAt,
+    status: event.status,
+    environment: event.environment,
+    severity: event.severity,
+    sourceIdValue: event.sourceIdValue,
+    sourceUrl: event.sourceUrl,
+    syncRunIds: [],
+    eventKey: event.eventKey,
+    summary: event.summary,
+    rawExcerpt: event.rawExcerpt,
+  };
+}
+
+function previewSyncRunRecord(
+  result: ProviderSyncResult,
+  today: string,
+  index: number,
+): ExternalSignalSyncRunRecord {
+  return {
+    id: `preview-sync-run-${index}`,
+    url: `https://preview.local/sync-runs/${index}`,
+    title: `${result.provider} sync preview`,
+    provider: result.provider,
+    status: result.status,
+    startedAt: today,
+    completedAt: today,
+    scope: defaultSyncRunScope(result.provider, 0),
+    itemsSeen: result.itemsSeen,
+    itemsWritten: result.itemsWritten,
+    itemsDeduped: result.itemsDeduped,
+    failures: result.failures,
+    cursor: result.cursor,
+    notes: result.notes.join(" | "),
+  };
 }
 
 export function deriveExternalSignalSyncStatus(
@@ -580,6 +766,8 @@ export async function syncProviders(input: {
   providers: ExternalSignalProviderPlan[];
   sources: ExternalSignalSourceRecord[];
   eventKeySet: Set<string>;
+  sourceLimit?: number;
+  maxEventsPerSource?: number;
 }): Promise<ProviderSyncResult[]> {
   const selectedProviders =
     input.flags.provider === "all"
@@ -588,22 +776,39 @@ export async function syncProviders(input: {
 
   const results: ProviderSyncResult[] = [];
   for (const provider of selectedProviders) {
-    const sources = input.sources.filter(
+    const sources = limitProviderSources(
+      input.sources.filter(
       (source) =>
         source.status === "Active" &&
         Boolean(source.identifier.trim()) &&
         normalizeProviderName(source.provider) === provider.key,
+      ),
+      input.sourceLimit,
     );
     logLiveStage(input.flags.live, "Provider source set prepared", {
       provider: provider.key,
       sourceCount: sources.length,
     });
     if (provider.key === "github") {
-      results.push(await syncGithubSources(provider, sources, input.phase5.syncLimits.maxEventsPerSource, input.today, input.eventKeySet));
+      results.push(await syncGithubSources(
+        provider,
+        sources,
+        input.maxEventsPerSource ?? input.phase5.syncLimits.maxEventsPerSource,
+        input.today,
+        input.eventKeySet,
+        input.flags.live,
+      ));
       continue;
     }
     if (provider.key === "vercel") {
-      results.push(await syncVercelSources(provider, sources, input.phase5.syncLimits.maxEventsPerSource, input.today, input.eventKeySet));
+      results.push(await syncVercelSources(
+        provider,
+        sources,
+        input.maxEventsPerSource ?? input.phase5.syncLimits.maxEventsPerSource,
+        input.today,
+        input.eventKeySet,
+        input.flags.live,
+      ));
       continue;
     }
     results.push({
@@ -629,6 +834,7 @@ export async function syncGithubSources(
   maxEventsPerSource: number,
   today: string,
   eventKeySet: Set<string>,
+  live = false,
 ): Promise<ProviderSyncResult> {
   if (sources.length === 0) {
     return emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], "No active GitHub sources are ready for sync.");
@@ -648,92 +854,22 @@ export async function syncGithubSources(
   let itemsDeduped = 0;
   let failures = 0;
   const syncedSourceIds: string[] = [];
+  const results = await mapWithConcurrency(
+    sources,
+    PROVIDER_SOURCE_CONCURRENCY,
+    async (source) => syncGithubSource(source, provider, live, token, maxEventsPerSource, eventKeySet),
+  );
 
-  for (const source of sources) {
-    try {
-      logLiveStage(true, "Syncing GitHub source", {
-        sourceTitle: source.title,
-        identifier: source.identifier,
-      });
-      const localProjectId = getPrimarySourceProjectId(source);
-      if (!localProjectId) {
-        failures += 1;
-        notes.push(`GitHub sync skipped for ${source.title}: active source is missing a linked Local Project.`);
-        continue;
-      }
-      const repo = source.identifier.trim();
-      const [pullsResponse, workflowResponse] = await Promise.all([
-        fetchProviderJson(`${provider.baseUrl}/repos/${repo}/pulls?state=open&sort=updated&direction=desc&per_page=${maxEventsPerSource}`, {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${token}`,
-          "X-GitHub-Api-Version": "2026-03-10",
-        }),
-        fetchProviderJson(`${provider.baseUrl}/repos/${repo}/actions/runs?per_page=${maxEventsPerSource}`, {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${token}`,
-          "X-GitHub-Api-Version": "2026-03-10",
-        }),
-      ]);
-
-      const pulls = Array.isArray(pullsResponse) ? pullsResponse : [];
-      const runs = Array.isArray(workflowResponse?.workflow_runs) ? workflowResponse.workflow_runs : [];
-      itemsSeen += pulls.length + runs.length;
-
-      for (const pull of pulls) {
-        const eventKey = buildEventKey(["github", "pull_request", repo, String(pull.id ?? pull.number ?? ""), String(pull.state ?? "open")]);
-        if (eventKeySet.has(eventKey)) {
-          itemsDeduped += 1;
-          continue;
-        }
-        eventKeySet.add(eventKey);
-        events.push({
-          title: `PR #${pull.number} - ${String(pull.title ?? "Untitled pull request")}`,
-          localProjectId,
-          sourceId: source.id,
-          provider: "GitHub",
-          signalType: "Pull Request",
-          occurredAt: formatExternalDate(pull.updated_at),
-          status: pull.draft ? "draft" : String(pull.state ?? "open"),
-          environment: "N/A",
-          severity: "Info",
-          sourceIdValue: String(pull.id ?? pull.number ?? ""),
-          sourceUrl: String(pull.html_url ?? source.sourceUrl ?? ""),
-          eventKey,
-          summary: `Open pull request #${pull.number} in ${repo}.`,
-          rawExcerpt: `state=${String(pull.state ?? "open")}, draft=${String(Boolean(pull.draft))}`,
-        });
-      }
-
-      for (const run of runs) {
-        const derivedStatus = String(run.conclusion ?? run.status ?? "unknown");
-        const eventKey = buildEventKey(["github", "workflow_run", repo, String(run.id ?? ""), derivedStatus]);
-        if (eventKeySet.has(eventKey)) {
-          itemsDeduped += 1;
-          continue;
-        }
-        eventKeySet.add(eventKey);
-        events.push({
-          title: String(run.display_title ?? run.name ?? `Workflow run ${run.id}`),
-          localProjectId,
-          sourceId: source.id,
-          provider: "GitHub",
-          signalType: "Workflow Run",
-          occurredAt: formatExternalDate(run.updated_at ?? run.created_at),
-          status: derivedStatus,
-          environment: "N/A",
-          severity: isFailureStatus(derivedStatus) ? "Risk" : "Info",
-          sourceIdValue: String(run.id ?? ""),
-          sourceUrl: String(run.html_url ?? source.sourceUrl ?? ""),
-          eventKey,
-          summary: `Workflow run ${String(run.name ?? run.id)} finished with ${derivedStatus}.`,
-          rawExcerpt: `status=${String(run.status ?? "")}, conclusion=${String(run.conclusion ?? "")}`,
-        });
-      }
-
-      syncedSourceIds.push(source.id);
-    } catch (error) {
+  for (const result of results) {
+    itemsSeen += result.itemsSeen;
+    itemsDeduped += result.itemsDeduped;
+    events.push(...result.events);
+    if (result.syncedSourceId) {
+      syncedSourceIds.push(result.syncedSourceId);
+    }
+    if (result.failureNote) {
       failures += 1;
-      notes.push(`GitHub sync failed for ${source.title}: ${toErrorMessage(error)}`);
+      notes.push(result.failureNote);
     }
   }
 
@@ -757,6 +893,7 @@ export async function syncVercelSources(
   maxEventsPerSource: number,
   today: string,
   eventKeySet: Set<string>,
+  live = false,
 ): Promise<ProviderSyncResult> {
   if (sources.length === 0) {
     return emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], "No active Vercel sources are ready for sync.");
@@ -776,67 +913,22 @@ export async function syncVercelSources(
   let itemsDeduped = 0;
   let failures = 0;
   const syncedSourceIds: string[] = [];
+  const results = await mapWithConcurrency(
+    sources,
+    PROVIDER_SOURCE_CONCURRENCY,
+    async (source) => syncVercelSource(source, provider, live, token, maxEventsPerSource, eventKeySet),
+  );
 
-  for (const source of sources) {
-    try {
-      logLiveStage(true, "Syncing Vercel source", {
-        sourceTitle: source.title,
-        identifier: source.identifier,
-      });
-      const localProjectId = getPrimarySourceProjectId(source);
-      if (!localProjectId) {
-        failures += 1;
-        notes.push(`Vercel sync skipped for ${source.title}: active source is missing a linked Local Project.`);
-        continue;
-      }
-      const response = await fetchProviderJson(
-        `${provider.baseUrl}/v6/deployments?projectId=${encodeURIComponent(source.identifier.trim())}&limit=${maxEventsPerSource}`,
-        {
-          Authorization: `Bearer ${token}`,
-        },
-      );
-      const deployments = Array.isArray(response?.deployments)
-        ? response.deployments
-        : Array.isArray(response)
-          ? response
-          : [];
-      itemsSeen += deployments.length;
-
-      for (const deployment of deployments) {
-        const status = String(
-          deployment.readyState ?? deployment.state ?? deployment.status ?? deployment.ready ?? "unknown",
-        );
-        const eventKey = buildEventKey(["vercel", "deployment", source.identifier, String(deployment.uid ?? deployment.id ?? ""), status]);
-        if (eventKeySet.has(eventKey)) {
-          itemsDeduped += 1;
-          continue;
-        }
-        eventKeySet.add(eventKey);
-        const environment = String(deployment.target ?? deployment.meta?.target ?? "production").toLowerCase().includes("preview")
-          ? "Preview"
-          : "Production";
-        events.push({
-          title: `Deployment - ${String(deployment.name ?? deployment.uid ?? deployment.id ?? source.identifier)}`,
-          localProjectId,
-          sourceId: source.id,
-          provider: "Vercel",
-          signalType: "Deployment",
-          occurredAt: formatExternalDate(deployment.createdAt ?? deployment.created),
-          status,
-          environment,
-          severity: isFailureStatus(status) ? "Risk" : status.toLowerCase().includes("build") ? "Watch" : "Info",
-          sourceIdValue: String(deployment.uid ?? deployment.id ?? ""),
-          sourceUrl: normalizeVercelUrl(deployment.url) || source.sourceUrl || "",
-          eventKey,
-          summary: `Deployment status is ${status.toLowerCase()} for ${source.identifier}.`,
-          rawExcerpt: `readyState=${String(deployment.readyState ?? "")}, target=${String(deployment.target ?? "")}`,
-        });
-      }
-
-      syncedSourceIds.push(source.id);
-    } catch (error) {
+  for (const result of results) {
+    itemsSeen += result.itemsSeen;
+    itemsDeduped += result.itemsDeduped;
+    events.push(...result.events);
+    if (result.syncedSourceId) {
+      syncedSourceIds.push(result.syncedSourceId);
+    }
+    if (result.failureNote) {
       failures += 1;
-      notes.push(`Vercel sync failed for ${source.title}: ${toErrorMessage(error)}`);
+      notes.push(result.failureNote);
     }
   }
 
@@ -852,6 +944,197 @@ export async function syncVercelSources(
     events,
     syncedSourceIds,
   };
+}
+
+async function syncGithubSource(
+  source: ExternalSignalSourceRecord,
+  provider: ExternalSignalProviderPlan,
+  live: boolean,
+  token: string,
+  maxEventsPerSource: number,
+  eventKeySet: Set<string>,
+): Promise<ProviderSourceSyncResult> {
+  try {
+    logLiveStage(live, "Syncing GitHub source", {
+      sourceTitle: source.title,
+      identifier: source.identifier,
+    });
+    const localProjectId = getPrimarySourceProjectId(source);
+    if (!localProjectId) {
+      return {
+        events: [],
+        itemsSeen: 0,
+        itemsDeduped: 0,
+        failureNote: `GitHub sync skipped for ${source.title}: active source is missing a linked Local Project.`,
+      };
+    }
+    const repo = source.identifier.trim();
+    const [pullsResponse, workflowResponse] = await Promise.all([
+      fetchProviderJson(`${provider.baseUrl}/repos/${repo}/pulls?state=open&sort=updated&direction=desc&per_page=${maxEventsPerSource}`, {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2026-03-10",
+      }),
+      fetchProviderJson(`${provider.baseUrl}/repos/${repo}/actions/runs?per_page=${maxEventsPerSource}`, {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2026-03-10",
+      }),
+    ]);
+
+    const pulls = Array.isArray(pullsResponse) ? pullsResponse : [];
+    const runs = Array.isArray(workflowResponse?.workflow_runs) ? workflowResponse.workflow_runs : [];
+    let itemsDeduped = 0;
+    const events: NormalizedSignalEvent[] = [];
+
+    for (const pull of pulls) {
+      const eventKey = buildEventKey(["github", "pull_request", repo, String(pull.id ?? pull.number ?? ""), String(pull.state ?? "open")]);
+      if (eventKeySet.has(eventKey)) {
+        itemsDeduped += 1;
+        continue;
+      }
+      eventKeySet.add(eventKey);
+      events.push({
+        title: `PR #${pull.number} - ${String(pull.title ?? "Untitled pull request")}`,
+        localProjectId,
+        sourceId: source.id,
+        provider: "GitHub",
+        signalType: "Pull Request",
+        occurredAt: formatExternalDate(pull.updated_at),
+        status: pull.draft ? "draft" : String(pull.state ?? "open"),
+        environment: "N/A",
+        severity: "Info",
+        sourceIdValue: String(pull.id ?? pull.number ?? ""),
+        sourceUrl: String(pull.html_url ?? source.sourceUrl ?? ""),
+        eventKey,
+        summary: `Open pull request #${pull.number} in ${repo}.`,
+        rawExcerpt: `state=${String(pull.state ?? "open")}, draft=${String(Boolean(pull.draft))}`,
+      });
+    }
+
+    for (const run of runs) {
+      const derivedStatus = String(run.conclusion ?? run.status ?? "unknown");
+      const eventKey = buildEventKey(["github", "workflow_run", repo, String(run.id ?? ""), derivedStatus]);
+      if (eventKeySet.has(eventKey)) {
+        itemsDeduped += 1;
+        continue;
+      }
+      eventKeySet.add(eventKey);
+      events.push({
+        title: String(run.display_title ?? run.name ?? `Workflow run ${run.id}`),
+        localProjectId,
+        sourceId: source.id,
+        provider: "GitHub",
+        signalType: "Workflow Run",
+        occurredAt: formatExternalDate(run.updated_at ?? run.created_at),
+        status: derivedStatus,
+        environment: "N/A",
+        severity: isFailureStatus(derivedStatus) ? "Risk" : "Info",
+        sourceIdValue: String(run.id ?? ""),
+        sourceUrl: String(run.html_url ?? source.sourceUrl ?? ""),
+        eventKey,
+        summary: `Workflow run ${String(run.name ?? run.id)} finished with ${derivedStatus}.`,
+        rawExcerpt: `status=${String(run.status ?? "")}, conclusion=${String(run.conclusion ?? "")}`,
+      });
+    }
+
+    return {
+      events,
+      itemsSeen: pulls.length + runs.length,
+      itemsDeduped,
+      syncedSourceId: source.id,
+    };
+  } catch (error) {
+    return {
+      events: [],
+      itemsSeen: 0,
+      itemsDeduped: 0,
+      failureNote: `GitHub sync failed for ${source.title}: ${toErrorMessage(error)}`,
+    };
+  }
+}
+
+async function syncVercelSource(
+  source: ExternalSignalSourceRecord,
+  provider: ExternalSignalProviderPlan,
+  live: boolean,
+  token: string,
+  maxEventsPerSource: number,
+  eventKeySet: Set<string>,
+): Promise<ProviderSourceSyncResult> {
+  try {
+    logLiveStage(live, "Syncing Vercel source", {
+      sourceTitle: source.title,
+      identifier: source.identifier,
+    });
+    const localProjectId = getPrimarySourceProjectId(source);
+    if (!localProjectId) {
+      return {
+        events: [],
+        itemsSeen: 0,
+        itemsDeduped: 0,
+        failureNote: `Vercel sync skipped for ${source.title}: active source is missing a linked Local Project.`,
+      };
+    }
+    const response = await fetchProviderJson(
+      `${provider.baseUrl}/v6/deployments?projectId=${encodeURIComponent(source.identifier.trim())}&limit=${maxEventsPerSource}`,
+      {
+        Authorization: `Bearer ${token}`,
+      },
+    );
+    const deployments = Array.isArray(response?.deployments)
+      ? response.deployments
+      : Array.isArray(response)
+        ? response
+        : [];
+    let itemsDeduped = 0;
+    const events: NormalizedSignalEvent[] = [];
+
+    for (const deployment of deployments) {
+      const status = String(
+        deployment.readyState ?? deployment.state ?? deployment.status ?? deployment.ready ?? "unknown",
+      );
+      const eventKey = buildEventKey(["vercel", "deployment", source.identifier, String(deployment.uid ?? deployment.id ?? ""), status]);
+      if (eventKeySet.has(eventKey)) {
+        itemsDeduped += 1;
+        continue;
+      }
+      eventKeySet.add(eventKey);
+      const environment = String(deployment.target ?? deployment.meta?.target ?? "production").toLowerCase().includes("preview")
+        ? "Preview"
+        : "Production";
+      events.push({
+        title: `Deployment - ${String(deployment.name ?? deployment.uid ?? deployment.id ?? source.identifier)}`,
+        localProjectId,
+        sourceId: source.id,
+        provider: "Vercel",
+        signalType: "Deployment",
+        occurredAt: formatExternalDate(deployment.createdAt ?? deployment.created),
+        status,
+        environment,
+        severity: isFailureStatus(status) ? "Risk" : status.toLowerCase().includes("build") ? "Watch" : "Info",
+        sourceIdValue: String(deployment.uid ?? deployment.id ?? ""),
+        sourceUrl: normalizeVercelUrl(deployment.url) || source.sourceUrl || "",
+        eventKey,
+        summary: `Deployment status is ${status.toLowerCase()} for ${source.identifier}.`,
+        rawExcerpt: `readyState=${String(deployment.readyState ?? "")}, target=${String(deployment.target ?? "")}`,
+      });
+    }
+
+    return {
+      events,
+      itemsSeen: deployments.length,
+      itemsDeduped,
+      syncedSourceId: source.id,
+    };
+  } catch (error) {
+    return {
+      events: [],
+      itemsSeen: 0,
+      itemsDeduped: 0,
+      failureNote: `Vercel sync failed for ${source.title}: ${toErrorMessage(error)}`,
+    };
+  }
 }
 
 async function createSyncRunPage(input: {
@@ -992,9 +1275,19 @@ async function createSignalEventPage(input: {
 }
 
 async function fetchProviderJson(url: string, headers: Record<string, string>, attempt = 0): Promise<any> {
-  const response = await fetch(url, {
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (attempt < 2) {
+      await wait((attempt + 1) * 1500);
+      return fetchProviderJson(url, headers, attempt + 1);
+    }
+    throw new AppError(`Provider request failed for ${url}: ${toErrorMessage(error)}`);
+  }
   if (response.ok) {
     return response.json();
   }
@@ -1010,8 +1303,104 @@ async function fetchProviderJson(url: string, headers: Record<string, string>, a
   throw new AppError(`Provider request failed (${response.status}) for ${url}: ${body.slice(0, 300)}`);
 }
 
+async function mapWithConcurrency<T, TResult>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<TResult>,
+): Promise<TResult[]> {
+  const results = new Array<TResult>(items.length);
+  let nextIndex = 0;
+
+  async function runWorker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index]!, index);
+    }
+  }
+
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return results;
+}
+
 function newestOccurredAt(events: NormalizedSignalEvent[]): string {
   return [...events].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))[0]?.occurredAt ?? "";
+}
+
+function limitProviderSources(
+  sources: ExternalSignalSourceRecord[],
+  limit: number | undefined,
+): ExternalSignalSourceRecord[] {
+  if (!limit || limit <= 0 || sources.length <= limit) {
+    return sources;
+  }
+
+  return [...sources]
+    .sort((left, right) => {
+      const leftDate = left.lastSyncedAt || "0000-00-00";
+      const rightDate = right.lastSyncedAt || "0000-00-00";
+      if (leftDate !== rightDate) {
+        return leftDate.localeCompare(rightDate);
+      }
+      return left.title.localeCompare(right.title);
+    })
+    .slice(0, limit);
+}
+
+function selectScopedSources(input: {
+  provider: "github" | "vercel" | "all";
+  providers: ExternalSignalProviderPlan[];
+  sources: ExternalSignalSourceRecord[];
+  sourceLimit?: number;
+}): ExternalSignalSourceRecord[] {
+  const selectedProviderKeys =
+    input.provider === "all"
+      ? input.providers.filter((provider) => provider.enabled).map((provider) => provider.key)
+      : [input.provider];
+
+  return selectedProviderKeys.flatMap((providerKey) =>
+    limitProviderSources(
+      input.sources.filter(
+        (source) =>
+          source.status === "Active" &&
+          Boolean(source.identifier.trim()) &&
+          normalizeProviderName(source.provider) === providerKey,
+      ),
+      input.sourceLimit,
+    ),
+  );
+}
+
+function deriveTargetProjectIdsFromSyncedSources(
+  providerResults: ProviderSyncResult[],
+  sourceMap: Map<string, ExternalSignalSourceRecord>,
+): Set<string> {
+  const targetProjectIds = new Set<string>();
+  for (const result of providerResults) {
+    for (const sourceId of result.syncedSourceIds) {
+      const source = sourceMap.get(sourceId);
+      if (!source) {
+        continue;
+      }
+      for (const projectId of source.localProjectIds) {
+        targetProjectIds.add(projectId);
+      }
+    }
+  }
+  return targetProjectIds;
+}
+
+function deriveTargetProjectIdsFromSources(
+  sources: ExternalSignalSourceRecord[],
+): Set<string> {
+  const targetProjectIds = new Set<string>();
+  for (const source of sources) {
+    for (const projectId of source.localProjectIds) {
+      targetProjectIds.add(projectId);
+    }
+  }
+  return targetProjectIds;
 }
 
 function formatExternalDate(value: unknown): string {

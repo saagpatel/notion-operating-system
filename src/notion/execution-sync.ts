@@ -33,8 +33,9 @@ import {
   toControlTowerProjectRecord,
 } from "./local-portfolio-control-tower-live.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
-import { assertSafeReplacement, buildReplaceCommand } from "../utils/markdown.js";
+import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
+import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 
 const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
 const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
@@ -112,11 +113,8 @@ export async function runExecutionSyncCommand(
       config,
     });
 
-    let changedProjectPages = 0;
-    if (live) {
-      logLiveStage(live, "Refreshing project execution briefs", { projectCount: projects.length });
-      for (const project of projects) {
-        logLoopProgress(live, "execution-sync", "Project brief", projects.indexOf(project) + 1, projects.length);
+    const projectBriefs = await Promise.all(
+      projects.map(async (project) => {
         const context = buildProjectExecutionContext({
           project,
           decisions,
@@ -132,34 +130,51 @@ export async function runExecutionSyncCommand(
           EXECUTION_BRIEF_START,
           EXECUTION_BRIEF_END,
         );
+        return {
+          projectId: project.id,
+          previousMarkdown: previous.markdown,
+          nextMarkdown,
+          changed: normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
+        };
+      }),
+    );
+    const projectExecutionBriefsWouldChange = projectBriefs.filter((entry) => entry.changed).length;
 
-        if (nextMarkdown !== previous.markdown.trim()) {
-          assertSafeReplacement(previous.markdown, nextMarkdown);
+    const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId);
+    const nextCommandCenter = mergeManagedSection(
+      previousCommandCenter.markdown,
+      renderExecutionCommandCenterSection({
+        metrics,
+        decisions,
+        packets,
+        tasks,
+        projects,
+        today,
+      }),
+      EXECUTION_COMMAND_CENTER_START,
+      EXECUTION_COMMAND_CENTER_END,
+    );
+    const executionCommandCenterSectionWouldChange =
+      normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown);
+
+    let changedProjectPages = 0;
+    if (live) {
+      logLiveStage(live, "Refreshing project execution briefs", { projectCount: projects.length });
+      for (const [index, brief] of projectBriefs.entries()) {
+        logLoopProgress(live, "execution-sync", "Project brief", index + 1, projectBriefs.length);
+        if (brief.changed) {
+          assertSafeReplacement(brief.previousMarkdown, brief.nextMarkdown);
           await api.patchPageMarkdown({
-            pageId: project.id,
+            pageId: brief.projectId,
             command: "replace_content",
-            newMarkdown: buildReplaceCommand(nextMarkdown),
+            newMarkdown: buildReplaceCommand(brief.nextMarkdown),
           });
           changedProjectPages += 1;
         }
       }
 
       logLiveStage(live, "Refreshing execution command center");
-      const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId);
-      const nextCommandCenter = mergeManagedSection(
-        previousCommandCenter.markdown,
-        renderExecutionCommandCenterSection({
-          metrics,
-          decisions,
-          packets,
-          tasks,
-          projects,
-          today,
-        }),
-        EXECUTION_COMMAND_CENTER_START,
-        EXECUTION_COMMAND_CENTER_END,
-      );
-      if (nextCommandCenter !== previousCommandCenter.markdown.trim()) {
+      if (executionCommandCenterSectionWouldChange) {
         assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
         await api.patchPageMarkdown({
           pageId: config.commandCenter.pageId,
@@ -190,10 +205,34 @@ export async function runExecutionSyncCommand(
     const output = {
       ok: true,
       live,
+      status: "clean" as string,
+      wouldChange: false,
+      summaryCounts: {},
+      warnings: [] as string[],
       changedProjectPages,
+      projectExecutionBriefsWouldChange,
+      executionCommandCenterSectionWouldChange,
       metrics,
     };
-    recordCommandOutputSummary(output);
+    const contract = buildWeeklyStepContract({
+      live,
+      wouldChange:
+        projectExecutionBriefsWouldChange > 0 || executionCommandCenterSectionWouldChange,
+      summaryCounts: {
+        projectExecutionBriefsWouldChange,
+        executionCommandCenterSectionWouldChange: executionCommandCenterSectionWouldChange ? 1 : 0,
+        projectsWithExecutionDrift: metrics.projectsWithExecutionDrift,
+        blockedTasks: metrics.blockedTasks,
+        overdueTasks: metrics.overdueTasks,
+      },
+    });
+    output.status = contract.status;
+    output.wouldChange = contract.wouldChange;
+    output.summaryCounts = contract.summaryCounts;
+    output.warnings = contract.warnings;
+    recordCommandOutputSummary(output, {
+      status: mapWeeklyStepStatusToCommandStatus(contract.status),
+    });
     console.log(JSON.stringify(output, null, 2));
 }
 

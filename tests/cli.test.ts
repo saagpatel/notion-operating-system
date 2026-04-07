@@ -44,6 +44,7 @@ describe("cli smoke tests", () => {
       ["signals", "provider-expansion-audit"],
       ["governance", "webhook-reconcile"],
       ["rollout", "operational"],
+      ["maintenance", "weekly-refresh"],
     ] as const;
 
     for (const [family, expectedSubcommand] of families) {
