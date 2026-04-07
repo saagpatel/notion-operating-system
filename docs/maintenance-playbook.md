@@ -7,6 +7,7 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Review incoming Dependabot pull requests.
 - Review the latest `Dependency Hygiene` workflow run.
 - Triage any failed workflow, audit finding, install-smoke regression, or release-gate failure within the same week.
+- Run `npm run portfolio-audit:github-support-maintenance` for the GitHub-backed support lane in Notion.
 
 ## Monthly
 
@@ -33,6 +34,13 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Update `README.md` if operator or consumer behavior changed materially.
 - Update `HANDOFF.md` so the next session inherits the current reality instead of stale assumptions.
 - If a workflow name changed, update GitHub branch protection so the required checks still match.
+
+## GitHub Support Maintenance
+
+- Use [github-support-maintenance.md](./github-support-maintenance.md) as the operator guide for the Notion support-maintenance lane.
+- Keep `github-support-maintenance` as the automated lane for safe GitHub-backed refreshes and approved hygiene only.
+- Use `stale-support-audit` and `project-support-coverage-audit` as review-first commands before introducing broader cleanup or coverage work.
+- Use [weak-support-review-second-pass.md](./weak-support-review-second-pass.md) when the stale-support queue is down to specialist rows and you need to decide what should stay intentionally single-project.
 
 ## Dependency maintenance note
 

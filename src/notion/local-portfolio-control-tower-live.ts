@@ -89,6 +89,8 @@ export async function fetchAllPages(
         id: string;
         url: string;
         created_time?: string;
+        in_trash?: boolean;
+        archived?: boolean;
         properties?: Record<string, NotionPageProperty>;
       }>;
       has_more?: boolean;
@@ -96,6 +98,9 @@ export async function fetchAllPages(
     };
 
     for (const page of response.results ?? []) {
+      if (page.in_trash || page.archived) {
+        continue;
+      }
       pages.push({
         id: normalizeNotionId(page.id),
         url: page.url,

@@ -78,53 +78,66 @@ async function main(): Promise<void> {
 
   let updatedRows = 0;
   let createdRows = 0;
+  const failedProjects: Array<{ title: string; error: string }> = [];
 
   logLiveStage("Refreshing project profiles", { projectCount: projects.length });
   for (const [index, project] of projects.entries()) {
-    logLoopProgress("overhaul-notion", "Project profile", index + 1, projects.length);
-    let existing = localPageMap.get(normalizeKey(project.projectName));
-    if (!existing) {
-      const created = await markdownApi.createPageWithMarkdown({
-        parent: {
-          data_source_id: IDS.localProjects,
-        },
-        properties: buildCreateProjectProperties(project, {
-          buildSessions: [],
-          research: [],
-          skills: [],
-          tools: [],
-        }),
-        markdown: buildProjectProfileMarkdown(project),
-      });
-      existing = {
-        id: created.id,
-        url: created.url,
-        title: project.projectName,
-        properties: {},
+    logLoopProgress("overhaul-notion", `Project profile ${project.projectName}`, index + 1, projects.length);
+    try {
+      let existing = localPageMap.get(normalizeKey(project.projectName));
+      if (!existing) {
+        const created = await markdownApi.createPageWithMarkdown({
+          parent: {
+            data_source_id: IDS.localProjects,
+          },
+          properties: buildCreateProjectProperties(project, {
+            buildSessions: [],
+            research: [],
+            skills: [],
+            tools: [],
+          }),
+          markdown: buildProjectProfileMarkdown(project),
+        });
+        existing = {
+          id: created.id,
+          url: created.url,
+          title: project.projectName,
+          properties: {},
+        };
+        localPageMap.set(normalizeKey(project.projectName), existing);
+        createdRows += 1;
+      }
+
+      const links = reverseLinks.get(existing.id) ?? {
+        buildSessions: [],
+        research: [],
+        skills: [],
+        tools: [],
       };
-      localPageMap.set(normalizeKey(project.projectName), existing);
-      createdRows += 1;
+
+      await markdownApi.updatePageProperties({
+        pageId: existing.id,
+        properties: buildProjectProperties(project, links),
+      });
+
+      await markdownApi.patchPageMarkdown({
+        pageId: existing.id,
+        command: "replace_content",
+        newMarkdown: buildProjectProfileMarkdown(project, links),
+      });
+
+      updatedRows += 1;
+    } catch (error) {
+      const message = toErrorMessage(error);
+      failedProjects.push({
+        title: project.projectName,
+        error: message,
+      });
+      logLiveStage("Project refresh failed", {
+        title: project.projectName,
+        error: message,
+      });
     }
-
-    const links = reverseLinks.get(existing.id) ?? {
-      buildSessions: [],
-      research: [],
-      skills: [],
-      tools: [],
-    };
-
-    await markdownApi.updatePageProperties({
-      pageId: existing.id,
-      properties: buildProjectProperties(project, links),
-    });
-
-    await markdownApi.patchPageMarkdown({
-      pageId: existing.id,
-      command: "replace_content",
-      newMarkdown: buildProjectProfileMarkdown(project, links),
-    });
-
-    updatedRows += 1;
   }
 
   logLiveStage("Verifying refreshed dataset");
@@ -137,6 +150,7 @@ async function main(): Promise<void> {
         databaseId: IDS.localProjects,
         updatedRows,
         createdRows,
+        failedProjects,
         totalRowsAfter: verification.length,
         scope,
         coverage,
