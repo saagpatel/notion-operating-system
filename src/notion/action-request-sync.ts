@@ -11,6 +11,7 @@ import {
 } from "./local-portfolio-control-tower.js";
 import { fetchAllPages, toControlTowerProjectRecord } from "./local-portfolio-control-tower-live.js";
 import { mergeManagedSection } from "./local-portfolio-execution.js";
+import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
 import {
   renderGovernanceBriefSection,
   renderGovernanceCommandCenterSection,
@@ -122,6 +123,8 @@ export async function runActionRequestSyncCommand(
     }
 
     let changedProjectPages = 0;
+    const failedProjectPageIds: string[] = [];
+    const failedSummaryTargets: string[] = [];
     if (live) {
       logLiveStage(live, "Refreshing governance briefs", { projectCount: projects.length });
       for (const [index, project] of projects.entries()) {
@@ -139,12 +142,24 @@ export async function runActionRequestSyncCommand(
         const existing = await api.readPageMarkdown(project.id);
         const updated = mergeManagedSection(existing.markdown, brief, GOVERNANCE_BRIEF_START, GOVERNANCE_BRIEF_END);
         if (updated !== existing.markdown) {
-          await api.patchPageMarkdown({
-            pageId: project.id,
-            command: "replace_content",
-            newMarkdown: updated,
-          });
-          changedProjectPages += 1;
+          try {
+            await syncManagedMarkdownSection({
+              api,
+              pageId: project.id,
+              previousMarkdown: existing.markdown,
+              nextMarkdown: updated,
+              startMarker: GOVERNANCE_BRIEF_START,
+              endMarker: GOVERNANCE_BRIEF_END,
+            });
+            changedProjectPages += 1;
+          } catch (error) {
+            failedProjectPageIds.push(project.id);
+            logLiveStage(live, "Skipped project brief patch", {
+              projectId: project.id,
+              projectTitle: project.title,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
 
@@ -175,11 +190,40 @@ export async function runActionRequestSyncCommand(
           ACTUATION_COMMAND_CENTER_END,
         );
         if (withActuation !== commandCenter.markdown) {
-          await api.patchPageMarkdown({
-            pageId: config.commandCenter.pageId,
-            command: "replace_content",
-            newMarkdown: withActuation,
-          });
+          try {
+            const governanceOnly = mergeManagedSection(
+              commandCenter.markdown,
+              section,
+              GOVERNANCE_COMMAND_CENTER_START,
+              GOVERNANCE_COMMAND_CENTER_END,
+            );
+            if (governanceOnly !== commandCenter.markdown) {
+              await syncManagedMarkdownSection({
+                api,
+                pageId: config.commandCenter.pageId,
+                previousMarkdown: commandCenter.markdown,
+                nextMarkdown: governanceOnly,
+                startMarker: GOVERNANCE_COMMAND_CENTER_START,
+                endMarker: GOVERNANCE_COMMAND_CENTER_END,
+              });
+            }
+            if (withActuation !== governanceOnly) {
+              await syncManagedMarkdownSection({
+                api,
+                pageId: config.commandCenter.pageId,
+                previousMarkdown: governanceOnly,
+                nextMarkdown: withActuation,
+                startMarker: ACTUATION_COMMAND_CENTER_START,
+                endMarker: ACTUATION_COMMAND_CENTER_END,
+              });
+            }
+          } catch (error) {
+            failedSummaryTargets.push("command-center");
+            logLiveStage(live, "Skipped command center patch", {
+              pageId: config.commandCenter.pageId,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
 
@@ -197,11 +241,40 @@ export async function runActionRequestSyncCommand(
           WEEKLY_ACTUATION_END,
         );
         if (withActuation !== weekly.markdown) {
-          await api.patchPageMarkdown({
-            pageId: latestWeekly.id,
-            command: "replace_content",
-            newMarkdown: withActuation,
-          });
+          try {
+            const governanceOnly = mergeManagedSection(
+              weekly.markdown,
+              section,
+              WEEKLY_GOVERNANCE_START,
+              WEEKLY_GOVERNANCE_END,
+            );
+            if (governanceOnly !== weekly.markdown) {
+              await syncManagedMarkdownSection({
+                api,
+                pageId: latestWeekly.id,
+                previousMarkdown: weekly.markdown,
+                nextMarkdown: governanceOnly,
+                startMarker: WEEKLY_GOVERNANCE_START,
+                endMarker: WEEKLY_GOVERNANCE_END,
+              });
+            }
+            if (withActuation !== governanceOnly) {
+              await syncManagedMarkdownSection({
+                api,
+                pageId: latestWeekly.id,
+                previousMarkdown: governanceOnly,
+                nextMarkdown: withActuation,
+                startMarker: WEEKLY_ACTUATION_START,
+                endMarker: WEEKLY_ACTUATION_END,
+              });
+            }
+          } catch (error) {
+            failedSummaryTargets.push("weekly-review");
+            logLiveStage(live, "Skipped weekly governance patch", {
+              pageId: latestWeekly.id,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
     }
@@ -210,6 +283,9 @@ export async function runActionRequestSyncCommand(
       ok: true,
       expiredCount,
       changedProjectPages,
+      failedProjectPageCount: failedProjectPageIds.length,
+      failedProjectPageIds,
+      failedSummaryTargets,
       pendingApprovalCount: requests.filter((request) => request.status === "Pending Approval").length,
       approvedCount: requests.filter((request) => request.status === "Approved").length,
       verifiedDeliveryCount: deliveries.filter((delivery) => delivery.verificationResult === "Valid").length,
