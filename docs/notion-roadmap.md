@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-04-13
+Updated: 2026-04-14
 
 ## Current Phase
 - Phase: 9 - Provider Expansion
@@ -27,10 +27,11 @@ Updated: 2026-04-13
 
 ## Phase Transition Memory
 - Transition: Phase 8 closed into Phase 9
-- Carry-forward brief: Phase 9A proved the first non-GitHub lane with a truthful Vercel redeploy pilot on `evolutionsandbox`; the remaining work is to decide whether to widen redeploy coverage or add separate deployment-control verbs next.
+- Carry-forward brief: Phase 9B is now complete. The repo widened `vercel.redeploy` across three explicit Vercel projects, kept the lane bounded and auditable, and now needs to choose the first recovery-oriented verb instead of widening further by default.
 - Supporting artifacts:
   - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
   - [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
+  - [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
 
 ## Phase Memory
 ### Phase 1 Gave Us
@@ -58,7 +59,7 @@ Phase 7 gave us controlled actuation: approved GitHub issue/comment execution, d
 Phase 8 gave us a mature GitHub action lane: issue lifecycle actions, PR comments, hardened GitHub App posture, richer operator packets, and audit-grade GitHub execution feedback loops.
 
 ### Phase 9 Now Looks Like
-Phase 9 is no longer hypothetical. Phase 9A proved a bounded Vercel lane with truthful provider checks, one explicit pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy with confirmed reconciliation.
+Phase 9 is now in its second proven slice. Phase 9A proved one bounded Vercel pilot; Phase 9B proved that the same `vercel.redeploy` lane can widen to a very small explicit allowlist and still stay understandable, serial, and auditable.
 
 ## Risks
 - Avoid adding a second overlapping status system beyond the manual fields and the three derived PM signals.
@@ -176,8 +177,8 @@ Phase 9 is no longer hypothetical. Phase 9A proved a bounded Vercel lane with tr
 - Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices that stay as understandable as the GitHub lane.
 - Deliverables:
   - Phase 9A completed: truthful Vercel provider readiness, one explicit `evolutionsandbox` pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy
-- Phase 9B next: either widen `vercel.redeploy` to a small allowlist or add distinct `vercel.promote` and `vercel.rollback` families, but not both at once
-  - The exact recommended rollout set for widening is documented in [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
+  - Phase 9B completed: `vercel.redeploy` widened successfully to `premise-debate`, `neural-network-playground`, and `sovereign-sim`, with truthful sync, dry-run graduation, live execution, and confirmed reconciliation for each
+  - The widening review and next recommendation are documented in [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
   - Operator-facing cross-provider views and metrics that stay understandable and low-noise
 - Exit criteria:
   - Every new provider lane reuses the same approval, audit, and execution posture rather than inventing parallel systems
@@ -186,12 +187,14 @@ Phase 9 is no longer hypothetical. Phase 9A proved a bounded Vercel lane with tr
 ## Next Phase
 Phase 9 - Provider Expansion
 
-Phase 9B should stay deliberately narrow: either widen `vercel.redeploy` to a few more explicit projects or add separate `vercel.promote` and `vercel.rollback` designs, but not both in the same implementation wave.
+Phase 9C should stay deliberately narrow: design and pilot **`vercel.rollback`** as the first recovery-oriented Vercel action family.
 
-The current recommended widening set is:
+Recommended scope for Phase 9C:
 
-- `premise-debate`
-- `neural-network-playground`
-- `sovereign-sim`
+- one bounded rollback verb only
+- one explicit pilot target first
+- truthful provider verification before and after rollback
+- no `vercel.promote` in the same phase
+- no additional Vercel project widening until rollback trust is proven
 
 Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.
