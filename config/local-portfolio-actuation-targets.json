@@ -1115,6 +1115,24 @@
       "defaultLabels": [],
       "supportsIssueCreate": true,
       "supportsPrComment": true
+    },
+    {
+      "title": "evolutionsandbox",
+      "provider": "Vercel",
+      "sourceIdentifier": "prj_aMh1uFZpVf6AYeTPFzGnMgMWqsnD",
+      "sourceUrl": "https://vercel.com/saagars-projects-b7dca8e2/evolutionsandbox",
+      "localProjectId": "342c21f1-caf0-817f-b749-ee8283d14f92",
+      "allowedActions": [
+        "vercel.redeploy"
+      ],
+      "defaultLabels": [],
+      "supportsIssueCreate": false,
+      "supportsPrComment": false,
+      "vercelProjectId": "prj_aMh1uFZpVf6AYeTPFzGnMgMWqsnD",
+      "vercelTeamId": "team_nZORCFEbaw3I8iSUrA2cWMJB",
+      "vercelTeamSlug": "saagars-projects-b7dca8e2",
+      "vercelScopeType": "Team",
+      "vercelEnvironment": "Production"
     }
   ]
 }

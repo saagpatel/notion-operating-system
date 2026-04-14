@@ -952,6 +952,20 @@
       "syncStrategy": "Poll",
       "identifier": "saagpatel/HowMoneyMoves",
       "sourceUrl": "https://github.com/saagpatel/HowMoneyMoves"
+    },
+    {
+      "title": "evolutionsandbox - Vercel Deployment Project",
+      "localProjectId": "342c21f1-caf0-817f-b749-ee8283d14f92",
+      "provider": "Vercel",
+      "sourceType": "Deployment Project",
+      "status": "Active",
+      "environment": "Production",
+      "syncStrategy": "Poll",
+      "identifier": "prj_aMh1uFZpVf6AYeTPFzGnMgMWqsnD",
+      "sourceUrl": "https://vercel.com/saagars-projects-b7dca8e2/evolutionsandbox",
+      "providerScopeType": "Team",
+      "providerScopeId": "team_nZORCFEbaw3I8iSUrA2cWMJB",
+      "providerScopeSlug": "saagars-projects-b7dca8e2"
     }
   ]
 }

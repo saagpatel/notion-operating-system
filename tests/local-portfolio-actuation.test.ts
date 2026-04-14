@@ -258,6 +258,7 @@ describe("local portfolio actuation", () => {
         supportsIssueCreate: true,
         supportsPrComment: true,
       },
+      provider: "GitHub",
       owner: "owner",
       repo: "repo",
     } satisfies ReturnType<typeof resolveActuationTarget>;
@@ -279,6 +280,7 @@ describe("local portfolio actuation", () => {
 
   test("computes additive-only label and assignee preflight deltas", () => {
     const labelPayload = {
+      provider: "GitHub",
       actionKey: "github.set_issue_labels",
       owner: "owner",
       repo: "repo",
@@ -287,6 +289,7 @@ describe("local portfolio actuation", () => {
       assignees: [],
     } satisfies ReturnType<typeof buildGitHubExecutionPayload>;
     const assigneePayload = {
+      provider: "GitHub",
       actionKey: "github.set_issue_assignees",
       owner: "owner",
       repo: "repo",
@@ -335,6 +338,7 @@ describe("local portfolio actuation", () => {
 
   test("detects no-op issue updates and keeps them non-blocking", () => {
     const payload = {
+      provider: "GitHub",
       actionKey: "github.update_issue",
       owner: "owner",
       repo: "repo",

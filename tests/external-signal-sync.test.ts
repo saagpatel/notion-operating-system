@@ -87,9 +87,10 @@ describe("external signal sync hardening", () => {
         itemsSeen: 0,
         itemsWritten: 0,
         failures: 0,
+        providerExercised: false,
       }),
     );
-    expect(result[0]?.notes[0]).toContain("No active GitHub sources are ready for sync.");
+    expect(result[0]?.notes[0]).toContain("Provider not exercised");
   });
 
   test("classifies mixed-provider partial success with stable warning categories", () => {
@@ -105,6 +106,7 @@ describe("external signal sync hardening", () => {
         cursor: "",
         events: [],
         syncedSourceIds: ["source-1"],
+        providerExercised: true,
       },
       {
         provider: "Vercel",
@@ -117,6 +119,7 @@ describe("external signal sync hardening", () => {
         cursor: "",
         events: [],
         syncedSourceIds: [],
+        providerExercised: false,
       },
     ];
 
@@ -135,10 +138,11 @@ describe("external signal sync hardening", () => {
         itemsWritten: 0,
         itemsDeduped: 0,
         failures: 1,
-        notes: ["Missing GITHUB_TOKEN for live GitHub sync."],
+        notes: ["Missing GITHUB_TOKEN for GitHub sync."],
         cursor: "",
         events: [],
         syncedSourceIds: [],
+        providerExercised: false,
       },
     ];
 
@@ -160,6 +164,7 @@ describe("external signal sync hardening", () => {
         cursor: "",
         events: [],
         syncedSourceIds: [],
+        providerExercised: false,
       },
       {
         provider: "Vercel",
@@ -172,6 +177,7 @@ describe("external signal sync hardening", () => {
         cursor: "",
         events: [],
         syncedSourceIds: [],
+        providerExercised: true,
       },
     ];
 

@@ -17,6 +17,7 @@ export const DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_PROVIDERS_PATH =
 
 export type ExternalProviderKey = "github" | "vercel" | "google_calendar";
 export type ExternalSignalCoverage = "None" | "Repo Only" | "Repo + Deploy" | "Calendar Only" | "Mixed";
+export type ExternalProviderScopeType = "Personal" | "Team";
 export type LatestDeploymentStatus =
   | "Success"
   | "Failed"
@@ -65,6 +66,9 @@ export interface ManualExternalSignalSeedPlan {
   syncStrategy: "Poll" | "Incremental";
   identifier?: string;
   sourceUrl?: string;
+  providerScopeType?: ExternalProviderScopeType;
+  providerScopeId?: string;
+  providerScopeSlug?: string;
 }
 
 export interface LocalPortfolioExternalSignalSourceConfig {
@@ -136,6 +140,9 @@ export interface ExternalSignalSourceRecord {
   environment: "Production" | "Preview" | "N/A";
   syncStrategy: "Poll" | "Incremental";
   lastSyncedAt: string;
+  providerScopeType?: ExternalProviderScopeType;
+  providerScopeId?: string;
+  providerScopeSlug?: string;
 }
 
 export function getPrimarySourceProjectId(source: ExternalSignalSourceRecord): string | undefined {
@@ -216,6 +223,9 @@ export interface ExternalSignalSeedPlan {
   syncStrategy: "Poll" | "Incremental";
   identifier?: string;
   sourceUrl?: string;
+  providerScopeType?: ExternalProviderScopeType;
+  providerScopeId?: string;
+  providerScopeSlug?: string;
 }
 
 export interface ExternalSignalCommandCenterInput {
@@ -873,6 +883,9 @@ function parseManualSeeds(raw: unknown): ManualExternalSignalSeedPlan[] {
       syncStrategy: parseSyncStrategy(requiredString(value.syncStrategy, `manualSeeds[${index}].syncStrategy`)),
       identifier: optionalString(value.identifier),
       sourceUrl: optionalString(value.sourceUrl),
+      providerScopeType: optionalProviderScopeType(value.providerScopeType, `manualSeeds[${index}].providerScopeType`),
+      providerScopeId: optionalString(value.providerScopeId),
+      providerScopeSlug: optionalString(value.providerScopeSlug),
     };
   });
 }
@@ -900,6 +913,17 @@ function parseProviderPlans(
       notes: requiredStringArray(value.notes, `providers[${index}].notes`),
     };
   });
+}
+
+function optionalProviderScopeType(value: unknown, fieldName: string): ExternalProviderScopeType | undefined {
+  const entry = optionalString(value);
+  if (!entry) {
+    return undefined;
+  }
+  if (entry !== "Personal" && entry !== "Team") {
+    throw new AppError(`${fieldName} must be "Personal" or "Team" when provided`);
+  }
+  return entry;
 }
 
 function parseViewStrategy(

@@ -16,10 +16,13 @@ import { toActionPolicyRecord, toActionRequestRecord } from "./local-portfolio-g
 import {
   buildGitHubCompensationPlan,
   buildGitHubExecutionPayload,
+  buildVercelCompensationPlan,
+  buildVercelRedeployExecutionPayload,
   describeGitHubActionPreflight,
   computePostDryRunReadiness,
   computeActuationExecutionKey,
   evaluateActionRequestReadiness,
+  fetchVercelRedeployPreflight,
   fetchGitHubActionPreflight,
   loadLocalPortfolioActuationTargetConfig,
   renderActuationPacketSection,
@@ -29,7 +32,8 @@ import {
   summarizeGitHubLabelDelta,
   type ActuationActionKey,
   type GitHubActionPreflight,
-  SUPPORTED_GITHUB_ACTION_KEYS,
+  type VercelRedeployPreflight,
+  SUPPORTED_ACTION_KEYS,
 } from "./local-portfolio-actuation.js";
 import { toExternalActionExecutionRecord } from "./local-portfolio-actuation-live.js";
 import { AppError } from "../utils/errors.js";
@@ -39,8 +43,8 @@ const ACTUATION_PACKET_END = "<!-- codex:notion-actuation-packet:end -->";
 
 export interface ActionDryRunPreparation {
   target: ReturnType<typeof resolveActuationTarget> | null;
-  payload: ReturnType<typeof buildGitHubExecutionPayload> | null;
-  preflight?: GitHubActionPreflight;
+  payload: ReturnType<typeof buildGitHubExecutionPayload> | ReturnType<typeof buildVercelRedeployExecutionPayload> | null;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
   idempotencyKey: string;
   preparationError?: string;
 }
@@ -54,6 +58,7 @@ export async function prepareActionDryRun(
   },
   dependencies: {
     fetchPreflight: typeof fetchGitHubActionPreflight;
+    fetchVercelPreflight?: typeof fetchVercelRedeployPreflight;
   } = {
     fetchPreflight: fetchGitHubActionPreflight,
   },
@@ -65,6 +70,27 @@ export async function prepareActionDryRun(
       targetConfig: input.targetConfig,
       actionKey: input.actionKey,
     });
+    if (input.actionKey === "vercel.redeploy") {
+      const preflight = await (dependencies.fetchVercelPreflight ?? fetchVercelRedeployPreflight)({ target });
+      const payload = buildVercelRedeployExecutionPayload({
+        request: input.request,
+        target,
+        preflight,
+      });
+      const idempotencyKey = computeActuationExecutionKey({
+        requestId: input.request.id,
+        actionKey: input.actionKey,
+        targetSourceId: target.source.id,
+        mode: "Dry Run",
+        payload,
+      });
+      return {
+        target,
+        payload,
+        preflight,
+        idempotencyKey,
+      };
+    }
     const payload = buildGitHubExecutionPayload({
       request: input.request,
       target,
@@ -195,7 +221,7 @@ export async function runActionDryRunCommand(
     if (!policy) {
       throw new AppError(`Action request "${request.title}" is missing a linked policy`);
     }
-    if (!SUPPORTED_GITHUB_ACTION_KEYS.includes(policy.title as (typeof SUPPORTED_GITHUB_ACTION_KEYS)[number])) {
+    if (!SUPPORTED_ACTION_KEYS.includes(policy.title as (typeof SUPPORTED_ACTION_KEYS)[number])) {
       throw new AppError(`Unsupported action policy "${policy.title}" for Phase 7`);
     }
     const actionKey = policy.title as ActuationActionKey;
@@ -226,7 +252,10 @@ export async function runActionDryRunCommand(
     const payload = preparation.payload;
     const preflight = preparation.preflight;
     const idempotencyKey = preparation.idempotencyKey;
-    const preflightNotes = payload ? describeGitHubActionPreflight({ actionKey, preflight }) : [];
+    const preflightNotes =
+      payload?.provider === "GitHub" && preflight
+        ? describeGitHubActionPreflight({ actionKey, preflight: preflight as GitHubActionPreflight })
+        : [];
     const executionTitle = `Dry run - ${request.title} - ${now.slice(0, 19)}`;
     const markdown = [
       `# ${executionTitle}`,
@@ -243,7 +272,13 @@ export async function runActionDryRunCommand(
       "",
       "## Payload Preview",
       ...(payload
-        ? [`- Repo: ${payload.owner}/${payload.repo}`, `- Title: ${payload.title || "(comment only)"}`, `- Body length: ${payload.body?.length ?? 0}`]
+        ? payload.provider === "GitHub"
+          ? [`- Repo: ${payload.owner}/${payload.repo}`, `- Title: ${payload.title || "(comment only)"}`, `- Body length: ${payload.body?.length ?? 0}`]
+          : [
+              `- Project: ${payload.projectName}`,
+              `- Environment: ${payload.targetEnvironment}`,
+              `- Deployment basis: ${payload.deploymentId}`,
+            ]
         : ["- Payload preview unavailable."]),
     ].join("\n");
 
@@ -261,7 +296,7 @@ export async function runActionDryRunCommand(
         "Local Project": relationValue(request.localProjectIds),
         Policy: relationValue(request.policyIds),
         "Target Source": relationValue(target ? [target.source.id] : []),
-        Provider: { select: { name: "GitHub" } },
+        Provider: { select: { name: payload?.provider ?? "GitHub" } },
         "Action Key": richTextValue(actionKey),
         Mode: { select: { name: "Dry Run" } },
         Status: { select: { name: validationNotes.length > 0 ? "Failed" : "Succeeded" } },
@@ -269,8 +304,14 @@ export async function runActionDryRunCommand(
         "Executed At": { date: { start: now } },
         "Issue Number": { number: target?.source.provider === "GitHub" ? request.targetNumber || null : null },
         "Comment ID": richTextValue(""),
-        "Label Delta Summary": richTextValue(payload ? summarizeGitHubLabelDelta({ payload, preflight }) : ""),
-        "Assignee Delta Summary": richTextValue(payload ? summarizeGitHubAssigneeDelta({ payload, preflight }) : ""),
+        "Label Delta Summary": richTextValue(
+          payload?.provider === "GitHub" ? summarizeGitHubLabelDelta({ payload, preflight: preflight as GitHubActionPreflight }) : "",
+        ),
+        "Assignee Delta Summary": richTextValue(
+          payload?.provider === "GitHub"
+            ? summarizeGitHubAssigneeDelta({ payload, preflight: preflight as GitHubActionPreflight })
+            : "",
+        ),
         "Response Classification": { select: { name: validationNotes.length > 0 ? "Validation Failure" : "Success" } },
         "Reconcile Status": { select: { name: "Not Needed" } },
         "Response Summary": richTextValue(
@@ -281,7 +322,7 @@ export async function runActionDryRunCommand(
               : "Dry run succeeded.",
         ),
         "Failure Notes": richTextValue(validationNotes.join(" ")),
-        "Compensation Plan": richTextValue(buildGitHubCompensationPlan(actionKey)),
+        "Compensation Plan": richTextValue(payload?.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey)),
       },
     });
 
@@ -314,7 +355,7 @@ export async function runActionDryRunCommand(
         localProjectIds: request.localProjectIds,
         policyIds: request.policyIds,
         targetSourceIds: target ? [target.source.id] : [],
-        provider: "GitHub",
+        provider: payload?.provider ?? "GitHub",
         actionKey,
         mode: "Dry Run",
         status: validationNotes.length > 0 ? "Failed" : "Succeeded",
@@ -322,10 +363,14 @@ export async function runActionDryRunCommand(
         executedAt: now.slice(0, 10),
         providerResultKey: "",
         providerUrl: "",
-        issueNumber: request.targetNumber,
+        issueNumber: payload?.provider === "GitHub" ? request.targetNumber : 0,
         commentId: "",
-        labelDeltaSummary: payload ? summarizeGitHubLabelDelta({ payload, preflight }) : "",
-        assigneeDeltaSummary: payload ? summarizeGitHubAssigneeDelta({ payload, preflight }) : "",
+        labelDeltaSummary:
+          payload?.provider === "GitHub" ? summarizeGitHubLabelDelta({ payload, preflight: preflight as GitHubActionPreflight }) : "",
+        assigneeDeltaSummary:
+          payload?.provider === "GitHub"
+            ? summarizeGitHubAssigneeDelta({ payload, preflight: preflight as GitHubActionPreflight })
+            : "",
         responseClassification: validationNotes.length > 0 ? "Validation Failure" : "Success",
         reconcileStatus: "Not Needed",
         responseSummary:
@@ -335,7 +380,7 @@ export async function runActionDryRunCommand(
               ? `Dry run succeeded. ${preflightNotes.join(" ")}`
               : "Dry run succeeded.",
         failureNotes: validationNotes.join(" "),
-        compensationPlan: buildGitHubCompensationPlan(actionKey),
+        compensationPlan: payload?.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey),
       },
       validationNotes: postDryRun.notes,
       idempotencyKey,

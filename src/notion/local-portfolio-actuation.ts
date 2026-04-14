@@ -17,13 +17,15 @@ export const DEFAULT_LOCAL_PORTFOLIO_GITHUB_VIEWS_PATH = "./config/local-portfol
 export type ActuationMode = "Dry Run" | "Live" | "Compensation";
 export type ActuationStatus = "Planned" | "Started" | "Succeeded" | "Failed" | "Skipped" | "Compensation Needed";
 export type ActuationIntent = "Dry Run" | "Ready for Live";
+export type ActuationProviderName = "GitHub" | "Vercel";
 export type ActuationActionKey =
   | "github.create_issue"
   | "github.update_issue"
   | "github.set_issue_labels"
   | "github.set_issue_assignees"
   | "github.add_issue_comment"
-  | "github.comment_pull_request";
+  | "github.comment_pull_request"
+  | "vercel.redeploy";
 
 export const SUPPORTED_GITHUB_ACTION_KEYS: ActuationActionKey[] = [
   "github.create_issue",
@@ -33,6 +35,15 @@ export const SUPPORTED_GITHUB_ACTION_KEYS: ActuationActionKey[] = [
   "github.add_issue_comment",
   "github.comment_pull_request",
 ];
+
+export const SUPPORTED_VERCEL_ACTION_KEYS: ActuationActionKey[] = ["vercel.redeploy"];
+export const SUPPORTED_ACTION_KEYS: ActuationActionKey[] = [
+  ...SUPPORTED_GITHUB_ACTION_KEYS,
+  ...SUPPORTED_VERCEL_ACTION_KEYS,
+];
+
+export type VercelTargetEnvironment = "Production" | "Preview";
+export type VercelScopeType = "Personal" | "Team";
 
 export interface ActuationDatabaseRef {
   name: string;
@@ -44,6 +55,7 @@ export interface ActuationDatabaseRef {
 
 export interface ActuationTargetRule {
   title: string;
+  provider?: ActuationProviderName;
   sourceIdentifier?: string;
   sourceUrl?: string;
   localProjectId?: string;
@@ -52,6 +64,11 @@ export interface ActuationTargetRule {
   defaultLabels: string[];
   supportsIssueCreate: boolean;
   supportsPrComment: boolean;
+  vercelProjectId?: string;
+  vercelTeamId?: string;
+  vercelTeamSlug?: string;
+  vercelScopeType?: VercelScopeType;
+  vercelEnvironment?: VercelTargetEnvironment;
 }
 
 export interface LocalPortfolioActuationTargetConfig {
@@ -158,6 +175,7 @@ export interface ExternalActionExecutionRecord {
 export interface ActuationAuditSummary {
   missingGitHubAuthRefs: string[];
   missingGitHubWebhookRefs: string[];
+  missingVercelAuthRefs: string[];
   liveCapablePolicies: string[];
   allowlistedTargets: number;
   issueReadyTargets: number;
@@ -168,13 +186,21 @@ export interface ActuationAuditSummary {
 }
 
 export interface ResolvedActuationTarget {
+  provider: ActuationProviderName;
   source: ExternalSignalSourceRecord;
   rule: ActuationTargetRule;
-  owner: string;
-  repo: string;
+  owner?: string;
+  repo?: string;
+  projectId?: string;
+  projectName?: string;
+  teamId?: string;
+  teamSlug?: string;
+  scopeType?: VercelScopeType;
+  environment?: VercelTargetEnvironment;
 }
 
 export interface GitHubExecutionPayload {
+  provider: "GitHub";
   actionKey: ActuationActionKey;
   owner: string;
   repo: string;
@@ -183,6 +209,20 @@ export interface GitHubExecutionPayload {
   issueNumber?: number;
   labels: string[];
   assignees: string[];
+}
+
+export interface VercelRedeployExecutionPayload {
+  provider: "Vercel";
+  actionKey: "vercel.redeploy";
+  projectId: string;
+  projectName: string;
+  teamId?: string;
+  teamSlug?: string;
+  scopeType: VercelScopeType;
+  targetEnvironment: VercelTargetEnvironment;
+  deploymentId: string;
+  deploymentUrl: string;
+  deploymentReadyState: string;
 }
 
 export interface GitHubIssueSnapshot {
@@ -206,6 +246,22 @@ export interface GitHubActionPreflight {
   unassignableAssignees: string[];
   missingPullRequestPermission: boolean;
   noMaterialChange: boolean;
+}
+
+export interface VercelDeploymentSnapshot {
+  deploymentId: string;
+  deploymentUrl: string;
+  projectId: string;
+  readyState: string;
+  environment: VercelTargetEnvironment;
+  createdAt: string;
+}
+
+export interface VercelRedeployPreflight {
+  latestDeployment?: VercelDeploymentSnapshot;
+  targetEnvironment: VercelTargetEnvironment;
+  providerExercised: boolean;
+  noRedeployCandidate: boolean;
 }
 
 export type GitHubResponseClassification =
@@ -519,6 +575,9 @@ export function buildActuationAuditSummary(input: {
   const missingGitHubWebhookRefs = [process.env.GITHUB_APP_WEBHOOK_SECRET?.trim() ? undefined : "GITHUB_APP_WEBHOOK_SECRET"].filter(
     (value): value is string => Boolean(value),
   );
+  const missingVercelAuthRefs = [process.env.VERCEL_TOKEN?.trim() ? undefined : "VERCEL_TOKEN"].filter(
+    (value): value is string => Boolean(value),
+  );
 
   const liveCapablePolicies = input.policyConfig.policies
     .filter((policy) => policy.provider === "GitHub" && policy.executionMode === "Approved Live")
@@ -541,6 +600,7 @@ export function buildActuationAuditSummary(input: {
   return {
     missingGitHubAuthRefs,
     missingGitHubWebhookRefs,
+    missingVercelAuthRefs,
     liveCapablePolicies,
     allowlistedTargets: input.targetConfig.targets.length,
     issueReadyTargets,
@@ -562,38 +622,78 @@ export function resolveActuationTarget(input: {
   if (!linkedSource) {
     throw new AppError(`Action request "${input.request.title}" is missing a linked target source.`);
   }
-  if (linkedSource.provider !== "GitHub" || linkedSource.sourceType !== "Repo" || linkedSource.status !== "Active") {
-    throw new AppError(`Target source "${linkedSource.title}" is not an active GitHub repo source.`);
-  }
-
-  const matchingRule =
-    input.targetConfig.targets.find((target) =>
+  const provider = linkedSource.provider;
+  const matchingRule = input.targetConfig.targets.find((target) => {
+    const targetProvider = target.provider ?? inferTargetProviderFromRule(target);
+    if (targetProvider && targetProvider !== provider) {
+      return false;
+    }
+    return (
       (target.sourceIdentifier && target.sourceIdentifier === linkedSource.identifier) ||
       (target.sourceUrl && target.sourceUrl === linkedSource.sourceUrl) ||
-      (target.localProjectId && input.request.localProjectIds.includes(target.localProjectId)),
-    ) ?? {
-      title: linkedSource.title,
-      sourceIdentifier: linkedSource.identifier,
-      sourceUrl: linkedSource.sourceUrl,
-      allowedActions: input.targetConfig.defaults.allowedActions,
-      titlePrefix: input.targetConfig.defaults.titlePrefix,
-      defaultLabels: input.targetConfig.defaults.defaultLabels,
-      supportsIssueCreate: input.targetConfig.defaults.supportsIssueCreate,
-      supportsPrComment: input.targetConfig.defaults.supportsPrComment,
-    };
+      (target.localProjectId && input.request.localProjectIds.includes(target.localProjectId))
+    );
+  });
 
-  if (!matchingRule.allowedActions.includes(input.actionKey)) {
-    throw new AppError(`Target "${linkedSource.title}" is not allowlisted for ${input.actionKey}.`);
+  if (provider === "GitHub") {
+    if (linkedSource.sourceType !== "Repo" || linkedSource.status !== "Active") {
+      throw new AppError(`Target source "${linkedSource.title}" is not an active GitHub repo source.`);
+    }
+    const resolvedRule =
+      matchingRule ?? {
+        title: linkedSource.title,
+        provider: "GitHub" as const,
+        sourceIdentifier: linkedSource.identifier,
+        sourceUrl: linkedSource.sourceUrl,
+        allowedActions: input.targetConfig.defaults.allowedActions,
+        titlePrefix: input.targetConfig.defaults.titlePrefix,
+        defaultLabels: input.targetConfig.defaults.defaultLabels,
+        supportsIssueCreate: input.targetConfig.defaults.supportsIssueCreate,
+        supportsPrComment: input.targetConfig.defaults.supportsPrComment,
+      };
+    if (!resolvedRule.allowedActions.includes(input.actionKey)) {
+      throw new AppError(`Target "${linkedSource.title}" is not allowlisted for ${input.actionKey}.`);
+    }
+    const repoSource = linkedSource.identifier || linkedSource.sourceUrl;
+    const [owner, repo] = extractGitHubRepo(repoSource);
+    return {
+      provider: "GitHub",
+      source: linkedSource,
+      rule: resolvedRule,
+      owner,
+      repo,
+    };
   }
 
-  const repoSource = linkedSource.identifier || linkedSource.sourceUrl;
-  const [owner, repo] = extractGitHubRepo(repoSource);
-  return {
-    source: linkedSource,
-    rule: matchingRule,
-    owner,
-    repo,
-  };
+  if (provider === "Vercel") {
+    if (linkedSource.sourceType !== "Deployment Project" || linkedSource.status !== "Active") {
+      throw new AppError(`Target source "${linkedSource.title}" is not an active Vercel deployment source.`);
+    }
+    if (!matchingRule) {
+      throw new AppError(`Target "${linkedSource.title}" does not have a Vercel allowlist rule yet.`);
+    }
+    if (!matchingRule.allowedActions.includes(input.actionKey)) {
+      throw new AppError(`Target "${linkedSource.title}" is not allowlisted for ${input.actionKey}.`);
+    }
+    const projectId = matchingRule.vercelProjectId ?? linkedSource.identifier;
+    if (!projectId) {
+      throw new AppError(`Target "${linkedSource.title}" is missing a Vercel project id.`);
+    }
+    const scopeType = matchingRule.vercelScopeType ?? linkedSource.providerScopeType ?? "Team";
+    return {
+      provider: "Vercel",
+      source: linkedSource,
+      rule: matchingRule,
+      projectId,
+      projectName: matchingRule.title || linkedSource.title,
+      teamId: matchingRule.vercelTeamId ?? linkedSource.providerScopeId,
+      teamSlug: matchingRule.vercelTeamSlug ?? linkedSource.providerScopeSlug,
+      scopeType,
+      environment: matchingRule.vercelEnvironment ?? normalizeVercelEnvironment(linkedSource.environment),
+    };
+  }
+
+  throw new AppError(`Target source "${linkedSource.title}" uses unsupported provider "${provider}".`);
 }
 
 export function buildGitHubExecutionPayload(input: {
@@ -601,6 +701,9 @@ export function buildGitHubExecutionPayload(input: {
   target: ResolvedActuationTarget;
   actionKey: ActuationActionKey;
 }): GitHubExecutionPayload {
+  if (input.target.provider !== "GitHub" || !input.target.owner || !input.target.repo) {
+    throw new AppError(`Action request "${input.request.title}" is not resolved to a GitHub target.`);
+  }
   const rawTitle = input.request.payloadTitle.trim();
   const prefixedTitle =
     input.actionKey === "github.create_issue" && rawTitle
@@ -642,6 +745,7 @@ export function buildGitHubExecutionPayload(input: {
     throw new AppError(`Action request "${input.request.title}" is missing target assignees.`);
   }
   return {
+    provider: "GitHub",
     actionKey: input.actionKey,
     owner: input.target.owner,
     repo: input.target.repo,
@@ -658,26 +762,69 @@ export function buildGitHubExecutionPayload(input: {
   };
 }
 
+export function buildVercelRedeployExecutionPayload(input: {
+  request: ActionRequestRecord;
+  target: ResolvedActuationTarget;
+  preflight?: VercelRedeployPreflight;
+}): VercelRedeployExecutionPayload {
+  if (input.target.provider !== "Vercel" || !input.target.projectId || !input.target.projectName || !input.target.environment) {
+    throw new AppError(`Action request "${input.request.title}" is not resolved to a Vercel target.`);
+  }
+  const latestDeployment = input.preflight?.latestDeployment;
+  if (!latestDeployment) {
+    throw new AppError(`Validation Failure: no existing Vercel deployment is available to redeploy for ${input.target.projectName}.`);
+  }
+  return {
+    provider: "Vercel",
+    actionKey: "vercel.redeploy",
+    projectId: input.target.projectId,
+    projectName: input.target.projectName,
+    teamId: input.target.teamId,
+    teamSlug: input.target.teamSlug,
+    scopeType: input.target.scopeType ?? "Team",
+    targetEnvironment: input.target.environment,
+    deploymentId: latestDeployment.deploymentId,
+    deploymentUrl: latestDeployment.deploymentUrl,
+    deploymentReadyState: latestDeployment.readyState,
+  };
+}
+
 export function computeActuationExecutionKey(input: {
   requestId: string;
   actionKey: string;
   targetSourceId: string;
   mode: ActuationMode;
-  payload: GitHubExecutionPayload;
+  payload: GitHubExecutionPayload | VercelRedeployExecutionPayload;
 }): string {
-  const normalized = JSON.stringify({
-    requestId: input.requestId,
-    actionKey: input.actionKey,
-    targetSourceId: input.targetSourceId,
-    mode: input.mode,
-    owner: input.payload.owner,
-    repo: input.payload.repo,
-    title: input.payload.title ?? null,
-    body: input.payload.body ?? null,
-    issueNumber: input.payload.issueNumber ?? null,
-    labels: [...input.payload.labels].sort(),
-    assignees: [...input.payload.assignees].sort(),
-  });
+  const normalized =
+    input.payload.provider === "GitHub"
+      ? JSON.stringify({
+          requestId: input.requestId,
+          actionKey: input.actionKey,
+          targetSourceId: input.targetSourceId,
+          mode: input.mode,
+          provider: input.payload.provider,
+          owner: input.payload.owner,
+          repo: input.payload.repo,
+          title: input.payload.title ?? null,
+          body: input.payload.body ?? null,
+          issueNumber: input.payload.issueNumber ?? null,
+          labels: [...input.payload.labels].sort(),
+          assignees: [...input.payload.assignees].sort(),
+        })
+      : JSON.stringify({
+          requestId: input.requestId,
+          actionKey: input.actionKey,
+          targetSourceId: input.targetSourceId,
+          mode: input.mode,
+          provider: input.payload.provider,
+          projectId: input.payload.projectId,
+          teamId: input.payload.teamId ?? null,
+          teamSlug: input.payload.teamSlug ?? null,
+          targetEnvironment: input.payload.targetEnvironment,
+          deploymentId: input.payload.deploymentId,
+          deploymentReadyState: input.payload.deploymentReadyState,
+        });
   return createHash("sha256").update(normalized).digest("hex");
 }
 
@@ -817,6 +964,26 @@ export function describeGitHubActionPreflight(input: {
   return [];
 }
 
+export function describeVercelRedeployPreflight(preflight?: VercelRedeployPreflight): string[] {
+  if (!preflight) {
+    return [];
+  }
+  const notes: string[] = [];
+  if (!preflight.providerExercised) {
+    notes.push("Vercel was not exercised during preflight.");
+    return notes;
+  }
+  if (preflight.latestDeployment) {
+    notes.push(`Latest deployment candidate: ${preflight.latestDeployment.deploymentId}.`);
+    notes.push(`Candidate ready state: ${preflight.latestDeployment.readyState}.`);
+    notes.push(`Target environment: ${preflight.targetEnvironment}.`);
+  }
+  if (preflight.noRedeployCandidate) {
+    notes.push("No existing deployment is available to redeploy.");
+  }
+  return notes;
+}
+
 export function summarizeGitHubLabelDelta(input: {
   payload: GitHubExecutionPayload;
   preflight?: GitHubActionPreflight;
@@ -868,18 +1035,66 @@ export function summarizeGitHubAssigneeDelta(input: {
 
 export function renderActuationPacketSection(input: {
   request: ActionRequestRecord;
-  payload: GitHubExecutionPayload | null;
+  payload: GitHubExecutionPayload | VercelRedeployExecutionPayload | null;
   target: ResolvedActuationTarget | null;
-  preflight?: GitHubActionPreflight;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
   latestExecution?: ExternalActionExecutionRecord;
   validationNotes: string[];
   idempotencyKey?: string;
 }): string {
+  if (input.payload?.provider === "Vercel" || input.target?.provider === "Vercel") {
+    const payload = input.payload?.provider === "Vercel" ? input.payload : null;
+    const preflight = input.preflight as VercelRedeployPreflight | undefined;
+    const latestDeployment = preflight?.latestDeployment;
+    const preflightNotes = describeVercelRedeployPreflight(preflight);
+    return [
+      "<!-- codex:notion-actuation-packet:start -->",
+      "## Vercel Operator Packet",
+      "",
+      `- Action family: ${payload?.actionKey || "vercel.redeploy"}`,
+      `- Execution intent: ${input.request.executionIntent || "Dry Run"}`,
+      `- Target source: ${input.target ? `[${input.target.source.title}](${input.target.source.url})` : "Not resolved"}`,
+      `- Vercel project: ${payload?.projectName || input.target?.projectName || "Not resolved"}`,
+      `- Project id: ${payload?.projectId || input.target?.projectId || "Not resolved"}`,
+      `- Team scope: ${payload?.teamSlug || input.target?.teamSlug || payload?.teamId || input.target?.teamId || "Personal"}`,
+      `- Target environment: ${payload?.targetEnvironment || input.target?.environment || "Not resolved"}`,
+      `- Idempotency key: ${input.idempotencyKey || "Not computed yet"}`,
+      `- Latest execution: ${input.latestExecution ? `[${input.latestExecution.title}](${input.latestExecution.url}) - ${input.latestExecution.mode} / ${input.latestExecution.status}` : "None yet"}`,
+      `- Latest response classification: ${input.latestExecution?.responseClassification || "Not classified yet"}`,
+      `- Reconcile status: ${input.latestExecution?.reconcileStatus || "Not Needed"}`,
+      "",
+      "### Redeploy Basis",
+      ...(latestDeployment
+        ? [
+            `- Deployment id: ${latestDeployment.deploymentId}`,
+            `- Deployment url: ${latestDeployment.deploymentUrl}`,
+            `- Ready state: ${latestDeployment.readyState}`,
+            `- Created at: ${latestDeployment.createdAt}`,
+          ]
+        : ["- No existing deployment is available to redeploy yet."]),
+      "",
+      "### Vercel Preflight",
+      ...(preflightNotes.length > 0 ? preflightNotes.map((note) => `- ${note}`) : ["- Preflight data will appear once Vercel state can be resolved."]),
+      "",
+      "### Validation Notes",
+      ...(input.validationNotes.length > 0 ? input.validationNotes.map((note) => `- ${note}`) : ["- Ready for dry run."]),
+      "",
+      "### Compensation Posture",
+      "- If the redeploy is wrong, stop widening scope and use a fresh explicit request rather than hidden retries.",
+      "- Promotion and rollback stay out of scope in Phase 9A.",
+      "",
+      "### Webhook Recovery",
+      "- Treat Vercel webhooks as evidence only in this phase.",
+      "- Use direct provider reads to confirm the deployment state after any live redeploy.",
+      "<!-- codex:notion-actuation-packet:end -->",
+    ].join("\n");
+  }
+  const githubPreflight = input.preflight as GitHubActionPreflight | undefined;
   const preflightNotes =
-    input.payload && input.preflight
+    input.payload?.provider === "GitHub" && githubPreflight
       ? describeGitHubActionPreflight({
           actionKey: input.payload.actionKey,
-          preflight: input.preflight,
+          preflight: githubPreflight,
         })
       : [];
   return [
@@ -909,11 +1124,11 @@ export function renderActuationPacketSection(input: {
       : ["- Payload preview unavailable until the request is fully populated."]),
     "",
     "### GitHub Preflight",
-    ...(input.preflight
+    ...(githubPreflight
       ? [
-          `- Current target type: ${input.preflight.issueSnapshot?.isPullRequest ? "Pull request" : input.payload?.issueNumber ? "Issue" : "New issue"}`,
-          `- Current labels: ${input.preflight.issueSnapshot?.labels.join(", ") || "None"}`,
-          `- Current assignees: ${input.preflight.issueSnapshot?.assignees.join(", ") || "None"}`,
+          `- Current target type: ${githubPreflight.issueSnapshot?.isPullRequest ? "Pull request" : input.payload?.issueNumber ? "Issue" : "New issue"}`,
+          `- Current labels: ${githubPreflight.issueSnapshot?.labels.join(", ") || "None"}`,
+          `- Current assignees: ${githubPreflight.issueSnapshot?.assignees.join(", ") || "None"}`,
           ...preflightNotes.map((note) => `- ${note}`),
         ]
       : ["- Preflight data will appear once GitHub state can be resolved."]),
@@ -957,14 +1172,14 @@ export function renderActuationCommandCenterSection(input: {
 
   return [
     "<!-- codex:notion-actuation-command-center:start -->",
-    "## Phase 8 GitHub Lane",
+    "## External Actuation Lane",
     "",
     `- Ready to dry run: ${readyToDryRun.length}`,
     `- Approved for live: ${readyForLive.length}`,
     `- Recent live successes: ${recentSuccesses.length}`,
     `- Failures or compensation-needed: ${failures.length}`,
-    "- Phase 8 safety posture: additive-only labels and assignees, serial writes, no destructive GitHub mutations.",
-    "- Temporary tunnel note: if webhook delivery fails, redeliver from GitHub and then drain/reconcile locally.",
+    "- Current safety posture: GitHub stays additive-only, Vercel stays single-project and redeploy-only, and all writes stay serial.",
+    "- If webhook delivery fails, recover through provider delivery history and then drain/reconcile locally.",
     "",
     "### Ready for Live",
     ...(readyForLive.length > 0 ? readyForLive.map((request) => `- [${request.title}](${request.url})`) : ["- None right now."]),
@@ -993,7 +1208,7 @@ export function renderWeeklyActuationSection(input: {
   const compensation = input.executions.filter((execution) => execution.status === "Compensation Needed");
   return [
     "<!-- codex:notion-weekly-actuation:start -->",
-    "## Phase 8 GitHub Summary",
+    "## Weekly Actuation Summary",
     "",
     `- Dry runs completed: ${dryRuns.length}`,
     `- Live actions executed: ${liveSuccesses.length}`,
@@ -1013,6 +1228,10 @@ export function buildGitHubCompensationPlan(actionKey: ActuationActionKey): stri
   return "If the live issue change is wrong, use fix-forward and/or a manual-close follow-up plan rather than delete in v1.";
 }
 
+export function buildVercelCompensationPlan(): string {
+  return "If the redeploy is wrong, pause further live requests, verify the resulting deployment state, and use a fresh explicit follow-up request rather than hidden retries.";
+}
+
 export function evaluateActionRequestReadiness(input: {
   request: ActionRequestRecord;
   policies: ActionPolicyRecord[];
@@ -1020,10 +1239,11 @@ export function evaluateActionRequestReadiness(input: {
   config: LocalPortfolioControlTowerConfig;
   latestDryRun?: ExternalActionExecutionRecord;
   actionKey: ActuationActionKey;
-  preflight?: GitHubActionPreflight;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
   today: string;
 }): string[] {
   const notes: string[] = [];
+  const githubPreflight = input.preflight as GitHubActionPreflight | undefined;
   const phase7 = requirePhase7Actuation(input.config);
   const policy = input.policies.find((entry) => input.request.policyIds.includes(entry.id));
   if (!policy) {
@@ -1067,27 +1287,36 @@ export function evaluateActionRequestReadiness(input: {
   if (input.actionKey === "github.set_issue_assignees" && input.request.targetAssignees.length === 0) {
     notes.push("Target assignees are missing.");
   }
-  if (input.actionKey === "github.set_issue_labels" && (input.preflight?.blockedLabelRemovals.length ?? 0) > 0) {
+  if (input.actionKey === "github.set_issue_labels" && (githubPreflight?.blockedLabelRemovals.length ?? 0) > 0) {
     notes.push(
-      `Phase 8 additive-only labels cannot remove existing labels: ${input.preflight?.blockedLabelRemovals.join(", ")}.`,
+      `Phase 8 additive-only labels cannot remove existing labels: ${githubPreflight?.blockedLabelRemovals.join(", ")}.`,
     );
   }
-  if (input.actionKey === "github.set_issue_assignees" && (input.preflight?.blockedAssigneeRemovals.length ?? 0) > 0) {
+  if (input.actionKey === "github.set_issue_assignees" && (githubPreflight?.blockedAssigneeRemovals.length ?? 0) > 0) {
     notes.push(
-      `Phase 8 additive-only assignees cannot remove existing assignees: ${input.preflight?.blockedAssigneeRemovals.join(", ")}.`,
+      `Phase 8 additive-only assignees cannot remove existing assignees: ${githubPreflight?.blockedAssigneeRemovals.join(", ")}.`,
     );
   }
-  if (input.actionKey === "github.set_issue_assignees" && (input.preflight?.unassignableAssignees.length ?? 0) > 0) {
-    notes.push(`These assignees are not assignable in GitHub: ${input.preflight?.unassignableAssignees.join(", ")}.`);
+  if (input.actionKey === "github.set_issue_assignees" && (githubPreflight?.unassignableAssignees.length ?? 0) > 0) {
+    notes.push(`These assignees are not assignable in GitHub: ${githubPreflight?.unassignableAssignees.join(", ")}.`);
   }
-  if (input.actionKey === "github.comment_pull_request" && input.preflight?.issueSnapshot && !input.preflight.issueSnapshot.isPullRequest) {
+  if (input.actionKey === "github.comment_pull_request" && githubPreflight?.issueSnapshot && !githubPreflight.issueSnapshot.isPullRequest) {
     notes.push("Target pull request number resolves to an issue instead of a pull request.");
   }
-  if (input.actionKey === "github.comment_pull_request" && input.preflight?.missingPullRequestPermission) {
+  if (input.actionKey === "github.comment_pull_request" && githubPreflight?.missingPullRequestPermission) {
     notes.push("GitHub App is missing pull request permission required for PR comments.");
   }
+  if (input.actionKey === "vercel.redeploy") {
+    const preflight = input.preflight as VercelRedeployPreflight | undefined;
+    if (!preflight?.providerExercised) {
+      notes.push("Vercel preflight did not exercise the provider.");
+    }
+    if (preflight?.noRedeployCandidate) {
+      notes.push("No existing Vercel deployment is available to redeploy.");
+    }
+  }
   if (!input.target) {
-    notes.push("Target GitHub source is not resolved.");
+    notes.push(input.actionKey === "vercel.redeploy" ? "Target Vercel source is not resolved." : "Target GitHub source is not resolved.");
   }
   if (
     phase7.liveGating.requireFreshDryRunBeforeLive &&
@@ -1102,9 +1331,16 @@ export function evaluateActionRequestReadiness(input: {
     notes.push("Linked policy is not live-capable yet.");
   }
   if (input.request.executionIntent === "Ready for Live") {
-    const missingCredentials = missingGitHubLiveCredentials();
-    if (missingCredentials.length > 0) {
-      notes.push(`Live GitHub credentials are missing: ${missingCredentials.join(", ")}.`);
+    if (input.actionKey === "vercel.redeploy") {
+      const missingCredentials = missingVercelLiveCredentials();
+      if (missingCredentials.length > 0) {
+        notes.push(`Live Vercel credentials are missing: ${missingCredentials.join(", ")}.`);
+      }
+    } else {
+      const missingCredentials = missingGitHubLiveCredentials();
+      if (missingCredentials.length > 0) {
+        notes.push(`Live GitHub credentials are missing: ${missingCredentials.join(", ")}.`);
+      }
     }
   }
   return notes;
@@ -1118,7 +1354,7 @@ export function computePostDryRunReadiness(input: {
   actionKey: ActuationActionKey;
   executedAt: string;
   preflightNotes: string[];
-  preflight?: GitHubActionPreflight;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
 }): { executionIntent: ActionRequestRecord["executionIntent"]; notes: string[]; latestExecutionStatus: ActionRequestRecord["latestExecutionStatus"] } {
   if (input.preflightNotes.length > 0) {
     return {
@@ -1144,7 +1380,7 @@ export function computePostDryRunReadiness(input: {
       localProjectIds: input.request.localProjectIds,
       policyIds: input.request.policyIds,
       targetSourceIds: input.target ? [input.target.source.id] : [],
-      provider: "GitHub",
+      provider: input.actionKey === "vercel.redeploy" ? "Vercel" : "GitHub",
       actionKey: input.actionKey,
       mode: "Dry Run",
       status: "Succeeded",
@@ -1175,10 +1411,13 @@ export function computePostDryRunReadiness(input: {
     };
   }
 
-  const preflightNotes = describeGitHubActionPreflight({
-    actionKey: input.actionKey,
-    preflight: input.preflight,
-  });
+  const preflightNotes =
+    input.actionKey === "vercel.redeploy"
+      ? describeVercelRedeployPreflight(input.preflight as VercelRedeployPreflight | undefined)
+      : describeGitHubActionPreflight({
+          actionKey: input.actionKey,
+          preflight: input.preflight as GitHubActionPreflight | undefined,
+        });
 
   return {
     executionIntent: "Ready for Live",
@@ -1554,6 +1793,121 @@ export async function executeGitHubAction(input: {
   };
 }
 
+export async function fetchVercelRedeployPreflight(input: {
+  target: ResolvedActuationTarget;
+}): Promise<VercelRedeployPreflight | undefined> {
+  if (input.target.provider !== "Vercel" || !input.target.projectId || !input.target.environment) {
+    return undefined;
+  }
+  const token = process.env.VERCEL_TOKEN?.trim();
+  if (!token) {
+    return undefined;
+  }
+
+  const response = await fetch(
+    buildVercelApiUrl("/v6/deployments", {
+      projectId: input.target.projectId,
+      limit: "1",
+      target: input.target.environment.toLowerCase(),
+      teamId: input.target.teamId,
+      slug: input.target.teamSlug,
+    }),
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "User-Agent": "notion-portfolio-actuation",
+      },
+    },
+  );
+  const body = (await response.json()) as { deployments?: Array<Record<string, unknown>>; error?: { message?: string }; message?: string } | Array<Record<string, unknown>>;
+  if (!response.ok) {
+    throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
+  }
+  const deployments = Array.isArray(body) ? body : Array.isArray(body.deployments) ? body.deployments : [];
+  const latest = deployments[0];
+  if (!latest) {
+    return {
+      targetEnvironment: input.target.environment,
+      providerExercised: true,
+      noRedeployCandidate: true,
+    };
+  }
+
+  return {
+    targetEnvironment: input.target.environment,
+    providerExercised: true,
+    noRedeployCandidate: false,
+    latestDeployment: {
+      deploymentId: String(latest.id ?? latest.uid ?? ""),
+      deploymentUrl: normalizeVercelDeploymentUrl(latest.url),
+      projectId: String(latest.projectId ?? input.target.projectId),
+      readyState: String(latest.readyState ?? latest.state ?? latest.status ?? "unknown"),
+      environment: String(latest.target ?? "production").toLowerCase().includes("preview") ? "Preview" : "Production",
+      createdAt: formatVercelTimestamp(latest.createdAt ?? latest.created ?? new Date().toISOString()),
+    },
+  };
+}
+
+export async function executeVercelRedeploy(input: {
+  payload: VercelRedeployExecutionPayload;
+}): Promise<GitHubExecutionResult> {
+  const token = process.env.VERCEL_TOKEN?.trim();
+  if (!token) {
+    throw new AppError("Auth Failure: Missing VERCEL_TOKEN");
+  }
+
+  const response = await fetch(
+    buildVercelApiUrl("/v13/deployments", {
+      teamId: input.payload.teamId,
+      slug: input.payload.teamSlug,
+    }),
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "notion-portfolio-actuation",
+      },
+      body: JSON.stringify({
+        deploymentId: input.payload.deploymentId,
+        name: input.payload.projectName,
+        target: input.payload.targetEnvironment.toLowerCase(),
+      }),
+    },
+  );
+  const body = (await response.json()) as Record<string, unknown> & { error?: { message?: string }; message?: string };
+  if (!response.ok) {
+    throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
+  }
+  const deploymentId = String(body.id ?? body.uid ?? "");
+  const verification = deploymentId
+    ? await verifyVercelRedeploy({
+        deploymentId,
+        teamId: input.payload.teamId,
+        teamSlug: input.payload.teamSlug,
+        token,
+      })
+    : undefined;
+  const providerUrl = normalizeVercelDeploymentUrl(body.url) || verification?.providerUrl || input.payload.deploymentUrl;
+  const reconcileStatus: GitHubReconcileStatus =
+    verification?.deploymentId === deploymentId && verification?.projectId === input.payload.projectId ? "Confirmed" : "Mismatch";
+
+  return {
+    executionStatus: "Succeeded",
+    providerResultKey: deploymentId,
+    providerUrl,
+    issueNumber: 0,
+    commentId: "",
+    labelDeltaSummary: "",
+    assigneeDeltaSummary: "",
+    responseClassification: "Success",
+    reconcileStatus,
+    responseSummary: `Triggered Vercel redeploy for ${input.payload.projectName}${deploymentId ? ` via deployment ${deploymentId}` : ""}.`,
+  };
+}
+
 async function fetchGitHubIssueSnapshot(input: {
   owner: string;
   repo: string;
@@ -1643,6 +1997,112 @@ export function classifyGitHubResponse(status: number): GitHubResponseClassifica
     return "Transient Failure";
   }
   return "Transient Failure";
+}
+
+function inferTargetProviderFromRule(target: ActuationTargetRule): ActuationProviderName | undefined {
+  if (target.provider) {
+    return target.provider;
+  }
+  if (target.allowedActions.some((actionKey) => actionKey.startsWith("vercel."))) {
+    return "Vercel";
+  }
+  if (target.allowedActions.some((actionKey) => actionKey.startsWith("github."))) {
+    return "GitHub";
+  }
+  if (target.sourceUrl?.includes("vercel.com") || target.sourceUrl?.includes(".vercel.app")) {
+    return "Vercel";
+  }
+  if (target.sourceUrl?.includes("github.com")) {
+    return "GitHub";
+  }
+  return undefined;
+}
+
+function normalizeVercelEnvironment(
+  value: ExternalSignalSourceRecord["environment"] | undefined,
+): VercelTargetEnvironment {
+  return value === "Preview" ? "Preview" : "Production";
+}
+
+function missingVercelLiveCredentials(): string[] {
+  return [process.env.VERCEL_TOKEN?.trim() ? undefined : "VERCEL_TOKEN"].filter((value): value is string => Boolean(value));
+}
+
+function buildVercelApiUrl(path: string, query: Record<string, string | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value?.trim()) {
+      params.set(key, value);
+    }
+  }
+  const querySuffix = params.toString();
+  return `https://api.vercel.com${path}${querySuffix ? `?${querySuffix}` : ""}`;
+}
+
+function resolveVercelErrorMessage(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") {
+    return undefined;
+  }
+  const value = body as { message?: unknown; error?: { message?: unknown } };
+  if (typeof value.error?.message === "string" && value.error.message.trim()) {
+    return value.error.message.trim();
+  }
+  if (typeof value.message === "string" && value.message.trim()) {
+    return value.message.trim();
+  }
+  return undefined;
+}
+
+function throwVercelExecutionFailure(status: number, message?: string): never {
+  const classification = classifyGitHubResponse(status);
+  throw new AppError(`${classification}: ${message ?? "Unknown Vercel error"}`);
+}
+
+function normalizeVercelDeploymentUrl(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return "";
+  }
+  return value.startsWith("http") ? value : `https://${value}`;
+}
+
+function formatVercelTimestamp(value: unknown): string {
+  if (typeof value === "number") {
+    return new Date(value).toISOString();
+  }
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+  return new Date().toISOString();
+}
+
+async function verifyVercelRedeploy(input: {
+  deploymentId: string;
+  teamId?: string;
+  teamSlug?: string;
+  token: string;
+}): Promise<{ deploymentId: string; providerUrl: string; projectId: string }> {
+  const response = await fetch(
+    buildVercelApiUrl(`/v13/deployments/${encodeURIComponent(input.deploymentId)}`, {
+      teamId: input.teamId,
+      slug: input.teamSlug,
+    }),
+    {
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        Accept: "application/json",
+        "User-Agent": "notion-portfolio-actuation",
+      },
+    },
+  );
+  const body = (await response.json()) as Record<string, unknown> & { error?: { message?: string }; message?: string };
+  if (!response.ok) {
+    throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
+  }
+  return {
+    deploymentId: String(body.id ?? body.uid ?? input.deploymentId),
+    providerUrl: normalizeVercelDeploymentUrl(body.url),
+    projectId: String(body.projectId ?? ""),
+  };
 }
 
 function signJwt(payload: Record<string, unknown>, privateKeyPem: string): string {
@@ -1746,6 +2206,7 @@ function parseActuationTarget(raw: unknown, fieldName: string): ActuationTargetR
   const value = raw as Record<string, unknown>;
   return {
     title: requiredString(value.title, `${fieldName}.title`),
+    provider: optionalProviderName(value.provider, `${fieldName}.provider`),
     sourceIdentifier: optionalString(value.sourceIdentifier, `${fieldName}.sourceIdentifier`),
     sourceUrl: optionalString(value.sourceUrl, `${fieldName}.sourceUrl`),
     localProjectId: optionalString(value.localProjectId, `${fieldName}.localProjectId`),
@@ -1754,6 +2215,11 @@ function parseActuationTarget(raw: unknown, fieldName: string): ActuationTargetR
     defaultLabels: requiredStringArray(value.defaultLabels, `${fieldName}.defaultLabels`),
     supportsIssueCreate: requiredBoolean(value.supportsIssueCreate, `${fieldName}.supportsIssueCreate`),
     supportsPrComment: requiredBoolean(value.supportsPrComment, `${fieldName}.supportsPrComment`),
+    vercelProjectId: optionalString(value.vercelProjectId, `${fieldName}.vercelProjectId`),
+    vercelTeamId: optionalString(value.vercelTeamId, `${fieldName}.vercelTeamId`),
+    vercelTeamSlug: optionalString(value.vercelTeamSlug, `${fieldName}.vercelTeamSlug`),
+    vercelScopeType: optionalVercelScopeType(value.vercelScopeType, `${fieldName}.vercelScopeType`),
+    vercelEnvironment: optionalVercelEnvironment(value.vercelEnvironment, `${fieldName}.vercelEnvironment`),
   };
 }
 
@@ -1874,9 +2340,43 @@ function requiredActionKey(value: unknown, fieldName: string): ActuationActionKe
     entry !== "github.set_issue_labels" &&
     entry !== "github.set_issue_assignees" &&
     entry !== "github.add_issue_comment" &&
-    entry !== "github.comment_pull_request"
+    entry !== "github.comment_pull_request" &&
+    entry !== "vercel.redeploy"
   ) {
     throw new AppError(`${fieldName} contains unsupported action key "${String(value)}"`);
+  }
+  return entry;
+}
+
+function optionalProviderName(value: unknown, fieldName: string): ActuationProviderName | undefined {
+  const entry = optionalString(value, fieldName);
+  if (!entry) {
+    return undefined;
+  }
+  if (entry !== "GitHub" && entry !== "Vercel") {
+    throw new AppError(`${fieldName} must be "GitHub" or "Vercel" when provided`);
+  }
+  return entry;
+}
+
+function optionalVercelScopeType(value: unknown, fieldName: string): VercelScopeType | undefined {
+  const entry = optionalString(value, fieldName);
+  if (!entry) {
+    return undefined;
+  }
+  if (entry !== "Personal" && entry !== "Team") {
+    throw new AppError(`${fieldName} must be "Personal" or "Team" when provided`);
+  }
+  return entry;
+}
+
+function optionalVercelEnvironment(value: unknown, fieldName: string): VercelTargetEnvironment | undefined {
+  const entry = optionalString(value, fieldName);
+  if (!entry) {
+    return undefined;
+  }
+  if (entry !== "Production" && entry !== "Preview") {
+    throw new AppError(`${fieldName} must be "Production" or "Preview" when provided`);
   }
   return entry;
 }

@@ -539,7 +539,7 @@
     "identityPosture": "app_first_least_privilege",
     "providerStatus": {
       "github": "shadow",
-      "vercel": "disabled",
+      "vercel": "shadow",
       "googleCalendar": "disabled"
     },
     "replayAndDedupe": {

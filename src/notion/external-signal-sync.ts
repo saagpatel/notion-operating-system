@@ -102,6 +102,7 @@ interface ProviderSourceSyncResult {
   events: NormalizedSignalEvent[];
   itemsSeen: number;
   itemsDeduped: number;
+  providerExercised: boolean;
   failureNote?: string;
   syncedSourceId?: string;
 }
@@ -117,6 +118,7 @@ export interface ProviderSyncResult {
   cursor: string;
   events: NormalizedSignalEvent[];
   syncedSourceIds: string[];
+  providerExercised: boolean;
 }
 
 export interface ExternalSignalSyncCommandOptions {
@@ -243,18 +245,16 @@ export async function runExternalSignalSyncCommand(
     let createdSyncRunCount = 0;
     const eventKeySet = new Set(existingEvents.map((event) => event.eventKey));
     const sourceMap = new Map(sources.map((source) => [source.id, source]));
-    const providerResults = live
-      ? await syncProviders({
-          flags: { live, provider, today: options.today },
-          today,
-          phase5,
-          providers: providerConfig.providers,
-          sources,
-          eventKeySet: new Set(eventKeySet),
-          sourceLimit: options.sourceLimit,
-          maxEventsPerSource: options.maxEventsPerSource,
-        })
-      : [];
+    const providerResults = await syncProviders({
+      flags: { live, provider, today: options.today },
+      today,
+      phase5,
+      providers: providerConfig.providers,
+      sources,
+      eventKeySet: new Set(eventKeySet),
+      sourceLimit: options.sourceLimit,
+      maxEventsPerSource: options.maxEventsPerSource,
+    });
 
     if (live) {
       logLiveStage(live, "Syncing providers", { provider });
@@ -769,7 +769,12 @@ export function deriveExternalSignalSyncStatus(
   }
   if (
     providerResults.some((result) =>
-      result.notes.some((note) => note.includes("Missing ") || note.includes("intentionally deferred")),
+      result.notes.some(
+        (note) =>
+          note.includes("Missing ") ||
+          note.includes("intentionally deferred") ||
+          note.includes("Provider not exercised"),
+      ),
     )
   ) {
     return "warning";
@@ -779,8 +784,8 @@ export function deriveExternalSignalSyncStatus(
 
 export function deriveExternalSignalSyncWarningCategories(
   providerResults: ProviderSyncResult[],
-): Array<"partial_success" | "missing_credentials" | "unsupported_provider"> | undefined {
-  const categories = new Set<"partial_success" | "missing_credentials" | "unsupported_provider">();
+): Array<"partial_success" | "missing_credentials" | "unsupported_provider" | "validation_gap"> | undefined {
+  const categories = new Set<"partial_success" | "missing_credentials" | "unsupported_provider" | "validation_gap">();
   for (const result of providerResults) {
     if (result.status === "Partial") {
       categories.add("partial_success");
@@ -791,6 +796,9 @@ export function deriveExternalSignalSyncWarningCategories(
       }
       if (note.includes("intentionally deferred")) {
         categories.add("unsupported_provider");
+      }
+      if (note.includes("Provider not exercised")) {
+        categories.add("validation_gap");
       }
     }
   }
@@ -881,6 +889,7 @@ export async function syncProviders(input: {
       cursor: "",
       events: [],
       syncedSourceIds: [],
+      providerExercised: false,
     });
   }
 
@@ -896,11 +905,14 @@ export async function syncGithubSources(
   live = false,
 ): Promise<ProviderSyncResult> {
   if (sources.length === 0) {
-    return emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], "No active GitHub sources are ready for sync.");
+    return emptyProviderResult(
+      provider.displayName as ProviderSyncResult["provider"],
+      "Provider not exercised: no active GitHub sources are ready for sync.",
+    );
   }
   if (!providerCredentialPresent(provider)) {
     return {
-      ...emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], `Missing ${provider.authEnvVar} for live GitHub sync.`),
+      ...emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], `Missing ${provider.authEnvVar} for GitHub sync.`),
       status: "Failed",
       failures: sources.length,
     };
@@ -912,6 +924,7 @@ export async function syncGithubSources(
   let itemsSeen = 0;
   let itemsDeduped = 0;
   let failures = 0;
+  let providerExercised = false;
   const syncedSourceIds: string[] = [];
   const results = await mapWithConcurrency(
     sources,
@@ -922,6 +935,7 @@ export async function syncGithubSources(
   for (const result of results) {
     itemsSeen += result.itemsSeen;
     itemsDeduped += result.itemsDeduped;
+    providerExercised ||= result.providerExercised;
     events.push(...result.events);
     if (result.syncedSourceId) {
       syncedSourceIds.push(result.syncedSourceId);
@@ -943,6 +957,7 @@ export async function syncGithubSources(
     cursor: newestOccurredAt(events) || today,
     events,
     syncedSourceIds,
+    providerExercised,
   };
 }
 
@@ -955,11 +970,14 @@ export async function syncVercelSources(
   live = false,
 ): Promise<ProviderSyncResult> {
   if (sources.length === 0) {
-    return emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], "No active Vercel sources are ready for sync.");
+    return emptyProviderResult(
+      provider.displayName as ProviderSyncResult["provider"],
+      "Provider not exercised: no active Vercel sources are ready for sync.",
+    );
   }
   if (!providerCredentialPresent(provider)) {
     return {
-      ...emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], `Missing ${provider.authEnvVar} for live Vercel sync.`),
+      ...emptyProviderResult(provider.displayName as ProviderSyncResult["provider"], `Missing ${provider.authEnvVar} for Vercel sync.`),
       status: "Failed",
       failures: sources.length,
     };
@@ -971,6 +989,7 @@ export async function syncVercelSources(
   let itemsSeen = 0;
   let itemsDeduped = 0;
   let failures = 0;
+  let providerExercised = false;
   const syncedSourceIds: string[] = [];
   const results = await mapWithConcurrency(
     sources,
@@ -981,6 +1000,7 @@ export async function syncVercelSources(
   for (const result of results) {
     itemsSeen += result.itemsSeen;
     itemsDeduped += result.itemsDeduped;
+    providerExercised ||= result.providerExercised;
     events.push(...result.events);
     if (result.syncedSourceId) {
       syncedSourceIds.push(result.syncedSourceId);
@@ -1002,6 +1022,7 @@ export async function syncVercelSources(
     cursor: newestOccurredAt(events) || today,
     events,
     syncedSourceIds,
+    providerExercised,
   };
 }
 
@@ -1024,6 +1045,7 @@ async function syncGithubSource(
         events: [],
         itemsSeen: 0,
         itemsDeduped: 0,
+        providerExercised: false,
         failureNote: `GitHub sync skipped for ${source.title}: active source is missing a linked Local Project.`,
       };
     }
@@ -1101,6 +1123,7 @@ async function syncGithubSource(
       events,
       itemsSeen: pulls.length + runs.length,
       itemsDeduped,
+      providerExercised: true,
       syncedSourceId: source.id,
     };
   } catch (error) {
@@ -1108,6 +1131,7 @@ async function syncGithubSource(
       events: [],
       itemsSeen: 0,
       itemsDeduped: 0,
+      providerExercised: true,
       failureNote: `GitHub sync failed for ${source.title}: ${toErrorMessage(error)}`,
     };
   }
@@ -1132,11 +1156,16 @@ async function syncVercelSource(
         events: [],
         itemsSeen: 0,
         itemsDeduped: 0,
+        providerExercised: false,
         failureNote: `Vercel sync skipped for ${source.title}: active source is missing a linked Local Project.`,
       };
     }
     const response = await fetchProviderJson(
-      `${provider.baseUrl}/v6/deployments?projectId=${encodeURIComponent(source.identifier.trim())}&limit=${maxEventsPerSource}`,
+      `${provider.baseUrl}/v6/deployments?${buildVercelScopeQuery({
+        projectId: source.identifier.trim(),
+        limit: maxEventsPerSource,
+        source,
+      })}`,
       {
         Authorization: `Bearer ${token}`,
       },
@@ -1184,6 +1213,7 @@ async function syncVercelSource(
       events,
       itemsSeen: deployments.length,
       itemsDeduped,
+      providerExercised: true,
       syncedSourceId: source.id,
     };
   } catch (error) {
@@ -1191,6 +1221,7 @@ async function syncVercelSource(
       events: [],
       itemsSeen: 0,
       itemsDeduped: 0,
+      providerExercised: true,
       failureNote: `Vercel sync failed for ${source.title}: ${toErrorMessage(error)}`,
     };
   }
@@ -1513,7 +1544,25 @@ function emptyProviderResult(
     cursor: "",
     events: [],
     syncedSourceIds: [],
+    providerExercised: false,
   };
+}
+
+function buildVercelScopeQuery(input: {
+  projectId: string;
+  limit: number;
+  source: ExternalSignalSourceRecord;
+}): string {
+  const params = new URLSearchParams({
+    projectId: input.projectId,
+    limit: String(input.limit),
+  });
+  if (input.source.providerScopeId) {
+    params.set("teamId", input.source.providerScopeId);
+  } else if (input.source.providerScopeSlug) {
+    params.set("slug", input.source.providerScopeSlug);
+  }
+  return params.toString();
 }
 
 function serializeMetrics(metrics: ReturnType<typeof calculateExternalSignalMetrics>): Record<string, number> {

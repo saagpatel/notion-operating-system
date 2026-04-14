@@ -38,6 +38,7 @@ export async function runGovernanceAuditCommand(
     ...summary,
   };
   const hasWarnings =
+    summary.missingAuthRefs.length > 0 ||
     summary.missingSecretRefs.length > 0 ||
     summary.policiesMissingApprovalRule.length > 0 ||
     summary.endpointModeWarnings.length > 0 ||
