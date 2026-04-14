@@ -24,6 +24,25 @@ npm run governance:health-report
 
 This shows live action-request coverage, execution status, dry-run staleness, and any attention items — without touching Notion or GitHub.
 
+## Install
+
+Use the install path that matches how much control you want:
+
+- **GitHub ref install**: install directly from a tagged GitHub ref
+- **GitHub release tarball install**: most locked-down verified artifact
+- **local repo development**: working on the repo itself, source-first workflow
+
+```bash
+# GitHub ref install
+npm install github:saagpatel/notion-operating-system#v0.2.0
+
+# GitHub release tarball install
+npm install https://github.com/saagpatel/notion-operating-system/releases/download/v0.2.0/notion-operating-system-0.2.0.tgz
+
+# local repo development
+npm ci
+```
+
 ## First Run (New Machine)
 
 ```bash
@@ -173,6 +192,19 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `VERCEL_TOKEN` | For governed Vercel writes | Vercel API token |
 | `NOTION_LOG_DIR` | Optional | Log directory (default: `./logs`) |
 
+## Sandbox Profile Discipline
+
+Use a `sandbox` profile as the default proving ground before live changes that touch control-tower, signals, governance, rollout, or profile flows.
+
+```bash
+npm run sandbox:smoke
+notion-os --profile sandbox doctor
+```
+
+The sandbox profile isolates tokens and Notion targets from your primary profile. The sandbox doctor fails if the sandbox token matches the primary token or if any sandbox target overlaps primary targets.
+
+See [docs/sandbox-rehearsal-runbook.md](docs/sandbox-rehearsal-runbook.md) for the full rehearsal path.
+
 ## Project Docs
 
 - [First-run onboarding](docs/first-run.md)
@@ -181,6 +213,6 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 - [Governance sync failure troubleshooting](docs/governance-sync-failure-troubleshooting.md)
 - [Governance incident follow-up runbook](docs/governance-incident-followup-runbook.md)
 - [Maintenance playbook](docs/maintenance-playbook.md)
-- [Sandbox rehearsal runbook](docs/sandbox-rehearsal-runbook.md)
+- [Sandbox rehearsal runbook](docs/sandbox-rehearsal-runbook.md) — proving path before risky live writes
 - [Release process](docs/release-process.md)
 - [Roadmap](docs/notion-roadmap.md)
