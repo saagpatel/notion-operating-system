@@ -38,6 +38,7 @@ import { runActionRequestSyncCommand } from "../notion/action-request-sync.js";
 import { runActionDryRunCommand } from "../notion/action-dry-run.js";
 import { runActionRunnerCommand } from "../notion/action-runner.js";
 import { runGovernanceAuditCommand } from "../notion/governance-audit.js";
+import { runGovernanceHealthReportCommand } from "../notion/governance-health-report.js";
 import { runGovernanceViewsValidateCommand } from "../notion/validate-local-portfolio-governance-views.js";
 import { runActuationAuditCommand } from "../notion/actuation-audit.js";
 import { runWebhookShadowDrainCommand } from "../notion/webhook-shadow-drain.js";
@@ -389,6 +390,11 @@ export const cliRegistry: CliCommandDefinition[] = [
   buildFamily("governance", "Run governance and actuation workflows.", [
     buildConfigCommand("audit", "Audit the governance policy and webhook posture.", [commonOptions.config], ({ parsed }) =>
       runGovernanceAuditCommand({
+        config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
+      }),
+    ),
+    buildConfigCommand("health-report", "Print a compact governance and actuation health snapshot.", [commonOptions.config], ({ parsed }) =>
+      runGovernanceHealthReportCommand({
         config: resolveOptionalControlTowerConfigPath({ config: asString(parsed.options.config), positionals: parsed.positionals }),
       }),
     ),

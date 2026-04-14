@@ -75,6 +75,7 @@ describe("cli smoke tests", () => {
   test("renders help for the migrated durable subcommands", async () => {
     const commands = [
       ["governance", "audit"],
+      ["governance", "health-report"],
       ["governance", "views-validate"],
       ["governance", "actuation-audit"],
       ["governance", "webhook-shadow-drain"],
