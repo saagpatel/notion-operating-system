@@ -17,14 +17,17 @@ import {
   buildGitHubCompensationPlan,
   buildGitHubExecutionPayload,
   buildVercelCompensationPlan,
+  buildVercelPromoteExecutionPayload,
   buildVercelRedeployExecutionPayload,
   buildVercelRollbackExecutionPayload,
   describeGitHubActionPreflight,
+  describeVercelPromotePreflight,
   describeVercelRollbackPreflight,
   computePostDryRunReadiness,
   computeActuationExecutionKey,
   evaluateActionRequestReadiness,
   fetchVercelRedeployPreflight,
+  fetchVercelPromotePreflight,
   fetchVercelRollbackPreflight,
   fetchGitHubActionPreflight,
   loadLocalPortfolioActuationTargetConfig,
@@ -36,6 +39,7 @@ import {
   type ActuationActionKey,
   type GitHubActionPreflight,
   type VercelRedeployPreflight,
+  type VercelPromotePreflight,
   type VercelRollbackPreflight,
   SUPPORTED_ACTION_KEYS,
 } from "./local-portfolio-actuation.js";
@@ -50,9 +54,10 @@ export interface ActionDryRunPreparation {
   payload:
     | ReturnType<typeof buildGitHubExecutionPayload>
     | ReturnType<typeof buildVercelRedeployExecutionPayload>
+    | ReturnType<typeof buildVercelPromoteExecutionPayload>
     | ReturnType<typeof buildVercelRollbackExecutionPayload>
     | null;
-  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelPromotePreflight | VercelRollbackPreflight;
   idempotencyKey: string;
   preparationError?: string;
 }
@@ -67,6 +72,7 @@ export async function prepareActionDryRun(
   dependencies: {
     fetchPreflight: typeof fetchGitHubActionPreflight;
     fetchVercelPreflight?: typeof fetchVercelRedeployPreflight;
+    fetchVercelPromotePreflight?: typeof fetchVercelPromotePreflight;
     fetchVercelRollbackPreflight?: typeof fetchVercelRollbackPreflight;
   } = {
     fetchPreflight: fetchGitHubActionPreflight,
@@ -103,6 +109,27 @@ export async function prepareActionDryRun(
     if (input.actionKey === "vercel.rollback") {
       const preflight = await (dependencies.fetchVercelRollbackPreflight ?? fetchVercelRollbackPreflight)({ target });
       const payload = buildVercelRollbackExecutionPayload({
+        request: input.request,
+        target,
+        preflight,
+      });
+      const idempotencyKey = computeActuationExecutionKey({
+        requestId: input.request.id,
+        actionKey: input.actionKey,
+        targetSourceId: target.source.id,
+        mode: "Dry Run",
+        payload,
+      });
+      return {
+        target,
+        payload,
+        preflight,
+        idempotencyKey,
+      };
+    }
+    if (input.actionKey === "vercel.promote") {
+      const preflight = await (dependencies.fetchVercelPromotePreflight ?? fetchVercelPromotePreflight)({ target });
+      const payload = buildVercelPromoteExecutionPayload({
         request: input.request,
         target,
         preflight,
@@ -287,6 +314,8 @@ export async function runActionDryRunCommand(
         ? describeGitHubActionPreflight({ actionKey, preflight: preflight as GitHubActionPreflight })
         : payload?.provider === "Vercel" && actionKey === "vercel.rollback"
           ? describeVercelRollbackPreflight(preflight as VercelRollbackPreflight | undefined)
+          : payload?.provider === "Vercel" && actionKey === "vercel.promote"
+            ? describeVercelPromotePreflight(preflight as VercelPromotePreflight | undefined)
           : [];
     const executionTitle = `Dry run - ${request.title} - ${now.slice(0, 19)}`;
     const markdown = [
@@ -300,7 +329,7 @@ export async function runActionDryRunCommand(
       "",
       "## Validation Notes",
       ...(validationNotes.length > 0 ? validationNotes.map((note) => `- ${note}`) : ["- Dry run succeeded."]),
-      ...(preflightNotes.length > 0 ? ["", "## GitHub Preflight", ...preflightNotes.map((note) => `- ${note}`)] : []),
+      ...(preflightNotes.length > 0 ? ["", `## ${payload?.provider === "Vercel" ? "Vercel" : "GitHub"} Preflight`, ...preflightNotes.map((note) => `- ${note}`)] : []),
       "",
       "## Payload Preview",
       ...(payload
@@ -312,6 +341,13 @@ export async function runActionDryRunCommand(
               `- Environment: ${payload.targetEnvironment}`,
               `- Deployment basis: ${payload.deploymentId}`,
             ]
+            : payload.actionKey === "vercel.promote"
+              ? [
+                  `- Project: ${payload.projectName}`,
+                  `- Environment: ${payload.targetEnvironment}`,
+                  `- Current deployment: ${payload.currentDeploymentId}`,
+                  `- Promote target: ${payload.promoteDeploymentId}`,
+                ]
             : [
                 `- Project: ${payload.projectName}`,
                 `- Environment: ${payload.targetEnvironment}`,

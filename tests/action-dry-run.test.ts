@@ -6,7 +6,11 @@ import {
   evaluateActionDryRunReadiness,
   prepareActionDryRun,
 } from "../src/notion/action-dry-run.js";
-import { formatVercelRollbackRequestKey, parseLocalPortfolioActuationTargetConfig } from "../src/notion/local-portfolio-actuation.js";
+import {
+  formatVercelPromoteRequestKey,
+  formatVercelRollbackRequestKey,
+  parseLocalPortfolioActuationTargetConfig,
+} from "../src/notion/local-portfolio-actuation.js";
 import { parseLocalPortfolioControlTowerConfig } from "../src/notion/local-portfolio-control-tower.js";
 import type { ExternalSignalSourceRecord } from "../src/notion/local-portfolio-external-signals.js";
 import type { ActionPolicyRecord, ActionRequestRecord } from "../src/notion/local-portfolio-governance.js";
@@ -242,7 +246,7 @@ describe("action dry run hardening", () => {
           sourceIdentifier: "prj_123",
           sourceUrl: "https://vercel.com/team/evolutionsandbox",
           localProjectId: "project-1",
-          allowedActions: ["vercel.redeploy", "vercel.rollback"],
+          allowedActions: ["vercel.redeploy", "vercel.rollback", "vercel.promote"],
           defaultLabels: [],
           supportsIssueCreate: false,
           supportsPrComment: false,
@@ -306,6 +310,114 @@ describe("action dry run hardening", () => {
     expect(readiness.readyForLive).toBe(true);
     expect(readiness.postDryRun.providerRequestKey).toBe(
       formatVercelRollbackRequestKey({ projectId: "prj_123", deploymentId: "dpl_prev" }),
+    );
+  });
+
+  test("pins the promote target after a successful Vercel dry run", async () => {
+    process.env.VERCEL_TOKEN = "token";
+    const config = await readControlConfig();
+    const request = baseRequest({
+      title: "Promote evolutionsandbox",
+      targetSourceIds: ["source-1"],
+      approverIds: ["approver-1"],
+    });
+    const source: ExternalSignalSourceRecord = {
+      ...baseSource(),
+      provider: "Vercel",
+      sourceType: "Deployment Project",
+      identifier: "prj_123",
+      sourceUrl: "https://vercel.com/team/evolutionsandbox",
+      environment: "Production",
+      providerScopeType: "Team",
+      providerScopeId: "team_123",
+      providerScopeSlug: "team-slug",
+    };
+    const targetConfig = parseLocalPortfolioActuationTargetConfig({
+      version: 1,
+      strategy: {
+        primary: "repo_config",
+        fallback: "manual_review",
+        notes: [],
+      },
+      defaults: {
+        allowedActions: ["github.create_issue"],
+        titlePrefix: "[Portfolio]",
+        defaultLabels: [],
+        supportsIssueCreate: true,
+        supportsPrComment: true,
+      },
+      targets: [
+        {
+          title: "evolutionsandbox",
+          provider: "Vercel",
+          sourceIdentifier: "prj_123",
+          sourceUrl: "https://vercel.com/team/evolutionsandbox",
+          localProjectId: "project-1",
+          allowedActions: ["vercel.redeploy", "vercel.rollback", "vercel.promote"],
+          defaultLabels: [],
+          supportsIssueCreate: false,
+          supportsPrComment: false,
+          vercelProjectId: "prj_123",
+          vercelTeamId: "team_123",
+          vercelTeamSlug: "team-slug",
+          vercelScopeType: "Team",
+          vercelEnvironment: "Production",
+        },
+      ],
+    });
+
+    const preparation = await prepareActionDryRun(
+      {
+        request,
+        sources: [source],
+        targetConfig,
+        actionKey: "vercel.promote",
+      },
+      {
+        fetchPreflight: async () => {
+          throw new Error("should not use GitHub preflight");
+        },
+        fetchVercelPromotePreflight: async () => ({
+          providerExercised: true,
+          noPromoteCandidate: false,
+          targetEnvironment: "Production",
+          currentDeployment: {
+            deploymentId: "dpl_current",
+            deploymentUrl: "https://current.vercel.app",
+            projectId: "prj_123",
+            readyState: "READY",
+            environment: "Production",
+            createdAt: "2026-03-29T12:00:00.000Z",
+            aliasAssigned: true,
+          },
+          promoteCandidate: {
+            deploymentId: "dpl_promote",
+            deploymentUrl: "https://promote.vercel.app",
+            projectId: "prj_123",
+            readyState: "READY",
+            environment: "Production",
+            createdAt: "2026-03-28T12:00:00.000Z",
+            aliasAssigned: false,
+            originalDeploymentId: "dpl_current",
+          },
+        }),
+      },
+    );
+
+    const readiness = evaluateActionDryRunReadiness({
+      request,
+      policies: [basePolicy({ title: "vercel.promote", provider: "Vercel", mutationClass: "Deployment Control", identityType: "Team Token", defaultExpiryHours: 12 })],
+      config,
+      actionKey: "vercel.promote",
+      preparation,
+      today: "2026-03-29",
+      executedAt: "2026-03-29T12:00:00.000Z",
+    });
+
+    expect(readiness.validationNotes).toEqual([]);
+    expect(readiness.readyForLive).toBe(true);
+    expect(readiness.postDryRun.providerRequestKey).toBe(
+      formatVercelPromoteRequestKey({ projectId: "prj_123", deploymentId: "dpl_promote" }),
     );
   });
 });

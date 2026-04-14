@@ -17,6 +17,7 @@ import {
   buildGitHubCompensationPlan,
   buildGitHubExecutionPayload,
   buildVercelCompensationPlan,
+  buildVercelPromoteExecutionPayload,
   buildVercelRedeployExecutionPayload,
   buildVercelRollbackExecutionPayload,
   classifyGitHubFailureMessage,
@@ -25,8 +26,10 @@ import {
   describeGitHubActionPreflight,
   evaluateActionRequestReadiness,
   executeVercelRedeploy,
+  executeVercelPromote,
   executeVercelRollback,
   fetchVercelRedeployPreflight,
+  fetchVercelPromotePreflight,
   fetchVercelRollbackPreflight,
   executeGitHubAction,
   fetchGitHubActionPreflight,
@@ -39,6 +42,7 @@ import {
   type ActuationActionKey,
   type GitHubActionPreflight,
   type VercelRedeployPreflight,
+  type VercelPromotePreflight,
   type VercelRollbackPreflight,
   type GitHubExecutionResult,
   type GitHubReconcileStatus,
@@ -201,7 +205,7 @@ export async function runActionRunnerCommand(
         .find((execution) => execution.mode === "Dry Run");
       let target;
       let payload;
-      let preflight: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight | undefined;
+      let preflight: GitHubActionPreflight | VercelRedeployPreflight | VercelPromotePreflight | VercelRollbackPreflight | undefined;
       try {
         target = resolveActuationTarget({
           request,
@@ -219,6 +223,13 @@ export async function runActionRunnerCommand(
         } else if (actionKey === "vercel.rollback") {
           preflight = await fetchVercelRollbackPreflight({ target });
           payload = buildVercelRollbackExecutionPayload({
+            request,
+            target,
+            preflight,
+          });
+        } else if (actionKey === "vercel.promote") {
+          preflight = await fetchVercelPromotePreflight({ target });
+          payload = buildVercelPromoteExecutionPayload({
             request,
             target,
             preflight,
@@ -329,6 +340,8 @@ export async function runActionRunnerCommand(
             ? payload.provider === "Vercel"
               ? payload.actionKey === "vercel.rollback"
                 ? await executeVercelRollback({ payload })
+                : payload.actionKey === "vercel.promote"
+                  ? await executeVercelPromote({ payload })
                 : await executeVercelRedeploy({ payload })
               : await executeGitHubAction({ payload, preflight: preflight as GitHubActionPreflight })
             : {
@@ -389,6 +402,8 @@ export async function runActionRunnerCommand(
               "Provider Request Key": richTextValue(
                 payload.provider === "Vercel" && payload.actionKey === "vercel.rollback"
                   ? request.providerRequestKey
+                  : payload.provider === "Vercel" && payload.actionKey === "vercel.promote"
+                  ? request.providerRequestKey
                   : providerResult.providerResultKey,
               ),
             },
@@ -426,6 +441,8 @@ export async function runActionRunnerCommand(
                   latestExecutionStatus: "Executed",
                   providerRequestKey:
                     payload.provider === "Vercel" && payload.actionKey === "vercel.rollback"
+                      ? request.providerRequestKey
+                      : payload.provider === "Vercel" && payload.actionKey === "vercel.promote"
                       ? request.providerRequestKey
                       : providerResult.providerResultKey,
                   executionNotes: providerResult.responseSummary,
@@ -591,8 +608,9 @@ async function updateActuationPacket(input: {
   payload:
     | ReturnType<typeof buildGitHubExecutionPayload>
     | ReturnType<typeof buildVercelRedeployExecutionPayload>
-    | ReturnType<typeof buildVercelRollbackExecutionPayload>;
-  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight;
+    | ReturnType<typeof buildVercelRollbackExecutionPayload>
+    | ReturnType<typeof buildVercelPromoteExecutionPayload>;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelPromotePreflight | VercelRollbackPreflight;
   target: ReturnType<typeof resolveActuationTarget>;
   latestExecution: ExternalActionExecutionRecord;
   idempotencyKey: string;

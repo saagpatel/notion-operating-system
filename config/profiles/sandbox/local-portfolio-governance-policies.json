@@ -141,6 +141,21 @@
         "Manual"
       ],
       "notes": "Phase 9C pilots one bounded Vercel rollback lane on evolutionsandbox using a pinned previous production deployment."
+    },
+    {
+      "actionKey": "vercel.promote",
+      "provider": "Vercel",
+      "mutationClass": "Deployment Control",
+      "executionMode": "Approved Live",
+      "identityType": "Team Token",
+      "approvalRule": "Single Approval",
+      "dryRunRequired": true,
+      "rollbackRequired": false,
+      "defaultExpiryHours": 12,
+      "allowedSources": [
+        "Manual"
+      ],
+      "notes": "Phase 9D pilots one bounded Vercel promote lane on evolutionsandbox to undo the active rollback using a pinned deployment target."
     }
   ]
 }
