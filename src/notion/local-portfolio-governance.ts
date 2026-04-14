@@ -328,7 +328,7 @@ export function ensurePhase6GovernanceState(
       read: "No Write",
       comment: "Single Approval",
       issue: "Single Approval",
-      deploymentControl: "Dual Approval",
+      deploymentControl: "Single Approval",
     },
     envRefs: config.phase6Governance?.envRefs ?? {
       githubAppId: "GITHUB_APP_ID",
