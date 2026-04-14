@@ -1,6 +1,6 @@
 # Notion Phase Memory
 
-Updated: 2026-04-13
+Updated: 2026-04-14
 
 ## Phase 1
 - Objective: Build the project control tower and the durable roadmap memory layer.
@@ -36,6 +36,8 @@ Updated: 2026-04-13
 
 ## Phase 9
 - Objective: Expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is trusted.
-- Current status: Phase 9A is now proven. The repo has truthful Vercel readiness checks, one explicit `evolutionsandbox` pilot target, real Vercel dry-sync coverage, and one successful governed `vercel.redeploy` live pilot with confirmed reconciliation.
-- Next-phase brief: Phase 9B should stay narrow. Choose exactly one of these next: widen `vercel.redeploy` to a small allowlist of additional projects, or design separate `vercel.promote` and `vercel.rollback` action families as distinct follow-on lanes. Do not combine rollout widening and new deployment-control verbs in the same phase.
-- Current recommended widening set: `premise-debate`, `neural-network-playground`, and `sovereign-sim`, after each project is explicitly mapped into the Local Portfolio operating model.
+- Current status: Phase 9A and Phase 9B are now proven. The repo has truthful Vercel readiness checks, one explicit pilot target, and a completed small-allowlist `vercel.redeploy` rollout across `premise-debate`, `neural-network-playground`, and `sovereign-sim`, each with confirmed reconciliation and provider-side `READY` state.
+- Next-phase brief: Phase 9C should stay narrow. Add one bounded `vercel.rollback` action family first, pilot it on one explicit project, and keep `vercel.promote` and any further rollout widening out of the same phase.
+- Supporting review artifacts:
+  - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
+  - [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
