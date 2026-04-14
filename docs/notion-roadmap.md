@@ -4,7 +4,7 @@ Updated: 2026-04-14
 
 ## Current Phase
 - Phase: 9 - Provider Expansion
-- Status: In Progress
+- Status: Core goals complete. Optional Phase 9E (selective Vercel widening) only if a real operating need arises.
 - Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices that stay as understandable as the GitHub lane.
 
 ## Baseline Metrics
@@ -175,7 +175,7 @@ Phase 9 is in its fifth bounded slice. Phase 9A proved one explicit Vercel redep
   - The deep GitHub lane stays low-noise, easy to audit, and safer than manual ad hoc mutation
 
 ### Phase 9: Provider Expansion
-- Status: In Progress
+- Status: Core goals complete
 - Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices that stay as understandable as the GitHub lane.
 - Deliverables:
   - Phase 9A completed: truthful Vercel provider readiness, one explicit `evolutionsandbox` pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy
@@ -188,8 +188,10 @@ Phase 9 is in its fifth bounded slice. Phase 9A proved one explicit Vercel redep
   - Recovery-oriented provider verbs remain bounded and provider-verified before any broader widening is attempted
 
 ## Next Phase
-Phase 9 - Provider Expansion
+Phase 9 core goals are complete. The repo is now in a maintenance and hardening posture.
 
-Do not widen Vercel recovery verbs by default. If another bounded slice is justified, treat it as **Phase 9E: selective widening of Vercel recovery coverage** and add rollback plus promote to one additional Vercel project only when a real operating need exists.
+**If further provider expansion is justified:** treat it as Phase 9E — selective widening of Vercel recovery coverage to one additional project, only when a real operating need exists. Do not widen by default.
+
+**If the next work is cleanup or docs:** no phase bump is needed. Continue on `main` under the Phase 9 umbrella.
 
 Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.
