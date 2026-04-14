@@ -118,14 +118,14 @@
       "mutationClass": "Deployment Control",
       "executionMode": "Approved Live",
       "identityType": "Team Token",
-      "approvalRule": "Dual Approval",
+      "approvalRule": "Single Approval",
       "dryRunRequired": true,
       "rollbackRequired": false,
       "defaultExpiryHours": 24,
       "allowedSources": [
         "Manual"
       ],
-      "notes": "Phase 9A enables one bounded live Vercel redeploy pilot while keeping promotion and rollback out of scope."
+      "notes": "Phase 9A enables one bounded live Vercel redeploy lane, and Phase 9B keeps approval aligned with the solo-maintainer operating model."
     },
     {
       "actionKey": "vercel.promote_or_rollback",
