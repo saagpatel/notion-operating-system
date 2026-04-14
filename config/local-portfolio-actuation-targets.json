@@ -1123,7 +1123,8 @@
       "sourceUrl": "https://vercel.com/saagars-projects-b7dca8e2/evolutionsandbox",
       "localProjectId": "342c21f1-caf0-817f-b749-ee8283d14f92",
       "allowedActions": [
-        "vercel.redeploy"
+        "vercel.redeploy",
+        "vercel.rollback"
       ],
       "defaultLabels": [],
       "supportsIssueCreate": false,

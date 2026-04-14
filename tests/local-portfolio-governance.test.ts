@@ -35,6 +35,8 @@ describe("local portfolio governance", () => {
     const views = parseLocalPortfolioGovernanceViewPlan(viewsRaw);
 
     expect(policies.policies).toHaveLength(8);
+    expect(policies.policies.find((policy) => policy.actionKey === "vercel.rollback")?.executionMode).toBe("Approved Live");
+    expect(policies.policies.find((policy) => policy.actionKey === "vercel.promote_or_rollback")).toBeUndefined();
     expect(providers.providers).toHaveLength(2);
     expect(views.collections).toHaveLength(5);
   });

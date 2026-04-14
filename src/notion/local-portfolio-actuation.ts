@@ -25,7 +25,8 @@ export type ActuationActionKey =
   | "github.set_issue_assignees"
   | "github.add_issue_comment"
   | "github.comment_pull_request"
-  | "vercel.redeploy";
+  | "vercel.redeploy"
+  | "vercel.rollback";
 
 export const SUPPORTED_GITHUB_ACTION_KEYS: ActuationActionKey[] = [
   "github.create_issue",
@@ -36,7 +37,7 @@ export const SUPPORTED_GITHUB_ACTION_KEYS: ActuationActionKey[] = [
   "github.comment_pull_request",
 ];
 
-export const SUPPORTED_VERCEL_ACTION_KEYS: ActuationActionKey[] = ["vercel.redeploy"];
+export const SUPPORTED_VERCEL_ACTION_KEYS: ActuationActionKey[] = ["vercel.redeploy", "vercel.rollback"];
 export const SUPPORTED_ACTION_KEYS: ActuationActionKey[] = [
   ...SUPPORTED_GITHUB_ACTION_KEYS,
   ...SUPPORTED_VERCEL_ACTION_KEYS,
@@ -225,6 +226,23 @@ export interface VercelRedeployExecutionPayload {
   deploymentReadyState: string;
 }
 
+export interface VercelRollbackExecutionPayload {
+  provider: "Vercel";
+  actionKey: "vercel.rollback";
+  projectId: string;
+  projectName: string;
+  teamId?: string;
+  teamSlug?: string;
+  scopeType: VercelScopeType;
+  targetEnvironment: VercelTargetEnvironment;
+  currentDeploymentId: string;
+  currentDeploymentUrl: string;
+  rollbackDeploymentId: string;
+  rollbackDeploymentUrl: string;
+  rollbackDeploymentReadyState: string;
+  rollbackDescription: string;
+}
+
 export interface GitHubIssueSnapshot {
   issueNumber: number;
   title: string;
@@ -255,6 +273,9 @@ export interface VercelDeploymentSnapshot {
   readyState: string;
   environment: VercelTargetEnvironment;
   createdAt: string;
+  aliasAssigned?: boolean;
+  readySubstate?: string;
+  rollbackCandidate?: boolean;
 }
 
 export interface VercelRedeployPreflight {
@@ -262,6 +283,14 @@ export interface VercelRedeployPreflight {
   targetEnvironment: VercelTargetEnvironment;
   providerExercised: boolean;
   noRedeployCandidate: boolean;
+}
+
+export interface VercelRollbackPreflight {
+  currentDeployment?: VercelDeploymentSnapshot;
+  rollbackCandidate?: VercelDeploymentSnapshot;
+  targetEnvironment: VercelTargetEnvironment;
+  providerExercised: boolean;
+  noRollbackCandidate: boolean;
 }
 
 export type GitHubResponseClassification =
@@ -881,12 +910,91 @@ export function buildVercelRedeployExecutionPayload(input: {
   };
 }
 
+export function formatVercelRollbackRequestKey(input: {
+  projectId: string;
+  deploymentId: string;
+}): string {
+  return `vercel.rollback:${input.projectId}:${input.deploymentId}`;
+}
+
+export function parseVercelRollbackRequestKey(value: string): {
+  projectId: string;
+  deploymentId: string;
+} | null {
+  const match = value.trim().match(/^vercel\.rollback:([^:]+):([^:]+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    projectId: match[1]!,
+    deploymentId: match[2]!,
+  };
+}
+
+export function buildVercelRollbackExecutionPayload(input: {
+  request: ActionRequestRecord;
+  target: ResolvedActuationTarget;
+  preflight?: VercelRollbackPreflight;
+}): VercelRollbackExecutionPayload {
+  if (
+    input.target.provider !== "Vercel" ||
+    !input.target.projectId ||
+    !input.target.projectName ||
+    !input.target.environment ||
+    !input.target.scopeType
+  ) {
+    throw new AppError(`Action request "${input.request.title}" is not resolved to a Vercel target.`);
+  }
+  if (input.target.scopeType === "Team" && (!input.target.teamId || !input.target.teamSlug)) {
+    throw new AppError(`Action request "${input.request.title}" is missing required Vercel team scope.`);
+  }
+  const currentDeployment = input.preflight?.currentDeployment;
+  const rollbackCandidate = input.preflight?.rollbackCandidate;
+  if (!currentDeployment || !rollbackCandidate) {
+    throw new AppError(`Validation Failure: no eligible Vercel rollback candidate is available for ${input.target.projectName}.`);
+  }
+  if (currentDeployment.projectId !== input.target.projectId || rollbackCandidate.projectId !== input.target.projectId) {
+    throw new AppError("Validation Failure: Vercel rollback preflight resolved a deployment for the wrong project.");
+  }
+  if (currentDeployment.environment !== input.target.environment || rollbackCandidate.environment !== input.target.environment) {
+    throw new AppError("Validation Failure: Vercel rollback preflight resolved the wrong deployment environment.");
+  }
+  if (currentDeployment.deploymentId === rollbackCandidate.deploymentId) {
+    throw new AppError("Validation Failure: Vercel rollback candidate matches the current production deployment.");
+  }
+  const pinnedTarget = parseVercelRollbackRequestKey(input.request.providerRequestKey);
+  if (pinnedTarget) {
+    if (
+      pinnedTarget.projectId !== input.target.projectId ||
+      pinnedTarget.deploymentId !== rollbackCandidate.deploymentId
+    ) {
+      throw new AppError("Validation Failure: Vercel rollback target no longer matches the approved dry-run candidate.");
+    }
+  }
+  return {
+    provider: "Vercel",
+    actionKey: "vercel.rollback",
+    projectId: input.target.projectId,
+    projectName: input.target.projectName,
+    teamId: input.target.teamId,
+    teamSlug: input.target.teamSlug,
+    scopeType: input.target.scopeType ?? "Team",
+    targetEnvironment: input.target.environment,
+    currentDeploymentId: currentDeployment.deploymentId,
+    currentDeploymentUrl: currentDeployment.deploymentUrl,
+    rollbackDeploymentId: rollbackCandidate.deploymentId,
+    rollbackDeploymentUrl: rollbackCandidate.deploymentUrl,
+    rollbackDeploymentReadyState: rollbackCandidate.readyState,
+    rollbackDescription: `Action request ${input.request.id}`,
+  };
+}
+
 export function computeActuationExecutionKey(input: {
   requestId: string;
   actionKey: string;
   targetSourceId: string;
   mode: ActuationMode;
-  payload: GitHubExecutionPayload | VercelRedeployExecutionPayload;
+  payload: GitHubExecutionPayload | VercelRedeployExecutionPayload | VercelRollbackExecutionPayload;
 }): string {
   const normalized =
     input.payload.provider === "GitHub"
@@ -904,19 +1012,34 @@ export function computeActuationExecutionKey(input: {
           labels: [...input.payload.labels].sort(),
           assignees: [...input.payload.assignees].sort(),
         })
-      : JSON.stringify({
-          requestId: input.requestId,
-          actionKey: input.actionKey,
-          targetSourceId: input.targetSourceId,
-          mode: input.mode,
-          provider: input.payload.provider,
-          projectId: input.payload.projectId,
-          teamId: input.payload.teamId ?? null,
-          teamSlug: input.payload.teamSlug ?? null,
-          targetEnvironment: input.payload.targetEnvironment,
-          deploymentId: input.payload.deploymentId,
-          deploymentReadyState: input.payload.deploymentReadyState,
-        });
+      : input.payload.actionKey === "vercel.redeploy"
+        ? JSON.stringify({
+            requestId: input.requestId,
+            actionKey: input.actionKey,
+            targetSourceId: input.targetSourceId,
+            mode: input.mode,
+            provider: input.payload.provider,
+            projectId: input.payload.projectId,
+            teamId: input.payload.teamId ?? null,
+            teamSlug: input.payload.teamSlug ?? null,
+            targetEnvironment: input.payload.targetEnvironment,
+            deploymentId: input.payload.deploymentId,
+            deploymentReadyState: input.payload.deploymentReadyState,
+          })
+        : JSON.stringify({
+            requestId: input.requestId,
+            actionKey: input.actionKey,
+            targetSourceId: input.targetSourceId,
+            mode: input.mode,
+            provider: input.payload.provider,
+            projectId: input.payload.projectId,
+            teamId: input.payload.teamId ?? null,
+            teamSlug: input.payload.teamSlug ?? null,
+            targetEnvironment: input.payload.targetEnvironment,
+            currentDeploymentId: input.payload.currentDeploymentId,
+            rollbackDeploymentId: input.payload.rollbackDeploymentId,
+            rollbackDeploymentReadyState: input.payload.rollbackDeploymentReadyState,
+          });
   return createHash("sha256").update(normalized).digest("hex");
 }
 
@@ -1076,6 +1199,28 @@ export function describeVercelRedeployPreflight(preflight?: VercelRedeployPrefli
   return notes;
 }
 
+export function describeVercelRollbackPreflight(preflight?: VercelRollbackPreflight): string[] {
+  if (!preflight) {
+    return [];
+  }
+  const notes: string[] = [];
+  if (!preflight.providerExercised) {
+    notes.push("Vercel was not exercised during preflight.");
+    return notes;
+  }
+  if (preflight.currentDeployment) {
+    notes.push(`Current production deployment: ${preflight.currentDeployment.deploymentId}.`);
+  }
+  if (preflight.rollbackCandidate) {
+    notes.push(`Pinned rollback candidate: ${preflight.rollbackCandidate.deploymentId}.`);
+    notes.push(`Candidate ready state: ${preflight.rollbackCandidate.readyState}.`);
+  }
+  if (preflight.noRollbackCandidate) {
+    notes.push("No previous eligible production deployment is available to roll back to.");
+  }
+  return notes;
+}
+
 export function summarizeGitHubLabelDelta(input: {
   payload: GitHubExecutionPayload;
   preflight?: GitHubActionPreflight;
@@ -1127,43 +1272,72 @@ export function summarizeGitHubAssigneeDelta(input: {
 
 export function renderActuationPacketSection(input: {
   request: ActionRequestRecord;
-  payload: GitHubExecutionPayload | VercelRedeployExecutionPayload | null;
+  payload: GitHubExecutionPayload | VercelRedeployExecutionPayload | VercelRollbackExecutionPayload | null;
   target: ResolvedActuationTarget | null;
-  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight;
   latestExecution?: ExternalActionExecutionRecord;
   validationNotes: string[];
   idempotencyKey?: string;
 }): string {
   if (input.payload?.provider === "Vercel" || input.target?.provider === "Vercel") {
     const payload = input.payload?.provider === "Vercel" ? input.payload : null;
-    const preflight = input.preflight as VercelRedeployPreflight | undefined;
-    const latestDeployment = preflight?.latestDeployment;
-    const preflightNotes = describeVercelRedeployPreflight(preflight);
+    const isRollback = payload?.actionKey === "vercel.rollback" || input.request.providerRequestKey.startsWith("vercel.rollback:");
+    const rollbackPreflight = isRollback ? (input.preflight as VercelRollbackPreflight | undefined) : undefined;
+    const redeployPreflight = !isRollback ? (input.preflight as VercelRedeployPreflight | undefined) : undefined;
+    const latestDeployment = redeployPreflight?.latestDeployment;
+    const currentDeployment = rollbackPreflight?.currentDeployment;
+    const rollbackCandidate = rollbackPreflight?.rollbackCandidate;
+    const preflightNotes = isRollback
+      ? describeVercelRollbackPreflight(rollbackPreflight)
+      : describeVercelRedeployPreflight(redeployPreflight);
     return [
       "<!-- codex:notion-actuation-packet:start -->",
       "## Vercel Operator Packet",
       "",
-      `- Action family: ${payload?.actionKey || "vercel.redeploy"}`,
+      `- Action family: ${payload?.actionKey || (isRollback ? "vercel.rollback" : "vercel.redeploy")}`,
       `- Execution intent: ${input.request.executionIntent || "Dry Run"}`,
       `- Target source: ${input.target ? `[${input.target.source.title}](${input.target.source.url})` : "Not resolved"}`,
       `- Vercel project: ${payload?.projectName || input.target?.projectName || "Not resolved"}`,
       `- Project id: ${payload?.projectId || input.target?.projectId || "Not resolved"}`,
       `- Team scope: ${payload?.teamSlug || input.target?.teamSlug || payload?.teamId || input.target?.teamId || "Personal"}`,
       `- Target environment: ${payload?.targetEnvironment || input.target?.environment || "Not resolved"}`,
+      `- Provider request key: ${input.request.providerRequestKey || "Not pinned yet"}`,
       `- Idempotency key: ${input.idempotencyKey || "Not computed yet"}`,
       `- Latest execution: ${input.latestExecution ? `[${input.latestExecution.title}](${input.latestExecution.url}) - ${input.latestExecution.mode} / ${input.latestExecution.status}` : "None yet"}`,
       `- Latest response classification: ${input.latestExecution?.responseClassification || "Not classified yet"}`,
       `- Reconcile status: ${input.latestExecution?.reconcileStatus || "Not Needed"}`,
       "",
-      "### Redeploy Basis",
-      ...(latestDeployment
+      ...(isRollback
         ? [
-            `- Deployment id: ${latestDeployment.deploymentId}`,
-            `- Deployment url: ${latestDeployment.deploymentUrl}`,
-            `- Ready state: ${latestDeployment.readyState}`,
-            `- Created at: ${latestDeployment.createdAt}`,
+            "### Rollback Targeting",
+            ...(currentDeployment
+              ? [
+                  `- Current production deployment id: ${currentDeployment.deploymentId}`,
+                  `- Current production deployment url: ${currentDeployment.deploymentUrl}`,
+                  `- Current deployment created at: ${currentDeployment.createdAt}`,
+                ]
+              : ["- Current production deployment is not resolved yet."]),
+            ...(rollbackCandidate
+              ? [
+                  `- Rollback candidate deployment id: ${rollbackCandidate.deploymentId}`,
+                  `- Rollback candidate deployment url: ${rollbackCandidate.deploymentUrl}`,
+                  `- Rollback candidate created at: ${rollbackCandidate.createdAt}`,
+                ]
+              : ["- No previous eligible production deployment is available yet."]),
+            "",
           ]
-        : ["- No existing deployment is available to redeploy yet."]),
+        : [
+            "### Redeploy Basis",
+            ...(latestDeployment
+              ? [
+                  `- Deployment id: ${latestDeployment.deploymentId}`,
+                  `- Deployment url: ${latestDeployment.deploymentUrl}`,
+                  `- Ready state: ${latestDeployment.readyState}`,
+                  `- Created at: ${latestDeployment.createdAt}`,
+                ]
+              : ["- No existing deployment is available to redeploy yet."]),
+            "",
+          ]),
       "",
       "### Vercel Preflight",
       ...(preflightNotes.length > 0 ? preflightNotes.map((note) => `- ${note}`) : ["- Preflight data will appear once Vercel state can be resolved."]),
@@ -1172,12 +1346,19 @@ export function renderActuationPacketSection(input: {
       ...(input.validationNotes.length > 0 ? input.validationNotes.map((note) => `- ${note}`) : ["- Ready for dry run."]),
       "",
       "### Compensation Posture",
-      "- If the redeploy is wrong, stop widening scope and use a fresh explicit request rather than hidden retries.",
-      "- Promotion and rollback stay out of scope in Phase 9A.",
+      ...(isRollback
+        ? [
+            "- If rollback verification is ambiguous, treat the request as compensation-needed and stop the pilot.",
+            "- Rollback leaves production auto-assignment disabled until a later explicit promote or undo step.",
+          ]
+        : [
+            "- If the redeploy is wrong, stop widening scope and use a fresh explicit request rather than hidden retries.",
+            "- Promotion and rollback stay out of scope in this redeploy lane.",
+          ]),
       "",
       "### Webhook Recovery",
       "- Treat Vercel webhooks as evidence only in this phase.",
-      "- Use direct provider reads to confirm the deployment state after any live redeploy.",
+      `- Use direct provider reads to confirm the ${isRollback ? "rolled-back production target" : "deployment state"} after any live Vercel action.`,
       "<!-- codex:notion-actuation-packet:end -->",
     ].join("\n");
   }
@@ -1270,7 +1451,7 @@ export function renderActuationCommandCenterSection(input: {
     `- Approved for live: ${readyForLive.length}`,
     `- Recent live successes: ${recentSuccesses.length}`,
     `- Failures or compensation-needed: ${failures.length}`,
-    "- Current safety posture: GitHub stays additive-only, Vercel stays single-project and redeploy-only, and all writes stay serial.",
+    "- Current safety posture: GitHub stays additive-only, Vercel writes stay serial, and rollback is only allowlisted for evolutionsandbox.",
     "- If webhook delivery fails, recover through provider delivery history and then drain/reconcile locally.",
     "",
     "### Ready for Live",
@@ -1320,7 +1501,10 @@ export function buildGitHubCompensationPlan(actionKey: ActuationActionKey): stri
   return "If the live issue change is wrong, use fix-forward and/or a manual-close follow-up plan rather than delete in v1.";
 }
 
-export function buildVercelCompensationPlan(): string {
+export function buildVercelCompensationPlan(actionKey: Extract<ActuationActionKey, "vercel.redeploy" | "vercel.rollback"> = "vercel.redeploy"): string {
+  if (actionKey === "vercel.rollback") {
+    return "If rollback verification is ambiguous, pause immediately, confirm which deployment currently owns production, and use an explicit follow-up request rather than silent retries.";
+  }
   return "If the redeploy is wrong, pause further live requests, verify the resulting deployment state, and use a fresh explicit follow-up request rather than hidden retries.";
 }
 
@@ -1331,7 +1515,7 @@ export function evaluateActionRequestReadiness(input: {
   config: LocalPortfolioControlTowerConfig;
   latestDryRun?: ExternalActionExecutionRecord;
   actionKey: ActuationActionKey;
-  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight;
   today: string;
 }): string[] {
   const notes: string[] = [];
@@ -1422,8 +1606,31 @@ export function evaluateActionRequestReadiness(input: {
       notes.push("No existing Vercel deployment is available to redeploy.");
     }
   }
+  if (input.actionKey === "vercel.rollback") {
+    const preflight = input.preflight as VercelRollbackPreflight | undefined;
+    if (!preflight?.providerExercised) {
+      notes.push("Vercel rollback preflight did not exercise the provider.");
+    }
+    if (preflight?.noRollbackCandidate) {
+      notes.push("No previous eligible production deployment is available to roll back to.");
+    }
+    if (input.request.executionIntent === "Ready for Live") {
+      const pinnedTarget = parseVercelRollbackRequestKey(input.request.providerRequestKey);
+      if (!pinnedTarget) {
+        notes.push("Provider request key is missing the pinned Vercel rollback target.");
+      } else if (
+        input.target?.projectId &&
+        (pinnedTarget.projectId !== input.target.projectId ||
+          pinnedTarget.deploymentId !== preflight?.rollbackCandidate?.deploymentId)
+      ) {
+        notes.push("Pinned Vercel rollback target no longer matches the current rollback candidate.");
+      }
+    }
+  }
   if (!input.target) {
-    notes.push(input.actionKey === "vercel.redeploy" ? "Target Vercel source is not resolved." : "Target GitHub source is not resolved.");
+    notes.push(
+      input.actionKey.startsWith("vercel.") ? "Target Vercel source is not resolved." : "Target GitHub source is not resolved.",
+    );
   }
   if (
     phase7.liveGating.requireFreshDryRunBeforeLive &&
@@ -1438,7 +1645,7 @@ export function evaluateActionRequestReadiness(input: {
     notes.push("Linked policy is not live-capable yet.");
   }
   if (input.request.executionIntent === "Ready for Live") {
-    if (input.actionKey === "vercel.redeploy") {
+    if (input.actionKey === "vercel.redeploy" || input.actionKey === "vercel.rollback") {
       const missingCredentials = missingVercelLiveCredentials();
       if (missingCredentials.length > 0) {
         notes.push(`Live Vercel credentials are missing: ${missingCredentials.join(", ")}.`);
@@ -1461,20 +1668,35 @@ export function computePostDryRunReadiness(input: {
   actionKey: ActuationActionKey;
   executedAt: string;
   preflightNotes: string[];
-  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
-}): { executionIntent: ActionRequestRecord["executionIntent"]; notes: string[]; latestExecutionStatus: ActionRequestRecord["latestExecutionStatus"] } {
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight;
+}): {
+  executionIntent: ActionRequestRecord["executionIntent"];
+  notes: string[];
+  latestExecutionStatus: ActionRequestRecord["latestExecutionStatus"];
+  providerRequestKey: string;
+} {
   if (input.preflightNotes.length > 0) {
     return {
       executionIntent: "Dry Run",
       notes: input.preflightNotes,
       latestExecutionStatus: "Problem",
+      providerRequestKey: input.request.providerRequestKey,
     };
   }
+
+  const rollbackPinnedKey =
+    input.actionKey === "vercel.rollback"
+      ? formatVercelRollbackRequestKey({
+          projectId: input.target?.projectId ?? "",
+          deploymentId: (input.preflight as VercelRollbackPreflight | undefined)?.rollbackCandidate?.deploymentId ?? "",
+        })
+      : input.request.providerRequestKey;
 
   const liveNotes = evaluateActionRequestReadiness({
     request: {
       ...input.request,
       executionIntent: "Ready for Live",
+      providerRequestKey: rollbackPinnedKey,
     },
     policies: input.policies,
     target: input.target,
@@ -1487,7 +1709,7 @@ export function computePostDryRunReadiness(input: {
       localProjectIds: input.request.localProjectIds,
       policyIds: input.request.policyIds,
       targetSourceIds: input.target ? [input.target.source.id] : [],
-      provider: input.actionKey === "vercel.redeploy" ? "Vercel" : "GitHub",
+      provider: input.actionKey.startsWith("vercel.") ? "Vercel" : "GitHub",
       actionKey: input.actionKey,
       mode: "Dry Run",
       status: "Succeeded",
@@ -1515,13 +1737,16 @@ export function computePostDryRunReadiness(input: {
       executionIntent: "Dry Run",
       notes: [`Dry run passed, but live execution is still blocked: ${liveNotes.join(" ")}`],
       latestExecutionStatus: "Problem",
+      providerRequestKey: rollbackPinnedKey,
     };
   }
 
   const preflightNotes =
     input.actionKey === "vercel.redeploy"
       ? describeVercelRedeployPreflight(input.preflight as VercelRedeployPreflight | undefined)
-      : describeGitHubActionPreflight({
+      : input.actionKey === "vercel.rollback"
+        ? describeVercelRollbackPreflight(input.preflight as VercelRollbackPreflight | undefined)
+        : describeGitHubActionPreflight({
           actionKey: input.actionKey,
           preflight: input.preflight as GitHubActionPreflight | undefined,
         });
@@ -1533,6 +1758,7 @@ export function computePostDryRunReadiness(input: {
         ? [`Dry run passed and is ready for live execution. ${preflightNotes.join(" ")}`]
         : ["Dry run passed and is ready for live execution."],
     latestExecutionStatus: "Dry Run Passed",
+    providerRequestKey: rollbackPinnedKey,
   };
 }
 
@@ -1911,27 +2137,15 @@ export async function fetchVercelRedeployPreflight(input: {
     return undefined;
   }
 
-  const response = await fetch(
-    buildVercelApiUrl("/v6/deployments", {
-      projectId: input.target.projectId,
-      limit: "1",
-      target: input.target.environment.toLowerCase(),
-      teamId: input.target.teamId,
-      slug: input.target.teamSlug,
-    }),
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-        "User-Agent": "notion-portfolio-actuation",
-      },
-    },
-  );
-  const body = (await response.json()) as { deployments?: Array<Record<string, unknown>>; error?: { message?: string }; message?: string } | Array<Record<string, unknown>>;
-  if (!response.ok) {
-    throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
-  }
-  const deployments = Array.isArray(body) ? body : Array.isArray(body.deployments) ? body.deployments : [];
+  const deployments = await fetchVercelDeployments({
+    token,
+    projectId: input.target.projectId,
+    environment: input.target.environment,
+    limit: 1,
+    state: "READY",
+    teamId: input.target.teamId,
+    teamSlug: input.target.teamSlug,
+  });
   const latest = deployments[0];
   if (!latest) {
     return {
@@ -1952,7 +2166,60 @@ export async function fetchVercelRedeployPreflight(input: {
       readyState: String(latest.readyState ?? latest.state ?? latest.status ?? "unknown"),
       environment: String(latest.target ?? "production").toLowerCase().includes("preview") ? "Preview" : "Production",
       createdAt: formatVercelTimestamp(latest.createdAt ?? latest.created ?? new Date().toISOString()),
+      aliasAssigned: readVercelAliasAssigned(latest),
     },
+  };
+}
+
+export async function fetchVercelRollbackPreflight(input: {
+  target: ResolvedActuationTarget;
+}): Promise<VercelRollbackPreflight | undefined> {
+  if (input.target.provider !== "Vercel" || !input.target.projectId || !input.target.environment) {
+    return undefined;
+  }
+  const token = process.env.VERCEL_TOKEN?.trim();
+  if (!token) {
+    return undefined;
+  }
+
+  const deployments = await fetchVercelDeployments({
+    token,
+    projectId: input.target.projectId,
+    environment: input.target.environment,
+    limit: 20,
+    state: "READY",
+    teamId: input.target.teamId,
+    teamSlug: input.target.teamSlug,
+  });
+  const snapshots = deployments
+    .map((deployment) => toVercelDeploymentSnapshot(deployment, input.target.projectId!, input.target.environment!))
+    .filter((deployment) => deployment.readyState.toUpperCase() === "READY");
+  const currentDeployment = selectCurrentVercelProductionDeployment(snapshots);
+  const eligibleRollbackDeployments = await fetchVercelDeployments({
+    token,
+    projectId: input.target.projectId,
+    environment: input.target.environment,
+    limit: 20,
+    state: "READY",
+    rollbackCandidate: true,
+    teamId: input.target.teamId,
+    teamSlug: input.target.teamSlug,
+  });
+  const rollbackSnapshots = eligibleRollbackDeployments
+    .map((deployment) => toVercelDeploymentSnapshot(deployment, input.target.projectId!, input.target.environment!))
+    .filter((deployment) => deployment.readyState.toUpperCase() === "READY");
+  const rollbackCandidate = selectVercelRollbackCandidate({
+    currentDeployment,
+    rollbackSnapshots,
+    fallbackSnapshots: snapshots,
+  });
+
+  return {
+    targetEnvironment: input.target.environment,
+    providerExercised: true,
+    noRollbackCandidate: !rollbackCandidate,
+    currentDeployment,
+    rollbackCandidate,
   };
 }
 
@@ -1984,7 +2251,10 @@ export async function executeVercelRedeploy(input: {
       }),
     },
   );
-  const body = (await response.json()) as Record<string, unknown> & { error?: { message?: string }; message?: string };
+  const body = (await readVercelJsonResponse(response)) as Record<string, unknown> & {
+    error?: { message?: string };
+    message?: string;
+  };
   if (!response.ok) {
     throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
   }
@@ -2027,6 +2297,88 @@ export async function executeVercelRedeploy(input: {
     responseClassification: "Success",
     reconcileStatus,
     responseSummary: `Triggered Vercel redeploy for ${input.payload.projectName}${deploymentId ? ` via deployment ${deploymentId}` : ""}.`,
+  };
+}
+
+export async function executeVercelRollback(input: {
+  payload: VercelRollbackExecutionPayload;
+}): Promise<GitHubExecutionResult> {
+  const token = process.env.VERCEL_TOKEN?.trim();
+  if (!token) {
+    throw new AppError("Auth Failure: Missing VERCEL_TOKEN");
+  }
+
+  const response = await fetch(
+    buildVercelApiUrl(
+      `/v1/projects/${encodeURIComponent(input.payload.projectId)}/rollback/${encodeURIComponent(input.payload.rollbackDeploymentId)}`,
+      {
+        teamId: input.payload.teamId,
+        slug: input.payload.teamSlug,
+      },
+    ),
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "User-Agent": "notion-portfolio-actuation",
+      },
+    },
+  );
+  const body = (await readVercelJsonResponse(response)) as Record<string, unknown> & {
+    error?: { message?: string };
+    message?: string;
+  };
+  if (!response.ok) {
+    throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
+  }
+  await updateVercelRollbackDescription({
+    projectId: input.payload.projectId,
+    deploymentId: input.payload.rollbackDeploymentId,
+    description: input.payload.rollbackDescription,
+    teamId: input.payload.teamId,
+    teamSlug: input.payload.teamSlug,
+    token,
+  });
+
+  const verification = await verifyVercelRollback({
+    projectId: input.payload.projectId,
+    rollbackDeploymentId: input.payload.rollbackDeploymentId,
+    environment: input.payload.targetEnvironment,
+    teamId: input.payload.teamId,
+    teamSlug: input.payload.teamSlug,
+    token,
+  });
+  const providerResultKey = formatVercelRollbackRequestKey({
+    projectId: input.payload.projectId,
+    deploymentId: input.payload.rollbackDeploymentId,
+  });
+  if (!verification.confirmed) {
+    return {
+      executionStatus: "Compensation Needed",
+      providerResultKey,
+      providerUrl: verification.providerUrl || input.payload.rollbackDeploymentUrl,
+      issueNumber: 0,
+      commentId: "",
+      labelDeltaSummary: "",
+      assigneeDeltaSummary: "",
+      responseClassification: "Verification Failure",
+      reconcileStatus: "Mismatch",
+      responseSummary: `Triggered Vercel rollback for ${input.payload.projectName}, but production could not be confirmed on the pinned rollback target.`,
+    };
+  }
+
+  return {
+    executionStatus: "Succeeded",
+    providerResultKey,
+    providerUrl: verification.providerUrl || input.payload.rollbackDeploymentUrl,
+    issueNumber: 0,
+    commentId: "",
+    labelDeltaSummary: "",
+    assigneeDeltaSummary: "",
+    responseClassification: "Success",
+    reconcileStatus: "Confirmed",
+    responseSummary: `Rolled back ${input.payload.projectName} to deployment ${input.payload.rollbackDeploymentId}.`,
   };
 }
 
@@ -2185,6 +2537,51 @@ function throwVercelExecutionFailure(status: number, message?: string): never {
   throw new AppError(`${classification}: ${message ?? "Unknown Vercel error"}`);
 }
 
+async function fetchVercelDeployments(input: {
+  token: string;
+  projectId: string;
+  environment: VercelTargetEnvironment;
+  limit: number;
+  state?: string;
+  rollbackCandidate?: boolean;
+  teamId?: string;
+  teamSlug?: string;
+}): Promise<Array<Record<string, unknown>>> {
+  const response = await fetch(
+    buildVercelApiUrl("/v6/deployments", {
+      projectId: input.projectId,
+      limit: String(input.limit),
+      target: input.environment.toLowerCase(),
+      state: input.state,
+      rollbackCandidate: input.rollbackCandidate === undefined ? undefined : String(input.rollbackCandidate),
+      teamId: input.teamId,
+      slug: input.teamSlug,
+    }),
+    {
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        Accept: "application/json",
+        "User-Agent": "notion-portfolio-actuation",
+      },
+    },
+  );
+  const body = (await readVercelJsonResponse(response)) as
+    | { deployments?: Array<Record<string, unknown>>; error?: { message?: string }; message?: string }
+    | Array<Record<string, unknown>>;
+  if (!response.ok) {
+    throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
+  }
+  return Array.isArray(body) ? body : Array.isArray(body.deployments) ? body.deployments : [];
+}
+
+async function readVercelJsonResponse(response: Response): Promise<unknown> {
+  const raw = await response.text();
+  if (!raw.trim()) {
+    return {};
+  }
+  return JSON.parse(raw) as unknown;
+}
+
 function normalizeVercelDeploymentUrl(value: unknown): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     return "";
@@ -2200,6 +2597,78 @@ function formatVercelTimestamp(value: unknown): string {
     return value;
   }
   return new Date().toISOString();
+}
+
+function readVercelAliasAssigned(value: Record<string, unknown>): boolean {
+  if (value.aliasAssigned === true) {
+    return true;
+  }
+  if (typeof value.aliasAssigned === "number") {
+    return value.aliasAssigned > 0;
+  }
+  if (Array.isArray(value.aliases) && value.aliases.length > 0) {
+    return true;
+  }
+  if (Array.isArray(value.alias) && value.alias.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+function toVercelDeploymentSnapshot(
+  deployment: Record<string, unknown>,
+  projectId: string,
+  environment: VercelTargetEnvironment,
+): VercelDeploymentSnapshot {
+  return {
+    deploymentId: String(deployment.id ?? deployment.uid ?? ""),
+    deploymentUrl: normalizeVercelDeploymentUrl(deployment.url),
+    projectId: String(deployment.projectId ?? projectId),
+    readyState: String(deployment.readyState ?? deployment.state ?? deployment.status ?? "unknown"),
+    environment:
+      String(deployment.target ?? "production").toLowerCase().includes("preview") ? "Preview" : environment,
+    createdAt: formatVercelTimestamp(deployment.createdAt ?? deployment.created ?? new Date().toISOString()),
+    aliasAssigned: readVercelAliasAssigned(deployment),
+    readySubstate: typeof deployment.readySubstate === "string" ? deployment.readySubstate : undefined,
+    rollbackCandidate: deployment.isRollbackCandidate === true,
+  };
+}
+
+function compareVercelDeploymentsByCreatedAt(left: VercelDeploymentSnapshot, right: VercelDeploymentSnapshot): number {
+  const leftTime = Date.parse(left.createdAt);
+  const rightTime = Date.parse(right.createdAt);
+  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) {
+    return right.createdAt.localeCompare(left.createdAt);
+  }
+  return rightTime - leftTime;
+}
+
+function selectCurrentVercelProductionDeployment(
+  snapshots: VercelDeploymentSnapshot[],
+): VercelDeploymentSnapshot | undefined {
+  const ordered = [...snapshots].sort(compareVercelDeploymentsByCreatedAt);
+  return (
+    ordered.find((deployment) => deployment.aliasAssigned) ??
+    ordered.find((deployment) => deployment.readySubstate?.toUpperCase() === "PROMOTED") ??
+    ordered[0]
+  );
+}
+
+function selectVercelRollbackCandidate(input: {
+  currentDeployment?: VercelDeploymentSnapshot;
+  rollbackSnapshots: VercelDeploymentSnapshot[];
+  fallbackSnapshots: VercelDeploymentSnapshot[];
+}): VercelDeploymentSnapshot | undefined {
+  const currentDeploymentId = input.currentDeployment?.deploymentId;
+  const explicitCandidates = [...input.rollbackSnapshots]
+    .sort(compareVercelDeploymentsByCreatedAt)
+    .filter((deployment) => deployment.deploymentId !== currentDeploymentId);
+  if (explicitCandidates.length > 0) {
+    return explicitCandidates[0];
+  }
+  return [...input.fallbackSnapshots]
+    .sort(compareVercelDeploymentsByCreatedAt)
+    .find((deployment) => deployment.deploymentId !== currentDeploymentId);
 }
 
 async function verifyVercelRedeploy(input: {
@@ -2221,7 +2690,10 @@ async function verifyVercelRedeploy(input: {
       },
     },
   );
-  const body = (await response.json()) as Record<string, unknown> & { error?: { message?: string }; message?: string };
+  const body = (await readVercelJsonResponse(response)) as Record<string, unknown> & {
+    error?: { message?: string };
+    message?: string;
+  };
   if (!response.ok) {
     throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
   }
@@ -2230,6 +2702,89 @@ async function verifyVercelRedeploy(input: {
     providerUrl: normalizeVercelDeploymentUrl(body.url),
     projectId: String(body.projectId ?? ""),
   };
+}
+
+async function verifyVercelRollback(input: {
+  projectId: string;
+  rollbackDeploymentId: string;
+  environment: VercelTargetEnvironment;
+  teamId?: string;
+  teamSlug?: string;
+  token: string;
+}): Promise<{ confirmed: boolean; providerUrl: string }> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const deployments = await fetchVercelDeployments({
+      token: input.token,
+      projectId: input.projectId,
+      environment: input.environment,
+      limit: 5,
+      state: "READY",
+      teamId: input.teamId,
+      teamSlug: input.teamSlug,
+    });
+    const snapshots = deployments
+      .map((deployment) => toVercelDeploymentSnapshot(deployment, input.projectId, input.environment))
+      .filter((deployment) => deployment.readyState.toUpperCase() === "READY");
+    const currentDeployment = selectCurrentVercelProductionDeployment(snapshots);
+    if (currentDeployment?.deploymentId === input.rollbackDeploymentId) {
+      return {
+        confirmed: true,
+        providerUrl: currentDeployment.deploymentUrl,
+      };
+    }
+    if (attempt < 5) {
+      await delay(2000);
+    }
+  }
+  return {
+    confirmed: false,
+    providerUrl: "",
+  };
+}
+
+async function updateVercelRollbackDescription(input: {
+  projectId: string;
+  deploymentId: string;
+  description: string;
+  teamId?: string;
+  teamSlug?: string;
+  token: string;
+}): Promise<void> {
+  if (!input.description.trim()) {
+    return;
+  }
+  const response = await fetch(
+    buildVercelApiUrl(
+      `/v1/projects/${encodeURIComponent(input.projectId)}/rollback/${encodeURIComponent(input.deploymentId)}/update-description`,
+      {
+        teamId: input.teamId,
+        slug: input.teamSlug,
+      },
+    ),
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "notion-portfolio-actuation",
+      },
+      body: JSON.stringify({
+        description: input.description.slice(0, 250),
+      }),
+    },
+  );
+  const body = (await readVercelJsonResponse(response)) as Record<string, unknown> & {
+    error?: { message?: string };
+    message?: string;
+  };
+  if (!response.ok) {
+    throwVercelExecutionFailure(response.status, resolveVercelErrorMessage(body));
+  }
+}
+
+async function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function signJwt(payload: Record<string, unknown>, privateKeyPem: string): string {
@@ -2495,7 +3050,8 @@ function requiredActionKey(value: unknown, fieldName: string): ActuationActionKe
     entry !== "github.set_issue_assignees" &&
     entry !== "github.add_issue_comment" &&
     entry !== "github.comment_pull_request" &&
-    entry !== "vercel.redeploy"
+    entry !== "vercel.redeploy" &&
+    entry !== "vercel.rollback"
   ) {
     throw new AppError(`${fieldName} contains unsupported action key "${String(value)}"`);
   }

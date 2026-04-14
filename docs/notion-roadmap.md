@@ -27,7 +27,7 @@ Updated: 2026-04-14
 
 ## Phase Transition Memory
 - Transition: Phase 8 closed into Phase 9
-- Carry-forward brief: Phase 9B is now complete. The repo widened `vercel.redeploy` across three explicit Vercel projects, kept the lane bounded and auditable, and now needs to choose the first recovery-oriented verb instead of widening further by default.
+- Carry-forward brief: Phase 9A and 9B are proven. Phase 9C now has an implemented bounded `vercel.rollback` lane for `evolutionsandbox`, with pinned-target dry runs and live verification, but the live pilot and post-pilot review are still pending.
 - Supporting artifacts:
   - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
   - [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
@@ -59,7 +59,7 @@ Phase 7 gave us controlled actuation: approved GitHub issue/comment execution, d
 Phase 8 gave us a mature GitHub action lane: issue lifecycle actions, PR comments, hardened GitHub App posture, richer operator packets, and audit-grade GitHub execution feedback loops.
 
 ### Phase 9 Now Looks Like
-Phase 9 is now in its second proven slice. Phase 9A proved one bounded Vercel pilot; Phase 9B proved that the same `vercel.redeploy` lane can widen to a very small explicit allowlist and still stay understandable, serial, and auditable.
+Phase 9 is in its third bounded slice. Phase 9A proved one explicit Vercel redeploy pilot, Phase 9B proved small-allowlist `vercel.redeploy` widening, and the repo now has an implemented but not yet provider-proven `vercel.rollback` lane for `evolutionsandbox`.
 
 ## Risks
 - Avoid adding a second overlapping status system beyond the manual fields and the three derived PM signals.
@@ -178,23 +178,15 @@ Phase 9 is now in its second proven slice. Phase 9A proved one bounded Vercel pi
 - Deliverables:
   - Phase 9A completed: truthful Vercel provider readiness, one explicit `evolutionsandbox` pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy
   - Phase 9B completed: `vercel.redeploy` widened successfully to `premise-debate`, `neural-network-playground`, and `sovereign-sim`, with truthful sync, dry-run graduation, live execution, and confirmed reconciliation for each
-  - The widening review and next recommendation are documented in [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
+  - Phase 9C implementation now exists: `vercel.rollback` is supported in policy, target resolution, dry run, actuation, and verification for `evolutionsandbox`, with pinned rollback targeting and compensation-needed handling on verification mismatch
   - Operator-facing cross-provider views and metrics that stay understandable and low-noise
 - Exit criteria:
   - Every new provider lane reuses the same approval, audit, and execution posture rather than inventing parallel systems
-  - Rollout widening and new action verbs are phased separately so expansion stays easy to understand and clearly worth the added complexity
+  - The `evolutionsandbox` rollback pilot executes once, confirms the pinned rollback target provider-side, and is documented before any wider rollback coverage or new Vercel verbs are considered
 
 ## Next Phase
 Phase 9 - Provider Expansion
 
-Phase 9C should stay deliberately narrow: design and pilot **`vercel.rollback`** as the first recovery-oriented Vercel action family.
-
-Recommended scope for Phase 9C:
-
-- one bounded rollback verb only
-- one explicit pilot target first
-- truthful provider verification before and after rollback
-- no `vercel.promote` in the same phase
-- no additional Vercel project widening until rollback trust is proven
+Complete Phase 9C operationally: run one governed live `vercel.rollback` pilot on `evolutionsandbox`, confirm the pinned deployment becomes the effective production target, and write the post-pilot review before deciding whether Vercel should get wider rollback coverage or a separate `vercel.promote` phase.
 
 Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.
