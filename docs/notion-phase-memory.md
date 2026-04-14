@@ -36,8 +36,8 @@ Updated: 2026-04-14
 
 ## Phase 9
 - Objective: Expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is trusted.
-- Current status: Phase 9A and Phase 9B are now proven. The repo has truthful Vercel readiness checks, one explicit pilot target, and a completed small-allowlist `vercel.redeploy` rollout across `premise-debate`, `neural-network-playground`, and `sovereign-sim`, each with confirmed reconciliation and provider-side `READY` state.
-- Next-phase brief: Phase 9C should stay narrow. Add one bounded `vercel.rollback` action family first, pilot it on one explicit project, and keep `vercel.promote` and any further rollout widening out of the same phase.
+- Current status: Phase 9A and Phase 9B are proven. The repo now also has an implemented bounded `vercel.rollback` lane for `evolutionsandbox`, including pinned-target dry runs, exact pin-match live gating, and compensation-needed handling when rollback verification cannot confirm production state.
+- Next-phase brief: Execute one governed live `vercel.rollback` pilot on `evolutionsandbox`, verify that the pinned previous production deployment becomes the effective production target, and then write the Phase 9C post-pilot review before deciding on wider rollback coverage or a separate `vercel.promote` phase.
 - Supporting review artifacts:
   - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
   - [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)

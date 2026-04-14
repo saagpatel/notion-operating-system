@@ -128,19 +128,19 @@
       "notes": "Phase 9A enables one bounded live Vercel redeploy lane, and Phase 9B keeps approval aligned with the solo-maintainer operating model."
     },
     {
-      "actionKey": "vercel.promote_or_rollback",
+      "actionKey": "vercel.rollback",
       "provider": "Vercel",
       "mutationClass": "Deployment Control",
-      "executionMode": "Disabled",
+      "executionMode": "Approved Live",
       "identityType": "Team Token",
-      "approvalRule": "Dual Approval",
+      "approvalRule": "Single Approval",
       "dryRunRequired": true,
-      "rollbackRequired": true,
+      "rollbackRequired": false,
       "defaultExpiryHours": 12,
       "allowedSources": [
         "Manual"
       ],
-      "notes": "Promotion or rollback paths stay disabled in Phase 6 and exist only as policy-backed future scaffolding."
+      "notes": "Phase 9C pilots one bounded Vercel rollback lane on evolutionsandbox using a pinned previous production deployment."
     }
   ]
 }

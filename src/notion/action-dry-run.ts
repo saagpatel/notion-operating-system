@@ -18,11 +18,14 @@ import {
   buildGitHubExecutionPayload,
   buildVercelCompensationPlan,
   buildVercelRedeployExecutionPayload,
+  buildVercelRollbackExecutionPayload,
   describeGitHubActionPreflight,
+  describeVercelRollbackPreflight,
   computePostDryRunReadiness,
   computeActuationExecutionKey,
   evaluateActionRequestReadiness,
   fetchVercelRedeployPreflight,
+  fetchVercelRollbackPreflight,
   fetchGitHubActionPreflight,
   loadLocalPortfolioActuationTargetConfig,
   renderActuationPacketSection,
@@ -33,6 +36,7 @@ import {
   type ActuationActionKey,
   type GitHubActionPreflight,
   type VercelRedeployPreflight,
+  type VercelRollbackPreflight,
   SUPPORTED_ACTION_KEYS,
 } from "./local-portfolio-actuation.js";
 import { toExternalActionExecutionRecord } from "./local-portfolio-actuation-live.js";
@@ -43,8 +47,12 @@ const ACTUATION_PACKET_END = "<!-- codex:notion-actuation-packet:end -->";
 
 export interface ActionDryRunPreparation {
   target: ReturnType<typeof resolveActuationTarget> | null;
-  payload: ReturnType<typeof buildGitHubExecutionPayload> | ReturnType<typeof buildVercelRedeployExecutionPayload> | null;
-  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
+  payload:
+    | ReturnType<typeof buildGitHubExecutionPayload>
+    | ReturnType<typeof buildVercelRedeployExecutionPayload>
+    | ReturnType<typeof buildVercelRollbackExecutionPayload>
+    | null;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight;
   idempotencyKey: string;
   preparationError?: string;
 }
@@ -59,6 +67,7 @@ export async function prepareActionDryRun(
   dependencies: {
     fetchPreflight: typeof fetchGitHubActionPreflight;
     fetchVercelPreflight?: typeof fetchVercelRedeployPreflight;
+    fetchVercelRollbackPreflight?: typeof fetchVercelRollbackPreflight;
   } = {
     fetchPreflight: fetchGitHubActionPreflight,
   },
@@ -73,6 +82,27 @@ export async function prepareActionDryRun(
     if (input.actionKey === "vercel.redeploy") {
       const preflight = await (dependencies.fetchVercelPreflight ?? fetchVercelRedeployPreflight)({ target });
       const payload = buildVercelRedeployExecutionPayload({
+        request: input.request,
+        target,
+        preflight,
+      });
+      const idempotencyKey = computeActuationExecutionKey({
+        requestId: input.request.id,
+        actionKey: input.actionKey,
+        targetSourceId: target.source.id,
+        mode: "Dry Run",
+        payload,
+      });
+      return {
+        target,
+        payload,
+        preflight,
+        idempotencyKey,
+      };
+    }
+    if (input.actionKey === "vercel.rollback") {
+      const preflight = await (dependencies.fetchVercelRollbackPreflight ?? fetchVercelRollbackPreflight)({ target });
+      const payload = buildVercelRollbackExecutionPayload({
         request: input.request,
         target,
         preflight,
@@ -255,7 +285,9 @@ export async function runActionDryRunCommand(
     const preflightNotes =
       payload?.provider === "GitHub" && preflight
         ? describeGitHubActionPreflight({ actionKey, preflight: preflight as GitHubActionPreflight })
-        : [];
+        : payload?.provider === "Vercel" && actionKey === "vercel.rollback"
+          ? describeVercelRollbackPreflight(preflight as VercelRollbackPreflight | undefined)
+          : [];
     const executionTitle = `Dry run - ${request.title} - ${now.slice(0, 19)}`;
     const markdown = [
       `# ${executionTitle}`,
@@ -274,11 +306,18 @@ export async function runActionDryRunCommand(
       ...(payload
         ? payload.provider === "GitHub"
           ? [`- Repo: ${payload.owner}/${payload.repo}`, `- Title: ${payload.title || "(comment only)"}`, `- Body length: ${payload.body?.length ?? 0}`]
-          : [
+          : payload.actionKey === "vercel.redeploy"
+            ? [
               `- Project: ${payload.projectName}`,
               `- Environment: ${payload.targetEnvironment}`,
               `- Deployment basis: ${payload.deploymentId}`,
             ]
+            : [
+                `- Project: ${payload.projectName}`,
+                `- Environment: ${payload.targetEnvironment}`,
+                `- Current deployment: ${payload.currentDeploymentId}`,
+                `- Rollback target: ${payload.rollbackDeploymentId}`,
+              ]
         : ["- Payload preview unavailable."]),
     ].join("\n");
 
@@ -322,7 +361,11 @@ export async function runActionDryRunCommand(
               : "Dry run succeeded.",
         ),
         "Failure Notes": richTextValue(validationNotes.join(" ")),
-        "Compensation Plan": richTextValue(payload?.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey)),
+        "Compensation Plan": richTextValue(
+          payload?.provider === "Vercel"
+            ? buildVercelCompensationPlan(payload.actionKey)
+            : buildGitHubCompensationPlan(actionKey),
+        ),
       },
     });
 
@@ -332,6 +375,7 @@ export async function runActionDryRunCommand(
         "Latest Execution": relationValue([created.id]),
         "Latest Execution Status": { select: { name: postDryRun.latestExecutionStatus } },
         "Execution Intent": { select: { name: postDryRun.executionIntent } },
+        "Provider Request Key": richTextValue(postDryRun.providerRequestKey),
         "Execution Notes": richTextValue(postDryRun.notes.join(" ")),
       },
     });
@@ -342,6 +386,7 @@ export async function runActionDryRunCommand(
         ...request,
         executionIntent: postDryRun.executionIntent,
         latestExecutionStatus: postDryRun.latestExecutionStatus,
+        providerRequestKey: postDryRun.providerRequestKey,
         executionNotes: postDryRun.notes.join(" "),
       },
       payload,
@@ -380,7 +425,10 @@ export async function runActionDryRunCommand(
               ? `Dry run succeeded. ${preflightNotes.join(" ")}`
               : "Dry run succeeded.",
         failureNotes: validationNotes.join(" "),
-        compensationPlan: payload?.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey),
+        compensationPlan:
+          payload?.provider === "Vercel"
+            ? buildVercelCompensationPlan(payload.actionKey)
+            : buildGitHubCompensationPlan(actionKey),
       },
       validationNotes: postDryRun.notes,
       idempotencyKey,

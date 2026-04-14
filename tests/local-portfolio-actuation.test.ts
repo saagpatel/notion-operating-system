@@ -7,10 +7,14 @@ import {
   computeGitHubActionPreflight,
   buildGitHubExecutionPayload,
   buildVercelRedeployExecutionPayload,
+  buildVercelRollbackExecutionPayload,
   computeActuationExecutionKey,
+  computePostDryRunReadiness,
   describeGitHubActionPreflight,
   ensurePhase7ActuationState,
   evaluateActionRequestReadiness,
+  fetchVercelRollbackPreflight,
+  formatVercelRollbackRequestKey,
   parseLocalPortfolioActuationTargetConfig,
   parseLocalPortfolioActuationViewPlan,
   resolveActuationTarget,
@@ -33,6 +37,7 @@ describe("local portfolio actuation", () => {
     const views = parseLocalPortfolioActuationViewPlan(viewsRaw);
     expect(targets.defaults.allowedActions).toContain("github.create_issue");
     expect(targets.defaults.allowedActions).toContain("github.update_issue");
+    expect(targets.targets.find((target) => target.title === "evolutionsandbox")?.allowedActions).toContain("vercel.rollback");
     expect(views.collections).toHaveLength(3);
   });
 
@@ -730,6 +735,344 @@ describe("local portfolio actuation", () => {
         },
       }),
     ).toThrow("wrong project");
+  });
+
+  test("pins the rollback candidate during dry run and requires the same target for live", async () => {
+    process.env.VERCEL_TOKEN = "token";
+    const controlConfig = parseLocalPortfolioControlTowerConfig(
+      await readConfig("../config/local-portfolio-control-tower.json"),
+    );
+    const request = baseRequest({
+      title: "Rollback evolutionsandbox",
+      targetSourceIds: ["source-1"],
+      approverIds: ["approver-1"],
+    });
+    const policy: ActionPolicyRecord = {
+      id: "policy-1",
+      url: "https://notion.so/policy-1",
+      title: "vercel.rollback",
+      provider: "Vercel",
+      mutationClass: "Deployment Control",
+      executionMode: "Approved Live",
+      identityType: "Team Token",
+      approvalRule: "Single Approval",
+      dryRunRequired: true,
+      rollbackRequired: false,
+      defaultExpiryHours: 12,
+      allowedSources: ["Manual"],
+      notes: "",
+    };
+    const target = {
+      provider: "Vercel" as const,
+      source: {
+        id: "source-1",
+        url: "https://notion.so/source-1",
+        title: "evolutionsandbox",
+        localProjectIds: ["project-1"],
+        provider: "Vercel" as const,
+        sourceType: "Deployment Project" as const,
+        identifier: "prj_123",
+        sourceUrl: "https://vercel.com/team/evolutionsandbox",
+        status: "Active" as const,
+        environment: "Production" as const,
+        syncStrategy: "Poll" as const,
+        lastSyncedAt: "2026-03-17",
+        providerScopeType: "Team" as const,
+        providerScopeId: "team_123",
+        providerScopeSlug: "team-slug",
+      },
+        rule: {
+          title: "evolutionsandbox",
+          provider: "Vercel" as const,
+        sourceIdentifier: "prj_123",
+        sourceUrl: "https://vercel.com/team/evolutionsandbox",
+        localProjectId: "project-1",
+        allowedActions: ["vercel.redeploy", "vercel.rollback"] as Array<"vercel.redeploy" | "vercel.rollback">,
+        defaultLabels: [],
+        supportsIssueCreate: false,
+        supportsPrComment: false,
+        vercelProjectId: "prj_123",
+        vercelTeamId: "team_123",
+        vercelTeamSlug: "team-slug",
+          vercelScopeType: "Team" as const,
+          vercelEnvironment: "Production" as const,
+        },
+      projectId: "prj_123",
+      projectName: "evolutionsandbox",
+      teamId: "team_123",
+      teamSlug: "team-slug",
+      scopeType: "Team" as const,
+      environment: "Production" as const,
+    };
+    const preflight = {
+      providerExercised: true,
+      noRollbackCandidate: false,
+      targetEnvironment: "Production" as const,
+      currentDeployment: {
+        deploymentId: "dpl_current",
+        deploymentUrl: "https://current.vercel.app",
+        projectId: "prj_123",
+        readyState: "READY",
+        environment: "Production" as const,
+        createdAt: "2026-03-17T02:00:00.000Z",
+        aliasAssigned: true,
+      },
+      rollbackCandidate: {
+        deploymentId: "dpl_prev",
+        deploymentUrl: "https://previous.vercel.app",
+        projectId: "prj_123",
+        readyState: "READY",
+        environment: "Production" as const,
+        createdAt: "2026-03-16T02:00:00.000Z",
+        aliasAssigned: false,
+      },
+    };
+
+    const readiness = computePostDryRunReadiness({
+      request,
+      policies: [policy],
+      target,
+      config: {
+        ...controlConfig,
+        phase7Actuation: ensurePhase7ActuationState(controlConfig, { today: "2026-03-17" }),
+      },
+      actionKey: "vercel.rollback",
+      executedAt: "2026-03-17T03:00:00.000Z",
+      preflightNotes: [],
+      preflight,
+    });
+
+    expect(readiness.executionIntent).toBe("Ready for Live");
+    expect(readiness.providerRequestKey).toBe(formatVercelRollbackRequestKey({ projectId: "prj_123", deploymentId: "dpl_prev" }));
+
+    const liveNotes = evaluateActionRequestReadiness({
+      request: {
+        ...request,
+        executionIntent: "Ready for Live",
+        approverIds: ["approver-1"],
+        providerRequestKey: readiness.providerRequestKey,
+      },
+      policies: [policy],
+      target,
+      config: {
+        ...controlConfig,
+        phase7Actuation: ensurePhase7ActuationState(controlConfig, { today: "2026-03-17" }),
+      },
+      latestDryRun: {
+        id: "dry-run-1",
+        url: "https://notion.so/dry-run-1",
+        title: "Fresh dry run",
+        actionRequestIds: [request.id],
+        localProjectIds: request.localProjectIds,
+        policyIds: request.policyIds,
+        targetSourceIds: request.targetSourceIds,
+        provider: "Vercel",
+        actionKey: "vercel.rollback",
+        mode: "Dry Run",
+        status: "Succeeded",
+        idempotencyKey: "dry-run-key",
+        executedAt: "2026-03-17T03:00:00.000Z",
+        providerResultKey: readiness.providerRequestKey,
+        providerUrl: "https://previous.vercel.app",
+        issueNumber: 0,
+        commentId: "",
+        labelDeltaSummary: "",
+        assigneeDeltaSummary: "",
+        responseClassification: "Success",
+        reconcileStatus: "Not Needed",
+        responseSummary: "",
+        failureNotes: "",
+        compensationPlan: "",
+      },
+      actionKey: "vercel.rollback",
+      preflight,
+      today: "2026-03-17",
+    });
+
+    expect(liveNotes).toEqual([]);
+  });
+
+  test("rejects rollback live execution when the pinned candidate drifts", () => {
+    const request = baseRequest({
+      title: "Rollback evolutionsandbox",
+      executionIntent: "Ready for Live",
+      providerRequestKey: formatVercelRollbackRequestKey({ projectId: "prj_123", deploymentId: "dpl_old" }),
+    });
+
+    expect(() =>
+      buildVercelRollbackExecutionPayload({
+        request,
+        target: {
+          provider: "Vercel",
+          source: {
+            id: "source-1",
+            url: "https://notion.so/source-1",
+            title: "evolutionsandbox",
+            localProjectIds: ["project-1"],
+            provider: "Vercel" as const,
+            sourceType: "Deployment Project" as const,
+            identifier: "prj_123",
+            sourceUrl: "https://vercel.com/team/evolutionsandbox",
+            status: "Active" as const,
+            environment: "Production" as const,
+            syncStrategy: "Poll" as const,
+            lastSyncedAt: "2026-03-17",
+        providerScopeType: "Team" as const,
+            providerScopeId: "team_123",
+            providerScopeSlug: "team-slug",
+          },
+          rule: {
+            title: "evolutionsandbox",
+            provider: "Vercel" as const,
+            sourceIdentifier: "prj_123",
+            sourceUrl: "https://vercel.com/team/evolutionsandbox",
+            localProjectId: "project-1",
+            allowedActions: ["vercel.redeploy", "vercel.rollback"] as Array<"vercel.redeploy" | "vercel.rollback">,
+            defaultLabels: [],
+            supportsIssueCreate: false,
+            supportsPrComment: false,
+            vercelProjectId: "prj_123",
+            vercelTeamId: "team_123",
+            vercelTeamSlug: "team-slug",
+            vercelScopeType: "Team" as const,
+            vercelEnvironment: "Production" as const,
+          },
+          projectId: "prj_123",
+          projectName: "evolutionsandbox",
+          teamId: "team_123",
+          teamSlug: "team-slug",
+          scopeType: "Team",
+          environment: "Production",
+        },
+        preflight: {
+          providerExercised: true,
+          noRollbackCandidate: false,
+          targetEnvironment: "Production",
+          currentDeployment: {
+            deploymentId: "dpl_current",
+            deploymentUrl: "https://current.vercel.app",
+            projectId: "prj_123",
+            readyState: "READY",
+            environment: "Production",
+            createdAt: "2026-03-17T02:00:00.000Z",
+            aliasAssigned: true,
+          },
+          rollbackCandidate: {
+            deploymentId: "dpl_new",
+            deploymentUrl: "https://new.vercel.app",
+            projectId: "prj_123",
+            readyState: "READY",
+            environment: "Production",
+            createdAt: "2026-03-16T02:00:00.000Z",
+            aliasAssigned: false,
+          },
+        },
+      }),
+    ).toThrow("no longer matches the approved dry-run candidate");
+  });
+
+  test("rollback preflight prefers the aliased current deployment and explicit rollback candidates", async () => {
+    const originalFetch = globalThis.fetch;
+    process.env.VERCEL_TOKEN = "token";
+    const responses = [
+      {
+        deployments: [
+          {
+            id: "dpl_previous",
+            projectId: "prj_123",
+            url: "previous.vercel.app",
+            readyState: "READY",
+            target: "production",
+            createdAt: "2026-03-17T01:00:00.000Z",
+            aliasAssigned: 0,
+            readySubstate: "STAGED",
+          },
+          {
+            id: "dpl_current",
+            projectId: "prj_123",
+            url: "current.vercel.app",
+            readyState: "READY",
+            target: "production",
+            createdAt: "2026-03-16T01:00:00.000Z",
+            aliasAssigned: 2,
+            readySubstate: "PROMOTED",
+          },
+        ],
+      },
+      {
+        deployments: [
+          {
+            id: "dpl_previous",
+            projectId: "prj_123",
+            url: "previous.vercel.app",
+            readyState: "READY",
+            target: "production",
+            createdAt: "2026-03-17T01:00:00.000Z",
+            aliasAssigned: 0,
+            isRollbackCandidate: true,
+          },
+        ],
+      },
+    ];
+    let callIndex = 0;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify(responses[callIndex++] ?? responses.at(-1)), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    try {
+      const preflight = await fetchVercelRollbackPreflight({
+        target: {
+          provider: "Vercel",
+          source: {
+            id: "source-1",
+            url: "https://notion.so/source-1",
+            title: "evolutionsandbox",
+            localProjectIds: ["project-1"],
+            provider: "Vercel",
+            sourceType: "Deployment Project",
+            identifier: "prj_123",
+            sourceUrl: "https://vercel.com/team/evolutionsandbox",
+            status: "Active",
+            environment: "Production",
+            syncStrategy: "Poll",
+            lastSyncedAt: "2026-03-17",
+            providerScopeType: "Team",
+            providerScopeId: "team_123",
+            providerScopeSlug: "team-slug",
+          },
+          rule: {
+            title: "evolutionsandbox",
+            provider: "Vercel",
+            sourceIdentifier: "prj_123",
+            sourceUrl: "https://vercel.com/team/evolutionsandbox",
+            localProjectId: "project-1",
+            allowedActions: ["vercel.redeploy", "vercel.rollback"],
+            defaultLabels: [],
+            supportsIssueCreate: false,
+            supportsPrComment: false,
+            vercelProjectId: "prj_123",
+            vercelTeamId: "team_123",
+            vercelTeamSlug: "team-slug",
+            vercelScopeType: "Team",
+            vercelEnvironment: "Production",
+          },
+          projectId: "prj_123",
+          projectName: "evolutionsandbox",
+          teamId: "team_123",
+          teamSlug: "team-slug",
+          scopeType: "Team",
+          environment: "Production",
+        },
+      });
+
+      expect(preflight?.currentDeployment?.deploymentId).toBe("dpl_current");
+      expect(preflight?.rollbackCandidate?.deploymentId).toBe("dpl_previous");
+      expect(preflight?.noRollbackCandidate).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   test("allows personal-scope Vercel targets without team identifiers", () => {

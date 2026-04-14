@@ -6,7 +6,7 @@ import {
   evaluateActionDryRunReadiness,
   prepareActionDryRun,
 } from "../src/notion/action-dry-run.js";
-import { parseLocalPortfolioActuationTargetConfig } from "../src/notion/local-portfolio-actuation.js";
+import { formatVercelRollbackRequestKey, parseLocalPortfolioActuationTargetConfig } from "../src/notion/local-portfolio-actuation.js";
 import { parseLocalPortfolioControlTowerConfig } from "../src/notion/local-portfolio-control-tower.js";
 import type { ExternalSignalSourceRecord } from "../src/notion/local-portfolio-external-signals.js";
 import type { ActionPolicyRecord, ActionRequestRecord } from "../src/notion/local-portfolio-governance.js";
@@ -190,6 +190,123 @@ describe("action dry run hardening", () => {
     expect(readiness.postDryRun.executionIntent).toBe("Dry Run");
     expect(readiness.postDryRun.latestExecutionStatus).toBe("Problem");
     expect(readiness.postDryRun.notes[0]).toContain("Two distinct approvers are required before live execution.");
+  });
+
+  test("writes a pinned rollback provider request key during a successful dry run", async () => {
+    process.env = {
+      ...previousEnv,
+      VERCEL_TOKEN: "token",
+    };
+    const config = await readControlConfig();
+    const request = baseRequest({
+      title: "Rollback evolutionsandbox",
+      targetSourceIds: ["source-1"],
+      approverIds: ["approver-1"],
+      providerRequestKey: "",
+    });
+    const source: ExternalSignalSourceRecord = {
+      id: "source-1",
+      url: "https://notion.so/source-1",
+      title: "evolutionsandbox",
+      localProjectIds: ["project-1"],
+      provider: "Vercel",
+      sourceType: "Deployment Project",
+      identifier: "prj_123",
+      sourceUrl: "https://vercel.com/team/evolutionsandbox",
+      status: "Active",
+      environment: "Production",
+      syncStrategy: "Poll",
+      lastSyncedAt: "2026-03-28",
+      providerScopeType: "Team",
+      providerScopeId: "team_123",
+      providerScopeSlug: "team-slug",
+    };
+    const targetConfig = parseLocalPortfolioActuationTargetConfig({
+      version: 1,
+      strategy: {
+        primary: "repo_config",
+        fallback: "manual_review",
+        notes: [],
+      },
+      defaults: {
+        allowedActions: ["github.create_issue"],
+        titlePrefix: "[Portfolio]",
+        defaultLabels: [],
+        supportsIssueCreate: true,
+        supportsPrComment: true,
+      },
+      targets: [
+        {
+          title: "evolutionsandbox",
+          provider: "Vercel",
+          sourceIdentifier: "prj_123",
+          sourceUrl: "https://vercel.com/team/evolutionsandbox",
+          localProjectId: "project-1",
+          allowedActions: ["vercel.redeploy", "vercel.rollback"],
+          defaultLabels: [],
+          supportsIssueCreate: false,
+          supportsPrComment: false,
+          vercelProjectId: "prj_123",
+          vercelTeamId: "team_123",
+          vercelTeamSlug: "team-slug",
+          vercelScopeType: "Team",
+          vercelEnvironment: "Production",
+        },
+      ],
+    });
+
+    const preparation = await prepareActionDryRun(
+      {
+        request,
+        sources: [source],
+        targetConfig,
+        actionKey: "vercel.rollback",
+      },
+      {
+        fetchPreflight: async () => {
+          throw new Error("should not use GitHub preflight");
+        },
+        fetchVercelRollbackPreflight: async () => ({
+          providerExercised: true,
+          noRollbackCandidate: false,
+          targetEnvironment: "Production",
+          currentDeployment: {
+            deploymentId: "dpl_current",
+            deploymentUrl: "https://current.vercel.app",
+            projectId: "prj_123",
+            readyState: "READY",
+            environment: "Production",
+            createdAt: "2026-03-29T12:00:00.000Z",
+            aliasAssigned: true,
+          },
+          rollbackCandidate: {
+            deploymentId: "dpl_prev",
+            deploymentUrl: "https://previous.vercel.app",
+            projectId: "prj_123",
+            readyState: "READY",
+            environment: "Production",
+            createdAt: "2026-03-28T12:00:00.000Z",
+            aliasAssigned: false,
+          },
+        }),
+      },
+    );
+
+    const readiness = evaluateActionDryRunReadiness({
+      request,
+      policies: [basePolicy({ title: "vercel.rollback", provider: "Vercel", mutationClass: "Deployment Control", identityType: "Team Token", defaultExpiryHours: 12 })],
+      config,
+      actionKey: "vercel.rollback",
+      preparation,
+      today: "2026-03-29",
+      executedAt: "2026-03-29T12:00:00.000Z",
+    });
+
+    expect(readiness.validationNotes).toEqual([]);
+    expect(readiness.readyForLive).toBe(true);
+    expect(readiness.postDryRun.providerRequestKey).toBe(
+      formatVercelRollbackRequestKey({ projectId: "prj_123", deploymentId: "dpl_prev" }),
+    );
   });
 });
 

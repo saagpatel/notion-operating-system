@@ -18,13 +18,16 @@ import {
   buildGitHubExecutionPayload,
   buildVercelCompensationPlan,
   buildVercelRedeployExecutionPayload,
+  buildVercelRollbackExecutionPayload,
   classifyGitHubFailureMessage,
   computePostDryRunReadiness,
   computeActuationExecutionKey,
   describeGitHubActionPreflight,
   evaluateActionRequestReadiness,
   executeVercelRedeploy,
+  executeVercelRollback,
   fetchVercelRedeployPreflight,
+  fetchVercelRollbackPreflight,
   executeGitHubAction,
   fetchGitHubActionPreflight,
   loadLocalPortfolioActuationTargetConfig,
@@ -36,6 +39,7 @@ import {
   type ActuationActionKey,
   type GitHubActionPreflight,
   type VercelRedeployPreflight,
+  type VercelRollbackPreflight,
   type GitHubExecutionResult,
   type GitHubReconcileStatus,
   type GitHubResponseClassification,
@@ -197,7 +201,7 @@ export async function runActionRunnerCommand(
         .find((execution) => execution.mode === "Dry Run");
       let target;
       let payload;
-      let preflight: GitHubActionPreflight | VercelRedeployPreflight | undefined;
+      let preflight: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight | undefined;
       try {
         target = resolveActuationTarget({
           request,
@@ -208,6 +212,13 @@ export async function runActionRunnerCommand(
         if (actionKey === "vercel.redeploy") {
           preflight = await fetchVercelRedeployPreflight({ target });
           payload = buildVercelRedeployExecutionPayload({
+            request,
+            target,
+            preflight,
+          });
+        } else if (actionKey === "vercel.rollback") {
+          preflight = await fetchVercelRollbackPreflight({ target });
+          payload = buildVercelRollbackExecutionPayload({
             request,
             target,
             preflight,
@@ -291,7 +302,11 @@ export async function runActionRunnerCommand(
           ),
           "Response Classification": { select: { name: "Success" } },
           "Reconcile Status": { select: { name: mode === "live" ? "Pending" : "Not Needed" } },
-          "Compensation Plan": richTextValue(payload.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey)),
+          "Compensation Plan": richTextValue(
+            payload.provider === "Vercel"
+              ? buildVercelCompensationPlan(payload.actionKey)
+              : buildGitHubCompensationPlan(actionKey),
+          ),
         },
       });
 
@@ -312,7 +327,9 @@ export async function runActionRunnerCommand(
         const providerResult: GitHubExecutionResult =
           mode === "live"
             ? payload.provider === "Vercel"
-              ? await executeVercelRedeploy({ payload })
+              ? payload.actionKey === "vercel.rollback"
+                ? await executeVercelRollback({ payload })
+                : await executeVercelRedeploy({ payload })
               : await executeGitHubAction({ payload, preflight: preflight as GitHubActionPreflight })
             : {
                 executionStatus: "Succeeded",
@@ -369,7 +386,11 @@ export async function runActionRunnerCommand(
               "Latest Execution Status": { select: { name: "Executed" } },
               "Execution Intent": { select: { name: "Dry Run" } },
               "Execution Notes": richTextValue(providerResult.responseSummary),
-              "Provider Request Key": richTextValue(providerResult.providerResultKey),
+              "Provider Request Key": richTextValue(
+                payload.provider === "Vercel" && payload.actionKey === "vercel.rollback"
+                  ? request.providerRequestKey
+                  : providerResult.providerResultKey,
+              ),
             },
           });
         } else if (mode === "live") {
@@ -389,6 +410,7 @@ export async function runActionRunnerCommand(
               "Latest Execution": relationValue([draftExecution.id]),
               "Latest Execution Status": { select: { name: postDryRun!.latestExecutionStatus } },
               "Execution Intent": { select: { name: postDryRun!.executionIntent } },
+              "Provider Request Key": richTextValue(postDryRun!.providerRequestKey),
               "Execution Notes": richTextValue(postDryRun!.notes.join(" ")),
             },
           });
@@ -402,6 +424,10 @@ export async function runActionRunnerCommand(
                   ...request,
                   executionIntent: "Dry Run",
                   latestExecutionStatus: "Executed",
+                  providerRequestKey:
+                    payload.provider === "Vercel" && payload.actionKey === "vercel.rollback"
+                      ? request.providerRequestKey
+                      : providerResult.providerResultKey,
                   executionNotes: providerResult.responseSummary,
                 }
               : mode === "live"
@@ -415,6 +441,7 @@ export async function runActionRunnerCommand(
                   ...request,
                   executionIntent: postDryRun!.executionIntent,
                   latestExecutionStatus: postDryRun!.latestExecutionStatus,
+                  providerRequestKey: postDryRun!.providerRequestKey,
                   executionNotes: postDryRun!.notes.join(" "),
                 },
           payload,
@@ -444,7 +471,10 @@ export async function runActionRunnerCommand(
             reconcileStatus: providerResult.reconcileStatus,
             responseSummary: providerResult.responseSummary,
             failureNotes: validationNotes.join(" "),
-            compensationPlan: payload.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey),
+            compensationPlan:
+              payload.provider === "Vercel"
+                ? buildVercelCompensationPlan(payload.actionKey)
+                : buildGitHubCompensationPlan(actionKey),
           },
           idempotencyKey,
           validationNotes:
@@ -520,7 +550,10 @@ export async function runActionRunnerCommand(
             reconcileStatus: "Mismatch" as GitHubReconcileStatus,
             responseSummary: "",
             failureNotes,
-            compensationPlan: payload?.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey),
+            compensationPlan:
+              payload?.provider === "Vercel"
+                ? buildVercelCompensationPlan(payload.actionKey)
+                : buildGitHubCompensationPlan(actionKey),
           },
           idempotencyKey,
           validationNotes: [failureNotes],
@@ -555,8 +588,11 @@ export async function runActionRunnerCommand(
 async function updateActuationPacket(input: {
   api: DirectNotionClient;
   request: ReturnType<typeof toActionRequestRecord>;
-  payload: ReturnType<typeof buildGitHubExecutionPayload> | ReturnType<typeof buildVercelRedeployExecutionPayload>;
-  preflight?: GitHubActionPreflight | VercelRedeployPreflight;
+  payload:
+    | ReturnType<typeof buildGitHubExecutionPayload>
+    | ReturnType<typeof buildVercelRedeployExecutionPayload>
+    | ReturnType<typeof buildVercelRollbackExecutionPayload>;
+  preflight?: GitHubActionPreflight | VercelRedeployPreflight | VercelRollbackPreflight;
   target: ReturnType<typeof resolveActuationTarget>;
   latestExecution: ExternalActionExecutionRecord;
   idempotencyKey: string;
