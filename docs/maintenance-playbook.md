@@ -7,7 +7,8 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Review incoming Dependabot pull requests.
 - Review the latest `Dependency Hygiene` workflow run.
 - Triage any failed workflow, audit finding, install-smoke regression, or release-gate failure within the same week.
-- Run `npm run maintenance:weekly-refresh` as the default Notion portfolio refresh lane.
+- Review the weekly `weekly-notion-maintenance` inbox item as the default Notion maintenance signal.
+- Run `npm run maintenance:weekly-refresh -- --live` manually only when that weekly digest recommends a live refresh.
 
 ## Monthly
 
@@ -38,8 +39,8 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 ## GitHub Support Maintenance
 
 - Use [github-support-maintenance.md](./github-support-maintenance.md) as the operator guide for the Notion support-maintenance lane.
-- Use [weekly-refresh-maintenance.md](./weekly-refresh-maintenance.md) as the operator guide for the broader weekly refresh lane.
-- Use [weekly-refresh-rollout-scorecard.md](./weekly-refresh-rollout-scorecard.md) while the weekly refresh lane is still in rollout and cutover validation.
+- Use [weekly-notion-maintenance-operating-model.md](./weekly-notion-maintenance-operating-model.md) as the operator guide for the current weekly Notion maintenance model.
+- Use [weekly-refresh-maintenance.md](./weekly-refresh-maintenance.md), [weekly-refresh-rollout-scorecard.md](./weekly-refresh-rollout-scorecard.md), and [weekly-refresh-cutover-review.md](./weekly-refresh-cutover-review.md) only as historical references for the abandoned live-cutover path.
 - Keep `github-support-maintenance` as the narrow sub-lane for safe GitHub-backed refreshes and approved hygiene only.
 - Use `stale-support-audit` and `project-support-coverage-audit` as review-first commands before introducing broader cleanup or coverage work.
 - Use [weak-support-review-second-pass.md](./weak-support-review-second-pass.md) when the stale-support queue is down to specialist rows and you need to decide what should stay intentionally single-project.
