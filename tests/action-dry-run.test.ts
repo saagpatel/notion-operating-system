@@ -139,6 +139,58 @@ describe("action dry run hardening", () => {
     expect(readiness.postDryRun.executionIntent).toBe("Ready for Live");
     expect(readiness.postDryRun.latestExecutionStatus).toBe("Dry Run Passed");
   });
+
+  test("keeps readyForLive false when live-only approval blockers remain", async () => {
+    process.env = {
+      ...previousEnv,
+      GITHUB_APP_ID: "12345",
+      GITHUB_APP_PRIVATE_KEY_PEM: "private-key",
+    };
+    const config = await readControlConfig();
+    const request = baseRequest({
+      executionIntent: "Dry Run",
+      approverIds: ["approver-1"],
+    });
+    const source = baseSource();
+    const targetConfig = parseLocalPortfolioActuationTargetConfig({
+      version: 1,
+      strategy: {
+        primary: "repo_config",
+        fallback: "manual_review",
+        notes: [],
+      },
+      defaults: {
+        allowedActions: ["github.create_issue"],
+        titlePrefix: "[Portfolio]",
+        defaultLabels: [],
+        supportsIssueCreate: true,
+        supportsPrComment: true,
+      },
+      targets: [],
+    });
+
+    const preparation = await prepareActionDryRun({
+      request,
+      sources: [source],
+      targetConfig,
+      actionKey: "github.create_issue",
+    });
+    const readiness = evaluateActionDryRunReadiness({
+      request,
+      policies: [basePolicy({ approvalRule: "Dual Approval" })],
+      config,
+      actionKey: "github.create_issue",
+      preparation,
+      today: "2026-03-29",
+      executedAt: "2026-03-29T12:00:00.000Z",
+    });
+
+    expect(readiness.validationNotes).toEqual([]);
+    expect(readiness.readyForLive).toBe(false);
+    expect(readiness.postDryRun.executionIntent).toBe("Dry Run");
+    expect(readiness.postDryRun.latestExecutionStatus).toBe("Problem");
+    expect(readiness.postDryRun.notes[0]).toContain("Two distinct approvers are required before live execution.");
+  });
 });
 
 async function readControlConfig() {

@@ -163,7 +163,7 @@ export function evaluateActionDryRunReadiness(input: {
   return {
     validationNotes,
     postDryRun,
-    readyForLive: validationNotes.length === 0,
+    readyForLive: postDryRun.executionIntent === "Ready for Live",
   };
 }
 
