@@ -1,5 +1,5 @@
 import type { LocalPortfolioActuationTargetConfig, ActuationTargetRule } from "./local-portfolio-actuation.js";
-import { SUPPORTED_GITHUB_ACTION_KEYS } from "./local-portfolio-actuation.js";
+import { SUPPORTED_ACTION_KEYS } from "./local-portfolio-actuation.js";
 import type {
   LocalPortfolioExternalSignalProviderConfig,
   ExternalProviderKey,
@@ -46,7 +46,7 @@ const KNOWN_PROVIDERS: Array<{ key: GovernanceProviderKey; name: GovernanceProvi
   { key: "google_calendar", name: "Google Calendar" },
 ];
 
-const RUNNER_SUPPORTED_ACTION_KEYS = [...SUPPORTED_GITHUB_ACTION_KEYS];
+const RUNNER_SUPPORTED_ACTION_KEYS = [...SUPPORTED_ACTION_KEYS];
 
 export function buildProviderExpansionAuditSummary(input: {
   controlConfig: LocalPortfolioControlTowerConfig;
@@ -112,6 +112,7 @@ function summarizeProviderExpansion(input: {
   );
   const webhookProvider = input.webhookConfig.providers.find((provider) => provider.key === input.provider.key);
   const targetCount = input.targetConfig.targets.filter((target) => inferActuationTargetProvider(target) === input.provider.name).length;
+  const missingProviderAuth = Boolean(externalProvider?.authEnvVar) && !process.env[externalProvider!.authEnvVar]?.trim();
 
   const blockers: string[] = [];
   if (input.provider.key !== "github" && !input.githubBaselineTrusted) {
@@ -124,6 +125,8 @@ function summarizeProviderExpansion(input: {
     blockers.push("No external signal provider plan is configured.");
   } else if (!externalProvider.enabled) {
     blockers.push("External signal collection is still disabled.");
+  } else if (!process.env[externalProvider.authEnvVar]?.trim()) {
+    blockers.push(`Missing ${externalProvider.authEnvVar} for provider sync.`);
   }
   if (!webhookProvider && input.provider.key !== "google_calendar") {
     blockers.push("No webhook provider plan is configured.");
@@ -167,6 +170,8 @@ function summarizeProviderExpansion(input: {
       liveCapablePolicies,
       targetCount,
       externalSignalsEnabled: externalProvider?.enabled ?? false,
+      missingProviderAuth,
+      missingProviderAuthRef: externalProvider?.authEnvVar,
       webhookConfigured: Boolean(webhookProvider),
     }),
   };
@@ -221,6 +226,8 @@ function recommendProviderNextStep(input: {
   liveCapablePolicies: string[];
   targetCount: number;
   externalSignalsEnabled: boolean;
+  missingProviderAuth: boolean;
+  missingProviderAuthRef?: string;
   webhookConfigured: boolean;
 }): string {
   if (input.provider === "GitHub") {
@@ -234,6 +241,9 @@ function recommendProviderNextStep(input: {
   }
   if (input.runnerSupportedActionKeys.length === 0) {
     return `Add one ${input.provider} action-family plus dry-run runner support before enabling live execution.`;
+  }
+  if (input.missingProviderAuth) {
+    return `Set ${input.missingProviderAuthRef ?? "the provider token"} in the repo runtime before treating ${input.provider} dry runs as real provider checks.`;
   }
   if (input.liveCapablePolicies.length === 0) {
     return `Promote one ${input.provider} policy from Disabled to Approved Live after dry-run support is proven.`;

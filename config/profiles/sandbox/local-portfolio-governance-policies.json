@@ -116,7 +116,7 @@
       "actionKey": "vercel.redeploy",
       "provider": "Vercel",
       "mutationClass": "Deployment Control",
-      "executionMode": "Disabled",
+      "executionMode": "Approved Live",
       "identityType": "Team Token",
       "approvalRule": "Dual Approval",
       "dryRunRequired": true,
@@ -125,7 +125,7 @@
       "allowedSources": [
         "Manual"
       ],
-      "notes": "Keep deployment control modeled but disabled until GitHub-first governance is proven."
+      "notes": "Phase 9A enables one bounded live Vercel redeploy pilot while keeping promotion and rollback out of scope."
     },
     {
       "actionKey": "vercel.promote_or_rollback",

@@ -168,6 +168,31 @@ describe("local portfolio external signals", () => {
     ).toBeUndefined();
   });
 
+  test("allows personal-scope Vercel manual seeds without team identifiers", async () => {
+    const rawConfig = (await readConfig("../config/local-portfolio-external-signal-sources.json")) as Record<string, unknown>;
+    const sourceConfig = parseLocalPortfolioExternalSignalSourceConfig({
+      ...rawConfig,
+      manualSeeds: [
+        {
+          title: "Solo project - Vercel Deployment Project",
+          localProjectId: "project-1",
+          provider: "Vercel",
+          sourceType: "Deployment Project",
+          status: "Active",
+          environment: "Production",
+          syncStrategy: "Poll",
+          identifier: "prj_personal",
+          sourceUrl: "https://vercel.com/solo-project",
+          providerScopeType: "Personal",
+        },
+      ],
+    });
+
+    expect(sourceConfig.manualSeeds[0]?.providerScopeType).toBe("Personal");
+    expect(sourceConfig.manualSeeds[0]?.providerScopeId).toBeUndefined();
+    expect(sourceConfig.manualSeeds[0]?.providerScopeSlug).toBeUndefined();
+  });
+
   test("validates the phase-5 view plan against representative schemas", async () => {
     const controlConfig = parseLocalPortfolioControlTowerConfig(
       await readConfig("../config/local-portfolio-control-tower.json"),

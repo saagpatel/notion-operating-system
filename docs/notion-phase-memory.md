@@ -1,6 +1,6 @@
 # Notion Phase Memory
 
-Updated: 2026-03-22
+Updated: 2026-04-13
 
 ## Phase 1
 - Objective: Build the project control tower and the durable roadmap memory layer.
@@ -36,4 +36,6 @@ Updated: 2026-03-22
 
 ## Phase 9
 - Objective: Expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is trusted.
-- Next-phase brief: Phase 9 will expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is stable, low-noise, and easy to audit.
+- Current status: Phase 9A is now proven. The repo has truthful Vercel readiness checks, one explicit `evolutionsandbox` pilot target, real Vercel dry-sync coverage, and one successful governed `vercel.redeploy` live pilot with confirmed reconciliation.
+- Next-phase brief: Phase 9B should stay narrow. Choose exactly one of these next: widen `vercel.redeploy` to a small allowlist of additional projects, or design separate `vercel.promote` and `vercel.rollback` action families as distinct follow-on lanes. Do not combine rollout widening and new deployment-control verbs in the same phase.
+- Current recommended widening set: `premise-debate`, `neural-network-playground`, and `sovereign-sim`, after each project is explicitly mapped into the Local Portfolio operating model.

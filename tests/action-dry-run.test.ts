@@ -98,6 +98,7 @@ describe("action dry run hardening", () => {
     const config = await readControlConfig();
     const request = baseRequest({
       executionIntent: "Dry Run",
+      approverIds: ["approver-1"],
     });
     const source = baseSource();
     const targetConfig = parseLocalPortfolioActuationTargetConfig({

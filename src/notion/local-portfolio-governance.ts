@@ -221,6 +221,7 @@ export interface WebhookReceiptRecord {
 }
 
 export interface GovernanceAuditSummary {
+  missingAuthRefs: string[];
   missingSecretRefs: string[];
   liveMutationPolicies: string[];
   policiesMissingApprovalRule: string[];
@@ -372,6 +373,17 @@ export function buildGovernanceAuditSummary(input: {
   providerConfig: LocalPortfolioWebhookProviderConfig;
 }): GovernanceAuditSummary {
   const phase6 = requirePhase6Governance(input.controlConfig);
+  const missingAuthRefs = [...new Set(
+    input.policyConfig.policies.flatMap((policy) => {
+      if (policy.provider === "Vercel" && !process.env.VERCEL_TOKEN?.trim()) {
+        return ["VERCEL_TOKEN"];
+      }
+      if (policy.provider === "GitHub" && policy.identityType === "Break Glass Token" && !process.env.GITHUB_BREAK_GLASS_TOKEN?.trim()) {
+        return ["GITHUB_BREAK_GLASS_TOKEN"];
+      }
+      return [];
+    }),
+  )];
   const missingSecretRefs = input.providerConfig.providers
     .filter((provider) => !process.env[provider.secretEnvVar]?.trim())
     .map((provider) => provider.secretEnvVar);
@@ -405,6 +417,7 @@ export function buildGovernanceAuditSummary(input: {
   });
 
   return {
+    missingAuthRefs,
     missingSecretRefs,
     liveMutationPolicies,
     policiesMissingApprovalRule,

@@ -90,6 +90,11 @@ export async function runExternalSignalSeedMappingsCommand(
             "Sync Strategy": selectPropertyValue(plan.syncStrategy),
             Identifier: richTextValue(plan.identifier ?? ""),
             "Source URL": plan.sourceUrl ? { url: plan.sourceUrl } : { url: null },
+            "Provider Scope Type": plan.providerScopeType
+              ? selectPropertyValue(plan.providerScopeType)
+              : { select: null },
+            "Provider Scope ID": richTextValue(plan.providerScopeId ?? ""),
+            "Provider Scope Slug": richTextValue(plan.providerScopeSlug ?? ""),
           },
           markdown: [
             `# ${plan.title}`,
@@ -99,9 +104,12 @@ export async function runExternalSignalSeedMappingsCommand(
             `- Status: ${plan.status}`,
             ...(plan.identifier ? [`- Identifier: ${plan.identifier}`] : []),
             ...(plan.sourceUrl ? [`- Source URL: ${plan.sourceUrl}`] : []),
+            ...(plan.providerScopeType ? [`- Scope type: ${plan.providerScopeType}`] : []),
+            ...(plan.providerScopeId ? [`- Scope id: ${plan.providerScopeId}`] : []),
+            ...(plan.providerScopeSlug ? [`- Scope slug: ${plan.providerScopeSlug}`] : []),
             "",
             plan.identifier
-              ? "This row was seeded from repo-owned manual mapping config for live GitHub telemetry."
+              ? "This row was seeded from repo-owned manual mapping config for provider-backed telemetry."
               : "This row was seeded automatically for the bounded Phase 5 priority slice. Add a real identifier before activating live sync.",
           ].join("\n"),
         });

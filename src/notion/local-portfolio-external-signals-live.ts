@@ -131,6 +131,16 @@ export async function ensurePhase5ExternalSignalSchema(
           },
           Identifier: { rich_text: {} },
           "Source URL": { url: {} },
+          "Provider Scope Type": {
+            select: {
+              options: mergeSelectOptions(sourcesSchema.properties?.["Provider Scope Type"], [
+                ["Personal", "default"],
+                ["Team", "blue"],
+              ]),
+            },
+          },
+          "Provider Scope ID": { rich_text: {} },
+          "Provider Scope Slug": { rich_text: {} },
           Status: {
             select: {
               options: mergeSelectOptions(sourcesSchema.properties?.Status, [
@@ -338,6 +348,9 @@ export function toExternalSignalSourceRecord(page: DataSourcePageRef): ExternalS
     environment: selectValue(page.properties.Environment) as ExternalSignalSourceRecord["environment"],
     syncStrategy: selectValue(page.properties["Sync Strategy"]) as ExternalSignalSourceRecord["syncStrategy"],
     lastSyncedAt: dateValue(page.properties["Last Synced At"]),
+    providerScopeType: selectValue(page.properties["Provider Scope Type"]) as ExternalSignalSourceRecord["providerScopeType"],
+    providerScopeId: textValue(page.properties["Provider Scope ID"]),
+    providerScopeSlug: textValue(page.properties["Provider Scope Slug"]),
   };
 }
 

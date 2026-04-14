@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { parseLocalPortfolioActuationTargetConfig } from "../src/notion/local-portfolio-actuation.js";
 import { parseLocalPortfolioControlTowerConfig } from "../src/notion/local-portfolio-control-tower.js";
@@ -15,6 +15,10 @@ import {
 } from "../src/notion/local-portfolio-governance.js";
 
 describe("local portfolio provider expansion", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   test("infers GitHub targets from the current actuation config", async () => {
     const targetConfig = parseLocalPortfolioActuationTargetConfig(
       await readConfig("../config/local-portfolio-actuation-targets.json"),
@@ -26,6 +30,9 @@ describe("local portfolio provider expansion", () => {
   });
 
   test("builds a provider expansion audit with Vercel as the next candidate", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "test-github-token");
+    vi.stubEnv("VERCEL_TOKEN", "");
+
     const [controlConfig, policyConfig, webhookConfig, externalProviderConfig, targetConfig] = await Promise.all([
       readConfig("../config/local-portfolio-control-tower.json").then(parseLocalPortfolioControlTowerConfig),
       loadLocalPortfolioGovernancePolicyConfig(),
@@ -50,12 +57,16 @@ describe("local portfolio provider expansion", () => {
     expect(github?.readiness).toBe("ready");
     expect(github?.targetCount).toBeGreaterThan(0);
     expect(vercel?.readiness).toBe("scaffolded");
-    expect(vercel?.blockers).toContain("No action-family or runner support exists for this provider yet.");
-    expect(vercel?.blockers).toContain("All policies are still disabled.");
-    expect(vercel?.nextStep).toContain("dry-run runner support");
+    expect(vercel?.runnerSupportedActionKeys).toContain("vercel.redeploy");
+    expect(vercel?.targetCount).toBeGreaterThan(0);
+    expect(vercel?.blockers).toContain("Missing VERCEL_TOKEN for provider sync.");
+    expect(vercel?.nextStep).toContain("Set VERCEL_TOKEN");
   });
 
   test("keeps non-GitHub provider expansion blocked until GitHub is trusted", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "test-github-token");
+    vi.stubEnv("VERCEL_TOKEN", "");
+
     const [controlConfig, policyConfig, webhookConfig, externalProviderConfig, targetConfig] = await Promise.all([
       readConfig("../config/local-portfolio-control-tower.json").then(parseLocalPortfolioControlTowerConfig),
       loadLocalPortfolioGovernancePolicyConfig(),

@@ -84,6 +84,7 @@ export async function ensurePhase7ActuationSchema(
               options: colorize([
                 ["Success", "green"],
                 ["Validation Failure", "red"],
+                ["Verification Failure", "red"],
                 ["Permission Failure", "red"],
                 ["Auth Failure", "red"],
                 ["Not Found", "orange"],

@@ -6,6 +6,7 @@ import {
   buildActuationAuditSummary,
   computeGitHubActionPreflight,
   buildGitHubExecutionPayload,
+  buildVercelRedeployExecutionPayload,
   computeActuationExecutionKey,
   describeGitHubActionPreflight,
   ensurePhase7ActuationState,
@@ -258,6 +259,7 @@ describe("local portfolio actuation", () => {
         supportsIssueCreate: true,
         supportsPrComment: true,
       },
+      provider: "GitHub",
       owner: "owner",
       repo: "repo",
     } satisfies ReturnType<typeof resolveActuationTarget>;
@@ -279,6 +281,7 @@ describe("local portfolio actuation", () => {
 
   test("computes additive-only label and assignee preflight deltas", () => {
     const labelPayload = {
+      provider: "GitHub",
       actionKey: "github.set_issue_labels",
       owner: "owner",
       repo: "repo",
@@ -287,6 +290,7 @@ describe("local portfolio actuation", () => {
       assignees: [],
     } satisfies ReturnType<typeof buildGitHubExecutionPayload>;
     const assigneePayload = {
+      provider: "GitHub",
       actionKey: "github.set_issue_assignees",
       owner: "owner",
       repo: "repo",
@@ -335,6 +339,7 @@ describe("local portfolio actuation", () => {
 
   test("detects no-op issue updates and keeps them non-blocking", () => {
     const payload = {
+      provider: "GitHub",
       actionKey: "github.update_issue",
       owner: "owner",
       repo: "repo",
@@ -480,6 +485,336 @@ describe("local portfolio actuation", () => {
     });
 
     expect(notes.join(" ")).toContain("missing pull request permission");
+  });
+
+  test("requires dual approval and an allowlisted source before live execution", async () => {
+    const controlConfig = parseLocalPortfolioControlTowerConfig(
+      await readConfig("../config/local-portfolio-control-tower.json"),
+    );
+    const request = baseRequest({
+      executionIntent: "Ready for Live",
+      sourceType: "Recommendation",
+      approverIds: ["approver-1"],
+      targetSourceIds: ["source-1"],
+    });
+    const policy: ActionPolicyRecord = {
+      id: "policy-1",
+      url: "https://notion.so/policy-1",
+      title: "vercel.redeploy",
+      provider: "Vercel",
+      mutationClass: "Deployment Control",
+      executionMode: "Approved Live",
+      identityType: "Team Token",
+      approvalRule: "Dual Approval",
+      dryRunRequired: true,
+      rollbackRequired: false,
+      defaultExpiryHours: 24,
+      allowedSources: ["Manual"],
+      notes: "",
+    };
+    const notes = evaluateActionRequestReadiness({
+      request,
+      policies: [policy],
+      config: {
+        ...controlConfig,
+        phase7Actuation: ensurePhase7ActuationState(controlConfig, { today: "2026-03-17" }),
+      },
+      actionKey: "vercel.redeploy",
+      preflight: {
+        providerExercised: true,
+        noRedeployCandidate: false,
+        targetEnvironment: "Production",
+        latestDeployment: {
+          deploymentId: "dpl_123",
+          deploymentUrl: "https://example.vercel.app",
+          projectId: "prj_123",
+          readyState: "READY",
+          environment: "Production",
+          createdAt: "2026-03-17T00:00:00.000Z",
+        },
+      },
+      today: "2026-03-17",
+      target: {
+        provider: "Vercel",
+        source: {
+          id: "source-1",
+          url: "https://notion.so/source-1",
+          title: "premise-debate",
+          localProjectIds: ["project-1"],
+          provider: "Vercel",
+          sourceType: "Deployment Project",
+          identifier: "prj_123",
+          sourceUrl: "https://vercel.com/team/premise-debate",
+          status: "Active",
+          environment: "Production",
+          syncStrategy: "Poll",
+          lastSyncedAt: "2026-03-17",
+          providerScopeType: "Team",
+          providerScopeId: "team_123",
+          providerScopeSlug: "team-slug",
+        },
+        rule: {
+          title: "premise-debate",
+          provider: "Vercel",
+          sourceIdentifier: "prj_123",
+          sourceUrl: "https://vercel.com/team/premise-debate",
+          localProjectId: "project-1",
+          allowedActions: ["vercel.redeploy"],
+          defaultLabels: [],
+          supportsIssueCreate: false,
+          supportsPrComment: false,
+          vercelProjectId: "prj_123",
+          vercelTeamId: "team_123",
+          vercelTeamSlug: "team-slug",
+          vercelScopeType: "Team",
+          vercelEnvironment: "Production",
+        },
+        projectId: "prj_123",
+        projectName: "premise-debate",
+        teamId: "team_123",
+        teamSlug: "team-slug",
+        scopeType: "Team",
+        environment: "Production",
+      },
+    });
+
+    expect(notes.join(" ")).toContain("not allowlisted by policy");
+    expect(notes.join(" ")).toContain("Two distinct approvers");
+  });
+
+  test("rejects ambiguous Vercel target matches", () => {
+    const request = baseRequest({
+      title: "Redeploy premise-debate",
+      targetSourceIds: ["source-1"],
+      localProjectIds: ["project-1"],
+    });
+    const source: ExternalSignalSourceRecord = {
+      id: "source-1",
+      url: "https://notion.so/source-1",
+      title: "premise-debate",
+      localProjectIds: ["project-1"],
+      provider: "Vercel",
+      sourceType: "Deployment Project",
+      identifier: "prj_123",
+      sourceUrl: "https://vercel.com/team/premise-debate",
+      status: "Active",
+      environment: "Production",
+      syncStrategy: "Poll",
+      lastSyncedAt: "2026-03-17",
+      providerScopeType: "Team",
+      providerScopeId: "team_123",
+      providerScopeSlug: "team-slug",
+    };
+
+    const targetConfig = parseLocalPortfolioActuationTargetConfig({
+      version: 1,
+      strategy: {
+        primary: "repo_config",
+        fallback: "manual_review",
+        notes: [],
+      },
+      defaults: {
+        allowedActions: ["github.create_issue"],
+        titlePrefix: "[Portfolio]",
+        defaultLabels: [],
+        supportsIssueCreate: true,
+        supportsPrComment: true,
+      },
+      targets: [
+        {
+          title: "premise-debate A",
+          provider: "Vercel",
+          sourceIdentifier: "prj_123",
+          sourceUrl: "https://vercel.com/team/premise-debate",
+          localProjectId: "project-1",
+          allowedActions: ["vercel.redeploy"],
+          defaultLabels: [],
+          supportsIssueCreate: false,
+          supportsPrComment: false,
+          vercelProjectId: "prj_123",
+          vercelTeamId: "team_123",
+          vercelTeamSlug: "team-slug",
+          vercelScopeType: "Team",
+          vercelEnvironment: "Production",
+        },
+        {
+          title: "premise-debate B",
+          provider: "Vercel",
+          sourceIdentifier: "prj_123",
+          sourceUrl: "https://vercel.com/team/premise-debate",
+          localProjectId: "project-1",
+          allowedActions: ["vercel.redeploy"],
+          defaultLabels: [],
+          supportsIssueCreate: false,
+          supportsPrComment: false,
+          vercelProjectId: "prj_123",
+          vercelTeamId: "team_123",
+          vercelTeamSlug: "team-slug",
+          vercelScopeType: "Team",
+          vercelEnvironment: "Production",
+        },
+      ],
+    });
+
+    expect(() =>
+      resolveActuationTarget({
+        request,
+        sources: [source],
+        targetConfig,
+        actionKey: "vercel.redeploy",
+      }),
+    ).toThrow("multiple Vercel allowlist rules");
+  });
+
+  test("rejects Vercel preflight deployments that do not match the target project", () => {
+    const request = baseRequest({
+      title: "Redeploy premise-debate",
+    });
+    expect(() =>
+      buildVercelRedeployExecutionPayload({
+        request,
+        target: {
+          provider: "Vercel",
+          source: {
+            id: "source-1",
+            url: "https://notion.so/source-1",
+            title: "premise-debate",
+            localProjectIds: ["project-1"],
+            provider: "Vercel",
+            sourceType: "Deployment Project",
+            identifier: "prj_123",
+            sourceUrl: "https://vercel.com/team/premise-debate",
+            status: "Active",
+            environment: "Production",
+            syncStrategy: "Poll",
+            lastSyncedAt: "2026-03-17",
+            providerScopeType: "Team",
+            providerScopeId: "team_123",
+            providerScopeSlug: "team-slug",
+          },
+          rule: {
+            title: "premise-debate",
+            provider: "Vercel",
+            sourceIdentifier: "prj_123",
+            sourceUrl: "https://vercel.com/team/premise-debate",
+            localProjectId: "project-1",
+            allowedActions: ["vercel.redeploy"],
+            defaultLabels: [],
+            supportsIssueCreate: false,
+            supportsPrComment: false,
+            vercelProjectId: "prj_123",
+            vercelTeamId: "team_123",
+            vercelTeamSlug: "team-slug",
+            vercelScopeType: "Team",
+            vercelEnvironment: "Production",
+          },
+          projectId: "prj_123",
+          projectName: "premise-debate",
+          teamId: "team_123",
+          teamSlug: "team-slug",
+          scopeType: "Team",
+          environment: "Production",
+        },
+        preflight: {
+          providerExercised: true,
+          noRedeployCandidate: false,
+          targetEnvironment: "Production",
+          latestDeployment: {
+            deploymentId: "dpl_123",
+            deploymentUrl: "https://example.vercel.app",
+            projectId: "prj_other",
+            readyState: "READY",
+            environment: "Production",
+            createdAt: "2026-03-17T00:00:00.000Z",
+          },
+        },
+      }),
+    ).toThrow("wrong project");
+  });
+
+  test("allows personal-scope Vercel targets without team identifiers", () => {
+    const request = baseRequest({
+      title: "Redeploy solo project",
+      targetSourceIds: ["source-1"],
+      localProjectIds: ["project-1"],
+    });
+    const source: ExternalSignalSourceRecord = {
+      id: "source-1",
+      url: "https://notion.so/source-1",
+      title: "solo-project",
+      localProjectIds: ["project-1"],
+      provider: "Vercel",
+      sourceType: "Deployment Project",
+      identifier: "prj_personal",
+      sourceUrl: "https://vercel.com/solo-project",
+      status: "Active",
+      environment: "Production",
+      syncStrategy: "Poll",
+      lastSyncedAt: "2026-03-17",
+      providerScopeType: "Personal",
+    };
+    const targetConfig = parseLocalPortfolioActuationTargetConfig({
+      version: 1,
+      strategy: {
+        primary: "repo_config",
+        fallback: "manual_review",
+        notes: [],
+      },
+      defaults: {
+        allowedActions: ["github.create_issue"],
+        titlePrefix: "[Portfolio]",
+        defaultLabels: [],
+        supportsIssueCreate: true,
+        supportsPrComment: true,
+      },
+      targets: [
+        {
+          title: "solo-project",
+          provider: "Vercel",
+          sourceIdentifier: "prj_personal",
+          sourceUrl: "https://vercel.com/solo-project",
+          localProjectId: "project-1",
+          allowedActions: ["vercel.redeploy"],
+          defaultLabels: [],
+          supportsIssueCreate: false,
+          supportsPrComment: false,
+          vercelProjectId: "prj_personal",
+          vercelScopeType: "Personal",
+          vercelEnvironment: "Production",
+        },
+      ],
+    });
+
+    const target = resolveActuationTarget({
+      request,
+      sources: [source],
+      targetConfig,
+      actionKey: "vercel.redeploy",
+    });
+    const payload = buildVercelRedeployExecutionPayload({
+      request,
+      target,
+      preflight: {
+        providerExercised: true,
+        noRedeployCandidate: false,
+        targetEnvironment: "Production",
+        latestDeployment: {
+          deploymentId: "dpl_123",
+          deploymentUrl: "https://solo-project.vercel.app",
+          projectId: "prj_personal",
+          readyState: "READY",
+          environment: "Production",
+          createdAt: "2026-03-17T00:00:00.000Z",
+        },
+      },
+    });
+
+    expect(target.scopeType).toBe("Personal");
+    expect(target.teamId).toBeUndefined();
+    expect(target.teamSlug).toBeUndefined();
+    expect(payload.scopeType).toBe("Personal");
+    expect(payload.teamId).toBeUndefined();
+    expect(payload.teamSlug).toBeUndefined();
   });
 });
 

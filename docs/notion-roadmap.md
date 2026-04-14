@@ -1,11 +1,11 @@
 # Notion Operating Roadmap
 
-Updated: 2026-03-22
+Updated: 2026-04-13
 
 ## Current Phase
 - Phase: 9 - Provider Expansion
 - Status: In Progress
-- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is measurably trusted.
+- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices after the deep GitHub lane is measurably trusted.
 
 ## Baseline Metrics
 - Total projects: 65
@@ -17,17 +17,20 @@ Updated: 2026-03-22
 - Recent build sessions: 5
 
 ## Latest Metrics
-- Total projects: 71
-- Overdue reviews: 0
+- Total projects: 113
+- Overdue reviews: 71
 - Missing next moves: 0
 - Missing last active: 0
 - Stale active projects: 0
-- Orphaned projects: 12
-- Recent build sessions: 91
+- Orphaned projects: 4
+- Recent build sessions: 0
 
 ## Phase Transition Memory
 - Transition: Phase 8 closed into Phase 9
-- Carry-forward brief: Phase 9 will expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is stable, low-noise, and easy to audit.
+- Carry-forward brief: Phase 9A proved the first non-GitHub lane with a truthful Vercel redeploy pilot on `evolutionsandbox`; the remaining work is to decide whether to widen redeploy coverage or add separate deployment-control verbs next.
+- Supporting artifacts:
+  - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
+  - [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
 
 ## Phase Memory
 ### Phase 1 Gave Us
@@ -54,8 +57,8 @@ Phase 7 gave us controlled actuation: approved GitHub issue/comment execution, d
 ### Phase 8 Added
 Phase 8 gave us a mature GitHub action lane: issue lifecycle actions, PR comments, hardened GitHub App posture, richer operator packets, and audit-grade GitHub execution feedback loops.
 
-### Phase 9 Will Expand
-Phase 9 will expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is stable, low-noise, and easy to audit.
+### Phase 9 Now Looks Like
+Phase 9 is no longer hypothetical. Phase 9A proved a bounded Vercel lane with truthful provider checks, one explicit pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy with confirmed reconciliation.
 
 ## Risks
 - Avoid adding a second overlapping status system beyond the manual fields and the three derived PM signals.
@@ -170,18 +173,25 @@ Phase 9 will expand the proven governance-and-actuation pattern to non-GitHub pr
 
 ### Phase 9: Provider Expansion
 - Status: In Progress
-- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is measurably trusted.
+- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices that stay as understandable as the GitHub lane.
 - Deliverables:
-  - New provider actuation lanes that reuse the existing approval, idempotency, and execution-ledger contract
-  - Provider-specific telemetry, webhook verification, and compensation patterns layered on top of the Phase 5 to 8 foundation
+  - Phase 9A completed: truthful Vercel provider readiness, one explicit `evolutionsandbox` pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy
+- Phase 9B next: either widen `vercel.redeploy` to a small allowlist or add distinct `vercel.promote` and `vercel.rollback` families, but not both at once
+  - The exact recommended rollout set for widening is documented in [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
   - Operator-facing cross-provider views and metrics that stay understandable and low-noise
 - Exit criteria:
-  - New providers reuse the same approval, audit, and execution posture rather than inventing parallel systems
-  - Cross-provider expansion remains easy to understand and clearly worth the added complexity
+  - Every new provider lane reuses the same approval, audit, and execution posture rather than inventing parallel systems
+  - Rollout widening and new action verbs are phased separately so expansion stays easy to understand and clearly worth the added complexity
 
 ## Next Phase
 Phase 9 - Provider Expansion
 
-Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is measurably trusted.
+Phase 9B should stay deliberately narrow: either widen `vercel.redeploy` to a few more explicit projects or add separate `vercel.promote` and `vercel.rollback` designs, but not both in the same implementation wave.
+
+The current recommended widening set is:
+
+- `premise-debate`
+- `neural-network-playground`
+- `sovereign-sim`
 
 Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.
