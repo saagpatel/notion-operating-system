@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-03-22
+Updated: 2026-04-13
 
 ## Current Phase
 - Phase: 9 - Provider Expansion
@@ -17,13 +17,13 @@ Updated: 2026-03-22
 - Recent build sessions: 5
 
 ## Latest Metrics
-- Total projects: 71
-- Overdue reviews: 0
+- Total projects: 113
+- Overdue reviews: 71
 - Missing next moves: 0
 - Missing last active: 0
 - Stale active projects: 0
-- Orphaned projects: 12
-- Recent build sessions: 91
+- Orphaned projects: 4
+- Recent build sessions: 0
 
 ## Phase Transition Memory
 - Transition: Phase 8 closed into Phase 9
