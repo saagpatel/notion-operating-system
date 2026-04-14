@@ -27,11 +27,12 @@ Updated: 2026-04-14
 
 ## Phase Transition Memory
 - Transition: Phase 8 closed into Phase 9
-- Carry-forward brief: Phase 9A and 9B are proven. Phase 9C now has an implemented bounded `vercel.rollback` lane for `evolutionsandbox`, with pinned-target dry runs and live verification, but the live pilot and post-pilot review are still pending.
+- Carry-forward brief: Phase 9A, 9B, and 9C are now proven. The repo has one explicit Vercel redeploy pilot, one small redeploy widening set, and one provider-proven rollback pilot on `evolutionsandbox`.
 - Supporting artifacts:
   - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
   - [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
   - [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
+  - [Vercel Phase 9C Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9c-post-pilot-review.md)
 
 ## Phase Memory
 ### Phase 1 Gave Us
@@ -59,7 +60,7 @@ Phase 7 gave us controlled actuation: approved GitHub issue/comment execution, d
 Phase 8 gave us a mature GitHub action lane: issue lifecycle actions, PR comments, hardened GitHub App posture, richer operator packets, and audit-grade GitHub execution feedback loops.
 
 ### Phase 9 Now Looks Like
-Phase 9 is in its third bounded slice. Phase 9A proved one explicit Vercel redeploy pilot, Phase 9B proved small-allowlist `vercel.redeploy` widening, and the repo now has an implemented but not yet provider-proven `vercel.rollback` lane for `evolutionsandbox`.
+Phase 9 is in its fourth bounded slice. Phase 9A proved one explicit Vercel redeploy pilot, Phase 9B proved small-allowlist `vercel.redeploy` widening, and Phase 9C proved one bounded `vercel.rollback` pilot on `evolutionsandbox`.
 
 ## Risks
 - Avoid adding a second overlapping status system beyond the manual fields and the three derived PM signals.
@@ -178,15 +179,15 @@ Phase 9 is in its third bounded slice. Phase 9A proved one explicit Vercel redep
 - Deliverables:
   - Phase 9A completed: truthful Vercel provider readiness, one explicit `evolutionsandbox` pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy
   - Phase 9B completed: `vercel.redeploy` widened successfully to `premise-debate`, `neural-network-playground`, and `sovereign-sim`, with truthful sync, dry-run graduation, live execution, and confirmed reconciliation for each
-  - Phase 9C implementation now exists: `vercel.rollback` is supported in policy, target resolution, dry run, actuation, and verification for `evolutionsandbox`, with pinned rollback targeting and compensation-needed handling on verification mismatch
+  - Phase 9C completed: `vercel.rollback` is supported in policy, target resolution, dry run, actuation, and verification for `evolutionsandbox`, and one governed live rollback moved production to the pinned earlier deployment
   - Operator-facing cross-provider views and metrics that stay understandable and low-noise
 - Exit criteria:
   - Every new provider lane reuses the same approval, audit, and execution posture rather than inventing parallel systems
-  - The `evolutionsandbox` rollback pilot executes once, confirms the pinned rollback target provider-side, and is documented before any wider rollback coverage or new Vercel verbs are considered
+  - Recovery-oriented provider verbs remain bounded and provider-verified before any broader widening is attempted
 
 ## Next Phase
 Phase 9 - Provider Expansion
 
-Complete Phase 9C operationally: run one governed live `vercel.rollback` pilot on `evolutionsandbox`, confirm the pinned deployment becomes the effective production target, and write the post-pilot review before deciding whether Vercel should get wider rollback coverage or a separate `vercel.promote` phase.
+Use the next bounded slice to add one explicit `vercel.promote` or rollback-undo pilot on `evolutionsandbox`, verify that the system can safely restore forward production flow after an intentional rollback, and only then decide whether wider rollback coverage or broader Vercel verbs are warranted.
 
 Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.

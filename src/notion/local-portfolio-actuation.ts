@@ -274,6 +274,7 @@ export interface VercelDeploymentSnapshot {
   environment: VercelTargetEnvironment;
   createdAt: string;
   aliasAssigned?: boolean;
+  aliasAssignedAt?: number;
   readySubstate?: string;
   rollbackCandidate?: boolean;
 }
@@ -2615,6 +2616,13 @@ function readVercelAliasAssigned(value: Record<string, unknown>): boolean {
   return false;
 }
 
+function readVercelAliasAssignedAt(value: Record<string, unknown>): number | undefined {
+  if (typeof value.aliasAssigned === "number" && Number.isFinite(value.aliasAssigned) && value.aliasAssigned > 0) {
+    return value.aliasAssigned;
+  }
+  return undefined;
+}
+
 function toVercelDeploymentSnapshot(
   deployment: Record<string, unknown>,
   projectId: string,
@@ -2629,6 +2637,7 @@ function toVercelDeploymentSnapshot(
       String(deployment.target ?? "production").toLowerCase().includes("preview") ? "Preview" : environment,
     createdAt: formatVercelTimestamp(deployment.createdAt ?? deployment.created ?? new Date().toISOString()),
     aliasAssigned: readVercelAliasAssigned(deployment),
+    aliasAssignedAt: readVercelAliasAssignedAt(deployment),
     readySubstate: typeof deployment.readySubstate === "string" ? deployment.readySubstate : undefined,
     rollbackCandidate: deployment.isRollbackCandidate === true,
   };
@@ -2647,7 +2656,11 @@ function selectCurrentVercelProductionDeployment(
   snapshots: VercelDeploymentSnapshot[],
 ): VercelDeploymentSnapshot | undefined {
   const ordered = [...snapshots].sort(compareVercelDeploymentsByCreatedAt);
+  const aliasedByMostRecentAssignment = ordered
+    .filter((deployment) => typeof deployment.aliasAssignedAt === "number")
+    .sort((left, right) => (right.aliasAssignedAt ?? 0) - (left.aliasAssignedAt ?? 0));
   return (
+    aliasedByMostRecentAssignment[0] ??
     ordered.find((deployment) => deployment.aliasAssigned) ??
     ordered.find((deployment) => deployment.readySubstate?.toUpperCase() === "PROMOTED") ??
     ordered[0]
