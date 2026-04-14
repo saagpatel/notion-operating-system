@@ -357,7 +357,7 @@ export async function runActionRunnerCommand(
             "Failure Notes": richTextValue(validationNotes.join(" ")),
           },
         });
-        if (mode === "live") {
+        if (mode === "live" && providerResult.executionStatus === "Succeeded") {
           await api.updatePageProperties({
             pageId: request.id,
             properties: {
@@ -367,6 +367,16 @@ export async function runActionRunnerCommand(
               "Execution Intent": { select: { name: "Dry Run" } },
               "Execution Notes": richTextValue(providerResult.responseSummary),
               "Provider Request Key": richTextValue(providerResult.providerResultKey),
+            },
+          });
+        } else if (mode === "live") {
+          await api.updatePageProperties({
+            pageId: request.id,
+            properties: {
+              "Latest Execution": relationValue([draftExecution.id]),
+              "Latest Execution Status": { select: { name: "Problem" } },
+              "Execution Intent": { select: { name: "Dry Run" } },
+              "Execution Notes": richTextValue(providerResult.responseSummary),
             },
           });
         } else {
@@ -384,13 +394,20 @@ export async function runActionRunnerCommand(
         await updateActuationPacket({
           api,
           request:
-            mode === "live"
+            mode === "live" && providerResult.executionStatus === "Succeeded"
               ? {
                   ...request,
                   executionIntent: "Dry Run",
                   latestExecutionStatus: "Executed",
                   executionNotes: providerResult.responseSummary,
                 }
+              : mode === "live"
+                ? {
+                    ...request,
+                    executionIntent: "Dry Run",
+                    latestExecutionStatus: "Problem",
+                    executionNotes: providerResult.responseSummary,
+                  }
               : {
                   ...request,
                   executionIntent: postDryRun!.executionIntent,
@@ -427,9 +444,19 @@ export async function runActionRunnerCommand(
             compensationPlan: payload.provider === "Vercel" ? buildVercelCompensationPlan() : buildGitHubCompensationPlan(actionKey),
           },
           idempotencyKey,
-          validationNotes: mode === "live" ? [] : postDryRun!.notes,
+          validationNotes:
+            mode === "live"
+              ? providerResult.executionStatus === "Succeeded"
+                ? []
+                : [providerResult.responseSummary]
+              : postDryRun!.notes,
         });
-        results.push({ requestId: request.id, executionId: draftExecution.id, status: finalStatus });
+        results.push({
+          requestId: request.id,
+          executionId: draftExecution.id,
+          status: finalStatus === "Succeeded" ? "Succeeded" : "Failed",
+          notes: finalStatus === "Succeeded" ? undefined : providerResult.responseSummary,
+        });
       } catch (error) {
         const { failureNotes, failureClassification } = classifyActionRunnerFailure(error);
         await api.updatePageProperties({

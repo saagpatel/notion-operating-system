@@ -36,10 +36,20 @@ export async function runActuationAuditCommand(
     targetConfig,
   });
   const output = { ok: true, githubActionFamilies: githubFamilies.families.length, ...summary };
-  const missingCredentials = summary.missingGitHubAuthRefs.length > 0 || summary.missingGitHubWebhookRefs.length > 0;
+  const missingCredentials =
+    summary.missingGitHubAuthRefs.length > 0 ||
+    summary.missingGitHubWebhookRefs.length > 0 ||
+    summary.missingVercelAuthRefs.length > 0;
+  const structuralWarnings = summary.blockedRequests.length > 0;
   recordCommandOutputSummary(output, {
-    status: missingCredentials ? "warning" : "completed",
-    warningCategories: missingCredentials ? ["missing_credentials"] : undefined,
+    status: missingCredentials || structuralWarnings ? "warning" : "completed",
+    warningCategories:
+      missingCredentials || structuralWarnings
+        ? ([
+            ...(missingCredentials ? (["missing_credentials"] as const) : []),
+            ...(structuralWarnings ? (["validation_gap"] as const) : []),
+          ] as Array<"missing_credentials" | "validation_gap">)
+        : undefined,
     metadata: {
       allowlistedTargets: summary.allowlistedTargets,
     },

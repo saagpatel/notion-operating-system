@@ -133,6 +133,7 @@
     "portfolio-audit:phase8-views-validate": "tsx src/notion/validate-local-portfolio-github-views.ts",
     "portfolio-audit:github-lane-audit": "tsx src/notion/actuation-audit.ts",
     "portfolio-audit:provider-expansion-audit": "tsx src/notion/provider-expansion-audit.ts",
+    "portfolio-audit:vercel-rollout-readiness": "tsx src/notion/vercel-rollout-readiness.ts",
     "portfolio-audit:operational-rollout": "tsx src/notion/operational-rollout.ts",
     "portfolio-audit:cohort-rollout": "tsx src/notion/cohort-rollout.ts",
     "portfolio-audit:batch-complete-project-pages": "tsx src/notion/batch-complete-project-pages.ts",

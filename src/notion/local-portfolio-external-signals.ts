@@ -873,7 +873,7 @@ function parseManualSeeds(raw: unknown): ManualExternalSignalSeedPlan[] {
       throw new AppError(`externalSignalSources.manualSeeds[${index}] must be an object`);
     }
     const value = entry as Record<string, unknown>;
-    return {
+    const parsed = {
       title: requiredString(value.title, `manualSeeds[${index}].title`),
       localProjectId: requiredString(value.localProjectId, `manualSeeds[${index}].localProjectId`),
       provider: parseProviderName(requiredString(value.provider, `manualSeeds[${index}].provider`)),
@@ -887,6 +887,24 @@ function parseManualSeeds(raw: unknown): ManualExternalSignalSeedPlan[] {
       providerScopeId: optionalString(value.providerScopeId),
       providerScopeSlug: optionalString(value.providerScopeSlug),
     };
+    if (parsed.provider === "Vercel") {
+      if (!parsed.identifier?.trim()) {
+        throw new AppError(`manualSeeds[${index}].identifier is required for Vercel sources`);
+      }
+      if (!parsed.sourceUrl?.trim()) {
+        throw new AppError(`manualSeeds[${index}].sourceUrl is required for Vercel sources`);
+      }
+      if (!parsed.providerScopeType) {
+        throw new AppError(`manualSeeds[${index}].providerScopeType is required for Vercel sources`);
+      }
+      if (!parsed.providerScopeId?.trim()) {
+        throw new AppError(`manualSeeds[${index}].providerScopeId is required for Vercel sources`);
+      }
+      if (!parsed.providerScopeSlug?.trim()) {
+        throw new AppError(`manualSeeds[${index}].providerScopeSlug is required for Vercel sources`);
+      }
+    }
+    return parsed;
   });
 }
 

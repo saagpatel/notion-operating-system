@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "teamId": "team_nZORCFEbaw3I8iSUrA2cWMJB",
+  "teamSlug": "saagars-projects-b7dca8e2",
+  "projects": [
+    {
+      "localProjectTitle": "Premise",
+      "localProjectId": "32dc21f1-caf0-819d-9d50-fd3c4530292f",
+      "vercelProjectName": "premise-debate",
+      "vercelProjectId": "prj_WHbskY8PjnYcjNYWqTPpGH4db9nm",
+      "scopeType": "Team",
+      "environment": "Production",
+      "rolloutOrder": 1,
+      "reserve": false
+    },
+    {
+      "localProjectTitle": "Neural Network",
+      "localProjectId": "332c21f1-caf0-81a8-b34b-d110862eb2b4",
+      "vercelProjectName": "neural-network-playground",
+      "vercelProjectId": "prj_2QDLR6bg17iDtFVZDF6dKy986lce",
+      "scopeType": "Team",
+      "environment": "Production",
+      "rolloutOrder": 2,
+      "reserve": false
+    },
+    {
+      "localProjectTitle": "Sovereign",
+      "localProjectId": "32bc21f1-caf0-81e7-a07f-c4bec70be5a2",
+      "vercelProjectName": "sovereign-sim",
+      "vercelProjectId": "prj_J5Tod3IFEqG3qPEEA7eTGEQonBKg",
+      "scopeType": "Team",
+      "environment": "Production",
+      "rolloutOrder": 3,
+      "reserve": false
+    },
+    {
+      "localProjectTitle": "How Money Moves",
+      "localProjectId": "32ec21f1-caf0-8123-abaa-ccba25cc4473",
+      "vercelProjectName": "how-money-moves",
+      "vercelProjectId": "prj_bgtLgWoK3GST2u9riPX4Ros67Gcn",
+      "scopeType": "Team",
+      "environment": "Production",
+      "rolloutOrder": 4,
+      "reserve": true
+    }
+  ]
+}

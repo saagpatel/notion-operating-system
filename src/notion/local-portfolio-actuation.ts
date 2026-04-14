@@ -267,6 +267,7 @@ export interface VercelRedeployPreflight {
 export type GitHubResponseClassification =
   | "Success"
   | "Validation Failure"
+  | "Verification Failure"
   | "Permission Failure"
   | "Auth Failure"
   | "Not Found"
@@ -277,7 +278,7 @@ export type GitHubResponseClassification =
 export type GitHubReconcileStatus = "Not Needed" | "Pending" | "Confirmed" | "Mismatch";
 
 export interface GitHubExecutionResult {
-  executionStatus: Extract<ActuationStatus, "Succeeded" | "Skipped">;
+  executionStatus: Extract<ActuationStatus, "Succeeded" | "Skipped" | "Failed" | "Compensation Needed">;
   providerResultKey: string;
   providerUrl: string;
   issueNumber: number;
@@ -580,7 +581,7 @@ export function buildActuationAuditSummary(input: {
   );
 
   const liveCapablePolicies = input.policyConfig.policies
-    .filter((policy) => policy.provider === "GitHub" && policy.executionMode === "Approved Live")
+    .filter((policy) => policy.executionMode === "Approved Live")
     .map((policy) => policy.title ?? policy.actionKey ?? "unknown");
   const issueReadyTargets = input.targetConfig.targets.filter((target) => target.supportsIssueCreate).length;
   const commentReadyTargets = input.targetConfig.targets.filter((target) => target.supportsPrComment).length;
@@ -596,6 +597,41 @@ export function buildActuationAuditSummary(input: {
     ),
   ).length;
   const supportedActionKeys = [...new Set(input.targetConfig.targets.flatMap((target) => target.allowedActions))].sort() as ActuationActionKey[];
+  const blockedRequests = input.targetConfig.targets.flatMap((target) => {
+    if (!isVercelTargetRule(target)) {
+      return [];
+    }
+    const issues: string[] = [];
+    if (!target.localProjectId?.trim()) {
+      issues.push("missing localProjectId");
+    }
+    if (!target.sourceIdentifier?.trim()) {
+      issues.push("missing sourceIdentifier");
+    }
+    if (!target.vercelProjectId?.trim()) {
+      issues.push("missing vercelProjectId");
+    }
+    if (!target.vercelTeamId?.trim()) {
+      issues.push("missing vercelTeamId");
+    }
+    if (!target.vercelTeamSlug?.trim()) {
+      issues.push("missing vercelTeamSlug");
+    }
+    if (!target.vercelScopeType) {
+      issues.push("missing vercelScopeType");
+    }
+    if (!target.vercelEnvironment) {
+      issues.push("missing vercelEnvironment");
+    }
+    if (
+      target.sourceIdentifier?.trim() &&
+      target.vercelProjectId?.trim() &&
+      target.sourceIdentifier.trim() !== target.vercelProjectId.trim()
+    ) {
+      issues.push("sourceIdentifier does not match vercelProjectId");
+    }
+    return issues.length > 0 ? [`Vercel target "${target.title}" is not live-safe: ${issues.join(", ")}.`] : [];
+  });
 
   return {
     missingGitHubAuthRefs,
@@ -607,7 +643,7 @@ export function buildActuationAuditSummary(input: {
     commentReadyTargets,
     issueLifecycleReadyTargets,
     supportedActionKeys,
-    blockedRequests: [],
+    blockedRequests,
   };
 }
 
@@ -623,19 +659,19 @@ export function resolveActuationTarget(input: {
     throw new AppError(`Action request "${input.request.title}" is missing a linked target source.`);
   }
   const provider = linkedSource.provider;
-  const matchingRule = input.targetConfig.targets.find((target) => {
-    const targetProvider = target.provider ?? inferTargetProviderFromRule(target);
-    if (targetProvider && targetProvider !== provider) {
-      return false;
-    }
-    return (
-      (target.sourceIdentifier && target.sourceIdentifier === linkedSource.identifier) ||
-      (target.sourceUrl && target.sourceUrl === linkedSource.sourceUrl) ||
-      (target.localProjectId && input.request.localProjectIds.includes(target.localProjectId))
-    );
-  });
 
   if (provider === "GitHub") {
+    const matchingRule = input.targetConfig.targets.find((target) => {
+      const targetProvider = target.provider ?? inferTargetProviderFromRule(target);
+      if (targetProvider && targetProvider !== provider) {
+        return false;
+      }
+      return (
+        (target.sourceIdentifier && target.sourceIdentifier === linkedSource.identifier) ||
+        (target.sourceUrl && target.sourceUrl === linkedSource.sourceUrl) ||
+        (target.localProjectId && input.request.localProjectIds.includes(target.localProjectId))
+      );
+    });
     if (linkedSource.sourceType !== "Repo" || linkedSource.status !== "Active") {
       throw new AppError(`Target source "${linkedSource.title}" is not an active GitHub repo source.`);
     }
@@ -669,27 +705,68 @@ export function resolveActuationTarget(input: {
     if (linkedSource.sourceType !== "Deployment Project" || linkedSource.status !== "Active") {
       throw new AppError(`Target source "${linkedSource.title}" is not an active Vercel deployment source.`);
     }
-    if (!matchingRule) {
+    const sourceProjectId = linkedSource.identifier.trim();
+    if (!sourceProjectId) {
+      throw new AppError(`Target "${linkedSource.title}" is missing a Vercel project id.`);
+    }
+    const matchingRules = input.targetConfig.targets.filter((target) => {
+      const targetProvider = target.provider ?? inferTargetProviderFromRule(target);
+      if (targetProvider !== "Vercel") {
+        return false;
+      }
+      return (
+        target.sourceIdentifier?.trim() === sourceProjectId ||
+        target.vercelProjectId?.trim() === sourceProjectId
+      );
+    });
+    if (matchingRules.length === 0) {
       throw new AppError(`Target "${linkedSource.title}" does not have a Vercel allowlist rule yet.`);
     }
+    if (matchingRules.length > 1) {
+      throw new AppError(`Target "${linkedSource.title}" resolves to multiple Vercel allowlist rules.`);
+    }
+    const matchingRule = matchingRules[0]!;
     if (!matchingRule.allowedActions.includes(input.actionKey)) {
       throw new AppError(`Target "${linkedSource.title}" is not allowlisted for ${input.actionKey}.`);
     }
-    const projectId = matchingRule.vercelProjectId ?? linkedSource.identifier;
-    if (!projectId) {
-      throw new AppError(`Target "${linkedSource.title}" is missing a Vercel project id.`);
+    if (!matchingRule.localProjectId?.trim()) {
+      throw new AppError(`Target "${linkedSource.title}" is missing a linked Local Portfolio project id.`);
     }
-    const scopeType = matchingRule.vercelScopeType ?? linkedSource.providerScopeType ?? "Team";
+    if (!linkedSource.localProjectIds.includes(matchingRule.localProjectId.trim())) {
+      throw new AppError(`Target "${linkedSource.title}" does not match the linked Local Portfolio project.`);
+    }
+    if (matchingRule.sourceIdentifier?.trim() !== sourceProjectId) {
+      throw new AppError(`Target "${linkedSource.title}" is missing an exact sourceIdentifier match.`);
+    }
+    if (matchingRule.vercelProjectId?.trim() !== sourceProjectId) {
+      throw new AppError(`Target "${linkedSource.title}" is missing an exact vercelProjectId match.`);
+    }
+    const scopeType = linkedSource.providerScopeType?.trim() as VercelScopeType | undefined;
+    if (!scopeType || !matchingRule.vercelScopeType || matchingRule.vercelScopeType !== scopeType) {
+      throw new AppError(`Target "${linkedSource.title}" is missing an exact Vercel scope type match.`);
+    }
+    const teamId = linkedSource.providerScopeId?.trim();
+    if (!teamId || matchingRule.vercelTeamId?.trim() !== teamId) {
+      throw new AppError(`Target "${linkedSource.title}" is missing an exact Vercel team id match.`);
+    }
+    const teamSlug = linkedSource.providerScopeSlug?.trim();
+    if (!teamSlug || matchingRule.vercelTeamSlug?.trim() !== teamSlug) {
+      throw new AppError(`Target "${linkedSource.title}" is missing an exact Vercel team slug match.`);
+    }
+    const sourceEnvironment = normalizeVercelEnvironment(linkedSource.environment);
+    if (!matchingRule.vercelEnvironment || matchingRule.vercelEnvironment !== sourceEnvironment) {
+      throw new AppError(`Target "${linkedSource.title}" is missing an exact Vercel environment match.`);
+    }
     return {
       provider: "Vercel",
       source: linkedSource,
       rule: matchingRule,
-      projectId,
+      projectId: sourceProjectId,
       projectName: matchingRule.title || linkedSource.title,
-      teamId: matchingRule.vercelTeamId ?? linkedSource.providerScopeId,
-      teamSlug: matchingRule.vercelTeamSlug ?? linkedSource.providerScopeSlug,
+      teamId,
+      teamSlug,
       scopeType,
-      environment: matchingRule.vercelEnvironment ?? normalizeVercelEnvironment(linkedSource.environment),
+      environment: matchingRule.vercelEnvironment,
     };
   }
 
@@ -767,12 +844,26 @@ export function buildVercelRedeployExecutionPayload(input: {
   target: ResolvedActuationTarget;
   preflight?: VercelRedeployPreflight;
 }): VercelRedeployExecutionPayload {
-  if (input.target.provider !== "Vercel" || !input.target.projectId || !input.target.projectName || !input.target.environment) {
+  if (
+    input.target.provider !== "Vercel" ||
+    !input.target.projectId ||
+    !input.target.projectName ||
+    !input.target.environment ||
+    !input.target.teamId ||
+    !input.target.teamSlug ||
+    !input.target.scopeType
+  ) {
     throw new AppError(`Action request "${input.request.title}" is not resolved to a Vercel target.`);
   }
   const latestDeployment = input.preflight?.latestDeployment;
   if (!latestDeployment) {
     throw new AppError(`Validation Failure: no existing Vercel deployment is available to redeploy for ${input.target.projectName}.`);
+  }
+  if (latestDeployment.projectId !== input.target.projectId) {
+    throw new AppError("Validation Failure: Vercel preflight resolved a deployment for the wrong project.");
+  }
+  if (latestDeployment.environment !== input.target.environment) {
+    throw new AppError("Validation Failure: Vercel preflight resolved the wrong deployment environment.");
   }
   return {
     provider: "Vercel",
@@ -1251,6 +1342,21 @@ export function evaluateActionRequestReadiness(input: {
   }
   if (phase7.liveGating.requireApproval && input.request.status !== "Approved") {
     notes.push("Request is not approved.");
+  }
+  if (policy && !policy.allowedSources.includes(input.request.sourceType)) {
+    notes.push(`Request source type "${input.request.sourceType}" is not allowlisted by policy.`);
+  }
+  if (input.request.executionIntent === "Ready for Live" && policy) {
+    const distinctApprovers = uniqueNormalizedStrings(input.request.approverIds);
+    if (policy.approvalRule === "Single Approval" && distinctApprovers.length < 1) {
+      notes.push("At least one approver is required before live execution.");
+    }
+    if (policy.approvalRule === "Dual Approval" && distinctApprovers.length < 2) {
+      notes.push("Two distinct approvers are required before live execution.");
+    }
+    if (policy.approvalRule === "No Write") {
+      notes.push("Policy is configured as No Write.");
+    }
   }
   if (phase7.liveGating.requireNonExpiredRequest && input.request.expiresAt && input.request.expiresAt < input.today) {
     notes.push("Request is expired.");
@@ -1894,6 +2000,21 @@ export async function executeVercelRedeploy(input: {
   const reconcileStatus: GitHubReconcileStatus =
     verification?.deploymentId === deploymentId && verification?.projectId === input.payload.projectId ? "Confirmed" : "Mismatch";
 
+  if (reconcileStatus !== "Confirmed") {
+    return {
+      executionStatus: "Compensation Needed",
+      providerResultKey: deploymentId,
+      providerUrl,
+      issueNumber: 0,
+      commentId: "",
+      labelDeltaSummary: "",
+      assigneeDeltaSummary: "",
+      responseClassification: "Verification Failure",
+      reconcileStatus,
+      responseSummary: `Triggered Vercel redeploy for ${input.payload.projectName}, but post-action verification could not confirm the expected project deployment.`,
+    };
+  }
+
   return {
     executionStatus: "Succeeded",
     providerResultKey: deploymentId,
@@ -1965,6 +2086,7 @@ function throwGitHubExecutionFailure(status: number, message?: string): never {
 export function classifyGitHubFailureMessage(message: string): GitHubResponseClassification {
   const known: GitHubResponseClassification[] = [
     "Validation Failure",
+    "Verification Failure",
     "Permission Failure",
     "Auth Failure",
     "Not Found",
@@ -2022,6 +2144,10 @@ function normalizeVercelEnvironment(
   value: ExternalSignalSourceRecord["environment"] | undefined,
 ): VercelTargetEnvironment {
   return value === "Preview" ? "Preview" : "Production";
+}
+
+function isVercelTargetRule(target: Pick<ActuationTargetRule, "provider" | "allowedActions" | "sourceUrl">): boolean {
+  return (target.provider ?? inferTargetProviderFromRule(target as ActuationTargetRule)) === "Vercel";
 }
 
 function missingVercelLiveCredentials(): string[] {
@@ -2204,7 +2330,7 @@ function parseActuationTarget(raw: unknown, fieldName: string): ActuationTargetR
     throw new AppError(`${fieldName} must be an object`);
   }
   const value = raw as Record<string, unknown>;
-  return {
+  const parsed: ActuationTargetRule = {
     title: requiredString(value.title, `${fieldName}.title`),
     provider: optionalProviderName(value.provider, `${fieldName}.provider`),
     sourceIdentifier: optionalString(value.sourceIdentifier, `${fieldName}.sourceIdentifier`),
@@ -2221,6 +2347,33 @@ function parseActuationTarget(raw: unknown, fieldName: string): ActuationTargetR
     vercelScopeType: optionalVercelScopeType(value.vercelScopeType, `${fieldName}.vercelScopeType`),
     vercelEnvironment: optionalVercelEnvironment(value.vercelEnvironment, `${fieldName}.vercelEnvironment`),
   };
+  if (isVercelTargetRule(parsed)) {
+    if (!parsed.localProjectId?.trim()) {
+      throw new AppError(`${fieldName}.localProjectId is required for Vercel targets`);
+    }
+    if (!parsed.sourceIdentifier?.trim()) {
+      throw new AppError(`${fieldName}.sourceIdentifier is required for Vercel targets`);
+    }
+    if (!parsed.vercelProjectId?.trim()) {
+      throw new AppError(`${fieldName}.vercelProjectId is required for Vercel targets`);
+    }
+    if (parsed.sourceIdentifier.trim() !== parsed.vercelProjectId.trim()) {
+      throw new AppError(`${fieldName}.sourceIdentifier must match ${fieldName}.vercelProjectId for Vercel targets`);
+    }
+    if (!parsed.vercelTeamId?.trim()) {
+      throw new AppError(`${fieldName}.vercelTeamId is required for Vercel targets`);
+    }
+    if (!parsed.vercelTeamSlug?.trim()) {
+      throw new AppError(`${fieldName}.vercelTeamSlug is required for Vercel targets`);
+    }
+    if (!parsed.vercelScopeType) {
+      throw new AppError(`${fieldName}.vercelScopeType is required for Vercel targets`);
+    }
+    if (!parsed.vercelEnvironment) {
+      throw new AppError(`${fieldName}.vercelEnvironment is required for Vercel targets`);
+    }
+  }
+  return parsed;
 }
 
 function parseViewCollections(raw: unknown): ActuationViewCollection[] {
