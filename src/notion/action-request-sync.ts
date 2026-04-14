@@ -13,11 +13,14 @@ import { fetchAllPages, toControlTowerProjectRecord } from "./local-portfolio-co
 import { mergeManagedSection } from "./local-portfolio-execution.js";
 import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
 import {
+  buildGovernanceAuditSummary,
   renderGovernanceBriefSection,
   renderGovernanceCommandCenterSection,
   renderWeeklyGovernanceSection,
   requirePhase6Governance,
   shouldExpireActionRequest,
+  loadLocalPortfolioGovernancePolicyConfig,
+  loadLocalPortfolioWebhookProviderConfig,
 } from "./local-portfolio-governance.js";
 import {
   ensurePhase6GovernanceSchema,
@@ -27,7 +30,14 @@ import {
   toWebhookEndpointRecord,
 } from "./local-portfolio-governance-live.js";
 import { toExternalActionExecutionRecord } from "./local-portfolio-actuation-live.js";
-import { renderActuationCommandCenterSection, renderWeeklyActuationSection } from "./local-portfolio-actuation.js";
+import {
+  buildActuationAuditSummary,
+  loadLocalPortfolioActuationTargetConfig,
+  loadLocalPortfolioGitHubActionFamilyConfig,
+  renderActuationCommandCenterSection,
+  renderWeeklyActuationSection,
+} from "./local-portfolio-actuation.js";
+import { buildGovernanceHealthReport, buildGovernanceHealthSnapshot } from "./governance-health-report.js";
 import { AppError } from "../utils/errors.js";
 import { losAngelesToday } from "../utils/date.js";
 
@@ -70,6 +80,12 @@ export async function runActionRequestSyncCommand(
     }
 
     const phase6 = requirePhase6Governance(config);
+    const [policyConfig, webhookProviderConfig, actuationTargetConfig, githubActionFamilies] = await Promise.all([
+      loadLocalPortfolioGovernancePolicyConfig(),
+      loadLocalPortfolioWebhookProviderConfig(),
+      loadLocalPortfolioActuationTargetConfig(),
+      loadLocalPortfolioGitHubActionFamilyConfig(),
+    ]);
     const executionSchemaPromise = config.phase7Actuation
       ? api.retrieveDataSource(config.phase7Actuation.executions.dataSourceId)
       : Promise.resolve(undefined);
@@ -104,6 +120,22 @@ export async function runActionRequestSyncCommand(
     const endpoints = endpointPages.map((page) => toWebhookEndpointRecord(page));
     const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));
     const executions = executionPages.map((page) => toExternalActionExecutionRecord(page));
+    const governanceHealthSnapshot = buildGovernanceHealthSnapshot(
+      buildGovernanceHealthReport({
+        governanceSummary: buildGovernanceAuditSummary({
+          controlConfig: config,
+          policyConfig,
+          providerConfig: webhookProviderConfig,
+        }),
+        actuationSummary: buildActuationAuditSummary({
+          controlConfig: config,
+          policyConfig: { policies: policyConfig.policies },
+          targetConfig: actuationTargetConfig,
+        }),
+        githubActionFamilyCount: githubActionFamilies.families.length,
+        generatedAt: new Date().toISOString(),
+      }),
+    );
 
     let expiredCount = 0;
     if (live) {
@@ -172,6 +204,7 @@ export async function runActionRequestSyncCommand(
           endpoints,
           policies,
           actuationExecutions: executions,
+          healthSnapshot: governanceHealthSnapshot,
         });
         const updated = mergeManagedSection(
           commandCenter.markdown,
@@ -182,6 +215,7 @@ export async function runActionRequestSyncCommand(
         const actuationSection = renderActuationCommandCenterSection({
           requests,
           executions,
+          healthSnapshot: governanceHealthSnapshot,
         });
         const withActuation = mergeManagedSection(
           updated,
@@ -231,12 +265,21 @@ export async function runActionRequestSyncCommand(
       if (latestWeekly) {
         logLiveStage(live, "Refreshing weekly governance summary");
         const weekly = await api.readPageMarkdown(latestWeekly.id);
-        const section = renderWeeklyGovernanceSection({ requests, deliveries, actuationExecutions: executions });
-        const updated = mergeManagedSection(weekly.markdown, section, WEEKLY_GOVERNANCE_START, WEEKLY_GOVERNANCE_END);
-        const actuationSection = renderWeeklyActuationSection({ executions });
+        const governanceWithHealth = renderWeeklyGovernanceSection({
+          requests,
+          deliveries,
+          actuationExecutions: executions,
+          healthSnapshot: governanceHealthSnapshot,
+        });
+        const updated = mergeManagedSection(weekly.markdown, governanceWithHealth, WEEKLY_GOVERNANCE_START, WEEKLY_GOVERNANCE_END);
+        const actuationWithHealth = renderWeeklyActuationSection({
+          executions,
+          requests,
+          healthSnapshot: governanceHealthSnapshot,
+        });
         const withActuation = mergeManagedSection(
           updated,
-          actuationSection,
+          actuationWithHealth,
           WEEKLY_ACTUATION_START,
           WEEKLY_ACTUATION_END,
         );
@@ -244,7 +287,7 @@ export async function runActionRequestSyncCommand(
           try {
             const governanceOnly = mergeManagedSection(
               weekly.markdown,
-              section,
+              governanceWithHealth,
               WEEKLY_GOVERNANCE_START,
               WEEKLY_GOVERNANCE_END,
             );
@@ -290,6 +333,8 @@ export async function runActionRequestSyncCommand(
       approvedCount: requests.filter((request) => request.status === "Approved").length,
       verifiedDeliveryCount: deliveries.filter((delivery) => delivery.verificationResult === "Valid").length,
       executionCount: executions.length,
+      governanceHealthStatus: governanceHealthSnapshot.status,
+      governanceHealthWarningCount: governanceHealthSnapshot.warningCount,
     };
     recordCommandOutputSummary(output);
     console.log(JSON.stringify(output, null, 2));

@@ -482,6 +482,14 @@ export function renderGovernanceCommandCenterSection(input: {
   endpoints: WebhookEndpointRecord[];
   policies: ActionPolicyRecord[];
   actuationExecutions?: Array<{ url: string; title: string; status: string; mode: string; executedAt: string }>;
+  healthSnapshot?: {
+    status: "healthy" | "warning";
+    warningCount: number;
+    governanceWarningCount: number;
+    actuationWarningCount: number;
+    highlightedWarnings: string[];
+    nextActions: string[];
+  };
 }): string {
   const pendingRequests = input.requests.filter((request) => request.status === "Pending Approval");
   const expiredRequests = input.requests.filter((request) => request.status === "Expired");
@@ -504,6 +512,28 @@ export function renderGovernanceCommandCenterSection(input: {
     `- Shadow-ready endpoints: ${shadowReadyEndpoints.length}`,
     `- Disabled policies: ${disabledPolicies.length}`,
     `- Recent actuation failures: ${recentActuationFailures.length}`,
+    "",
+    "### Governance Health",
+    ...(input.healthSnapshot
+      ? [
+          `- Overall status: ${input.healthSnapshot.status}`,
+          `- Open warnings: ${input.healthSnapshot.warningCount}`,
+          `- Governance-side warnings: ${input.healthSnapshot.governanceWarningCount}`,
+          `- Actuation-side warnings: ${input.healthSnapshot.actuationWarningCount}`,
+        ]
+      : ["- Health snapshot unavailable in this sync run."]),
+    "",
+    "### Health Alerts",
+    ...(input.healthSnapshot
+      ? input.healthSnapshot.highlightedWarnings.length > 0
+        ? input.healthSnapshot.highlightedWarnings.map((warning) => `- ${warning}`)
+        : ["- No health alerts right now."]
+      : ["- No health snapshot available right now."]),
+    "",
+    "### Next Operator Moves",
+    ...(input.healthSnapshot
+      ? input.healthSnapshot.nextActions.map((action) => `- ${action}`)
+      : ["- Run `npm run governance:health-report` to rebuild the operator snapshot."]),
     "",
     "### Pending Approvals",
     ...(pendingRequests.length > 0
@@ -529,6 +559,11 @@ export function renderWeeklyGovernanceSection(input: {
   requests: ActionRequestRecord[];
   deliveries: WebhookDeliveryRecord[];
   actuationExecutions?: Array<{ status: string; mode: string }>;
+  healthSnapshot?: {
+    status: "healthy" | "warning";
+    warningCount: number;
+    nextActions: string[];
+  };
 }): string {
   const pending = input.requests.filter((request) => request.status === "Pending Approval").length;
   const approved = input.requests.filter((request) => request.status === "Approved").length;
@@ -549,6 +584,9 @@ export function renderWeeklyGovernanceSection(input: {
     `- Rejected or duplicate deliveries: ${rejected}`,
     `- Live actions executed: ${liveActions}`,
     `- Failed actions: ${failedActions}`,
+    `- Governance health status: ${input.healthSnapshot?.status ?? "unknown"}`,
+    `- Governance health warnings: ${input.healthSnapshot?.warningCount ?? 0}`,
+    `- Suggested operator follow-ups: ${input.healthSnapshot?.nextActions.length ?? 0}`,
     "<!-- codex:notion-weekly-governance:end -->",
   ].join("\n");
 }

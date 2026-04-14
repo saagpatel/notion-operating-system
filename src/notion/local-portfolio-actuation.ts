@@ -1606,6 +1606,10 @@ export function renderActuationPacketSection(input: {
 export function renderActuationCommandCenterSection(input: {
   requests: ActionRequestRecord[];
   executions: ExternalActionExecutionRecord[];
+  healthSnapshot?: {
+    warningCount: number;
+    highlightedWarnings: string[];
+  };
 }): string {
   const readyToDryRun = input.requests.filter(
     (request) => request.status === "Approved" && (request.executionIntent || "Dry Run") === "Dry Run",
@@ -1613,6 +1617,10 @@ export function renderActuationCommandCenterSection(input: {
   const readyForLive = input.requests.filter(
     (request) => request.status === "Approved" && request.executionIntent === "Ready for Live",
   );
+  const compensationNeeded = input.executions
+    .filter((execution) => execution.status === "Compensation Needed")
+    .sort((left, right) => right.executedAt.localeCompare(left.executedAt))
+    .slice(0, 8);
   const recentSuccesses = input.executions
     .filter((execution) => execution.mode === "Live" && execution.status === "Succeeded")
     .sort((left, right) => right.executedAt.localeCompare(left.executedAt))
@@ -1633,8 +1641,22 @@ export function renderActuationCommandCenterSection(input: {
     "- Current safety posture: GitHub stays additive-only, Vercel writes stay serial, and rollback/promote are only allowlisted for evolutionsandbox.",
     "- If webhook delivery fails, recover through provider delivery history and then drain/reconcile locally.",
     "",
+    "### Action Attention",
+    ...(compensationNeeded.length > 0
+      ? compensationNeeded.map((execution) => `- [${execution.title}](${execution.url}) - compensation follow-up needed`)
+      : readyForLive.length > 0
+        ? readyForLive.slice(0, 5).map((request) => `- [${request.title}](${request.url}) - ready for one live run`)
+        : input.healthSnapshot && input.healthSnapshot.highlightedWarnings.length > 0
+          ? input.healthSnapshot.highlightedWarnings.map((warning) => `- ${warning}`)
+          : ["- No immediate action attention items right now."]),
+    "",
     "### Ready for Live",
     ...(readyForLive.length > 0 ? readyForLive.map((request) => `- [${request.title}](${request.url})`) : ["- None right now."]),
+    "",
+    "### Compensation Needed",
+    ...(compensationNeeded.length > 0
+      ? compensationNeeded.map((execution) => `- [${execution.title}](${execution.url}) - ${execution.executedAt}`)
+      : ["- No compensation-needed executions right now."]),
     "",
     "### Recent Live Successes",
     ...(recentSuccesses.length > 0
@@ -1651,6 +1673,10 @@ export function renderActuationCommandCenterSection(input: {
 
 export function renderWeeklyActuationSection(input: {
   executions: ExternalActionExecutionRecord[];
+  requests?: ActionRequestRecord[];
+  healthSnapshot?: {
+    warningCount: number;
+  };
 }): string {
   const dryRuns = input.executions.filter((execution) => execution.mode === "Dry Run");
   const liveSuccesses = input.executions.filter(
@@ -1658,6 +1684,9 @@ export function renderWeeklyActuationSection(input: {
   );
   const failures = input.executions.filter((execution) => execution.status === "Failed");
   const compensation = input.executions.filter((execution) => execution.status === "Compensation Needed");
+  const readyForLive = (input.requests ?? []).filter(
+    (request) => request.status === "Approved" && request.executionIntent === "Ready for Live",
+  );
   return [
     "<!-- codex:notion-weekly-actuation:start -->",
     "## Weekly Actuation Summary",
@@ -1666,6 +1695,8 @@ export function renderWeeklyActuationSection(input: {
     `- Live actions executed: ${liveSuccesses.length}`,
     `- Failed executions: ${failures.length}`,
     `- Compensation-needed items: ${compensation.length}`,
+    `- Requests ready for live: ${readyForLive.length}`,
+    `- Health warnings still open: ${input.healthSnapshot?.warningCount ?? 0}`,
     "<!-- codex:notion-weekly-actuation:end -->",
   ].join("\n");
 }

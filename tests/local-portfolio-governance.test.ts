@@ -12,6 +12,8 @@ import {
   loadLocalPortfolioGovernancePolicyConfig,
   parseLocalPortfolioGovernancePolicyConfig,
   parseLocalPortfolioGovernanceViewPlan,
+  renderGovernanceCommandCenterSection,
+  renderWeeklyGovernanceSection,
   parseLocalPortfolioWebhookProviderConfig,
   shouldExpireActionRequest,
   validateLocalPortfolioGovernanceViewPlanAgainstSchemas,
@@ -64,6 +66,70 @@ describe("local portfolio governance", () => {
     expect(nextConfig.phase6Governance?.identityPosture).toBe("app_first_least_privilege");
     expect(nextConfig.phase6Governance?.phaseMemory.phase6Added).toContain("Phase 6 gave us");
     expect(summary.liveMutationPolicies).toContain("github.create_issue");
+  });
+
+  test("renders governance health into command center and weekly summaries", () => {
+    const request: ActionRequestRecord = {
+      id: "request-health",
+      url: "https://notion.so/request-health",
+      title: "Review failing GitHub action",
+      localProjectIds: ["project-1"],
+      policyIds: ["policy-1"],
+      targetSourceIds: [],
+      status: "Pending Approval",
+      sourceType: "Manual",
+      recommendationRunIds: [],
+      weeklyReviewIds: [],
+      requestedByIds: [],
+      approverIds: [],
+      requestedAt: "2026-04-14",
+      decidedAt: "",
+      expiresAt: "",
+      plannedPayloadSummary: "",
+      payloadTitle: "Investigate failure",
+      payloadBody: "Need follow-up.",
+      targetNumber: 0,
+      targetLabels: [],
+      targetAssignees: [],
+      executionIntent: "Ready for Live",
+      latestExecutionIds: [],
+      latestExecutionStatus: "None",
+      providerRequestKey: "",
+      approvalReason: "",
+      executionNotes: "",
+    };
+
+    const commandCenter = renderGovernanceCommandCenterSection({
+      requests: [request],
+      deliveries: [],
+      endpoints: [],
+      policies: [],
+      actuationExecutions: [],
+      healthSnapshot: {
+        status: "warning",
+        warningCount: 2,
+        governanceWarningCount: 1,
+        actuationWarningCount: 1,
+        highlightedWarnings: ["Missing auth env var: VERCEL_TOKEN"],
+        nextActions: ["Restore the missing live-write credentials before attempting governed actions."],
+      },
+    });
+    const weekly = renderWeeklyGovernanceSection({
+      requests: [request],
+      deliveries: [],
+      actuationExecutions: [],
+      healthSnapshot: {
+        status: "warning",
+        warningCount: 2,
+        nextActions: ["Restore the missing live-write credentials before attempting governed actions."],
+      },
+    });
+
+    expect(commandCenter).toContain("### Governance Health");
+    expect(commandCenter).toContain("### Next Operator Moves");
+    expect(commandCenter).toContain("Missing auth env var: VERCEL_TOKEN");
+    expect(weekly).toContain("- Governance health status: warning");
+    expect(weekly).toContain("- Governance health warnings: 2");
   });
 
   test("validates governance views against representative schemas", async () => {

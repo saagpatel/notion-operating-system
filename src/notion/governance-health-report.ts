@@ -54,6 +54,15 @@ export interface GovernanceHealthReport {
   nextActions: string[];
 }
 
+export interface GovernanceHealthSnapshot {
+  status: "healthy" | "warning";
+  warningCount: number;
+  governanceWarningCount: number;
+  actuationWarningCount: number;
+  highlightedWarnings: string[];
+  nextActions: string[];
+}
+
 export function buildGovernanceHealthReport(input: {
   governanceSummary: GovernanceAuditSummary;
   actuationSummary: ActuationAuditSummary;
@@ -105,6 +114,26 @@ export function buildGovernanceHealthReport(input: {
       governanceSummary: input.governanceSummary,
       actuationSummary: input.actuationSummary,
     }),
+  };
+}
+
+export function buildGovernanceHealthSnapshot(report: GovernanceHealthReport): GovernanceHealthSnapshot {
+  const highlightedWarnings = [
+    ...report.governance.missingAuthRefs.map((name) => `Missing auth env var: ${name}`),
+    ...report.governance.missingSecretRefs.map((name) => `Missing webhook secret env var: ${name}`),
+    ...report.governance.policiesMissingApprovalRule.map((actionKey) => `Policy missing approval rule: ${actionKey}`),
+    ...report.governance.endpointModeWarnings,
+    ...report.governance.identityWarnings,
+    ...report.actuation.blockedRequests,
+  ].slice(0, 5);
+
+  return {
+    status: report.status,
+    warningCount: report.warningCount,
+    governanceWarningCount: report.governance.warningCount,
+    actuationWarningCount: report.actuation.warningCount,
+    highlightedWarnings,
+    nextActions: report.nextActions,
   };
 }
 

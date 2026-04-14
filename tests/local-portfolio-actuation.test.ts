@@ -21,6 +21,8 @@ import {
   formatVercelRollbackRequestKey,
   parseLocalPortfolioActuationTargetConfig,
   parseLocalPortfolioActuationViewPlan,
+  renderActuationCommandCenterSection,
+  renderWeeklyActuationSection,
   resolveActuationTarget,
   summarizeGitHubAssigneeDelta,
   summarizeGitHubLabelDelta,
@@ -69,6 +71,64 @@ describe("local portfolio actuation", () => {
     });
     expect(nextConfig.phase7Actuation?.rolloutProfile).toBe("github_first_issues_then_comments");
     expect(summary.liveCapablePolicies).toContain("github.create_issue");
+  });
+
+  test("renders action attention and weekly health context", () => {
+    const request = baseRequest({
+      title: "Promote recovery deployment",
+      status: "Approved",
+      executionIntent: "Ready for Live",
+    });
+    const executions = [
+      {
+        id: "execution-1",
+        url: "https://notion.so/execution-1",
+        title: "Rollback evolutionsandbox",
+        actionRequestIds: ["request-1"],
+        localProjectIds: ["project-1"],
+        policyIds: ["policy-1"],
+        targetSourceIds: ["source-1"],
+        provider: "Vercel" as const,
+        actionKey: "vercel.rollback",
+        mode: "Live" as const,
+        status: "Compensation Needed" as const,
+        executedAt: "2026-04-14T10:00:00.000Z",
+        idempotencyKey: "key-1",
+        providerResultKey: "",
+        responseSummary: "",
+        issueNumber: 0,
+        commentId: "",
+        providerUrl: "",
+        labelDeltaSummary: "",
+        assigneeDeltaSummary: "",
+        responseClassification: "Verification Failure" as const,
+        reconcileStatus: "Mismatch" as const,
+        failureNotes: "",
+        compensationPlan: "",
+      },
+    ];
+
+    const commandCenter = renderActuationCommandCenterSection({
+      requests: [request],
+      executions,
+      healthSnapshot: {
+        warningCount: 1,
+        highlightedWarnings: ['Vercel target "evolutionsandbox" is not live-safe: missing vercelTeamSlug.'],
+      },
+    });
+    const weekly = renderWeeklyActuationSection({
+      executions,
+      requests: [request],
+      healthSnapshot: {
+        warningCount: 1,
+      },
+    });
+
+    expect(commandCenter).toContain("### Action Attention");
+    expect(commandCenter).toContain("### Compensation Needed");
+    expect(commandCenter).toContain("compensation follow-up needed");
+    expect(weekly).toContain("- Requests ready for live: 1");
+    expect(weekly).toContain("- Health warnings still open: 1");
   });
 
   test("resolves GitHub targets, renders payloads, and computes idempotency keys", () => {
