@@ -56,7 +56,7 @@ export interface ActionRunnerResult {
 }
 
 export interface ActionRunnerDecisionInput {
-  request: Pick<ActionRequestRecord, "id" | "policyIds">;
+  request: Pick<ActionRequestRecord, "id" | "policyIds" | "executionIntent">;
   policies: ActionPolicyRecord[];
   executions: Array<Pick<ExternalActionExecutionRecord, "id" | "mode" | "status" | "idempotencyKey">>;
   mode: "dry-run" | "live";
@@ -77,6 +77,9 @@ export function evaluateActionRunnerDecision(
   }
 
   const validationNotes = input.validationNotes ?? [];
+  if (input.mode === "live" && input.request.executionIntent !== "Ready for Live") {
+    return { status: "Skipped", notes: "Request is not marked Ready for Live." };
+  }
   if (input.mode === "live" && validationNotes.length > 0) {
     return { status: "Skipped", notes: validationNotes.join(" ") };
   }

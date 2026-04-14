@@ -15,7 +15,9 @@ import type { ActionPolicyRecord, ActionRequestRecord } from "../src/notion/loca
 describe("action runner hardening", () => {
   test("skips duplicate successful live executions", () => {
     const policy = basePolicy();
-    const request = baseRequest();
+    const request = baseRequest({
+      executionIntent: "Ready for Live",
+    });
     const decision = evaluateActionRunnerDecision({
       request,
       policies: [policy],
@@ -39,7 +41,9 @@ describe("action runner hardening", () => {
 
   test("skips live execution when validation blockers remain", () => {
     const decision = evaluateActionRunnerDecision({
-      request: baseRequest(),
+      request: baseRequest({
+        executionIntent: "Ready for Live",
+      }),
       policies: [basePolicy()],
       executions: [],
       mode: "live",
@@ -50,6 +54,23 @@ describe("action runner hardening", () => {
     expect(decision).toEqual({
       status: "Skipped",
       notes: "Request is not approved.",
+    });
+  });
+
+  test("skips live execution when the request is not marked ready for live", () => {
+    const decision = evaluateActionRunnerDecision({
+      request: baseRequest({
+        executionIntent: "Dry Run",
+      }),
+      policies: [basePolicy()],
+      executions: [],
+      mode: "live",
+      actionKey: "github.create_issue",
+    });
+
+    expect(decision).toEqual({
+      status: "Skipped",
+      notes: "Request is not marked Ready for Live.",
     });
   });
 
