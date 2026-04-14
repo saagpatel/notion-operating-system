@@ -731,6 +731,91 @@ describe("local portfolio actuation", () => {
       }),
     ).toThrow("wrong project");
   });
+
+  test("allows personal-scope Vercel targets without team identifiers", () => {
+    const request = baseRequest({
+      title: "Redeploy solo project",
+      targetSourceIds: ["source-1"],
+      localProjectIds: ["project-1"],
+    });
+    const source: ExternalSignalSourceRecord = {
+      id: "source-1",
+      url: "https://notion.so/source-1",
+      title: "solo-project",
+      localProjectIds: ["project-1"],
+      provider: "Vercel",
+      sourceType: "Deployment Project",
+      identifier: "prj_personal",
+      sourceUrl: "https://vercel.com/solo-project",
+      status: "Active",
+      environment: "Production",
+      syncStrategy: "Poll",
+      lastSyncedAt: "2026-03-17",
+      providerScopeType: "Personal",
+    };
+    const targetConfig = parseLocalPortfolioActuationTargetConfig({
+      version: 1,
+      strategy: {
+        primary: "repo_config",
+        fallback: "manual_review",
+        notes: [],
+      },
+      defaults: {
+        allowedActions: ["github.create_issue"],
+        titlePrefix: "[Portfolio]",
+        defaultLabels: [],
+        supportsIssueCreate: true,
+        supportsPrComment: true,
+      },
+      targets: [
+        {
+          title: "solo-project",
+          provider: "Vercel",
+          sourceIdentifier: "prj_personal",
+          sourceUrl: "https://vercel.com/solo-project",
+          localProjectId: "project-1",
+          allowedActions: ["vercel.redeploy"],
+          defaultLabels: [],
+          supportsIssueCreate: false,
+          supportsPrComment: false,
+          vercelProjectId: "prj_personal",
+          vercelScopeType: "Personal",
+          vercelEnvironment: "Production",
+        },
+      ],
+    });
+
+    const target = resolveActuationTarget({
+      request,
+      sources: [source],
+      targetConfig,
+      actionKey: "vercel.redeploy",
+    });
+    const payload = buildVercelRedeployExecutionPayload({
+      request,
+      target,
+      preflight: {
+        providerExercised: true,
+        noRedeployCandidate: false,
+        targetEnvironment: "Production",
+        latestDeployment: {
+          deploymentId: "dpl_123",
+          deploymentUrl: "https://solo-project.vercel.app",
+          projectId: "prj_personal",
+          readyState: "READY",
+          environment: "Production",
+          createdAt: "2026-03-17T00:00:00.000Z",
+        },
+      },
+    });
+
+    expect(target.scopeType).toBe("Personal");
+    expect(target.teamId).toBeUndefined();
+    expect(target.teamSlug).toBeUndefined();
+    expect(payload.scopeType).toBe("Personal");
+    expect(payload.teamId).toBeUndefined();
+    expect(payload.teamSlug).toBeUndefined();
+  });
 });
 
 function baseRequest(overrides: Partial<ActionRequestRecord>): ActionRequestRecord {

@@ -897,10 +897,10 @@ function parseManualSeeds(raw: unknown): ManualExternalSignalSeedPlan[] {
       if (!parsed.providerScopeType) {
         throw new AppError(`manualSeeds[${index}].providerScopeType is required for Vercel sources`);
       }
-      if (!parsed.providerScopeId?.trim()) {
+      if (parsed.providerScopeType === "Team" && !parsed.providerScopeId?.trim()) {
         throw new AppError(`manualSeeds[${index}].providerScopeId is required for Vercel sources`);
       }
-      if (!parsed.providerScopeSlug?.trim()) {
+      if (parsed.providerScopeType === "Team" && !parsed.providerScopeSlug?.trim()) {
         throw new AppError(`manualSeeds[${index}].providerScopeSlug is required for Vercel sources`);
       }
     }

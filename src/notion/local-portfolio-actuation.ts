@@ -611,10 +611,10 @@ export function buildActuationAuditSummary(input: {
     if (!target.vercelProjectId?.trim()) {
       issues.push("missing vercelProjectId");
     }
-    if (!target.vercelTeamId?.trim()) {
+    if (target.vercelScopeType === "Team" && !target.vercelTeamId?.trim()) {
       issues.push("missing vercelTeamId");
     }
-    if (!target.vercelTeamSlug?.trim()) {
+    if (target.vercelScopeType === "Team" && !target.vercelTeamSlug?.trim()) {
       issues.push("missing vercelTeamSlug");
     }
     if (!target.vercelScopeType) {
@@ -746,11 +746,11 @@ export function resolveActuationTarget(input: {
       throw new AppError(`Target "${linkedSource.title}" is missing an exact Vercel scope type match.`);
     }
     const teamId = linkedSource.providerScopeId?.trim();
-    if (!teamId || matchingRule.vercelTeamId?.trim() !== teamId) {
+    if (scopeType === "Team" && (!teamId || matchingRule.vercelTeamId?.trim() !== teamId)) {
       throw new AppError(`Target "${linkedSource.title}" is missing an exact Vercel team id match.`);
     }
     const teamSlug = linkedSource.providerScopeSlug?.trim();
-    if (!teamSlug || matchingRule.vercelTeamSlug?.trim() !== teamSlug) {
+    if (scopeType === "Team" && (!teamSlug || matchingRule.vercelTeamSlug?.trim() !== teamSlug)) {
       throw new AppError(`Target "${linkedSource.title}" is missing an exact Vercel team slug match.`);
     }
     const sourceEnvironment = normalizeVercelEnvironment(linkedSource.environment);
@@ -849,11 +849,12 @@ export function buildVercelRedeployExecutionPayload(input: {
     !input.target.projectId ||
     !input.target.projectName ||
     !input.target.environment ||
-    !input.target.teamId ||
-    !input.target.teamSlug ||
     !input.target.scopeType
   ) {
     throw new AppError(`Action request "${input.request.title}" is not resolved to a Vercel target.`);
+  }
+  if (input.target.scopeType === "Team" && (!input.target.teamId || !input.target.teamSlug)) {
+    throw new AppError(`Action request "${input.request.title}" is missing required Vercel team scope.`);
   }
   const latestDeployment = input.preflight?.latestDeployment;
   if (!latestDeployment) {
@@ -2360,10 +2361,10 @@ function parseActuationTarget(raw: unknown, fieldName: string): ActuationTargetR
     if (parsed.sourceIdentifier.trim() !== parsed.vercelProjectId.trim()) {
       throw new AppError(`${fieldName}.sourceIdentifier must match ${fieldName}.vercelProjectId for Vercel targets`);
     }
-    if (!parsed.vercelTeamId?.trim()) {
+    if (parsed.vercelScopeType === "Team" && !parsed.vercelTeamId?.trim()) {
       throw new AppError(`${fieldName}.vercelTeamId is required for Vercel targets`);
     }
-    if (!parsed.vercelTeamSlug?.trim()) {
+    if (parsed.vercelScopeType === "Team" && !parsed.vercelTeamSlug?.trim()) {
       throw new AppError(`${fieldName}.vercelTeamSlug is required for Vercel targets`);
     }
     if (!parsed.vercelScopeType) {
