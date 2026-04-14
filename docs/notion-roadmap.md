@@ -5,7 +5,7 @@ Updated: 2026-04-14
 ## Current Phase
 - Phase: 9 - Provider Expansion
 - Status: In Progress
-- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices after the deep GitHub lane is measurably trusted.
+- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices that stay as understandable as the GitHub lane.
 
 ## Baseline Metrics
 - Total projects: 65
@@ -27,12 +27,13 @@ Updated: 2026-04-14
 
 ## Phase Transition Memory
 - Transition: Phase 8 closed into Phase 9
-- Carry-forward brief: Phase 9A, 9B, and 9C are now proven. The repo has one explicit Vercel redeploy pilot, one small redeploy widening set, and one provider-proven rollback pilot on `evolutionsandbox`.
+- Carry-forward brief: Phase 9A, 9B, 9C, and 9D are now proven. The repo has one bounded Vercel redeploy pilot, one small redeploy widening set, one provider-proven rollback lane, and one provider-proven promote or undo-rollback lane on `evolutionsandbox`.
 - Supporting artifacts:
   - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
   - [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
   - [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
   - [Vercel Phase 9C Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9c-post-pilot-review.md)
+  - [Vercel Phase 9D Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9d-post-pilot-review.md)
 
 ## Phase Memory
 ### Phase 1 Gave Us
@@ -60,7 +61,7 @@ Phase 7 gave us controlled actuation: approved GitHub issue/comment execution, d
 Phase 8 gave us a mature GitHub action lane: issue lifecycle actions, PR comments, hardened GitHub App posture, richer operator packets, and audit-grade GitHub execution feedback loops.
 
 ### Phase 9 Now Looks Like
-Phase 9 is in its fourth bounded slice. Phase 9A proved one explicit Vercel redeploy pilot, Phase 9B proved small-allowlist `vercel.redeploy` widening, and Phase 9C proved one bounded `vercel.rollback` pilot on `evolutionsandbox`.
+Phase 9 is in its fifth bounded slice. Phase 9A proved one explicit Vercel redeploy pilot, Phase 9B proved small-allowlist `vercel.redeploy` widening, Phase 9C proved one bounded `vercel.rollback` pilot on `evolutionsandbox`, and Phase 9D proved one bounded `vercel.promote` or rollback-undo pilot on the same project.
 
 ## Risks
 - Avoid adding a second overlapping status system beyond the manual fields and the three derived PM signals.
@@ -180,6 +181,7 @@ Phase 9 is in its fourth bounded slice. Phase 9A proved one explicit Vercel rede
   - Phase 9A completed: truthful Vercel provider readiness, one explicit `evolutionsandbox` pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy
   - Phase 9B completed: `vercel.redeploy` widened successfully to `premise-debate`, `neural-network-playground`, and `sovereign-sim`, with truthful sync, dry-run graduation, live execution, and confirmed reconciliation for each
   - Phase 9C completed: `vercel.rollback` is supported in policy, target resolution, dry run, actuation, and verification for `evolutionsandbox`, and one governed live rollback moved production to the pinned earlier deployment
+  - Phase 9D completed: `vercel.promote` is supported in policy, target resolution, dry run, actuation, and verification for `evolutionsandbox`, and one governed live promote restored production to the pinned forward deployment
   - Operator-facing cross-provider views and metrics that stay understandable and low-noise
 - Exit criteria:
   - Every new provider lane reuses the same approval, audit, and execution posture rather than inventing parallel systems
@@ -188,6 +190,6 @@ Phase 9 is in its fourth bounded slice. Phase 9A proved one explicit Vercel rede
 ## Next Phase
 Phase 9 - Provider Expansion
 
-Use the next bounded slice to add one explicit `vercel.promote` or rollback-undo pilot on `evolutionsandbox`, verify that the system can safely restore forward production flow after an intentional rollback, and only then decide whether wider rollback coverage or broader Vercel verbs are warranted.
+Do not widen Vercel recovery verbs by default. If another bounded slice is justified, treat it as **Phase 9E: selective widening of Vercel recovery coverage** and add rollback plus promote to one additional Vercel project only when a real operating need exists.
 
 Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.

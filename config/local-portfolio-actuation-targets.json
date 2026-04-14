@@ -1124,7 +1124,8 @@
       "localProjectId": "342c21f1-caf0-817f-b749-ee8283d14f92",
       "allowedActions": [
         "vercel.redeploy",
-        "vercel.rollback"
+        "vercel.rollback",
+        "vercel.promote"
       ],
       "defaultLabels": [],
       "supportsIssueCreate": false,
