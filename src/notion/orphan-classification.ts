@@ -37,6 +37,7 @@ export interface OrphanClassificationResult {
 
 export interface OrphanClassificationCommandOptions {
 	live?: boolean;
+	createPackets?: boolean;
 	today?: string;
 	config?: string;
 }
@@ -173,6 +174,7 @@ export async function runOrphanClassificationCommand(
 	}
 
 	const live = options.live ?? false;
+	const createPackets = options.createPackets ?? false;
 	const today = options.today ?? losAngelesToday();
 
 	const [config, registry] = await Promise.all([
@@ -211,6 +213,8 @@ export async function runOrphanClassificationCommand(
 
 	const markdown = renderMarkdownTable(results, today);
 
+	let packetsCreated = 0;
+
 	const summary = {
 		ok: true,
 		live,
@@ -220,6 +224,7 @@ export async function runOrphanClassificationCommand(
 		alreadyParked,
 		archiveCandidates: archiveCandidates.length,
 		viableNeedsKickoff: viableNeedsKickoff.length,
+		packetsCreated,
 	};
 
 	console.log(JSON.stringify(summary, null, 2));
@@ -247,5 +252,41 @@ export async function runOrphanClassificationCommand(
 		} finally {
 			await rm(tempDir, { recursive: true, force: true });
 		}
+
+		if (createPackets && viableNeedsKickoff.length > 0) {
+			const packetsDestination = registry.getDestination("work_packets");
+			const packetsTempDir = await mkdtemp(
+				path.join(os.tmpdir(), "orphan-packets-"),
+			);
+			try {
+				for (const result of viableNeedsKickoff) {
+					const packetTitle = `Kickoff: ${result.projectTitle}`;
+					const packetBody =
+						`# Kickoff: ${result.projectTitle}\n\n` +
+						`Created by orphan-classify on ${today}. This project has no linked build sessions, research, skills, or tools. ` +
+						`First step: add a build log entry or decide to defer/archive.\n`;
+					const packetFullMarkdown = `---\ntitle: ${packetTitle}\n---\n\n${packetBody}`;
+					const packetFilePath = path.join(
+						packetsTempDir,
+						`packet-${result.projectId}.md`,
+					);
+					await writeFile(packetFilePath, packetFullMarkdown, "utf8");
+					await publisher.publish(packetsDestination, {
+						destinationAlias: packetsDestination.alias,
+						inputFile: packetFilePath,
+						dryRun: false,
+						live: true,
+					});
+					packetsCreated += 1;
+				}
+			} finally {
+				await rm(packetsTempDir, { recursive: true, force: true });
+			}
+		}
+	}
+
+	// Update summary output with final packetsCreated count
+	if (packetsCreated > 0) {
+		console.log(JSON.stringify({ packetsCreated }, null, 2));
 	}
 }

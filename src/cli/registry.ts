@@ -518,10 +518,15 @@ export const cliRegistry: CliCommandDefinition[] = [
 		buildConfigCommand(
 			"trend-analysis",
 			"Read historical project snapshots and report queue changes and stale evidence trends.",
-			[commonOptions.today],
+			[commonOptions.live, commonOptions.today, commonOptions.config],
 			({ parsed }) =>
 				runTrendAnalysisCommand({
+					live: asBoolean(parsed.options.live),
 					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
 				}),
 		),
 	]),
@@ -788,6 +793,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "number",
 					valueName: "days",
 				},
+				{
+					name: "synthesize",
+					description:
+						"Call Claude API (Haiku) to synthesize a 2-sentence action brief per top Risk project. Requires ANTHROPIC_API_KEY.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runMorningBriefCommand({
@@ -798,6 +809,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						positionals: parsed.positionals,
 					}),
 					lookbackDays: asNumber(parsed.options["lookback-days"]),
+					synthesize: asBoolean(parsed.options.synthesize),
 				}),
 		),
 	]),
@@ -968,7 +980,17 @@ export const cliRegistry: CliCommandDefinition[] = [
 		buildConfigCommand(
 			"orphan-classify",
 			"Classify orphan projects (no linked records) into deterministic disposition buckets.",
-			[commonOptions.live, commonOptions.today, commonOptions.config],
+			[
+				commonOptions.live,
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "create-packets",
+					description:
+						"Create work_packets rows for viable_needs_kickoff projects (requires --live).",
+					type: "boolean",
+				},
+			],
 			({ parsed }) =>
 				runOrphanClassificationCommand({
 					live: asBoolean(parsed.options.live),
@@ -977,6 +999,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+					createPackets: asBoolean(parsed.options["create-packets"]),
 				}),
 		),
 	]),

@@ -148,8 +148,11 @@
 		"portfolio-audit:trend-analysis": "tsx src/cli.ts control-tower trend-analysis",
 		"portfolio-audit:bridge-db-status": "tsx src/cli.ts bridge-db status",
 		"signals:morning-brief": "tsx src/cli.ts signals morning-brief",
+		"signals:morning-brief-synthesize": "tsx src/cli.ts signals morning-brief --synthesize",
 		"governance:orphan-classify": "tsx src/cli.ts governance orphan-classify",
+		"governance:orphan-classify-create-packets": "tsx src/cli.ts governance orphan-classify --live --create-packets",
 		"control-tower:trend-analysis": "tsx src/cli.ts control-tower trend-analysis",
+		"control-tower:trend-analysis-live": "tsx src/cli.ts control-tower trend-analysis --live",
 		"bridge-db:status": "tsx src/cli.ts bridge-db status"
 	},
 	"dependencies": {
