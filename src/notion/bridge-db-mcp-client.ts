@@ -101,6 +101,46 @@ export class BridgeDbMcpSession {
 		}
 	}
 
+	/**
+	 * Fetch recent personal_ops activity entries that have event tags
+	 * (TASK_DONE, APPROVAL_SENT, PLANNING_APPLIED, REVIEW_CLOSED) but
+	 * have not yet been marked PROCESSED.
+	 */
+	async getPersonalOpsEvents(limit: number): Promise<ShippedEvent[]> {
+		const result = await this.client.callTool({
+			name: "get_recent_activity",
+			arguments: { source: "personal_ops", limit },
+		});
+		const parsed = this.parseToolResult(result);
+		if (!Array.isArray(parsed)) {
+			throw new Error(
+				`get_recent_activity returned unexpected type: ${typeof parsed}`,
+			);
+		}
+		const OPS_TAGS = new Set([
+			"TASK_DONE",
+			"APPROVAL_SENT",
+			"PLANNING_APPLIED",
+			"REVIEW_CLOSED",
+		]);
+		// Filter to rows that have at least one ops event tag and no PROCESSED tag
+		return (parsed as ShippedEvent[]).filter((row) => {
+			let tags: string[] = [];
+			if (typeof row.tags === "string") {
+				try {
+					tags = JSON.parse(row.tags) as string[];
+				} catch {
+					return false;
+				}
+			} else if (Array.isArray(row.tags)) {
+				tags = row.tags as string[];
+			}
+			const hasOpsTag = tags.some((t) => OPS_TAGS.has(t));
+			const alreadyProcessed = tags.includes("PROCESSED");
+			return hasOpsTag && !alreadyProcessed;
+		});
+	}
+
 	async close(): Promise<void> {
 		await this.client.close();
 	}

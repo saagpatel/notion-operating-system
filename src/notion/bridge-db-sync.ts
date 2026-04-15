@@ -36,6 +36,9 @@ export interface BridgeDbSyncResult {
 	rowsWritten: number;
 	rowsSkipped: number;
 	failures: number;
+	opsRowsFound: number;
+	opsRowsWritten: number;
+	opsRowsSkipped: number;
 	notes: string[];
 }
 
@@ -100,6 +103,9 @@ export async function runBridgeDbSyncCommand(
 		rowsWritten: 0,
 		rowsSkipped: 0,
 		failures: 0,
+		opsRowsFound: 0,
+		opsRowsWritten: 0,
+		opsRowsSkipped: 0,
 		notes: [],
 	};
 
@@ -165,13 +171,90 @@ export async function runBridgeDbSyncCommand(
 		}
 	}
 
+	// ---------------------------------------------------------------------------
+	// Process personal-ops event rows (TASK_DONE, APPROVAL_SENT, etc.)
+	// ---------------------------------------------------------------------------
+	let opsSession: BridgeDbMcpSession | null = null;
+	try {
+		opsSession = await BridgeDbMcpSession.open();
+		const opsEntries = await opsSession.getPersonalOpsEvents(limit);
+		result.opsRowsFound = opsEntries.length;
+		if (opsEntries.length > 0) {
+			console.log(
+				`[bridge-db-sync] Found ${opsEntries.length} personal-ops event rows. live=${live}`,
+			);
+		}
+		for (const row of opsEntries) {
+			const localProjectId = resolveProjectId(row.project_name, projectIndex);
+			const sessionDate = row.timestamp?.slice(0, 10) ?? today;
+			const title = buildBuildLogTitle(row);
+
+			if (!live) {
+				console.log(
+					`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${localProjectId ? ` → project ${localProjectId}` : " (no project match)"}`,
+				);
+				result.opsRowsWritten += 1;
+				continue;
+			}
+
+			try {
+				const created = await api.createPageWithMarkdown({
+					parent: { data_source_id: config.relatedDataSources.buildLogId },
+					properties: {
+						[buildSchema.titlePropertyName]: {
+							title: [{ text: { content: title } }],
+						},
+					},
+					markdown: buildMarkdownBody(row),
+				});
+				const updateProps: Record<string, unknown> = {
+					"Session Date": { date: { start: sessionDate } },
+					Tags: buildTagProperty(row),
+				};
+				if (localProjectId) {
+					updateProps["Local Project"] = relationValue([localProjectId]);
+				}
+				await api.updatePageProperties({
+					pageId: created.id,
+					properties: updateProps,
+				});
+				try {
+					await markRowProcessed(dbPath, row.id);
+					result.opsRowsWritten += 1;
+					console.log(
+						`[bridge-db-sync] Written ops event: "${title}" (${created.id})`,
+					);
+				} catch (markError) {
+					result.failures += 1;
+					result.notes.push(
+						`Failed to mark ops row ${row.id} as PROCESSED: ${toErrorMessage(markError)}`,
+					);
+				}
+			} catch (error) {
+				result.failures += 1;
+				result.notes.push(
+					`Failed to write ops row ${row.id} ("${row.project_name}"): ${toErrorMessage(error)}`,
+				);
+			}
+		}
+	} catch (error) {
+		console.error(
+			`[bridge-db-sync] Failed to read personal-ops events: ${toErrorMessage(error)}`,
+		);
+	} finally {
+		if (opsSession) {
+			await opsSession.close();
+		}
+	}
+
 	// Log activity to bridge-db (best-effort, errors are swallowed in logActivity)
-	if (live && result.rowsWritten > 0) {
+	if (live && (result.rowsWritten > 0 || result.opsRowsWritten > 0)) {
 		const logSession = await BridgeDbMcpSession.open();
 		try {
+			const totalWritten = result.rowsWritten + result.opsRowsWritten;
 			await logSession.logActivity(
-				`Synced ${result.rowsWritten} SHIPPED events to Build Log`,
-				result.rowsWritten,
+				`Synced ${result.rowsWritten} SHIPPED + ${result.opsRowsWritten} ops events to Build Log`,
+				totalWritten,
 			);
 		} finally {
 			await logSession.close();
@@ -180,9 +263,8 @@ export async function runBridgeDbSyncCommand(
 
 	const summary = [
 		`Bridge-db sync complete (live=${live}):`,
-		`  Found:   ${result.rowsFound}`,
-		`  Written: ${result.rowsWritten}`,
-		`  Skipped: ${result.rowsSkipped}`,
+		`  SHIPPED — Found: ${result.rowsFound}, Written: ${result.rowsWritten}, Skipped: ${result.rowsSkipped}`,
+		`  Ops     — Found: ${result.opsRowsFound}, Written: ${result.opsRowsWritten}, Skipped: ${result.opsRowsSkipped}`,
 		`  Failed:  ${result.failures}`,
 	];
 	if (result.notes.length > 0) {
@@ -196,7 +278,7 @@ export async function runBridgeDbSyncCommand(
 		source: "notion-os",
 		level: result.failures > 0 ? "warn" : "info",
 		title: "bridge-db-sync complete",
-		body: `${live ? "Live" : "Dry-run"}: ${result.rowsFound} found, ${result.rowsWritten} written, ${result.rowsSkipped} skipped, ${result.failures} failed`,
+		body: `${live ? "Live" : "Dry-run"}: SHIPPED ${result.rowsFound}→${result.rowsWritten}, Ops ${result.opsRowsFound}→${result.opsRowsWritten}, ${result.failures} failed`,
 	});
 }
 
@@ -286,6 +368,8 @@ export function buildBuildLogTitle(row: ShippedEvent): string {
 		prefix = "CC";
 	} else if (row.source === "codex") {
 		prefix = "Codex";
+	} else if (row.source === "personal_ops") {
+		prefix = "Ops";
 	} else if (row.source === "manual") {
 		prefix = "Manual";
 	} else {
@@ -312,17 +396,27 @@ function buildMarkdownBody(row: ShippedEvent): string {
 	return lines.join("\n");
 }
 
+const STRIP_TAGS = new Set(["SHIPPED", "PROCESSED"]);
+const OPS_EVENT_TAG_MAP: Record<string, string> = {
+	TASK_DONE: "task-done",
+	APPROVAL_SENT: "approval-sent",
+	PLANNING_APPLIED: "planning-applied",
+	REVIEW_CLOSED: "review-closed",
+};
+
 export function buildTagProperty(row: ShippedEvent): {
 	multi_select: Array<{ name: string }>;
 } {
 	const tags: string[] = [];
 	try {
-		const parsed = JSON.parse(row.tags ?? "[]") as unknown;
+		const rawTags =
+			typeof row.tags === "string" ? row.tags : JSON.stringify(row.tags ?? []);
+		const parsed = JSON.parse(rawTags) as unknown;
 		if (Array.isArray(parsed)) {
 			for (const t of parsed) {
-				if (typeof t === "string" && t !== "SHIPPED" && t !== "PROCESSED") {
-					tags.push(t);
-				}
+				if (typeof t !== "string" || STRIP_TAGS.has(t)) continue;
+				const mapped = OPS_EVENT_TAG_MAP[t];
+				tags.push(mapped ?? t);
 			}
 		}
 	} catch {
