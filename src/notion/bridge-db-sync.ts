@@ -7,7 +7,6 @@ import { losAngelesToday } from "../utils/date.js";
 import { toErrorMessage } from "../utils/errors.js";
 import {
 	BridgeDbMcpSession,
-	type BridgeDbStatus,
 	type ShippedEvent,
 } from "./bridge-db-mcp-client.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
