@@ -94,6 +94,8 @@
 		"rollout:cohort": "tsx src/cli.ts rollout cohort",
 		"maintenance:weekly-refresh": "tsx src/cli.ts maintenance weekly-refresh",
 		"dry-run:example": "tsx src/cli.ts publish --request examples/requests/weekly_review.dry-run.json --dry-run",
+		"schema-migrate-probe": "tsx src/notion/schema-migrate-probe.ts",
+		"schema-migrate": "tsx src/notion/schema-migrate.ts",
 		"portfolio-audit:generate": "tsx src/internal/portfolio-audit/generate.ts",
 		"portfolio-audit:publish-notion": "tsx src/internal/portfolio-audit/publish-notion.ts",
 		"portfolio-audit:views-plan": "tsx src/notion/plan-local-portfolio-views.ts",
