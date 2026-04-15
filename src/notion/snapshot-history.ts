@@ -2,7 +2,18 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { losAngelesToday } from "../utils/date.js";
+import { resolveRequiredNotionToken } from "../cli/context.js";
+import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
+import { DirectNotionClient } from "./direct-notion-client.js";
+import {
+	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+	loadLocalPortfolioControlTowerConfig,
+} from "./local-portfolio-control-tower.js";
+import { fetchAllPages } from "./local-portfolio-control-tower-live.js";
+import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+
+export const TREND_REPORT_START = "<!-- codex:notion-trend-analysis:start -->";
+export const TREND_REPORT_END = "<!-- codex:notion-trend-analysis:end -->";
 
 export const DEFAULT_SNAPSHOT_PATH: string =
 	process.env["NOTION_OS_SNAPSHOT_PATH"] ??
@@ -236,29 +247,32 @@ export function renderTrendReport(
 
 export interface TrendAnalysisCommandOptions {
 	today?: string;
+	live?: boolean;
+	config?: string;
 }
 
 export async function runTrendAnalysisCommand(
 	options: TrendAnalysisCommandOptions = {},
 ): Promise<void> {
 	const today = options.today ?? losAngelesToday();
+	const live = options.live ?? false;
 	const snapshots = await readAllSnapshots();
-
-	if (snapshots.length === 0) {
-		console.log(
-			JSON.stringify(
-				{ ok: true, message: "No snapshot history yet." },
-				null,
-				2,
-			),
-		);
-		return;
-	}
 
 	const markdown = renderTrendReport(snapshots, today);
 
 	const allDates = snapshots.map((s) => s.snapshotDate).sort();
-	const output = {
+
+	const output: {
+		ok: boolean;
+		today: string;
+		totalSnapshots: number;
+		trackedProjects: number;
+		firstSnapshot: string | undefined;
+		lastSnapshot: string | undefined;
+		weeklyPagePatched?: boolean;
+		weeklyPageId?: string;
+		notes?: string[];
+	} = {
 		ok: true,
 		today,
 		totalSnapshots: snapshots.length,
@@ -267,6 +281,70 @@ export async function runTrendAnalysisCommand(
 		lastSnapshot: allDates[allDates.length - 1],
 	};
 
+	if (live) {
+		const notes: string[] = [];
+		const token = resolveRequiredNotionToken(
+			"NOTION_TOKEN is required for trend-analysis --live",
+		);
+		const weekStart = startOfWeekMonday(today);
+		const configPath =
+			options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+		const config = await loadLocalPortfolioControlTowerConfig(configPath);
+		const api = new DirectNotionClient(token);
+
+		const weeklySchema = await api.retrieveDataSource(
+			config.relatedDataSources.weeklyReviewsId,
+		);
+		const weeklyPages = await fetchAllPages(
+			api,
+			config.relatedDataSources.weeklyReviewsId,
+			weeklySchema.titlePropertyName,
+		);
+
+		const weeklyPage = weeklyPages.find(
+			(p) => p.title === `Week of ${weekStart}`,
+		);
+
+		if (!weeklyPage) {
+			notes.push(
+				`No weekly review page found for Week of ${weekStart} — skipping patch`,
+			);
+			output.notes = notes;
+		} else {
+			const previousPage = await api.readPageMarkdown(weeklyPage.id);
+			const section = `${TREND_REPORT_START}\n${markdown}\n${TREND_REPORT_END}`;
+			const nextMarkdown = previousPage.markdown.includes(TREND_REPORT_START)
+				? mergeTrendSectionInto(previousPage.markdown, markdown)
+				: `${previousPage.markdown}\n\n${section}`;
+
+			await syncManagedMarkdownSection({
+				api,
+				pageId: weeklyPage.id,
+				previousMarkdown: previousPage.markdown,
+				nextMarkdown,
+				startMarker: TREND_REPORT_START,
+				endMarker: TREND_REPORT_END,
+			});
+
+			output.weeklyPagePatched = true;
+			output.weeklyPageId = weeklyPage.id;
+		}
+	}
+
 	console.log(JSON.stringify(output, null, 2));
 	console.log("\n" + markdown);
+}
+
+function mergeTrendSectionInto(
+	markdown: string,
+	nextSectionBody: string,
+): string {
+	const startIdx = markdown.indexOf(TREND_REPORT_START);
+	const endIdx = markdown.indexOf(TREND_REPORT_END);
+	if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+		return `${markdown}\n\n${TREND_REPORT_START}\n${nextSectionBody}\n${TREND_REPORT_END}`;
+	}
+	const before = markdown.slice(0, startIdx);
+	const after = markdown.slice(endIdx + TREND_REPORT_END.length);
+	return `${before}${TREND_REPORT_START}\n${nextSectionBody}\n${TREND_REPORT_END}${after}`;
 }
