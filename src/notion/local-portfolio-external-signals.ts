@@ -989,6 +989,12 @@ export function normalizeProviderKey(
 		case "Google Calendar":
 		case "google_calendar":
 			return "google_calendar";
+		case "Notification Hub":
+		case "notification_hub":
+			return "notification_hub";
+		case "Repo Auditor":
+		case "repo_auditor":
+			return "repo_auditor";
 		default:
 			throw new AppError(`Unsupported external provider "${value}"`);
 	}
@@ -1651,11 +1657,13 @@ function parseProviderName(value: string): ExternalSignalProviderName {
 		value !== "Google Calendar" &&
 		value !== "Netlify" &&
 		value !== "Render" &&
-		value !== "Cloudflare"
+		value !== "Cloudflare" &&
+		value !== "Notification Hub" &&
+		value !== "Repo Auditor"
 	) {
 		throw new AppError(`Unsupported external signal provider name "${value}"`);
 	}
-	return value;
+	return value as ExternalSignalProviderName;
 }
 
 function parseProviderKey(value: string): ExternalProviderKey {

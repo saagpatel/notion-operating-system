@@ -77,7 +77,7 @@ export async function runBridgeDbSyncCommand(
 	const projects = projectPages.map((page) =>
 		toIntelligenceProjectRecord(page),
 	);
-	const projectIndex = buildProjectIndex(
+	const projectIndex = buildProjectNameIndex(
 		projects.map((p) => ({ id: p.id, title: p.title })),
 	);
 
@@ -142,9 +142,16 @@ export async function runBridgeDbSyncCommand(
 					Tags: buildTagProperty(row),
 				},
 			});
-			markRowProcessed(dbPath, row.id);
-			result.rowsWritten += 1;
-			console.log(`[bridge-db-sync] Written: "${title}" (${created.id})`);
+			const marked = markRowProcessed(dbPath, row.id);
+			if (marked) {
+				result.rowsWritten += 1;
+				console.log(`[bridge-db-sync] Written: "${title}" (${created.id})`);
+			} else {
+				result.failures += 1;
+				result.notes.push(
+					`Failed to mark row ${row.id} as PROCESSED in bridge-db — it will be re-processed on next run.`,
+				);
+			}
 		} catch (error) {
 			result.failures += 1;
 			result.notes.push(
@@ -170,10 +177,104 @@ export async function runBridgeDbSyncCommand(
 }
 
 // ---------------------------------------------------------------------------
+// Status command (read-only, no writes)
+// ---------------------------------------------------------------------------
+
+export interface BridgeDbStatusOptions {
+	dbPath?: string;
+}
+
+export function runBridgeDbStatusCommand(
+	options: BridgeDbStatusOptions = {},
+): void {
+	const dbPath =
+		options.dbPath ??
+		(process.env["BRIDGE_DB_PATH"]?.trim() || BRIDGE_DB_DEFAULT_PATH);
+
+	const totalResult = spawnSync(
+		"sqlite3",
+		["-json", dbPath, "SELECT COUNT(*) as total FROM activity_log;"],
+		{ encoding: "utf8", timeout: 5_000 },
+	);
+	const shippedResult = spawnSync(
+		"sqlite3",
+		[
+			"-json",
+			dbPath,
+			`SELECT COUNT(*) as shipped FROM activity_log WHERE EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'SHIPPED') AND NOT EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'PROCESSED');`,
+		],
+		{ encoding: "utf8", timeout: 5_000 },
+	);
+	const lastResult = spawnSync(
+		"sqlite3",
+		[
+			"-json",
+			dbPath,
+			`SELECT id, source, timestamp, project_name FROM activity_log WHERE EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'PROCESSED') ORDER BY timestamp DESC LIMIT 1;`,
+		],
+		{ encoding: "utf8", timeout: 5_000 },
+	);
+
+	const dbError = totalResult.error ?? shippedResult.error;
+	if (dbError) {
+		console.log(
+			JSON.stringify({ ok: false, error: toErrorMessage(dbError), dbPath }),
+		);
+		return;
+	}
+	if (totalResult.status !== 0 || shippedResult.status !== 0) {
+		const stderr =
+			totalResult.stderr?.trim() ||
+			shippedResult.stderr?.trim() ||
+			"sqlite3 error";
+		console.log(JSON.stringify({ ok: false, error: stderr, dbPath }));
+		return;
+	}
+
+	const parseCount = (raw: string | null): number => {
+		try {
+			const rows = JSON.parse(raw?.trim() || "[]") as Array<
+				Record<string, unknown>
+			>;
+			const first = rows[0];
+			if (!first) return 0;
+			const val = Object.values(first)[0];
+			return typeof val === "number" ? val : Number(val) || 0;
+		} catch {
+			return 0;
+		}
+	};
+
+	type LastRow = {
+		id: number;
+		source: string;
+		timestamp: string;
+		project_name: string;
+	};
+	const parseLastRow = (raw: string | null): LastRow | undefined => {
+		try {
+			const rows = JSON.parse(raw?.trim() || "[]") as LastRow[];
+			return rows[0];
+		} catch {
+			return undefined;
+		}
+	};
+
+	const output = {
+		ok: true,
+		dbPath,
+		totalRows: parseCount(totalResult.stdout),
+		pendingShipped: parseCount(shippedResult.stdout),
+		lastProcessed: parseLastRow(lastResult.stdout),
+	};
+	console.log(JSON.stringify(output, null, 2));
+}
+
+// ---------------------------------------------------------------------------
 // SQLite helpers (shell-based — no native dependency)
 // ---------------------------------------------------------------------------
 
-interface BridgeDbRow {
+export interface BridgeDbRow {
 	id: number;
 	source: string;
 	timestamp: string;
@@ -188,7 +289,7 @@ interface ReadResult {
 	error?: string;
 }
 
-function readShippedRows(dbPath: string, limit: number): ReadResult {
+export function readShippedRows(dbPath: string, limit: number): ReadResult {
 	const query =
 		`SELECT id, source, timestamp, project_name, summary, branch, tags ` +
 		`FROM activity_log ` +
@@ -227,7 +328,7 @@ function readShippedRows(dbPath: string, limit: number): ReadResult {
 	}
 }
 
-function markRowProcessed(dbPath: string, rowId: number): void {
+export function markRowProcessed(dbPath: string, rowId: number): boolean {
 	const query =
 		`UPDATE activity_log ` +
 		`SET tags = json_insert(tags, '$[#]', 'PROCESSED') ` +
@@ -238,20 +339,30 @@ function markRowProcessed(dbPath: string, rowId: number): void {
 		timeout: 5_000,
 	});
 
-	if (result.status !== 0) {
+	if (result.error || result.status !== 0) {
 		console.error(
-			`[bridge-db-sync] Failed to mark row ${rowId} as PROCESSED: ${result.stderr?.trim() ?? ""}`,
+			`[bridge-db-sync] Failed to mark row ${rowId} as PROCESSED: ${result.stderr?.trim() ?? result.error?.message ?? ""}`,
 		);
+		return false;
 	}
+	return true;
 }
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-function buildBuildLogTitle(row: BridgeDbRow): string {
-	const prefix =
-		row.source === "cc" ? "CC" : row.source === "codex" ? "Codex" : "Claude.ai";
+export function buildBuildLogTitle(row: BridgeDbRow): string {
+	let prefix: string;
+	if (row.source === "cc") {
+		prefix = "CC";
+	} else if (row.source === "codex") {
+		prefix = "Codex";
+	} else if (row.source === "manual") {
+		prefix = "Manual";
+	} else {
+		prefix = row.source;
+	}
 	const date = row.timestamp?.slice(0, 10) ?? "";
 	const project = row.project_name;
 	return `[${prefix}] ${project} — ${date}`;
@@ -273,7 +384,7 @@ function buildMarkdownBody(row: BridgeDbRow): string {
 	return lines.join("\n");
 }
 
-function buildTagProperty(row: BridgeDbRow): {
+export function buildTagProperty(row: BridgeDbRow): {
 	multi_select: Array<{ name: string }>;
 } {
 	const tags: string[] = [];
@@ -297,7 +408,7 @@ function buildTagProperty(row: BridgeDbRow): {
 // Project name resolution (shared pattern from external-signal-sync)
 // ---------------------------------------------------------------------------
 
-function buildProjectIndex(
+export function buildProjectNameIndex(
 	projects: Array<{ id: string; title: string }>,
 ): Map<string, string> {
 	const index = new Map<string, string>();

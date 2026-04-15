@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { access, constants, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -1326,7 +1326,7 @@ interface NotificationHubEvent {
 	timestamp: string;
 	event_id: string;
 	received_at: string;
-	classified_level: string;
+	classified_level?: string;
 }
 
 const NOTIFICATION_HUB_DEFAULT_LOG_PATH = `${homedir()}/.local/share/notification-hub/events.jsonl`;
@@ -1351,9 +1351,9 @@ export async function syncNotificationHubSources(
 		process.env[provider.authEnvVar]?.trim() ||
 		NOTIFICATION_HUB_DEFAULT_LOG_PATH;
 
-	// Verify the log file exists before attempting to read it
+	// Verify the log file is readable before attempting to stream it
 	try {
-		await readFile(logPath, { flag: "r" });
+		await access(logPath, constants.R_OK);
 	} catch {
 		return {
 			...emptyProviderResult(
@@ -1373,8 +1373,7 @@ export async function syncNotificationHubSources(
 	let unmatchedProject = 0;
 
 	try {
-		const rawEvents = await readNotificationHubJsonl(logPath);
-		const capped = rawEvents.slice(-(maxEventsPerSource * 10)); // read recent window
+		const capped = await readNotificationHubJsonl(logPath, maxEventsPerSource);
 
 		for (const raw of capped) {
 			itemsSeen += 1;
@@ -1491,8 +1490,9 @@ function resolveProjectId(
 
 async function readNotificationHubJsonl(
 	logPath: string,
+	windowSize: number,
 ): Promise<NotificationHubEvent[]> {
-	const events: NotificationHubEvent[] = [];
+	let window: NotificationHubEvent[] = [];
 	const stream = createReadStream(logPath, { encoding: "utf8" });
 	const rl = createInterface({ input: stream, crlfDelay: Infinity });
 
@@ -1504,14 +1504,17 @@ async function readNotificationHubJsonl(
 		try {
 			const parsed = JSON.parse(trimmed) as unknown;
 			if (isNotificationHubEvent(parsed)) {
-				events.push(parsed);
+				window.push(parsed);
+				if (window.length > windowSize) {
+					window = window.slice(-windowSize);
+				}
 			}
 		} catch {
 			// Skip malformed lines silently
 		}
 	}
 
-	return events;
+	return window;
 }
 
 function isNotificationHubEvent(value: unknown): value is NotificationHubEvent {
@@ -1529,8 +1532,11 @@ function isNotificationHubEvent(value: unknown): value is NotificationHubEvent {
 }
 
 function classifyNotificationSeverity(
-	classifiedLevel: string,
+	classifiedLevel: string | undefined,
 ): ExternalSignalEventRecord["severity"] {
+	if (!classifiedLevel) {
+		return "Info";
+	}
 	switch (classifiedLevel.toLowerCase()) {
 		case "urgent":
 			return "Risk";
@@ -1632,6 +1638,7 @@ export async function syncRepoAuditorSources(
 	let itemsSeen = 0;
 	let itemsDeduped = 0;
 	let unmatchedProject = 0;
+	let malformed = 0;
 
 	for (const audit of audits) {
 		if (events.length >= maxEventsPerSource) {
@@ -1639,6 +1646,10 @@ export async function syncRepoAuditorSources(
 		}
 		itemsSeen += 1;
 		const fullName = audit.metadata?.full_name ?? audit.metadata?.name ?? "";
+		if (!fullName) {
+			malformed += 1;
+			continue;
+		}
 		const eventKey = buildEventKey(["repo_auditor", fullName, reportDate]);
 		if (eventKeySet.has(eventKey)) {
 			itemsDeduped += 1;
@@ -1692,6 +1703,11 @@ export async function syncRepoAuditorSources(
 	const notes: string[] = [
 		`Report date: ${reportDate}, audits in file: ${itemsSeen}`,
 	];
+	if (malformed > 0) {
+		notes.push(
+			`Skipped ${malformed} audits with missing full_name/name metadata.`,
+		);
+	}
 	if (unmatchedProject > 0) {
 		notes.push(
 			`${unmatchedProject} audit(s) skipped: repo name could not be matched to a local portfolio project.`,
@@ -2229,25 +2245,6 @@ function selectScopedSources(input: {
 			input.sourceLimit,
 		),
 	);
-}
-
-function deriveTargetProjectIdsFromSyncedSources(
-	providerResults: ProviderSyncResult[],
-	sourceMap: Map<string, ExternalSignalSourceRecord>,
-): Set<string> {
-	const targetProjectIds = new Set<string>();
-	for (const result of providerResults) {
-		for (const sourceId of result.syncedSourceIds) {
-			const source = sourceMap.get(sourceId);
-			if (!source) {
-				continue;
-			}
-			for (const projectId of source.localProjectIds) {
-				targetProjectIds.add(projectId);
-			}
-		}
-	}
-	return targetProjectIds;
 }
 
 function deriveTargetProjectIdsFromSources(

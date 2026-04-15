@@ -254,3 +254,73 @@ The existing `external-signal-sync.ts` framework already handles steps 3–5. Ea
 - The machine audit confirmed: notification-hub JSONL exists and is populated, bridge-db SQLite is at `~/.local/share/bridge-db/bridge.db`, GithubRepoAuditor has partial Notion wiring in `src/notion_sync.py`
 - The web research confirmed: Morning Brief / daily digest is the standard emerging interface for AI second brains; signal aggregation across tools is the core gap in most personal OS setups
 - Next session should start with Initiative 1 (notification-hub sync) — lowest effort, proves the local-provider pattern, gives immediate observability value
+
+---
+
+## Phase 10A — What Shipped (2026-04-14)
+
+All three Phase 10A signal adapters are now live on `feat/phase10a-initiatives-2-3`:
+
+| Initiative | Status | Files |
+|---|---|---|
+| notification-hub JSONL → ExternalSignalEvents | Shipped | `src/notion/external-signal-sync.ts` (syncNotificationHubSources) |
+| bridge-db SHIPPED rows → Build Log | Shipped | `src/notion/bridge-db-sync.ts` (NEW) |
+| GithubRepoAuditor JSON → ExternalSignalEvents | Shipped | `src/notion/external-signal-sync.ts` (syncRepoAuditorSources) |
+
+New provider types: `notification_hub`, `repo_auditor` (both in `ExternalProviderKey` union).
+New CLI commands: `notion-os signals sync --provider notification_hub`, `notion-os signals sync --provider repo_auditor`, `notion-os bridge-db sync`.
+Tests: 242 passing.
+
+---
+
+## Phase 10B — What Shipped (2026-04-14)
+
+All Phase 10B deliverables are on `feat/phase10b`:
+
+### Part A — Audit Fixes
+
+| Fix | Description | File |
+|---|---|---|
+| A1 CRITICAL | `markRowProcessed` failure now propagates — rowsWritten decremented, failures incremented | `bridge-db-sync.ts` |
+| A2 MAJOR | `normalizeProviderKey` handles "Notification Hub" and "Repo Auditor" | `local-portfolio-external-signals.ts` |
+| A3 MAJOR | `readNotificationHubJsonl` uses rolling `windowSize` — no full-file load | `external-signal-sync.ts` |
+| A4 MAJOR | Empty `fullName` in repo auditor skips with malformed counter instead of key collision | `external-signal-sync.ts` |
+| A5 MAJOR | `parseProviderName` accepts "Notification Hub" and "Repo Auditor" | `local-portfolio-external-signals.ts` |
+| A6 | Dead `deriveTargetProjectIdsFromSyncedSources` removed | `external-signal-sync.ts` |
+| A7 MINOR | `access(logPath, R_OK)` for file existence; `classified_level` undefined → Info; unknown source prefix | both files |
+| A8 | 16 new bridge-db tests + 3 new external-signal-sync tests | `tests/bridge-db-sync.test.ts` (NEW), `tests/external-signal-sync.test.ts` |
+
+### Part B — New Features
+
+| Feature | Command | File |
+|---|---|---|
+| Morning Brief | `notion-os signals morning-brief` | `src/notion/morning-brief.ts` (NEW) |
+| Orphan Classification | `notion-os governance orphan-classify` | `src/notion/orphan-classification.ts` (NEW) |
+| Historical Trending | `notion-os control-tower trend-analysis` | `src/notion/snapshot-history.ts` (NEW) |
+| bridge-db Status | `notion-os bridge-db status` | `src/notion/bridge-db-sync.ts` (extended) |
+
+Snapshot hook: `control-tower-sync --live` now appends a JSONL snapshot per project to `~/.local/share/notion-os/snapshots.jsonl` after each live run.
+
+---
+
+## Phase 10C — Candidates
+
+These are the next-priority items after Phase 10B merges to main:
+
+### 10C-1 — LLM Morning Brief (HIGH)
+Upgrade the data-aggregation morning brief to call Claude API for a synthesis paragraph per top-priority project. Use prompt caching for stable project context. Requires `ANTHROPIC_API_KEY`.
+
+### 10C-2 — Governed Disposition Actions (HIGH)
+Wire approved orphan classifications from `governance orphan-classify` into `work_packets` creation (kickoff entries) using the existing actuation pipeline. Operator reviews the classification table, approves dispositions, and the runner creates work packets.
+
+### 10C-3 — Trend Section on Weekly Review (MEDIUM)
+Pipe `control-tower trend-analysis` output into the weekly review page as a managed section (same pattern as morning brief). Gives the weekly review a "what has changed in portfolio health this week" section automatically.
+
+### 10C-4 — Multi-week Sustained Regression Detection (MEDIUM)
+Extend trend analysis to flag sustained regressions across 3+ weeks (not just last 2 snapshots). Requires accumulating at least 3 weekly snapshots before flagging.
+
+### 10C-5 — ASC Signal Lane (LOWER — when submitting iOS apps)
+App Store Connect signal adapter: build processing state, TestFlight age, review status. New provider type `asc` with JWT auth (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY`).
+
+### 10C-6 — Vercel Analytics Signal Lane (LOWER — when deploy loop matters)
+Vercel analytics adapter: p95 latency trend, error rate delta, visitor delta. Completes the deploy → monitor → PM signal loop. Uses existing `VERCEL_TOKEN`.
