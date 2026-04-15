@@ -7,6 +7,7 @@ import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { losAngelesToday } from "../utils/date.js";
 import { toErrorMessage } from "../utils/errors.js";
+import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -174,6 +175,12 @@ export async function runBridgeDbSyncCommand(
 		}
 	}
 	console.log(summary.join("\n"));
+	postNotificationHubEvent({
+		source: "notion-os",
+		level: result.failures > 0 ? "warn" : "info",
+		title: "bridge-db-sync complete",
+		body: `${live ? "Live" : "Dry-run"}: ${result.rowsFound} found, ${result.rowsWritten} written, ${result.rowsSkipped} skipped, ${result.failures} failed`,
+	});
 }
 
 // ---------------------------------------------------------------------------

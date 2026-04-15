@@ -16,6 +16,7 @@ import {
 	buildReplaceCommand,
 	normalizeMarkdown,
 } from "../utils/markdown.js";
+import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -739,6 +740,12 @@ export async function runExternalSignalSyncCommand(
 			provider,
 			providerRunCount: providerResults.length,
 		},
+	});
+	postNotificationHubEvent({
+		source: "notion-os",
+		level: contract.status === "failed" ? "warn" : "info",
+		title: "external-signal-sync complete",
+		body: `${live ? "Live" : "Dry-run"} [${provider}]: ${contract.summaryCounts.createdEventCount ?? 0} events, ${contract.summaryCounts.syncedSourceCount ?? 0} sources synced, ${contract.summaryCounts.targetProjectCount ?? 0} projects`,
 	});
 	console.log(JSON.stringify(output, null, 2));
 }
