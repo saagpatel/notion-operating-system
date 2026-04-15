@@ -3,7 +3,10 @@ import { runActionRequestSyncCommand } from "../notion/action-request-sync.js";
 import { runActionRunnerCommand } from "../notion/action-runner.js";
 import { runActivityRefreshCommand } from "../notion/activity-refresh.js";
 import { runActuationAuditCommand } from "../notion/actuation-audit.js";
-import { runBridgeDbSyncCommand } from "../notion/bridge-db-sync.js";
+import {
+	runBridgeDbStatusCommand,
+	runBridgeDbSyncCommand,
+} from "../notion/bridge-db-sync.js";
 import { runCohortRolloutCommand } from "../notion/cohort-rollout.js";
 import { runControlTowerSyncCommand } from "../notion/control-tower-sync.js";
 import { runExecutionSyncCommand } from "../notion/execution-sync.js";
@@ -13,12 +16,15 @@ import { runGovernanceAuditCommand } from "../notion/governance-audit.js";
 import { runGovernanceHealthReportCommand } from "../notion/governance-health-report.js";
 import { runIntelligenceSyncCommand } from "../notion/intelligence-sync.js";
 import { runLinkSuggestionsSyncCommand } from "../notion/link-suggestions-sync.js";
+import { runMorningBriefCommand } from "../notion/morning-brief.js";
 import { runOperationalRolloutCommand } from "../notion/operational-rollout.js";
+import { runOrphanClassificationCommand } from "../notion/orphan-classification.js";
 import { runPhaseCloseoutCommand } from "../notion/phase-closeout.js";
 import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfolio-views.js";
 import { runProviderExpansionAuditCommand } from "../notion/provider-expansion-audit.js";
 import { runRecommendationRunCommand } from "../notion/recommendation-run.js";
 import { runReviewPacketCommand } from "../notion/review-packet.js";
+import { runTrendAnalysisCommand } from "../notion/snapshot-history.js";
 import { runExecutionViewsValidateCommand } from "../notion/validate-local-portfolio-execution-views.js";
 import { runExternalSignalViewsValidateCommand } from "../notion/validate-local-portfolio-external-signal-views.js";
 import { runGovernanceViewsValidateCommand } from "../notion/validate-local-portfolio-governance-views.js";
@@ -509,6 +515,15 @@ export const cliRegistry: CliCommandDefinition[] = [
 					config: asString(parsed.options.config) ?? parsed.positionals[0],
 				}),
 		),
+		buildConfigCommand(
+			"trend-analysis",
+			"Read historical project snapshots and report queue changes and stale evidence trends.",
+			[commonOptions.today],
+			({ parsed }) =>
+				runTrendAnalysisCommand({
+					today: asString(parsed.options.today),
+				}),
+		),
 	]),
 	buildFamily("execution", "Run execution-system workflows.", [
 		buildConfigCommand(
@@ -760,6 +775,31 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 				}),
 		),
+		buildConfigCommand(
+			"morning-brief",
+			"Aggregate recent signal events by severity and patch a morning brief section on the weekly review page.",
+			[
+				commonOptions.live,
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "lookback-days",
+					description: "Number of days of events to include (default: 1).",
+					type: "number",
+					valueName: "days",
+				},
+			],
+			({ parsed }) =>
+				runMorningBriefCommand({
+					live: asBoolean(parsed.options.live),
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					lookbackDays: asNumber(parsed.options["lookback-days"]),
+				}),
+		),
 	]),
 	buildFamily("governance", "Run governance and actuation workflows.", [
 		buildConfigCommand(
@@ -925,6 +965,20 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 				}),
 		),
+		buildConfigCommand(
+			"orphan-classify",
+			"Classify orphan projects (no linked records) into deterministic disposition buckets.",
+			[commonOptions.live, commonOptions.today, commonOptions.config],
+			({ parsed }) =>
+				runOrphanClassificationCommand({
+					live: asBoolean(parsed.options.live),
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+				}),
+		),
 	]),
 	buildFamily("rollout", "Run project rollout flows.", [
 		buildConfigCommand(
@@ -1041,6 +1095,25 @@ export const cliRegistry: CliCommandDefinition[] = [
 					limit: asNumber(parsed.options.limit),
 					dbPath: asString(parsed.options["db-path"]),
 				}),
+		),
+		buildConfigCommand(
+			"status",
+			"Report bridge-db row counts and last processed row without making any writes.",
+			[
+				{
+					name: "db-path",
+					description:
+						"Override path to bridge.db (defaults to BRIDGE_DB_PATH env var or ~/.local/share/bridge-db/bridge.db).",
+					type: "string",
+					valueName: "path",
+				},
+			],
+			({ parsed }) =>
+				Promise.resolve(
+					runBridgeDbStatusCommand({
+						dbPath: asString(parsed.options["db-path"]),
+					}),
+				),
 		),
 	]),
 	buildFamily("maintenance", "Run recurring portfolio maintenance workflows.", [

@@ -177,6 +177,100 @@ export async function runBridgeDbSyncCommand(
 }
 
 // ---------------------------------------------------------------------------
+// Status command (read-only, no writes)
+// ---------------------------------------------------------------------------
+
+export interface BridgeDbStatusOptions {
+	dbPath?: string;
+}
+
+export function runBridgeDbStatusCommand(
+	options: BridgeDbStatusOptions = {},
+): void {
+	const dbPath =
+		options.dbPath ??
+		(process.env["BRIDGE_DB_PATH"]?.trim() || BRIDGE_DB_DEFAULT_PATH);
+
+	const totalResult = spawnSync(
+		"sqlite3",
+		["-json", dbPath, "SELECT COUNT(*) as total FROM activity_log;"],
+		{ encoding: "utf8", timeout: 5_000 },
+	);
+	const shippedResult = spawnSync(
+		"sqlite3",
+		[
+			"-json",
+			dbPath,
+			`SELECT COUNT(*) as shipped FROM activity_log WHERE EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'SHIPPED') AND NOT EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'PROCESSED');`,
+		],
+		{ encoding: "utf8", timeout: 5_000 },
+	);
+	const lastResult = spawnSync(
+		"sqlite3",
+		[
+			"-json",
+			dbPath,
+			`SELECT id, source, timestamp, project_name FROM activity_log WHERE EXISTS (SELECT 1 FROM json_each(tags) WHERE value = 'PROCESSED') ORDER BY timestamp DESC LIMIT 1;`,
+		],
+		{ encoding: "utf8", timeout: 5_000 },
+	);
+
+	const dbError = totalResult.error ?? shippedResult.error;
+	if (dbError) {
+		console.log(
+			JSON.stringify({ ok: false, error: toErrorMessage(dbError), dbPath }),
+		);
+		return;
+	}
+	if (totalResult.status !== 0 || shippedResult.status !== 0) {
+		const stderr =
+			totalResult.stderr?.trim() ||
+			shippedResult.stderr?.trim() ||
+			"sqlite3 error";
+		console.log(JSON.stringify({ ok: false, error: stderr, dbPath }));
+		return;
+	}
+
+	const parseCount = (raw: string | null): number => {
+		try {
+			const rows = JSON.parse(raw?.trim() || "[]") as Array<
+				Record<string, unknown>
+			>;
+			const first = rows[0];
+			if (!first) return 0;
+			const val = Object.values(first)[0];
+			return typeof val === "number" ? val : Number(val) || 0;
+		} catch {
+			return 0;
+		}
+	};
+
+	type LastRow = {
+		id: number;
+		source: string;
+		timestamp: string;
+		project_name: string;
+	};
+	const parseLastRow = (raw: string | null): LastRow | undefined => {
+		try {
+			const rows = JSON.parse(raw?.trim() || "[]") as LastRow[];
+			return rows[0];
+		} catch {
+			return undefined;
+		}
+	};
+
+	const output = {
+		ok: true,
+		dbPath,
+		totalRows: parseCount(totalResult.stdout),
+		pendingShipped: parseCount(shippedResult.stdout),
+		lastProcessed: parseLastRow(lastResult.stdout),
+	};
+	console.log(JSON.stringify(output, null, 2));
+}
+
+// ---------------------------------------------------------------------------
 // SQLite helpers (shell-based — no native dependency)
 // ---------------------------------------------------------------------------
 

@@ -142,7 +142,15 @@
 		"portfolio-audit:github-support-maintenance": "tsx src/notion/github-support-maintenance.ts",
 		"portfolio-audit:weekly-refresh": "tsx src/notion/weekly-refresh.ts",
 		"portfolio-audit:stale-support-audit": "tsx src/notion/stale-support-audit.ts",
-		"portfolio-audit:project-support-coverage-audit": "tsx src/notion/project-support-coverage-audit.ts"
+		"portfolio-audit:project-support-coverage-audit": "tsx src/notion/project-support-coverage-audit.ts",
+		"portfolio-audit:morning-brief": "tsx src/cli.ts signals morning-brief",
+		"portfolio-audit:orphan-classify": "tsx src/cli.ts governance orphan-classify",
+		"portfolio-audit:trend-analysis": "tsx src/cli.ts control-tower trend-analysis",
+		"portfolio-audit:bridge-db-status": "tsx src/cli.ts bridge-db status",
+		"signals:morning-brief": "tsx src/cli.ts signals morning-brief",
+		"governance:orphan-classify": "tsx src/cli.ts governance orphan-classify",
+		"control-tower:trend-analysis": "tsx src/cli.ts control-tower trend-analysis",
+		"bridge-db:status": "tsx src/cli.ts bridge-db status"
 	},
 	"dependencies": {
 		"@notionhq/client": "^5.12.0",
