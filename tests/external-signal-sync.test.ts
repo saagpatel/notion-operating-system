@@ -455,6 +455,42 @@ describe("notification hub sync", () => {
 		expect(result.events[0]?.severity).toBe("Info");
 	});
 
+	// T-7: malformed JSON line in JSONL file
+	test("T-7: malformed JSON line in JSONL is skipped, valid event is returned", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		const validEvent = {
+			source: "cc",
+			level: "info",
+			title: "Valid event",
+			body: "body text",
+			project: "my-project",
+			timestamp: "2026-04-14T10:00:00Z",
+			event_id: "valid-001",
+			received_at: "2026-04-14T10:00:01Z",
+			classified_level: "info",
+		};
+		const lines = [JSON.stringify(validEvent), "{broken"].join("\n");
+		await writeFile(logPath, lines, "utf8");
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		// Calling directly (not via expect wrapper) to capture result and verify no throw
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "my-project" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		// Valid line is returned, broken line is silently skipped, no throw
+		expect(result.events).toHaveLength(1);
+		expect(result.events[0]?.sourceIdValue).toBe("valid-001");
+	});
+
 	// T-8: maxEventsPerSource cap is respected
 	test("T-8: maxEventsPerSource cap is respected — 3 events, cap at 2", async () => {
 		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
@@ -759,6 +795,163 @@ describe("repo auditor sync", () => {
 
 	test("normalizeProviderName maps Repo Auditor to repo_auditor key", () => {
 		expect(normalizeProviderName("Repo Auditor")).toBe("repo_auditor");
+	});
+
+	test("skips audit entry with absent full_name AND name and records malformed counter", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		const report = {
+			generated_at: "2026-04-14",
+			audits: [
+				{
+					metadata: {}, // no full_name, no name
+					grade: "A",
+					overall_score: 0.95,
+					flags: [],
+				},
+				{
+					metadata: { name: "my-project", full_name: "owner/my-project" },
+					grade: "B",
+					overall_score: 0.8,
+					flags: [],
+				},
+			],
+		};
+		await writeFile(
+			join(tmpDir, "audit-report-2026-04-14.json"),
+			JSON.stringify(report),
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "proj-a", title: "my-project" }],
+		);
+
+		// The malformed entry should be skipped, not included as an event
+		const keys = result.events.map((e) => e.sourceIdValue);
+		expect(keys.every((k) => k.includes("owner/my-project"))).toBe(true);
+		// Note should mention the missing full_name/name
+		const malformedNote = result.notes.find((n) =>
+			n.includes("missing full_name/name"),
+		);
+		expect(malformedNote).toBeDefined();
+		// No event for the blank-metadata entry
+		expect(result.events.every((e) => e.sourceIdValue !== "::2026-04-14")).toBe(
+			true,
+		);
+	});
+
+	test("falls back to results field when audits key is absent", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		const report = {
+			generated_at: "2026-04-14",
+			results: [
+				{
+					metadata: { name: "my-project", full_name: "owner/my-project" },
+					grade: "B",
+					overall_score: 0.8,
+					flags: [],
+				},
+			],
+			// intentionally no `audits` key
+		};
+		await writeFile(
+			join(tmpDir, "audit-report-2026-04-14.json"),
+			JSON.stringify(report),
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "proj-a", title: "my-project" }],
+		);
+
+		expect(result.status).toBe("Succeeded");
+		expect(result.events).toHaveLength(1);
+		expect(result.events[0]?.sourceIdValue).toBe(
+			"owner/my-project::2026-04-14",
+		);
+	});
+
+	test("returns Failed status and does not throw when report file contains invalid JSON", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		await writeFile(
+			join(tmpDir, "audit-report-2026-04-14.json"),
+			"{not valid json",
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		// Calling directly to capture result; a thrown error would fail the async test automatically
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[],
+		);
+
+		expect(result.status).toBe("Failed");
+		expect(result.failures).toBe(1);
+	});
+
+	test("maxEventsPerSource cap is respected — 3 audit entries, cap at 2", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		const report = {
+			generated_at: "2026-04-14",
+			audits: [
+				{
+					metadata: { name: "proj-a", full_name: "owner/proj-a" },
+					grade: "A",
+					overall_score: 0.95,
+					flags: [],
+				},
+				{
+					metadata: { name: "proj-b", full_name: "owner/proj-b" },
+					grade: "B",
+					overall_score: 0.8,
+					flags: [],
+				},
+				{
+					metadata: { name: "proj-c", full_name: "owner/proj-c" },
+					grade: "C",
+					overall_score: 0.55,
+					flags: [],
+				},
+			],
+		};
+		await writeFile(
+			join(tmpDir, "audit-report-2026-04-14.json"),
+			JSON.stringify(report),
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			2, // maxEventsPerSource = 2
+			"2026-04-14",
+			new Set(),
+			[
+				{ id: "proj-a", title: "proj-a" },
+				{ id: "proj-b", title: "proj-b" },
+				{ id: "proj-c", title: "proj-c" },
+			],
+		);
+
+		expect(result.events.length).toBeLessThanOrEqual(2);
 	});
 });
 

@@ -215,21 +215,6 @@ export async function runOrphanClassificationCommand(
 
 	let packetsCreated = 0;
 
-	const summary = {
-		ok: true,
-		live,
-		today,
-		totalProjects: projects.length,
-		orphanCount: orphans.length,
-		alreadyParked,
-		archiveCandidates: archiveCandidates.length,
-		viableNeedsKickoff: viableNeedsKickoff.length,
-		packetsCreated,
-	};
-
-	console.log(JSON.stringify(summary, null, 2));
-	console.log("\n" + markdown);
-
 	if (live) {
 		const title = `Orphan Classification — ${today}`;
 		const fullMarkdown = `---\ntitle: ${title}\n---\n\n${markdown}`;
@@ -285,8 +270,18 @@ export async function runOrphanClassificationCommand(
 		}
 	}
 
-	// Update summary output with final packetsCreated count
-	if (packetsCreated > 0) {
-		console.log(JSON.stringify({ packetsCreated }, null, 2));
-	}
+	const summary = {
+		ok: true,
+		live,
+		today,
+		totalProjects: projects.length,
+		orphanCount: orphans.length,
+		alreadyParked,
+		archiveCandidates: archiveCandidates.length,
+		viableNeedsKickoff: viableNeedsKickoff.length,
+		packetsCreated,
+	};
+
+	console.log(JSON.stringify(summary, null, 2));
+	console.log("\n" + markdown);
 }
