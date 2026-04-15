@@ -77,7 +77,7 @@ export async function runBridgeDbSyncCommand(
 	const projects = projectPages.map((page) =>
 		toIntelligenceProjectRecord(page),
 	);
-	const projectIndex = buildProjectIndex(
+	const projectIndex = buildProjectNameIndex(
 		projects.map((p) => ({ id: p.id, title: p.title })),
 	);
 
@@ -142,9 +142,16 @@ export async function runBridgeDbSyncCommand(
 					Tags: buildTagProperty(row),
 				},
 			});
-			markRowProcessed(dbPath, row.id);
-			result.rowsWritten += 1;
-			console.log(`[bridge-db-sync] Written: "${title}" (${created.id})`);
+			const marked = markRowProcessed(dbPath, row.id);
+			if (marked) {
+				result.rowsWritten += 1;
+				console.log(`[bridge-db-sync] Written: "${title}" (${created.id})`);
+			} else {
+				result.failures += 1;
+				result.notes.push(
+					`Failed to mark row ${row.id} as PROCESSED in bridge-db — it will be re-processed on next run.`,
+				);
+			}
 		} catch (error) {
 			result.failures += 1;
 			result.notes.push(
@@ -173,7 +180,7 @@ export async function runBridgeDbSyncCommand(
 // SQLite helpers (shell-based — no native dependency)
 // ---------------------------------------------------------------------------
 
-interface BridgeDbRow {
+export interface BridgeDbRow {
 	id: number;
 	source: string;
 	timestamp: string;
@@ -188,7 +195,7 @@ interface ReadResult {
 	error?: string;
 }
 
-function readShippedRows(dbPath: string, limit: number): ReadResult {
+export function readShippedRows(dbPath: string, limit: number): ReadResult {
 	const query =
 		`SELECT id, source, timestamp, project_name, summary, branch, tags ` +
 		`FROM activity_log ` +
@@ -227,7 +234,7 @@ function readShippedRows(dbPath: string, limit: number): ReadResult {
 	}
 }
 
-function markRowProcessed(dbPath: string, rowId: number): void {
+export function markRowProcessed(dbPath: string, rowId: number): boolean {
 	const query =
 		`UPDATE activity_log ` +
 		`SET tags = json_insert(tags, '$[#]', 'PROCESSED') ` +
@@ -238,20 +245,30 @@ function markRowProcessed(dbPath: string, rowId: number): void {
 		timeout: 5_000,
 	});
 
-	if (result.status !== 0) {
+	if (result.error || result.status !== 0) {
 		console.error(
-			`[bridge-db-sync] Failed to mark row ${rowId} as PROCESSED: ${result.stderr?.trim() ?? ""}`,
+			`[bridge-db-sync] Failed to mark row ${rowId} as PROCESSED: ${result.stderr?.trim() ?? result.error?.message ?? ""}`,
 		);
+		return false;
 	}
+	return true;
 }
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-function buildBuildLogTitle(row: BridgeDbRow): string {
-	const prefix =
-		row.source === "cc" ? "CC" : row.source === "codex" ? "Codex" : "Claude.ai";
+export function buildBuildLogTitle(row: BridgeDbRow): string {
+	let prefix: string;
+	if (row.source === "cc") {
+		prefix = "CC";
+	} else if (row.source === "codex") {
+		prefix = "Codex";
+	} else if (row.source === "manual") {
+		prefix = "Manual";
+	} else {
+		prefix = row.source;
+	}
 	const date = row.timestamp?.slice(0, 10) ?? "";
 	const project = row.project_name;
 	return `[${prefix}] ${project} — ${date}`;
@@ -273,7 +290,7 @@ function buildMarkdownBody(row: BridgeDbRow): string {
 	return lines.join("\n");
 }
 
-function buildTagProperty(row: BridgeDbRow): {
+export function buildTagProperty(row: BridgeDbRow): {
 	multi_select: Array<{ name: string }>;
 } {
 	const tags: string[] = [];
@@ -297,7 +314,7 @@ function buildTagProperty(row: BridgeDbRow): {
 // Project name resolution (shared pattern from external-signal-sync)
 // ---------------------------------------------------------------------------
 
-function buildProjectIndex(
+export function buildProjectNameIndex(
 	projects: Array<{ id: string; title: string }>,
 ): Map<string, string> {
 	const index = new Map<string, string>();

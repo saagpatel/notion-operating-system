@@ -399,6 +399,121 @@ describe("notification hub sync", () => {
 	test("normalizeProviderName maps Notification Hub to notification_hub key", () => {
 		expect(normalizeProviderName("Notification Hub")).toBe("notification_hub");
 	});
+
+	// T-3: empty JSONL file
+	test("T-3: empty JSONL file returns 0 events without throwing", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+		await writeFile(logPath, "", "utf8");
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "my-project" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.status).toBe("Succeeded");
+		expect(result.events).toHaveLength(0);
+		expect(result.itemsSeen).toBe(0);
+	});
+
+	// T-4: classified_level absent defaults to Info
+	test("T-4: JSONL line missing classified_level defaults to Info severity", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		const event = {
+			source: "cc",
+			level: "info",
+			title: "Event without classified_level",
+			body: "body text",
+			project: "my-project",
+			timestamp: "2026-04-14T10:00:00Z",
+			event_id: "no-level-111",
+			received_at: "2026-04-14T10:00:01Z",
+			// classified_level intentionally omitted
+		};
+		await writeFile(logPath, JSON.stringify(event), "utf8");
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "my-project" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events).toHaveLength(1);
+		expect(result.events[0]?.severity).toBe("Info");
+	});
+
+	// T-8: maxEventsPerSource cap is respected
+	test("T-8: maxEventsPerSource cap is respected — 3 events, cap at 2", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		const events = [
+			{
+				source: "cc",
+				level: "info",
+				title: "E1",
+				body: "b1",
+				project: "my-project",
+				timestamp: "2026-04-14T10:00:00Z",
+				event_id: "cap001",
+				received_at: "2026-04-14T10:00:01Z",
+				classified_level: "info",
+			},
+			{
+				source: "cc",
+				level: "info",
+				title: "E2",
+				body: "b2",
+				project: "my-project",
+				timestamp: "2026-04-14T10:01:00Z",
+				event_id: "cap002",
+				received_at: "2026-04-14T10:01:01Z",
+				classified_level: "info",
+			},
+			{
+				source: "cc",
+				level: "info",
+				title: "E3",
+				body: "b3",
+				project: "my-project",
+				timestamp: "2026-04-14T10:02:00Z",
+				event_id: "cap003",
+				received_at: "2026-04-14T10:02:01Z",
+				classified_level: "info",
+			},
+		];
+		await writeFile(
+			logPath,
+			events.map((e) => JSON.stringify(e)).join("\n"),
+			"utf8",
+		);
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			2, // maxEventsPerSource = 2
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "my-project" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events).toHaveLength(2);
+	});
 });
 
 function notificationHubProvider(
