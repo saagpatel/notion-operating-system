@@ -19,6 +19,7 @@ import {
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+	diffDays,
 	loadLocalPortfolioControlTowerConfig,
 	saveLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
@@ -1198,6 +1199,7 @@ export async function syncGithubSources(
 				token,
 				maxEventsPerSource,
 				eventKeySet,
+				today,
 			),
 	);
 
@@ -1750,6 +1752,7 @@ async function syncGithubSource(
 	token: string,
 	maxEventsPerSource: number,
 	eventKeySet: Set<string>,
+	today: string,
 ): Promise<ProviderSourceSyncResult> {
 	try {
 		logLiveStage(live, "Syncing GitHub source", {
@@ -1849,7 +1852,14 @@ async function syncGithubSource(
 				occurredAt: formatExternalDate(run.updated_at ?? run.created_at),
 				status: derivedStatus,
 				environment: "N/A",
-				severity: isFailureStatus(derivedStatus) ? "Risk" : "Info",
+				severity: isFailureStatus(derivedStatus)
+					? diffDays(
+							formatExternalDate(run.updated_at ?? run.created_at),
+							today,
+						) <= 3
+						? "Risk"
+						: "Watch"
+					: "Info",
 				sourceIdValue: String(run.id ?? ""),
 				sourceUrl: String(run.html_url ?? source.sourceUrl ?? ""),
 				eventKey,
