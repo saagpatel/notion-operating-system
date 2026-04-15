@@ -33,6 +33,7 @@ export interface MorningBriefCommandOptions {
 	today?: string;
 	config?: string;
 	lookbackDays?: number;
+	synthesize?: boolean;
 }
 
 export interface MorningBriefCommandOutput {
@@ -47,6 +48,15 @@ export interface MorningBriefCommandOutput {
 	coverageGaps: number;
 	weeklyPageFound: boolean;
 	section: string;
+	synthesized: boolean;
+	synthesisCount: number;
+	synthesisErrors: number;
+}
+
+export interface SynthesisResult {
+	projectName: string;
+	synthesis: string | undefined;
+	error?: string;
 }
 
 /** Returns number of whole days between two YYYY-MM-DD strings (non-negative). */
@@ -66,19 +76,103 @@ function buildProjectTitleIndex(
 }
 
 /**
+ * Call the Claude API to synthesize why risk signals matter and what to do next.
+ * Returns the synthesis string or undefined on failure, plus any error message.
+ * Exported for unit-testing convenience.
+ */
+export async function synthesizeRiskProject(
+	projectName: string,
+	signalSummary: string,
+	apiKey: string,
+): Promise<SynthesisResult> {
+	try {
+		const response = await fetch("https://api.anthropic.com/v1/messages", {
+			method: "POST",
+			headers: {
+				"x-api-key": apiKey,
+				"anthropic-version": "2023-06-01",
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({
+				model: "claude-haiku-4-5-20251001",
+				max_tokens: 150,
+				messages: [
+					{
+						role: "user",
+						content: `Project: ${projectName}\nSignals: ${signalSummary}\n\nIn 2 sentences: why does this signal matter and what is the immediate next action? Be specific, be brief.`,
+					},
+				],
+			}),
+		});
+
+		if (!response.ok) {
+			const body = await response.text();
+			return {
+				projectName,
+				synthesis: undefined,
+				error: `API error ${response.status}: ${body.slice(0, 200)}`,
+			};
+		}
+
+		const data = (await response.json()) as unknown;
+		const synthesis = extractSynthesisText(data);
+		if (synthesis === undefined) {
+			return {
+				projectName,
+				synthesis: undefined,
+				error: "Unexpected API response shape",
+			};
+		}
+
+		return { projectName, synthesis };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { projectName, synthesis: undefined, error: message };
+	}
+}
+
+function extractSynthesisText(data: unknown): string | undefined {
+	if (
+		typeof data !== "object" ||
+		data === null ||
+		!("content" in data) ||
+		!Array.isArray((data as Record<string, unknown>)["content"])
+	) {
+		return undefined;
+	}
+	const content = (data as { content: unknown[] }).content;
+	for (const block of content) {
+		if (
+			typeof block === "object" &&
+			block !== null &&
+			"type" in block &&
+			(block as Record<string, unknown>)["type"] === "text" &&
+			"text" in block &&
+			typeof (block as Record<string, unknown>)["text"] === "string"
+		) {
+			return (block as { type: string; text: string }).text;
+		}
+	}
+	return undefined;
+}
+
+/**
  * Render the morning brief section markdown.
  * Exported for unit-testing convenience.
  */
-export function renderMorningBriefSection(input: {
-	events: ExternalSignalEventRecord[];
-	projectIndex: Map<string, string>;
-	today: string;
-	lookbackDays: number;
-	/** All active projects (not Cold Storage / Parked) for coverage-gap detection */
-	activeProjectIds: ReadonlySet<string>;
-	/** Projects that had at least one event in the last COVERAGE_GAP_DAYS */
-	coveredProjectIds: ReadonlySet<string>;
-}): string {
+export function renderMorningBriefSection(
+	input: {
+		events: ExternalSignalEventRecord[];
+		projectIndex: Map<string, string>;
+		today: string;
+		lookbackDays: number;
+		/** All active projects (not Cold Storage / Parked) for coverage-gap detection */
+		activeProjectIds: ReadonlySet<string>;
+		/** Projects that had at least one event in the last COVERAGE_GAP_DAYS */
+		coveredProjectIds: ReadonlySet<string>;
+	},
+	synthesisMap: Map<string, string> = new Map(),
+): string {
 	const { events, projectIndex, today, activeProjectIds, coveredProjectIds } =
 		input;
 
@@ -116,14 +210,23 @@ export function renderMorningBriefSection(input: {
 			} else {
 				const capped = group.slice(0, MAX_LINES_PER_GROUP);
 				for (const event of capped) {
-					const projectName =
-						projectIndex.get(event.localProjectIds[0] ?? "") ?? "unknown";
+					const projectId = event.localProjectIds[0] ?? "";
+					const projectName = projectIndex.get(projectId) ?? "unknown";
 					const providerType = `${event.provider} / ${event.signalType}`;
 					const link = event.url || event.sourceUrl;
 					const linkPart = link ? ` — [view](${link})` : "";
 					lines.push(
 						`- **${projectName}** — ${event.title} (${providerType})${linkPart}`,
 					);
+
+					// Append synthesis blockquote for Risk events if available
+					if (severity === "Risk" && synthesisMap.size > 0) {
+						const synthesis =
+							synthesisMap.get(projectId) ?? synthesisMap.get(projectName);
+						if (synthesis) {
+							lines.push(`  > _Synthesis: ${synthesis}_`);
+						}
+					}
 				}
 				if (group.length > MAX_LINES_PER_GROUP) {
 					lines.push(`- …and ${group.length - MAX_LINES_PER_GROUP} more`);
@@ -169,6 +272,77 @@ function groupBySeverity(
 	return result;
 }
 
+/**
+ * Collect the top-5 unique projects from Risk events and run synthesis for each.
+ * Returns the synthesis map (keyed by project ID and project name) and error counts.
+ */
+async function runSynthesisForRiskEvents(
+	riskEvents: ExternalSignalEventRecord[],
+	projectIndex: Map<string, string>,
+	apiKey: string,
+): Promise<{ synthesisMap: Map<string, string>; errors: number }> {
+	const synthesisMap = new Map<string, string>();
+	let errors = 0;
+
+	// Collect up to 5 unique project IDs from the top MAX_LINES_PER_GROUP risk events
+	const capped = riskEvents.slice(0, MAX_LINES_PER_GROUP);
+	const seenProjectIds = new Set<string>();
+	const projectsToSynthesize: Array<{
+		id: string;
+		name: string;
+		signals: string[];
+	}> = [];
+
+	for (const event of capped) {
+		const projectId = event.localProjectIds[0] ?? "";
+		if (!projectId || seenProjectIds.has(projectId)) continue;
+		seenProjectIds.add(projectId);
+
+		const projectName = projectIndex.get(projectId) ?? "unknown";
+		projectsToSynthesize.push({
+			id: projectId,
+			name: projectName,
+			signals: [],
+		});
+
+		if (projectsToSynthesize.length >= 5) break;
+	}
+
+	// Aggregate signals per project
+	for (const proj of projectsToSynthesize) {
+		const signals = riskEvents
+			.filter((e) => e.localProjectIds.includes(proj.id))
+			.map((e) => {
+				const parts = [`${e.title} (${e.provider}/${e.signalType})`];
+				if (e.url || e.sourceUrl) parts.push(`url: ${e.url || e.sourceUrl}`);
+				return parts.join(", ");
+			})
+			.slice(0, 5); // cap per project to avoid oversized prompt
+		proj.signals = signals;
+	}
+
+	// Fire synthesis calls (sequential to avoid rate limits)
+	for (const proj of projectsToSynthesize) {
+		const signalSummary = proj.signals.join("; ");
+		const result = await synthesizeRiskProject(
+			proj.name,
+			signalSummary,
+			apiKey,
+		);
+		if (result.synthesis !== undefined) {
+			synthesisMap.set(proj.id, result.synthesis);
+			synthesisMap.set(proj.name, result.synthesis);
+		} else {
+			errors++;
+			console.error(
+				`[morning-brief] synthesis failed for "${proj.name}": ${result.error ?? "unknown error"}`,
+			);
+		}
+	}
+
+	return { synthesisMap, errors };
+}
+
 export async function runMorningBriefCommand(
 	options: MorningBriefCommandOptions = {},
 ): Promise<void> {
@@ -181,6 +355,7 @@ export async function runMorningBriefCommand(
 	const lookbackDays = options.lookbackDays ?? 1;
 	const configPath =
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+	const synthesize = options.synthesize ?? false;
 
 	const config = await loadLocalPortfolioControlTowerConfig(configPath);
 	const phase5 = requirePhase5ExternalSignals(config);
@@ -241,14 +416,44 @@ export async function runMorningBriefCommand(
 	);
 
 	const grouped = groupBySeverity(recentEvents);
-	const section = renderMorningBriefSection({
-		events: recentEvents,
-		projectIndex,
-		today,
-		lookbackDays,
-		activeProjectIds,
-		coveredProjectIds,
-	});
+
+	// Run synthesis if requested
+	let synthesisMap = new Map<string, string>();
+	let synthesized = false;
+	let synthesisCount = 0;
+	let synthesisErrors = 0;
+
+	if (synthesize) {
+		const apiKey = process.env["ANTHROPIC_API_KEY"]?.trim();
+		if (!apiKey) {
+			console.error(
+				"[morning-brief] synthesize=true requested but ANTHROPIC_API_KEY is not set — skipping synthesis",
+			);
+		} else if (grouped.Risk.length > 0) {
+			synthesized = true;
+			const result = await runSynthesisForRiskEvents(
+				grouped.Risk,
+				projectIndex,
+				apiKey,
+			);
+			synthesisMap = result.synthesisMap;
+			// Count unique project IDs that have a synthesis (divide by 2 since we store id+name)
+			synthesisCount = Math.round(synthesisMap.size / 2);
+			synthesisErrors = result.errors;
+		}
+	}
+
+	const section = renderMorningBriefSection(
+		{
+			events: recentEvents,
+			projectIndex,
+			today,
+			lookbackDays,
+			activeProjectIds,
+			coveredProjectIds,
+		},
+		synthesisMap,
+	);
 
 	// Find current weekly review page
 	const weeklyPage = weeklyPages.find(
@@ -269,6 +474,9 @@ export async function runMorningBriefCommand(
 		).length,
 		weeklyPageFound: Boolean(weeklyPage),
 		section,
+		synthesized,
+		synthesisCount,
+		synthesisErrors,
 	};
 
 	if (live && weeklyPage) {
