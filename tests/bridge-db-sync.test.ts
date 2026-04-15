@@ -6,6 +6,7 @@ import {
 	buildProjectNameIndex,
 	buildTagProperty,
 	markRowProcessed,
+	readPersonalOpsEventRows,
 	readShippedRows,
 } from "../src/notion/bridge-db-sync.js";
 
@@ -96,6 +97,11 @@ describe("buildBuildLogTitle", () => {
 		expect(title).toContain("[Manual]");
 	});
 
+	test("personal_ops source produces Ops prefix", () => {
+		const title = buildBuildLogTitle(baseRow({ source: "personal_ops" }));
+		expect(title).toContain("[Ops]");
+	});
+
 	test("unknown source uses the raw source value as prefix", () => {
 		const title = buildBuildLogTitle(baseRow({ source: "claude.ai" }));
 		expect(title).toContain("[claude.ai]");
@@ -139,6 +145,59 @@ describe("buildTagProperty", () => {
 		const result = buildTagProperty(baseRow({ source: "codex", tags: "[]" }));
 		const names = result.multi_select.map((t) => t.name);
 		expect(names).toEqual(["codex"]);
+	});
+
+	test("maps personal-ops event tags to kebab-case Notion names", () => {
+		const result = buildTagProperty(
+			baseRow({
+				source: "personal_ops",
+				tags: '["TASK_DONE","APPROVAL_SENT","PLANNING_APPLIED","REVIEW_CLOSED"]',
+			}),
+		);
+		const names = result.multi_select.map((t) => t.name);
+		expect(names).toContain("task-done");
+		expect(names).toContain("approval-sent");
+		expect(names).toContain("planning-applied");
+		expect(names).toContain("review-closed");
+		expect(names).toContain("personal_ops"); // source appended
+	});
+
+	test("strips SHIPPED and PROCESSED but maps other personal-ops tags", () => {
+		const result = buildTagProperty(
+			baseRow({
+				source: "personal_ops",
+				tags: '["TASK_DONE","SHIPPED","PROCESSED"]',
+			}),
+		);
+		const names = result.multi_select.map((t) => t.name);
+		expect(names).toContain("task-done");
+		expect(names).not.toContain("SHIPPED");
+		expect(names).not.toContain("PROCESSED");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// readPersonalOpsEventRows — error propagation
+// ---------------------------------------------------------------------------
+
+describe("readPersonalOpsEventRows", () => {
+	test("returns error result when db path does not exist", () => {
+		const result = readPersonalOpsEventRows(
+			"/tmp/nonexistent-ops-bridge.db",
+			10,
+		);
+		expect(result.entries).toHaveLength(0);
+		expect(result.error).toBeDefined();
+	});
+
+	test("entries is always an iterable array on failure", () => {
+		const result = readPersonalOpsEventRows(
+			"/tmp/bridge-db-ops-empty-test.db",
+			10,
+		);
+		expect(Array.isArray(result.entries)).toBe(true);
+		expect(result.entries).toHaveLength(0);
+		expect(result.error).toBeDefined();
 	});
 });
 
