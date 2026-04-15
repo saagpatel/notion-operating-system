@@ -88,8 +88,7 @@ export function classifyOrphan(
 
 	// Rule 2: archive candidate
 	if (ARCHIVE_CATEGORIES.has(project.category)) {
-		const referenceDate =
-			project.lastActive || project.lastBuildSessionDate || project.dateUpdated;
+		const referenceDate = project.lastActive || project.lastBuildSessionDate;
 		if (!referenceDate) {
 			return {
 				projectId: project.id,

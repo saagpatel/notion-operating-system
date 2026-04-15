@@ -516,13 +516,11 @@ function baseProject(
 		title: overrides.title ?? "GPT_RAG",
 		currentState: overrides.currentState ?? "Active Build",
 		portfolioCall: overrides.portfolioCall ?? "Finish",
-		momentum: overrides.momentum ?? "Warm",
 		needsReview: overrides.needsReview ?? false,
 		nextMove: overrides.nextMove ?? "Boot the local environment",
 		biggestBlocker:
 			overrides.biggestBlocker ?? "Need one clear implementation push",
 		lastActive: overrides.lastActive ?? "2026-03-15",
-		dateUpdated: overrides.dateUpdated ?? "2026-03-16",
 		lastBuildSessionDate: overrides.lastBuildSessionDate ?? "2026-03-15",
 		buildSessionCount: overrides.buildSessionCount ?? 3,
 		relatedResearchCount: overrides.relatedResearchCount ?? 1,
