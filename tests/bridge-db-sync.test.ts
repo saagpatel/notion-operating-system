@@ -5,8 +5,6 @@ import {
 	buildBuildLogTitle,
 	buildProjectNameIndex,
 	buildTagProperty,
-	markRowProcessed,
-	readShippedRows,
 } from "../src/notion/bridge-db-sync.js";
 
 // ---------------------------------------------------------------------------
@@ -25,56 +23,9 @@ function baseRow(overrides: Partial<BridgeDbRow> = {}): BridgeDbRow {
 	};
 }
 
-// ---------------------------------------------------------------------------
-// A1 — markRowProcessed failure propagation
-// ---------------------------------------------------------------------------
-
-describe("markRowProcessed", () => {
-	test("returns false when db path does not exist (non-zero exit from sqlite3)", () => {
-		// sqlite3 will fail with non-zero exit because the file doesn't exist
-		const result = markRowProcessed(
-			"/tmp/nonexistent-bridge-test-12345.db",
-			99,
-		);
-		expect(result).toBe(false);
-	});
-
-	test("returns false for a second distinct non-existent path (idempotent failure)", () => {
-		const result = markRowProcessed(
-			"/tmp/bridge-db-test-definitely-absent.db",
-			42,
-		);
-		expect(result).toBe(false);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// A1 — dry-run: no sqlite3 spawn, rowsWritten stays 0
-// ---------------------------------------------------------------------------
-
-describe("readShippedRows", () => {
-	test("returns error result when db path does not exist", () => {
-		const result = readShippedRows("/tmp/nonexistent-bridge.db", 10);
-		expect(result.entries).toHaveLength(0);
-		expect(result.error).toBeDefined();
-	});
-
-	test("returns empty entries array regardless of sqlite3 availability", () => {
-		// When the db file does not exist, readShippedRows either:
-		//   (a) returns result.error + result.entries=[] if sqlite3 is present and exits non-zero, or
-		//   (b) returns result.error + result.entries=[] if sqlite3 is not installed at all.
-		// Either way, `entries` must be an empty array (never undefined/null) so callers
-		// can safely iterate. The sqlite3 "[]" stdout path (status=0, stdout="[]") cannot
-		// be triggered without a real db file, so this test covers the non-existent-db path
-		// and asserts the invariant that callers always get a defined, iterable entries array.
-		const result = readShippedRows("/tmp/bridge-db-empty-test.db", 10);
-		expect(Array.isArray(result.entries)).toBe(true);
-		expect(result.entries).toHaveLength(0);
-		// The non-existent-db path always sets an error — document this expectation
-		// so a future change that swallows the error does not silently regress.
-		expect(result.error).toBeDefined();
-	});
-});
+// Note: readShippedRows and markRowProcessed are now async MCP-backed functions.
+// They are tested in bridge-db-mcp-client integration tests, not here.
+// Formatting helpers below remain synchronous and are unit-tested here.
 
 // ---------------------------------------------------------------------------
 // MINOR-5 — buildBuildLogTitle: all source values
