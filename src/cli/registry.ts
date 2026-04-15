@@ -10,6 +10,7 @@ import {
 import { runCohortRolloutCommand } from "../notion/cohort-rollout.js";
 import { runControlTowerSyncCommand } from "../notion/control-tower-sync.js";
 import { runExecutionSyncCommand } from "../notion/execution-sync.js";
+import { runExportProjectSnapshotCommand } from "../notion/export-project-snapshot.js";
 import { runExternalSignalSeedMappingsCommand } from "../notion/external-signal-seed-mappings.js";
 import { runExternalSignalSyncCommand } from "../notion/external-signal-sync.js";
 import { runGovernanceAuditCommand } from "../notion/governance-audit.js";
@@ -522,6 +523,19 @@ export const cliRegistry: CliCommandDefinition[] = [
 			({ parsed }) =>
 				runTrendAnalysisCommand({
 					live: asBoolean(parsed.options.live),
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+				}),
+		),
+		buildConfigCommand(
+			"export-project-snapshot",
+			"Write a JSON snapshot of project state to ~/.local/share/notion-os/project-snapshot.json for personal-ops consumption.",
+			[commonOptions.today, commonOptions.config],
+			({ parsed }) =>
+				runExportProjectSnapshotCommand({
 					today: asString(parsed.options.today),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
