@@ -36,7 +36,7 @@ describe("local portfolio external signals", () => {
 		const viewPlan = parseLocalPortfolioExternalSignalViewPlan(viewsRaw);
 
 		expect(sourceConfig.sourceTemplates).toHaveLength(2);
-		expect(providerConfig.providers).toHaveLength(4);
+		expect(providerConfig.providers).toHaveLength(5);
 		expect(viewPlan.collections).toHaveLength(4);
 	});
 

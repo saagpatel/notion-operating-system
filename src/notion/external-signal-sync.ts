@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 
 import { Client } from "@notionhq/client";
@@ -145,7 +146,7 @@ export interface ProviderSyncResult {
 
 export interface ExternalSignalSyncCommandOptions {
 	live?: boolean;
-	provider?: "github" | "vercel" | "notification_hub" | "all";
+	provider?: "github" | "vercel" | "notification_hub" | "repo_auditor" | "all";
 	today?: string;
 	config?: string;
 	sourceLimit?: number;
@@ -1036,7 +1037,7 @@ export function deriveExternalSignalSyncFailureCategories(
 
 export async function syncProviders(input: {
 	flags: {
-		provider: "github" | "vercel" | "notification_hub" | "all";
+		provider: "github" | "vercel" | "notification_hub" | "repo_auditor" | "all";
 		live: boolean;
 		today?: string;
 	};
@@ -1106,6 +1107,21 @@ export async function syncProviders(input: {
 		if (provider.key === "notification_hub") {
 			results.push(
 				await syncNotificationHubSources(
+					provider,
+					sources,
+					input.maxEventsPerSource ??
+						input.phase5.syncLimits.maxEventsPerSource,
+					input.today,
+					input.eventKeySet,
+					input.projects ?? [],
+					input.flags.live,
+				),
+			);
+			continue;
+		}
+		if (provider.key === "repo_auditor") {
+			results.push(
+				await syncRepoAuditorSources(
 					provider,
 					sources,
 					input.maxEventsPerSource ??
@@ -1522,6 +1538,192 @@ function classifyNotificationSeverity(
 			return "Watch";
 		default:
 			return "Info";
+	}
+}
+
+const REPO_AUDITOR_DEFAULT_OUTPUT_DIR = `${homedir()}/Projects/GithubRepoAuditor/output`;
+
+interface RepoAuditEntry {
+	metadata: { name: string; full_name: string };
+	grade: string;
+	overall_score: number;
+	completeness_tier?: string;
+	interest_tier?: string;
+	flags?: string[];
+}
+
+interface RepoAuditReport {
+	generated_at: string;
+	audits?: RepoAuditEntry[];
+	results?: RepoAuditEntry[];
+}
+
+export async function syncRepoAuditorSources(
+	provider: ExternalSignalProviderPlan,
+	sources: ExternalSignalSourceRecord[],
+	maxEventsPerSource: number,
+	today: string,
+	eventKeySet: Set<string>,
+	projects: Array<{ id: string; title: string }>,
+	live = false,
+): Promise<ProviderSyncResult> {
+	if (sources.length === 0) {
+		return emptyProviderResult(
+			"Repo Auditor",
+			"Provider not exercised: no active Repo Auditor source row found. Create a source row in Notion with Provider = 'Repo Auditor'.",
+		);
+	}
+
+	const outputDir =
+		process.env[provider.authEnvVar]?.trim() || REPO_AUDITOR_DEFAULT_OUTPUT_DIR;
+
+	// Locate the most recent audit-report-*.json file
+	let reportPath: string;
+	try {
+		const files = await readdir(outputDir);
+		const reportFiles = files
+			.filter((f) => f.startsWith("audit-report-") && f.endsWith(".json"))
+			.sort()
+			.reverse();
+		if (reportFiles.length === 0) {
+			return {
+				...emptyProviderResult(
+					"Repo Auditor",
+					`No audit-report-*.json files found in ${outputDir}. Run GithubRepoAuditor to generate a report.`,
+				),
+				status: "Failed",
+				failures: 1,
+			};
+		}
+		reportPath = join(outputDir, reportFiles[0]!);
+	} catch (error) {
+		return {
+			...emptyProviderResult(
+				"Repo Auditor",
+				`Repo Auditor output directory not accessible at ${outputDir}: ${toErrorMessage(error)}`,
+			),
+			status: "Failed",
+			failures: 1,
+		};
+	}
+
+	let report: RepoAuditReport;
+	try {
+		const raw = await readFile(reportPath, "utf8");
+		report = JSON.parse(raw) as RepoAuditReport;
+	} catch (error) {
+		return {
+			...emptyProviderResult(
+				"Repo Auditor",
+				`Failed to parse audit report at ${reportPath}: ${toErrorMessage(error)}`,
+			),
+			status: "Failed",
+			failures: 1,
+		};
+	}
+
+	const reportDate = report.generated_at
+		? report.generated_at.slice(0, 10)
+		: today;
+	const audits = report.audits ?? report.results ?? [];
+	const projectIndex = buildProjectNameIndex(projects);
+	const source = sources[0]!;
+	const events: NormalizedSignalEvent[] = [];
+	let itemsSeen = 0;
+	let itemsDeduped = 0;
+	let unmatchedProject = 0;
+
+	for (const audit of audits) {
+		if (events.length >= maxEventsPerSource) {
+			break;
+		}
+		itemsSeen += 1;
+		const fullName = audit.metadata?.full_name ?? audit.metadata?.name ?? "";
+		const eventKey = buildEventKey(["repo_auditor", fullName, reportDate]);
+		if (eventKeySet.has(eventKey)) {
+			itemsDeduped += 1;
+			continue;
+		}
+
+		const repoName = audit.metadata?.name ?? fullName;
+		const localProjectId = resolveProjectId(repoName, projectIndex);
+		if (!localProjectId) {
+			unmatchedProject += 1;
+			continue;
+		}
+
+		eventKeySet.add(eventKey);
+		const grade = (audit.grade ?? "?").toUpperCase();
+		const scorePercent = Math.round((audit.overall_score ?? 0) * 100);
+		const flags = audit.flags ?? [];
+		const summaryParts = [
+			`Grade: ${grade} (${scorePercent}%)`,
+			audit.completeness_tier ? `Completeness: ${audit.completeness_tier}` : "",
+			audit.interest_tier ? `Interest: ${audit.interest_tier}` : "",
+			flags.length > 0 ? `Flags: ${flags.join(", ")}` : "",
+		].filter(Boolean);
+
+		events.push({
+			title: `[${grade}] ${repoName} — ${scorePercent}%`,
+			localProjectId,
+			sourceId: source.id,
+			provider: "Repo Auditor",
+			signalType: "Audit",
+			occurredAt: reportDate,
+			status: grade,
+			environment: "N/A",
+			severity: classifyRepoAuditGrade(grade),
+			sourceIdValue: `${fullName}::${reportDate}`,
+			sourceUrl: `https://github.com/${fullName}`,
+			eventKey,
+			summary: summaryParts.join(" | "),
+			rawExcerpt: `report=${reportPath}`,
+		});
+	}
+
+	logLiveStage(live, "Repo Auditor sync complete", {
+		itemsSeen,
+		newEvents: events.length,
+		itemsDeduped,
+		unmatchedProject,
+		reportDate,
+	});
+
+	const notes: string[] = [
+		`Report date: ${reportDate}, audits in file: ${itemsSeen}`,
+	];
+	if (unmatchedProject > 0) {
+		notes.push(
+			`${unmatchedProject} audit(s) skipped: repo name could not be matched to a local portfolio project.`,
+		);
+	}
+
+	return {
+		provider: "Repo Auditor",
+		status: "Succeeded",
+		itemsSeen,
+		itemsWritten: events.length,
+		itemsDeduped,
+		failures: 0,
+		notes,
+		cursor: reportDate,
+		events,
+		syncedSourceIds: [source.id],
+		providerExercised: true,
+	};
+}
+
+function classifyRepoAuditGrade(
+	grade: string,
+): ExternalSignalEventRecord["severity"] {
+	switch (grade.toUpperCase()) {
+		case "A":
+		case "B":
+			return "Info";
+		case "C":
+			return "Watch";
+		default:
+			return "Risk";
 	}
 }
 
@@ -2004,7 +2206,7 @@ function limitProviderSources(
 }
 
 function selectScopedSources(input: {
-	provider: "github" | "vercel" | "notification_hub" | "all";
+	provider: "github" | "vercel" | "notification_hub" | "repo_auditor" | "all";
 	providers: ExternalSignalProviderPlan[];
 	sources: ExternalSignalSourceRecord[];
 	sourceLimit?: number;
@@ -2082,6 +2284,8 @@ export function normalizeProviderName(
 			return "google_calendar";
 		case "Notification Hub":
 			return "notification_hub";
+		case "Repo Auditor":
+			return "repo_auditor";
 		default:
 			return undefined;
 	}

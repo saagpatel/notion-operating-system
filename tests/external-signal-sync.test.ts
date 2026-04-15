@@ -13,6 +13,7 @@ import {
 	syncGithubSources,
 	syncNotificationHubSources,
 	syncProviders,
+	syncRepoAuditorSources,
 } from "../src/notion/external-signal-sync.js";
 import type {
 	ExternalSignalProviderPlan,
@@ -446,6 +447,237 @@ function baseProvider(
 		syncStrategy: overrides.syncStrategy ?? "poll",
 		sourceTypes: overrides.sourceTypes ?? ["Repo"],
 		notes: overrides.notes ?? [],
+	};
+}
+
+describe("repo auditor sync", () => {
+	let tmpDir: string;
+
+	afterEach(async () => {
+		if (tmpDir) {
+			await rm(tmpDir, { recursive: true, force: true });
+		}
+		delete process.env["GITHUB_AUDITOR_OUTPUT_DIR"];
+	});
+
+	test("returns empty succeeded when no source rows exist", async () => {
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[],
+			10,
+			"2026-04-14",
+			new Set(),
+			[],
+		);
+
+		expect(result.status).toBe("Succeeded");
+		expect(result.providerExercised).toBe(false);
+		expect(result.events).toHaveLength(0);
+		expect(result.notes[0]).toContain("no active Repo Auditor source row");
+	});
+
+	test("fails safely when output directory does not exist", async () => {
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] =
+			"/tmp/ra-test-nonexistent-path-12345";
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[],
+		);
+
+		expect(result.status).toBe("Failed");
+		expect(result.failures).toBe(1);
+		expect(result.notes[0]).toContain("not accessible");
+	});
+
+	test("fails safely when output directory has no report files", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[],
+		);
+
+		expect(result.status).toBe("Failed");
+		expect(result.failures).toBe(1);
+		expect(result.notes[0]).toContain("No audit-report-*.json");
+	});
+
+	test("reads report and maps grade-based severity", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		const report = {
+			generated_at: "2026-04-10T00:00:00Z",
+			audits: [
+				{
+					metadata: { name: "my-project", full_name: "owner/my-project" },
+					grade: "A",
+					overall_score: 0.95,
+					completeness_tier: "High",
+					interest_tier: "High",
+					flags: [],
+				},
+				{
+					metadata: { name: "risky-repo", full_name: "owner/risky-repo" },
+					grade: "D",
+					overall_score: 0.25,
+					completeness_tier: "Low",
+					interest_tier: "Low",
+					flags: ["no_readme", "no_tests"],
+				},
+				{
+					metadata: { name: "orphan-repo", full_name: "owner/orphan-repo" },
+					grade: "B",
+					overall_score: 0.8,
+					flags: [],
+				},
+			],
+		};
+		await writeFile(
+			join(tmpDir, "audit-report-saagpatel-2026-04-10.json"),
+			JSON.stringify(report),
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[
+				{ id: "proj-a", title: "my-project" },
+				{ id: "proj-b", title: "risky-repo" },
+			],
+		);
+
+		expect(result.status).toBe("Succeeded");
+		expect(result.itemsSeen).toBe(3);
+		expect(result.events).toHaveLength(2); // orphan-repo unmatched
+		expect(result.events[0]).toMatchObject({
+			provider: "Repo Auditor",
+			signalType: "Audit",
+			severity: "Info", // grade A
+			localProjectId: "proj-a",
+			sourceIdValue: "owner/my-project::2026-04-10",
+		});
+		expect(result.events[1]).toMatchObject({
+			severity: "Risk", // grade D
+			localProjectId: "proj-b",
+		});
+		expect(result.notes[0]).toContain("Report date: 2026-04-10");
+		expect(result.notes[1]).toContain("1 audit(s) skipped");
+	});
+
+	test("deduplicates events already in eventKeySet", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		const report = {
+			generated_at: "2026-04-10",
+			audits: [
+				{
+					metadata: { name: "my-project", full_name: "owner/my-project" },
+					grade: "B",
+					overall_score: 0.8,
+					flags: [],
+				},
+			],
+		};
+		await writeFile(
+			join(tmpDir, "audit-report-2026-04-10.json"),
+			JSON.stringify(report),
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const existingKey = "repo_auditor::owner/my-project::2026-04-10";
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set([existingKey]),
+			[{ id: "proj-a", title: "my-project" }],
+		);
+
+		expect(result.events).toHaveLength(0);
+		expect(result.itemsDeduped).toBe(1);
+	});
+
+	test("maps grade C to Watch severity", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		const report = {
+			generated_at: "2026-04-10",
+			audits: [
+				{
+					metadata: { name: "my-project", full_name: "owner/my-project" },
+					grade: "C",
+					overall_score: 0.55,
+					flags: [],
+				},
+			],
+		};
+		await writeFile(
+			join(tmpDir, "audit-report-2026-04-10.json"),
+			JSON.stringify(report),
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "proj-a", title: "my-project" }],
+		);
+
+		expect(result.events[0]?.severity).toBe("Watch");
+	});
+
+	test("normalizeProviderName maps Repo Auditor to repo_auditor key", () => {
+		expect(normalizeProviderName("Repo Auditor")).toBe("repo_auditor");
+	});
+});
+
+function repoAuditorProvider(
+	overrides: Partial<ExternalSignalProviderPlan> = {},
+): ExternalSignalProviderPlan {
+	return {
+		key: overrides.key ?? "repo_auditor",
+		displayName: overrides.displayName ?? "Repo Auditor",
+		enabled: overrides.enabled ?? true,
+		authEnvVar: overrides.authEnvVar ?? "GITHUB_AUDITOR_OUTPUT_DIR",
+		baseUrl: overrides.baseUrl ?? "",
+		syncStrategy: overrides.syncStrategy ?? "incremental",
+		sourceTypes: overrides.sourceTypes ?? ["Event Log"],
+		notes: overrides.notes ?? [],
+	};
+}
+
+function repoAuditorSource(
+	overrides: Partial<ExternalSignalSourceRecord> = {},
+): ExternalSignalSourceRecord {
+	return {
+		id: overrides.id ?? "ra-source-1",
+		url: overrides.url ?? "https://notion.so/ra-source-1",
+		title: overrides.title ?? "repo-auditor",
+		localProjectIds: overrides.localProjectIds ?? [],
+		provider: overrides.provider ?? "Repo Auditor",
+		sourceType: overrides.sourceType ?? "Event Log",
+		identifier: overrides.identifier ?? "repo-auditor",
+		sourceUrl: overrides.sourceUrl ?? "",
+		status: overrides.status ?? "Active",
+		environment: overrides.environment ?? "N/A",
+		syncStrategy: overrides.syncStrategy ?? "Incremental",
+		lastSyncedAt: overrides.lastSyncedAt ?? "",
 	};
 }
 

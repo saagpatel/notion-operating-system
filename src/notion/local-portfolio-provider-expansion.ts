@@ -249,8 +249,8 @@ function isActionKeyRunnerSupported(actionKey: string): boolean {
 function normalizeExternalProviderKey(
 	key: ExternalProviderKey,
 ): GovernanceProviderKey {
-	if (key === "notification_hub") {
-		// notification_hub is a local provider with no governance policy — treat as vercel (scaffolded)
+	if (key === "notification_hub" || key === "repo_auditor") {
+		// local providers with no governance policy — treat as vercel (scaffolded)
 		return "vercel";
 	}
 	return key === "google_calendar" ? "google_calendar" : key;

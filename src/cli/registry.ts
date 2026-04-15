@@ -3,6 +3,7 @@ import { runActionRequestSyncCommand } from "../notion/action-request-sync.js";
 import { runActionRunnerCommand } from "../notion/action-runner.js";
 import { runActivityRefreshCommand } from "../notion/activity-refresh.js";
 import { runActuationAuditCommand } from "../notion/actuation-audit.js";
+import { runBridgeDbSyncCommand } from "../notion/bridge-db-sync.js";
 import { runCohortRolloutCommand } from "../notion/cohort-rollout.js";
 import { runControlTowerSyncCommand } from "../notion/control-tower-sync.js";
 import { runExecutionSyncCommand } from "../notion/execution-sync.js";
@@ -645,7 +646,13 @@ export const cliRegistry: CliCommandDefinition[] = [
 					description: "Provider selection.",
 					type: "enum",
 					valueName: "provider",
-					choices: ["github", "vercel", "notification_hub", "all"],
+					choices: [
+						"github",
+						"vercel",
+						"notification_hub",
+						"repo_auditor",
+						"all",
+					],
 					defaultValue: "all",
 				},
 				{
@@ -670,6 +677,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 							| "github"
 							| "vercel"
 							| "notification_hub"
+							| "repo_auditor"
 							| "all"
 							| undefined) ?? "all",
 					sourceLimit: asNumber(parsed.options["source-limit"]),
@@ -997,6 +1005,41 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+				}),
+		),
+	]),
+	buildFamily("bridge-db", "Sync bridge-db activity log entries into Notion.", [
+		buildConfigCommand(
+			"sync",
+			"Flush SHIPPED+unprocessed activity_log rows into the Notion Build Log.",
+			[
+				commonOptions.live,
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "limit",
+					description: "Maximum rows to process in one run (default: 50).",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "db-path",
+					description:
+						"Override path to bridge.db (defaults to BRIDGE_DB_PATH env var or ~/.local/share/bridge-db/bridge.db).",
+					type: "string",
+					valueName: "path",
+				},
+			],
+			({ parsed }) =>
+				runBridgeDbSyncCommand({
+					live: asBoolean(parsed.options.live),
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					limit: asNumber(parsed.options.limit),
+					dbPath: asString(parsed.options["db-path"]),
 				}),
 		),
 	]),

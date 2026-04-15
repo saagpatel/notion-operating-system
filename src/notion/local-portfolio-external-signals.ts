@@ -22,7 +22,8 @@ export type ExternalProviderKey =
 	| "github"
 	| "vercel"
 	| "google_calendar"
-	| "notification_hub";
+	| "notification_hub"
+	| "repo_auditor";
 export type ExternalSignalCoverage =
 	| "None"
 	| "Repo Only"
@@ -50,7 +51,8 @@ export type ExternalSignalProviderName =
 	| "Netlify"
 	| "Render"
 	| "Cloudflare"
-	| "Notification Hub";
+	| "Notification Hub"
+	| "Repo Auditor";
 export type ExternalSourceType =
 	| "Repo"
 	| "Deployment Project"
@@ -64,7 +66,8 @@ export type ExternalSignalType =
 	| "Calendar Block"
 	| "Issue"
 	| "Issue Comment"
-	| "Notification";
+	| "Notification"
+	| "Audit";
 export type ExternalSignalSyncStatus =
 	| "Started"
 	| "Succeeded"
@@ -1660,7 +1663,8 @@ function parseProviderKey(value: string): ExternalProviderKey {
 		value !== "github" &&
 		value !== "vercel" &&
 		value !== "google_calendar" &&
-		value !== "notification_hub"
+		value !== "notification_hub" &&
+		value !== "repo_auditor"
 	) {
 		throw new AppError(`Unsupported external provider key "${value}"`);
 	}

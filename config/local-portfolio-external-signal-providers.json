@@ -42,6 +42,21 @@
 			]
 		},
 		{
+			"key": "repo_auditor",
+			"displayName": "Repo Auditor",
+			"enabled": true,
+			"authEnvVar": "GITHUB_AUDITOR_OUTPUT_DIR",
+			"baseUrl": "",
+			"syncStrategy": "incremental",
+			"sourceTypes": ["Event Log"],
+			"notes": [
+				"Local provider — reads most recent audit-report-*.json from GithubRepoAuditor output dir.",
+				"GITHUB_AUDITOR_OUTPUT_DIR env var specifies the output directory; defaults to ~/Projects/GithubRepoAuditor/output/.",
+				"Each repo audit becomes one Audit signal event with grade-based severity (A/B→Info, C→Watch, D/F→Risk).",
+				"Event key: repo_auditor::{full_name}::{report_date} — one event per repo per report date."
+			]
+		},
+		{
 			"key": "notification_hub",
 			"displayName": "Notification Hub",
 			"enabled": true,
