@@ -59,19 +59,20 @@ describe("readShippedRows", () => {
 		expect(result.error).toBeDefined();
 	});
 
-	test("returns empty array when sqlite3 returns empty JSON array []", () => {
-		// Create a real SQLite database in-memory via sqlite3 CLI (if available),
-		// or verify the JSON parsing branch for the "[]" case.
-		// Since we can't guarantee sqlite3 is available in test env,
-		// test the JSON parsing branch directly by mocking spawnSync.
-
-		// The function parses stdout.trim() || "[]", so if we can get stdout="[]"
-		// and status=0, entries should be empty.
-		// We verify this indirectly: the default sqlite3 "[]" output for no rows.
-		// This test documents the expected behavior.
+	test("returns empty entries array regardless of sqlite3 availability", () => {
+		// When the db file does not exist, readShippedRows either:
+		//   (a) returns result.error + result.entries=[] if sqlite3 is present and exits non-zero, or
+		//   (b) returns result.error + result.entries=[] if sqlite3 is not installed at all.
+		// Either way, `entries` must be an empty array (never undefined/null) so callers
+		// can safely iterate. The sqlite3 "[]" stdout path (status=0, stdout="[]") cannot
+		// be triggered without a real db file, so this test covers the non-existent-db path
+		// and asserts the invariant that callers always get a defined, iterable entries array.
 		const result = readShippedRows("/tmp/bridge-db-empty-test.db", 10);
-		// If sqlite3 is not installed, result.error is set; either way entries is []
 		expect(Array.isArray(result.entries)).toBe(true);
+		expect(result.entries).toHaveLength(0);
+		// The non-existent-db path always sets an error — document this expectation
+		// so a future change that swallows the error does not silently regress.
+		expect(result.error).toBeDefined();
 	});
 });
 

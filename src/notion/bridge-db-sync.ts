@@ -215,17 +215,22 @@ export function runBridgeDbStatusCommand(
 		{ encoding: "utf8", timeout: 5_000 },
 	);
 
-	const dbError = totalResult.error ?? shippedResult.error;
+	const dbError = totalResult.error ?? shippedResult.error ?? lastResult.error;
 	if (dbError) {
 		console.log(
 			JSON.stringify({ ok: false, error: toErrorMessage(dbError), dbPath }),
 		);
 		return;
 	}
-	if (totalResult.status !== 0 || shippedResult.status !== 0) {
+	if (
+		totalResult.status !== 0 ||
+		shippedResult.status !== 0 ||
+		lastResult.status !== 0
+	) {
 		const stderr =
 			totalResult.stderr?.trim() ||
 			shippedResult.stderr?.trim() ||
+			lastResult.stderr?.trim() ||
 			"sqlite3 error";
 		console.log(JSON.stringify({ ok: false, error: stderr, dbPath }));
 		return;

@@ -82,8 +82,14 @@ export async function readAllSnapshots(): Promise<ProjectSnapshot[]> {
 	for (const line of raw.split("\n")) {
 		const trimmed = line.trim();
 		if (!trimmed) continue;
-		const parsed: unknown = JSON.parse(trimmed);
-		snapshots.push(parseSnapshot(parsed));
+		try {
+			const parsed: unknown = JSON.parse(trimmed);
+			snapshots.push(parseSnapshot(parsed));
+		} catch {
+			console.warn(
+				`[snapshot-history] Skipping malformed snapshot line: ${trimmed.slice(0, 80)}`,
+			);
+		}
 	}
 	return snapshots;
 }
