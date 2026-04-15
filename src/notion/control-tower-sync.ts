@@ -15,6 +15,7 @@ import {
 	normalizeMarkdown,
 	preserveManagedSections,
 } from "../utils/markdown.js";
+import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	applyDerivedSignals,
@@ -249,6 +250,12 @@ export async function runControlTowerSyncCommand(
 	output.warnings = contract.warnings;
 	recordCommandOutputSummary(output, {
 		status: mapWeeklyStepStatusToCommandStatus(contract.status),
+	});
+	postNotificationHubEvent({
+		source: "notion-os",
+		level: contract.status === "failed" ? "warn" : "info",
+		title: "control-tower-sync complete",
+		body: `${live ? "Live" : "Dry-run"}: ${contract.summaryCounts.derivedRowsWouldChange ?? 0} projects updated, ${contract.warnings?.length ?? 0} warnings`,
 	});
 	console.log(JSON.stringify(output, null, 2));
 }
