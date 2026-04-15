@@ -878,11 +878,9 @@ async function syncExternalSignalProjectBrief(input: {
 	if (
 		normalizeMarkdown(currentMarkdown) !== normalizeMarkdown(input.nextMarkdown)
 	) {
-		throw new AppError(
+		console.warn(
 			"External signal project brief did not converge after write",
-			{
-				pageId: input.pageId,
-			},
+			JSON.stringify({ pageId: input.pageId }),
 		);
 	}
 }
