@@ -21,6 +21,7 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
 
 ## Latest Checkpoint
 - The repo has now completed a deep audit-and-prune pass across script surface, docs alignment, and internal utility boundaries.
+- That cleanup is now merged reality and the restart docs have been refreshed against the merged repo state.
 - Recent cleanup outcomes:
   - maintenance-only and historical utilities were moved behind `src/internal/notion-maintenance/` or `src/internal/portfolio-audit/`
   - public npm scripts no longer point directly at `src/notion/*.ts`
@@ -31,6 +32,7 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
   - `npm run typecheck`
   - `npm test`
   - `npm run build`
+  - `npm run verify`
 - Package-surface tests now enforce the public-script boundary directly
 
 ## Decisions Already Made
@@ -57,7 +59,7 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
 - the orphan-classification packet lane now creates structured `work_packets` entries with execution fields and `Local Project` relations; the remaining orphan follow-through gap is approval gating rather than packet shape
 - the orphan-classification lane now has an approval-backed path too: `--request-approval` creates governance requests for kickoff packets, and `--create-approved-packets` only materializes approved ones
 - Current `governance:health-report` may still warn in active runtime about missing `VERCEL_TOKEN` and `VERCEL_WEBHOOK_SECRET`; treat that as an operational-env follow-up, not a code bug
-- The next meaningful work should start from active Phase 10 delivery, operational maturity, or explicit product improvements
+- The next meaningful work should start from one explicit Phase 10 delivery slice, not from another repo cleanup pass
 
 ## Open Loops
 - Advance active Phase 10 work rather than reopening generic cleanup:
@@ -73,9 +75,10 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
 ## Next Best Step
 1. Re-ground from `HANDOFF.md`, `docs/notion-roadmap.md`, and `docs/script-surface-classification.md`.
 2. Choose the next explicit Phase 10 implementation slice now that the sandbox rehearsal lane is healthy again.
-   The best current candidate is more signal-adapter wiring, or exercising the new orphan approval-request flow in a bounded live pass, not more packet-structure cleanup.
-3. Prefer shared CLI additions over new standalone script entrypoints.
-4. Re-run `notion-os --profile sandbox doctor --json`, `npm run sandbox:smoke`, and the relevant Phase 10 dry-run checks after any new work.
+   The best current candidate is one more local signal-adapter wiring pass, preferably `notification-hub` or `GithubRepoAuditor`.
+3. Treat the sandbox GitHub lane, orphan packet structure, and approval-backed orphan flow as already-proven foundations unless a new bug appears.
+4. Prefer shared CLI additions over new standalone script entrypoints.
+5. Re-run `notion-os --profile sandbox doctor --json`, `npm run sandbox:smoke`, and the relevant Phase 10 dry-run checks after any new work.
 
 ## Guardrails
 - Reuse established decisions unless I explicitly reopen them

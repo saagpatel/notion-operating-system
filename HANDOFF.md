@@ -13,6 +13,7 @@
   - do not treat this file as the source of truth for the current branch or working tree
   - check `git status --short --branch` when you need live repo state
   - the broad cleanup and hardening work landed on `main` on 2026-04-17; treat any future work as normal product or maintenance follow-through, not as an in-progress rescue branch
+  - the restart docs were refreshed again after the final confidence pass on 2026-04-17 so they describe the merged repo state, not the pre-merge branch state
 
 ## Structural work completed
 
@@ -81,6 +82,16 @@ Current confidence state:
 - `src/notion/local-portfolio-actuation.ts` now normalizes quoted GitHub App PEM values before signing, closing the private-key decoding failure that initially blocked live sandbox runs
 - `src/notion/operational-rollout.ts` now includes a generic `ensureGitHubActionRequest(...)` helper so non-create GitHub action requests no longer require one-off eval scripts
 - no obvious structural cleanup pass remains; further work should be treated as normal maintenance or product work, not rescue-level repo cleanup
+
+## What this cleanup actually settled
+
+The broad cleanup is no longer an active project in itself. It settled these repo-shape questions:
+
+- the shared CLI plus modern npm aliases are the public operator surface
+- internal maintenance and historical migration tools now live behind `src/internal/*`
+- sandbox proving is trustworthy again for dry-run and live-safe rehearsal
+- the GitHub action lane is proven deeply enough that the next work should be productization, not more sandbox mutation depth
+- restart docs now anchor to merged reality instead of branch-local cleanup notes
 
 ## Canonical local verification
 
@@ -165,6 +176,17 @@ Current local reality from the 2026-04-17 confidence pass:
 - the recurring maintenance cadence now lives in `docs/maintenance-playbook.md`
 - the sandbox rehearsal workflow now lives in `docs/sandbox-rehearsal-runbook.md`
 
+## Best next work
+
+If resuming from here, do not start with another repo cleanup pass.
+
+Start with one explicit Phase 10 product slice:
+
+1. wire one remaining local signal adapter end to end, preferably `notification-hub` or `GithubRepoAuditor`
+2. or tighten the morning-brief / orphan-approval flow into a more polished governed operating routine
+
+The preferred first move is additional signal-adapter wiring, because the sandbox, orphan packet, and governed GitHub foundations are already strong enough.
+
 ## Known assumptions
 
 - compatibility remains the default: legacy npm scripts still exist where the repo intentionally preserves them
@@ -189,4 +211,4 @@ The correct current posture is:
 - the cleanup and command-surface simplification pass is complete
 - several Phase 10 dry-run lanes are already usable (`trend-analysis`, `orphan-classify`, `bridge-db status`, `morning-brief`)
 - the sandbox proving lane is healthy again and `npm run sandbox:smoke` passes
-- the next meaningful work should start from Phase 10 follow-through or explicit product improvements rather than another broad cleanup sweep
+- the next meaningful work should start from one explicit Phase 10 productization slice rather than another broad cleanup sweep

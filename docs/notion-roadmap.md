@@ -9,6 +9,7 @@ Updated: 2026-04-17
 
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
+- That cleanup and hardening work is now merged reality, not an in-progress branch posture.
 - The shared CLI plus modern npm aliases are now the intended public operator surface.
 - Legacy `portfolio-audit:*` aliases remain only where compatibility is still useful, and they now route either through the CLI or through clearly internal maintenance utilities.
 - Public npm scripts no longer point directly at `src/notion/*.ts`.
@@ -31,6 +32,7 @@ Updated: 2026-04-17
 - `src/notion/local-portfolio-actuation.ts` now normalizes quoted GitHub App PEM values before signing, which fixed the live GitHub App key decoding failure uncovered during the sandbox proof.
 - `src/notion/operational-rollout.ts` now includes a generic `ensureGitHubActionRequest(...)` helper so non-create GitHub action requests can be created from repo code instead of one-off scripts.
 - The sandbox profile-owned Vercel manual seeds and rollout targets were trimmed because the sandbox workspace currently does not contain matching local project rows for those primary-profile IDs.
+- The restart docs were refreshed again after the final confidence pass so they describe the merged repo state and current next-step posture accurately.
 
 ## Baseline Metrics
 - Total projects: 65
@@ -235,5 +237,8 @@ Phase 10 - Signal Wiring and Intelligence Layer
 Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
 
 Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox lane, with the best next slice likely being additional signal wiring or using the new approval-backed orphan packet flow in live operations.
+Recommended next slice:
+- wire one remaining local signal adapter end to end, preferably `notification-hub` or `GithubRepoAuditor`
+- keep the orphan approval-backed packet path and sandbox GitHub lane as already-proven supporting foundations rather than reopening them first
 
-Phase 10C should finish the remaining gaps by tightening morning-brief synthesis around top-priority projects, refining the new orphan approval flow into a more explicit governed operating routine, and continuing managed weekly-review trend output.
+Phase 10C should finish the remaining gaps by wiring at least one more local signal source, tightening morning-brief synthesis around top-priority projects, refining the orphan approval flow into a more explicit governed operating routine, and continuing managed weekly-review trend output.
