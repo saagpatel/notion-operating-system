@@ -187,7 +187,7 @@ function buildStepDefinitions(
       key: "support-maintenance",
       title: "GitHub Support Maintenance",
       kind: "script",
-      args: ["src/notion/github-support-maintenance.ts", ...sharedArgs, "--owner", flags.owner],
+      args: ["src/internal/notion-maintenance/github-support-maintenance.ts", ...sharedArgs, "--owner", flags.owner],
       timeoutMs: 10 * 60 * 1000,
     },
     {

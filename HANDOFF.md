@@ -3,17 +3,20 @@
 ## Current repo state
 
 - Repo: `/Users/d/Notion`
-- Remote: `saagpatel/notion-operating-system`
-- Branch: `main`
 - Package version: `0.2.0`
 - Package posture:
   - GitHub-installable
   - not published to npm
   - root toolkit first, `./advanced` secondary and repo-specific
+  - shared CLI is the preferred operator surface; direct source entrypoints remain for compatibility only
+- Repo-state note:
+  - do not treat this file as the source of truth for the current branch or working tree
+  - check `git status --short --branch` when you need live repo state
+  - the current worktree is still intentionally busy with the broader cleanup branch; treat new sandbox GitHub proof work as scoped additions inside that branch, not as a separate clean-room slice
 
 ## Structural work completed
 
-The repo has completed the Phase 1 through Phase 10 cleanup and product-shape program:
+The repo has completed the Phase 1 through Phase 9 cleanup and product-shape program, with Phase 10 work active but not yet closed in the roadmap:
 
 1. CI, runtime config, env guidance, doctor, and package identity cleanup
 2. shared CLI, help output, standardized flag parsing, onboarding docs, and wrapper compatibility
@@ -24,7 +27,7 @@ The repo has completed the Phase 1 through Phase 10 cleanup and product-shape pr
 7. deeper observability and operator diagnosis with recent-run inspection
 8. profile portability, bootstrap, diff, clone, upgrade, and config lifecycle support
 9. product-shape cleanup, modern npm aliases, and internal utility quarantine
-10. GitHub installability plus manual release readiness
+10. early Phase 10 signal wiring, morning-brief, orphan classification, trend analysis, and bridge-db integration work is now present in the codebase, with partial dry-run verification completed but the sandbox proving lane still not trusted
 
 ## Post-Phase-10 hardening track
 
@@ -42,6 +45,41 @@ The repo now also includes the operational hardening pass that landed after Phas
 - explicit sandbox-profile discipline for risky advanced workflow changes
 - sandbox doctor enforcement for token isolation, target isolation, and env-path masking
 - refreshed docs around consumer install modes, release readiness, and merged-main reality
+
+## Current cleanup state
+
+The repo also completed a broad audit-and-prune pass focused on maintainability, command-surface clarity, and safer internal tooling behavior.
+
+What changed materially:
+
+- maintenance-only and historical utilities were pushed behind `src/internal/notion-maintenance/` or `src/internal/portfolio-audit/` instead of living beside durable operator modules
+- the shared CLI and modern npm aliases are now the intended public operator surface
+- legacy `portfolio-audit:*` aliases still exist where compatibility matters, but they now point either to the shared CLI or to explicitly internal maintenance entrypoints
+- public npm scripts no longer point directly at `src/notion/*.ts`
+- several internal maintenance scripts now support safe `--help` inspection and no longer perform real work just because they were probed
+- Vercel rollout readiness is now a real shared rollout command via `rollout:vercel-readiness`
+- historical schema migration utilities remain available, but are now clearly marked as historical/internal rather than part of the durable operator surface
+
+Current confidence state:
+
+- package surface, script surface, and docs are much more aligned than before this cleanup track
+- the repo has passed repeated `npm test`, `npm run typecheck`, and `npm run build` verification loops after these changes
+- a 2026-04-17 confidence pass also verified:
+  - `npm run control-tower:trend-analysis` returns a clean dry-run report
+  - `npm run governance:orphan-classify` returns a dry-run classification table
+  - `npm run bridge-db:status` returns a healthy read-only bridge-db snapshot
+- `npm run signals:morning-brief` now returns a clean dry-run report
+- `governance:orphan-classify --live --create-packets` now builds structured `work_packets` records with execution fields and `Local Project` relations instead of generic markdown-only packet publishes
+- `governance:orphan-classify` now also supports an approval-backed orphan flow via `--request-approval`, optional `--approve`, and `--create-approved-packets`
+- `notion-os --profile sandbox doctor --json` now passes all sandbox isolation checks
+- `npm run sandbox:smoke` now passes end to end
+- the sandbox GitHub lane is now sufficiently proven in live mode against `portfolio-actuation-sandbox`
+  - `github.create_issue` created issue `#3`
+  - `github.add_issue_comment` created comment `4266814277` on issue `#3`
+  - `github.update_issue` updated issue `#3`
+- `src/notion/local-portfolio-actuation.ts` now normalizes quoted GitHub App PEM values before signing, closing the private-key decoding failure that initially blocked live sandbox runs
+- `src/notion/operational-rollout.ts` now includes a generic `ensureGitHubActionRequest(...)` helper so non-create GitHub action requests no longer require one-off eval scripts
+- no obvious structural cleanup pass remains; further work should be treated as normal maintenance or product work, not rescue-level repo cleanup
 
 ## Canonical local verification
 
@@ -74,6 +112,7 @@ notion-os logs recent
 npm run control-tower:sync
 npm run governance:audit
 npm run signals:sync
+npm run rollout:vercel-readiness
 npm run verify
 npm run release:prepare
 npm run verify:fresh-clone
@@ -105,13 +144,22 @@ The repo now includes the tracked `sandbox` profile descriptor and profile-owned
 
 Important safety note: `notion-os --profile sandbox doctor` is the first proof gate and `npm run sandbox:smoke` is the fuller operational rehearsal. The smoke path runs from a temporary workspace copy so repo-tracked files do not get rewritten while the sandbox sequence exercises dry-run, validation, live-safe sync, and recent-log inspection. If the doctor reports token overlap, target overlap, or env-path masking, fix the sandbox before any live rehearsal.
 
+Current local reality from the 2026-04-17 confidence pass:
+
+- `notion-os --profile sandbox doctor --json` now passes `sandbox-path-overrides`, `sandbox-token-isolation`, and `sandbox-target-isolation`
+- `npm run sandbox:smoke` now passes end to end
+- the sandbox lane is operationally trustworthy again for dry-run and live-safe rehearsal
+- the sandbox profile-owned Vercel manual seeds and rollout targets were trimmed to stop pointing at primary-profile project IDs that do not exist in the sandbox workspace
+
 ## Remaining backlog
 
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
+  - Phase 10 completion and signal-layer productization
   - dependency review and override cleanup as upstream fixes land
   - continued docs accuracy
   - sandbox smoke rehearsal discipline for risky advanced workflows
+  - packaging the new generic GitHub action-request helper into whichever higher-level workflows should own comment/update request creation next
   - optional future public npm distribution only if explicitly desired later
 - the recurring maintenance cadence now lives in `docs/maintenance-playbook.md`
 - the sandbox rehearsal workflow now lives in `docs/sandbox-rehearsal-runbook.md`
@@ -123,3 +171,21 @@ Important safety note: `notion-os --profile sandbox doctor` is the first proof g
 - secrets remain operator-managed in local env files and must never be committed
 - profile portability stays preview-first and never exports or overwrites live secret values
 - the current script-surface source of truth lives in `docs/script-surface-classification.md`
+
+## Best restart point
+
+If work resumes later, re-ground in this order:
+
+1. `AGENTS.md`
+2. `HANDOFF.md`
+3. `docs/notion-roadmap.md`
+4. `docs/script-surface-classification.md`
+5. `README.md`
+
+The correct current posture is:
+
+- the repo is structurally healthy
+- the cleanup and command-surface simplification pass is complete
+- several Phase 10 dry-run lanes are already usable (`trend-analysis`, `orphan-classify`, `bridge-db status`, `morning-brief`)
+- the sandbox proving lane is healthy again and `npm run sandbox:smoke` passes
+- the next meaningful work should start from Phase 10 follow-through or explicit product improvements rather than another broad cleanup sweep

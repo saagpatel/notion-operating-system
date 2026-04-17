@@ -1,4 +1,4 @@
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveOptionalControlTowerConfigPath, resolveRequiredNotionToken } from "../cli/context.js";
@@ -46,10 +46,7 @@ export async function runLinkSuggestionsSyncCommand(
   });
   let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
-  const sdk = new Client({
-    auth: token,
-    notionVersion: "2026-03-11",
-  });
+  const sdk = createNotionSdkClient(token);
   const api = new DirectNotionClient(token);
 
   if (live) {

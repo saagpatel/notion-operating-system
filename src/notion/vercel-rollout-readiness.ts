@@ -1,8 +1,7 @@
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
-import { isDirectExecution } from "../cli/legacy.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { readJsonFile } from "../utils/files.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
@@ -249,10 +248,7 @@ export async function runVercelRolloutReadinessCommand(
     loadLocalPortfolioActuationTargetConfig(),
   ]);
 
-  const sdk = new Client({
-    auth: token,
-    notionVersion: "2026-03-11",
-  });
+  const sdk = createNotionSdkClient(token);
   const api = new DirectNotionClient(token);
   const [projectSchema, sourceSchema] = await Promise.all([
     api.retrieveDataSource(config.database.dataSourceId),
@@ -444,15 +440,4 @@ function requiredPositiveInteger(value: unknown, fieldName: string): number {
     throw new AppError(`${fieldName} must be a positive integer`);
   }
   return value;
-}
-
-async function main(): Promise<void> {
-  await runVercelRolloutReadinessCommand();
-}
-
-if (isDirectExecution(import.meta.url)) {
-  void main().catch((error) => {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  });
 }

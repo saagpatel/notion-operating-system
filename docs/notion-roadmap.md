@@ -1,11 +1,36 @@
 # Notion Operating Roadmap
 
-Updated: 2026-04-14
+Updated: 2026-04-17
 
 ## Current Phase
-- Phase: 9 - Provider Expansion
-- Status: Core goals complete. Optional Phase 9E (selective Vercel widening) only if a real operating need arises.
-- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices that stay as understandable as the GitHub lane.
+- Phase: 10 - Signal Wiring and Intelligence Layer
+- Status: Active
+- Objective: Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
+
+## Repo State Snapshot
+- The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
+- The shared CLI plus modern npm aliases are now the intended public operator surface.
+- Legacy `portfolio-audit:*` aliases remain only where compatibility is still useful, and they now route either through the CLI or through clearly internal maintenance utilities.
+- Public npm scripts no longer point directly at `src/notion/*.ts`.
+- Internal maintenance and historical migration utilities were quarantined under `src/internal/notion-maintenance/` or `src/internal/portfolio-audit/`.
+- Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
+
+## Fresh Verification Snapshot
+- `npm run typecheck` passed on 2026-04-17.
+- `npm test` passed on 2026-04-17 with 44 files and 277 tests.
+- `npm run control-tower:trend-analysis` returned a clean dry-run report on 2026-04-17.
+- `npm run governance:orphan-classify` returned a dry-run classification table on 2026-04-17.
+- `npm run bridge-db:status` returned a healthy read-only bridge-db snapshot on 2026-04-17.
+- `npm run signals:morning-brief` returned a clean dry-run report on 2026-04-17.
+- `notion-os --profile sandbox doctor --json` now passes sandbox path isolation, token isolation, and target isolation checks.
+- `npm run sandbox:smoke` now passes end to end.
+- The sandbox GitHub lane is now sufficiently proven in live mode on 2026-04-17 against `portfolio-actuation-sandbox` issue `#3`.
+  - `github.create_issue` created issue `#3`
+  - `github.add_issue_comment` created comment `4266814277`
+  - `github.update_issue` updated issue `#3`
+- `src/notion/local-portfolio-actuation.ts` now normalizes quoted GitHub App PEM values before signing, which fixed the live GitHub App key decoding failure uncovered during the sandbox proof.
+- `src/notion/operational-rollout.ts` now includes a generic `ensureGitHubActionRequest(...)` helper so non-create GitHub action requests can be created from repo code instead of one-off scripts.
+- The sandbox profile-owned Vercel manual seeds and rollout targets were trimmed because the sandbox workspace currently does not contain matching local project rows for those primary-profile IDs.
 
 ## Baseline Metrics
 - Total projects: 65
@@ -17,23 +42,17 @@ Updated: 2026-04-14
 - Recent build sessions: 5
 
 ## Latest Metrics
-- Total projects: 113
-- Overdue reviews: 71
-- Missing next moves: 0
-- Missing last active: 0
+- Total projects: 114
+- Overdue reviews: 73
+- Missing next moves: 1
+- Missing last active: 1
 - Stale active projects: 0
-- Orphaned projects: 4
+- Orphaned projects: 5
 - Recent build sessions: 0
 
 ## Phase Transition Memory
-- Transition: Phase 8 closed into Phase 9
-- Carry-forward brief: Phase 9A, 9B, 9C, and 9D are now proven. The repo has one bounded Vercel redeploy pilot, one small redeploy widening set, one provider-proven rollback lane, and one provider-proven promote or undo-rollback lane on `evolutionsandbox`.
-- Supporting artifacts:
-  - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
-  - [Vercel Phase 9B Rollout Plan](/Users/d/Notion/docs/vercel-phase9b-rollout-plan.md)
-  - [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
-  - [Vercel Phase 9C Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9c-post-pilot-review.md)
-  - [Vercel Phase 9D Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9d-post-pilot-review.md)
+- Transition: Phase 9 closed into Phase 10
+- Carry-forward brief: Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.
 
 ## Phase Memory
 ### Phase 1 Gave Us
@@ -60,8 +79,8 @@ Phase 7 gave us controlled actuation: approved GitHub issue/comment execution, d
 ### Phase 8 Added
 Phase 8 gave us a mature GitHub action lane: issue lifecycle actions, PR comments, hardened GitHub App posture, richer operator packets, and audit-grade GitHub execution feedback loops.
 
-### Phase 9 Now Looks Like
-Phase 9 is in its fifth bounded slice. Phase 9A proved one explicit Vercel redeploy pilot, Phase 9B proved small-allowlist `vercel.redeploy` widening, Phase 9C proved one bounded `vercel.rollback` pilot on `evolutionsandbox`, and Phase 9D proved one bounded `vercel.promote` or rollback-undo pilot on the same project.
+### Phase 9 Added
+Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane was stable, low-noise, and easy to audit.
 
 ## Risks
 - Avoid adding a second overlapping status system beyond the manual fields and the three derived PM signals.
@@ -175,23 +194,46 @@ Phase 9 is in its fifth bounded slice. Phase 9A proved one explicit Vercel redep
   - The deep GitHub lane stays low-noise, easy to audit, and safer than manual ad hoc mutation
 
 ### Phase 9: Provider Expansion
-- Status: Core goals complete
-- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers in bounded, auditable slices that stay as understandable as the GitHub lane.
+- Status: Completed
+- Objective: Expand the proven GitHub governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is measurably trusted.
 - Deliverables:
-  - Phase 9A completed: truthful Vercel provider readiness, one explicit `evolutionsandbox` pilot target, one live-capable `vercel.redeploy` policy, and one successful governed live redeploy
-  - Phase 9B completed: `vercel.redeploy` widened successfully to `premise-debate`, `neural-network-playground`, and `sovereign-sim`, with truthful sync, dry-run graduation, live execution, and confirmed reconciliation for each
-  - Phase 9C completed: `vercel.rollback` is supported in policy, target resolution, dry run, actuation, and verification for `evolutionsandbox`, and one governed live rollback moved production to the pinned earlier deployment
-  - Phase 9D completed: `vercel.promote` is supported in policy, target resolution, dry run, actuation, and verification for `evolutionsandbox`, and one governed live promote restored production to the pinned forward deployment
+  - New provider actuation lanes that reuse the existing approval, idempotency, and execution-ledger contract
+  - Provider-specific telemetry, webhook verification, and compensation patterns layered on top of the Phase 5 to 8 foundation
   - Operator-facing cross-provider views and metrics that stay understandable and low-noise
 - Exit criteria:
-  - Every new provider lane reuses the same approval, audit, and execution posture rather than inventing parallel systems
-  - Recovery-oriented provider verbs remain bounded and provider-verified before any broader widening is attempted
+  - New providers reuse the same approval, audit, and execution posture rather than inventing parallel systems
+  - Cross-provider expansion remains easy to understand and clearly worth the added complexity
+
+### Phase 10: Signal Wiring and Intelligence Layer
+- Status: Active
+- Objective: Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
+- Deliverables:
+  - Notification Hub JSONL → ExternalSignalEvents adapter with severity classification
+  - GithubRepoAuditor audit reports → ExternalSignalEvents adapter with grade-based severity
+  - bridge-db SHIPPED rows → Notion Build Log adapter with project name resolution
+  - Morning brief command: daily signal digest patched onto the weekly review page
+  - Orphan classification command: deterministic rule-based bucketing of projects with no linked records
+  - Historical trending via JSONL snapshots: queue-change and stale-evidence detection
+  - Phase 10A audit fixes: markRowProcessed propagation, normalizeProviderKey coverage, JSONL windowing, empty full_name guard
+- Exit criteria:
+  - All three local adapters emit events that appear in the External Signal Events database
+  - Morning brief dry-run produces a valid severity-grouped markdown section
+  - Orphan classification dry-run buckets all orphan projects without Notion writes
+  - Trend analysis reports queue changes after two consecutive control-tower syncs
+  - Sandbox proving lane stays isolated enough to trust `doctor` and `sandbox:smoke` before risky live rehearsal
+  - Typecheck clean, 277+ tests pass
+- Restart note:
+  - structural cleanup and script-surface hardening are complete enough that Phase 10 work can proceed without another broad repo-audit pass first
+  - as of 2026-04-17, dry-run confidence is strongest for `trend-analysis`, `orphan-classify`, `bridge-db status`, and `morning-brief`; the sandbox proving lane is healthy again
+  - as of 2026-04-17, the orphan-classification live packet lane writes structured `work_packets` entries with execution metadata and project relations
+  - as of 2026-04-17, orphan follow-through also has an approval-backed path: `--request-approval` creates or refreshes governance requests and `--create-approved-packets` materializes only approved kickoff packets
+  - as of 2026-04-17, the sandbox GitHub lane has enough live evidence to stop proving it further unless a new action family is needed; the next work should be productization, not more sandbox mutation depth
 
 ## Next Phase
-Phase 9 core goals are complete. The repo is now in a maintenance and hardening posture.
+Phase 10 - Signal Wiring and Intelligence Layer
 
-**If further provider expansion is justified:** treat it as Phase 9E — selective widening of Vercel recovery coverage to one additional project, only when a real operating need exists. Do not widen by default.
+Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
 
-**If the next work is cleanup or docs:** no phase bump is needed. Continue on `main` under the Phase 9 umbrella.
+Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox lane, with the best next slice likely being additional signal wiring or using the new approval-backed orphan packet flow in live operations.
 
-Future phases should only expand integrations that clearly improve decision quality or reduce friction without weakening human oversight.
+Phase 10C should finish the remaining gaps by tightening morning-brief synthesis around top-priority projects, refining the new orphan approval flow into a more explicit governed operating routine, and continuing managed weekly-review trend output.

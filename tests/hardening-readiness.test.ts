@@ -55,7 +55,7 @@ describe("hardening readiness", () => {
     expect(readme).toContain("local repo development");
     expect(readme).toContain("Sandbox Profile Discipline");
 
-    expect(handoff).toContain("Branch: `main`");
+    expect(handoff).toContain("do not treat this file as the source of truth for the current branch or working tree");
     expect(handoff).not.toContain("codex/phase-10-github-release-readiness");
 
     expect(portability).toContain("Consumer install modes");

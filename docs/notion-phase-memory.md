@@ -36,10 +36,4 @@ Updated: 2026-04-14
 
 ## Phase 9
 - Objective: Expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is trusted.
-- Current status: Phase 9A, 9B, 9C, and 9D are proven. The repo now has one explicit Vercel redeploy pilot, one small redeploy widening set, one provider-proven rollback pilot, and one provider-proven promote or undo-rollback pilot on `evolutionsandbox`.
-- Next-phase brief: Do not widen Vercel recovery verbs by default. If a next bounded slice is warranted, treat it as Phase 9E and add rollback plus promote to one additional Vercel project only when a real operating need exists.
-- Supporting review artifacts:
-  - [Vercel Phase 9A Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9a-post-pilot-review.md)
-  - [Vercel Phase 9B Post-Rollout Review](/Users/d/Notion/docs/vercel-phase9b-post-rollout-review.md)
-  - [Vercel Phase 9C Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9c-post-pilot-review.md)
-  - [Vercel Phase 9D Post-Pilot Review](/Users/d/Notion/docs/vercel-phase9d-post-pilot-review.md)
+- Next-phase brief: Phase 9 will expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is stable, low-noise, and easy to audit.

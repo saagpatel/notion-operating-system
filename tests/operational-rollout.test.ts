@@ -6,9 +6,11 @@ import {
 	buildOperationalRolloutPilotStepGroups,
 	buildOperationalRolloutPlan,
 	classifyOperationalRolloutProject,
+	describeGitHubActionPlannedPayload,
 	deriveOperationalRolloutFailureCategories,
 	deriveOperationalRolloutSummaryStatus,
 	deriveOperationalRolloutWarningCategories,
+	renderGitHubActionRequestMarkdown,
 	runRolloutCommandSteps,
 } from "../src/notion/operational-rollout.js";
 
@@ -238,7 +240,7 @@ describe("operational rollout", () => {
 			},
 			{
 				key: "webhook-reconcile",
-				script: "portfolio-audit:webhook-reconcile",
+				script: "governance:webhook-reconcile",
 				args: ["--provider", "github"],
 				error: "Provider mismatch while reconciling webhook state.",
 			},
@@ -257,6 +259,37 @@ describe("operational rollout", () => {
 		expect(deriveOperationalRolloutSummaryStatus([])).toBe("completed");
 		expect(deriveOperationalRolloutWarningCategories([])).toBeUndefined();
 		expect(deriveOperationalRolloutFailureCategories([])).toBeUndefined();
+	});
+
+	test("renders non-create GitHub action requests with issue targeting", () => {
+		const markdown = renderGitHubActionRequestMarkdown({
+			title: "Add proof comment",
+			projectTitle: "Sandbox Local Portfolio Project",
+			projectNextMove: "Use issue #3 as the proof anchor.",
+			sourceUrl: "https://github.com/saagpatel/portfolio-actuation-sandbox",
+			status: "Approved",
+			purpose: "Validate the governed comment lane.",
+			actionKey: "github.add_issue_comment",
+			targetNumber: 3,
+			requestedChange: "Add the second controlled proof comment to issue #3.",
+		});
+
+		expect(markdown).toContain("- Action: `github.add_issue_comment`");
+		expect(markdown).toContain("- Target issue: #3");
+		expect(markdown).toContain("## Requested change");
+		expect(markdown).toContain("second controlled proof comment");
+	});
+
+	test("describes planned payload summaries for non-create GitHub actions", () => {
+		expect(
+			describeGitHubActionPlannedPayload({
+				actionKey: "github.update_issue",
+				projectTitle: "Sandbox Local Portfolio Project",
+				targetNumber: 3,
+			}),
+		).toBe(
+			"Run github.update_issue on issue #3 for Sandbox Local Portfolio Project using the existing Notion operator workflow.",
+		);
 	});
 });
 

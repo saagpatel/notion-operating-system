@@ -117,6 +117,8 @@ export function safeLoadRuntimeConfig(options: RuntimeConfigOptions = {}): Runti
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const sourceEnv = options.env ?? process.env;
   const env = { ...sourceEnv };
+  const shouldOverrideInheritedEnv =
+    options.env === undefined || options.env === process.env;
   let profile: WorkspaceProfile;
   const profileIssues: string[] = [];
 
@@ -132,7 +134,9 @@ export function safeLoadRuntimeConfig(options: RuntimeConfigOptions = {}): Runti
   }
 
   if (options.hydrateEnvFile !== false) {
-    hydrateEnv(env, profile.envFile);
+    hydrateEnv(env, profile.envFile, {
+      overrideExisting: shouldOverrideInheritedEnv,
+    });
   }
   const parsed = runtimeEnvSchema.safeParse(env);
 
@@ -288,11 +292,15 @@ function summarizeOptionalCredentials(env: Partial<Record<(typeof OPTIONAL_ADVAN
   return { present, missing };
 }
 
-function hydrateEnv(env: NodeJS.ProcessEnv, envFilePath: string): NodeJS.ProcessEnv {
+function hydrateEnv(
+  env: NodeJS.ProcessEnv,
+  envFilePath: string,
+  options: { overrideExisting: boolean },
+): NodeJS.ProcessEnv {
   loadDotenv({
     path: envFilePath,
     processEnv: env as Record<string, string>,
-    override: false,
+    override: options.overrideExisting,
   });
   return env;
 }

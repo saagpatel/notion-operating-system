@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
@@ -9,6 +9,7 @@ import { losAngelesToday } from "../utils/date.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
+	type ActuationActionKey,
 	type ActuationTargetRule,
 	type LocalPortfolioActuationTargetConfig,
 	loadLocalPortfolioActuationTargetConfig,
@@ -119,13 +120,14 @@ export function deriveOperationalRolloutFailureCategories(
 	return categories.size > 0 ? [...categories] : undefined;
 }
 
-export interface EnsureGitHubCreateIssueActionRequestInput {
+export interface EnsureGitHubActionRequestInput {
 	api: DirectNotionClient;
 	config: RolloutContext["config"];
 	actionRequestTitlePropertyName: string;
 	policies: ActionPolicyRecord[];
 	actionRequests: ActionRequestRecord[];
 	githubSources: ExternalSignalSourceRecord[];
+	actionKey: Extract<ActuationActionKey, `github.${string}`>;
 	requestTitle: string;
 	projectId: string;
 	projectTitle: string;
@@ -135,11 +137,16 @@ export interface EnsureGitHubCreateIssueActionRequestInput {
 	approve: boolean;
 	payloadTitle: string;
 	payloadBody: string;
+	targetNumber?: number;
+	targetLabels?: string[];
+	targetAssignees?: string[];
 	providerRequestKey: string;
 	approvalReasonApproved: string;
 	approvalReasonPending: string;
 	executionNotes: string;
 	markdownPurpose: string;
+	plannedPayloadSummary?: string;
+	requestedChange?: string;
 }
 
 interface RolloutContext {
@@ -666,7 +673,7 @@ async function loadRolloutContext(
 		);
 	}
 
-	const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
 	const targetConfig = await loadLocalPortfolioActuationTargetConfig();
 	const [
@@ -844,7 +851,22 @@ async function ensurePilotActionRequest(input: {
 }
 
 export async function ensureGitHubCreateIssueActionRequest(
-	input: EnsureGitHubCreateIssueActionRequestInput,
+	input: Omit<EnsureGitHubActionRequestInput, "actionKey">,
+): Promise<{
+	id: string;
+	url: string;
+	existed: boolean;
+	title: string;
+	status: string;
+}> {
+	return ensureGitHubActionRequest({
+		...input,
+		actionKey: "github.create_issue",
+	});
+}
+
+export async function ensureGitHubActionRequest(
+	input: EnsureGitHubActionRequestInput,
 ): Promise<{
 	id: string;
 	url: string;
@@ -854,15 +876,15 @@ export async function ensureGitHubCreateIssueActionRequest(
 }> {
 	if (!input.config.phase6Governance || !input.config.phase2Execution) {
 		throw new AppError(
-			"GitHub create-issue action requests require phases 2 and 6",
+			"GitHub action requests require phases 2 and 6",
 		);
 	}
 	const policy = input.policies.find(
-		(entry) => entry.title === "github.create_issue",
+		(entry) => entry.title === input.actionKey,
 	);
 	if (!policy) {
 		throw new AppError(
-			'Could not find the "github.create_issue" action policy',
+			`Could not find the "${input.actionKey}" action policy`,
 		);
 	}
 	const source = input.githubSources.find(
@@ -915,10 +937,20 @@ export async function ensureGitHubCreateIssueActionRequest(
 			},
 		},
 		"Planned Payload Summary": richTextValue(
-			`Create the governed GitHub issue for ${input.projectTitle} using the existing Notion operator workflow.`,
+			input.plannedPayloadSummary ??
+				describeGitHubActionPlannedPayload({
+					actionKey: input.actionKey,
+					projectTitle: input.projectTitle,
+					targetNumber: input.targetNumber,
+				}),
 		),
 		"Payload Title": richTextValue(input.payloadTitle),
 		"Payload Body": richTextValue(input.payloadBody),
+		"Target Number": { number: input.targetNumber ?? null },
+		"Target Labels": richTextValue((input.targetLabels ?? []).join(", ")),
+		"Target Assignees": richTextValue(
+			(input.targetAssignees ?? []).join(", "),
+		),
 		"Provider Request Key": richTextValue(input.providerRequestKey),
 		"Approval Reason": richTextValue(
 			input.approve
@@ -927,13 +959,16 @@ export async function ensureGitHubCreateIssueActionRequest(
 		),
 		"Execution Notes": richTextValue(input.executionNotes),
 	};
-	const markdown = renderCreateIssueRequestMarkdown({
+	const markdown = renderGitHubActionRequestMarkdown({
 		title: input.requestTitle,
 		projectTitle: input.projectTitle,
 		projectNextMove: input.projectNextMove,
 		sourceUrl: source.sourceUrl,
 		status,
 		purpose: input.markdownPurpose,
+		actionKey: input.actionKey,
+		targetNumber: input.targetNumber,
+		requestedChange: input.requestedChange,
 	});
 
 	if (existing) {
@@ -1110,23 +1145,33 @@ function renderPilotIssueBody(candidate: OperationalRolloutCandidate): string {
 	].join("\n");
 }
 
-function renderCreateIssueRequestMarkdown(input: {
+export function renderGitHubActionRequestMarkdown(input: {
 	title: string;
 	projectTitle: string;
 	projectNextMove: string;
 	sourceUrl: string;
 	status: string;
 	purpose: string;
+	actionKey: Extract<ActuationActionKey, `github.${string}`>;
+	targetNumber?: number;
+	requestedChange?: string;
 }): string {
+	const requestedHeading =
+		input.actionKey === "github.create_issue"
+			? "## Requested issue"
+			: "## Requested change";
 	return [
 		`# ${input.title}`,
 		"",
 		`- Status: ${input.status}`,
 		`- Project: ${input.projectTitle}`,
+		`- Action: \`${input.actionKey}\``,
 		input.sourceUrl ? `- Target repo: ${input.sourceUrl}` : "",
+		input.targetNumber ? `- Target issue: #${input.targetNumber}` : "",
 		"",
-		"## Requested issue",
-		input.projectNextMove ||
+		requestedHeading,
+		input.requestedChange ||
+			input.projectNextMove ||
 			"Create a first tracked next step for the project.",
 		"",
 		"## Purpose",
@@ -1134,6 +1179,21 @@ function renderCreateIssueRequestMarkdown(input: {
 	]
 		.filter(Boolean)
 		.join("\n");
+}
+
+export function describeGitHubActionPlannedPayload(input: {
+	actionKey: Extract<ActuationActionKey, `github.${string}`>;
+	projectTitle: string;
+	targetNumber?: number;
+}): string {
+	if (input.actionKey === "github.create_issue") {
+		return `Create the governed GitHub issue for ${input.projectTitle} using the existing Notion operator workflow.`;
+	}
+
+	const targetSuffix = input.targetNumber
+		? ` on issue #${input.targetNumber}`
+		: "";
+	return `Run ${input.actionKey}${targetSuffix} for ${input.projectTitle} using the existing Notion operator workflow.`;
 }
 
 function summarizeCandidate(

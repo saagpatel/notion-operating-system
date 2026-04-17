@@ -25,7 +25,9 @@ import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfoli
 import { runProviderExpansionAuditCommand } from "../notion/provider-expansion-audit.js";
 import { runRecommendationRunCommand } from "../notion/recommendation-run.js";
 import { runReviewPacketCommand } from "../notion/review-packet.js";
+import { runSchemaReportCommand } from "../notion/schema-report.js";
 import { runTrendAnalysisCommand } from "../notion/snapshot-history.js";
+import { runVercelRolloutReadinessCommand } from "../notion/vercel-rollout-readiness.js";
 import { runExecutionViewsValidateCommand } from "../notion/validate-local-portfolio-execution-views.js";
 import { runExternalSignalViewsValidateCommand } from "../notion/validate-local-portfolio-external-signal-views.js";
 import { runGovernanceViewsValidateCommand } from "../notion/validate-local-portfolio-governance-views.js";
@@ -543,6 +545,18 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 				}),
 		),
+		buildConfigCommand(
+			"schema-report",
+			"Analyze Local Portfolio Projects property usage to guide schema pruning.",
+			[commonOptions.config],
+			({ parsed }) =>
+				runSchemaReportCommand({
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+				}),
+		),
 	]),
 	buildFamily("execution", "Run execution-system workflows.", [
 		buildConfigCommand(
@@ -1004,6 +1018,24 @@ export const cliRegistry: CliCommandDefinition[] = [
 						"Create work_packets rows for viable_needs_kickoff projects (requires --live).",
 					type: "boolean",
 				},
+				{
+					name: "request-approval",
+					description:
+						"Create or refresh approval requests for orphan kickoff packets (requires --live).",
+					type: "boolean",
+				},
+				{
+					name: "approve",
+					description:
+						"Auto-approve orphan kickoff approval requests during live mode.",
+					type: "boolean",
+				},
+				{
+					name: "create-approved-packets",
+					description:
+						"Create kickoff packets only for already-approved orphan approval requests (requires --live).",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runOrphanClassificationCommand({
@@ -1014,6 +1046,11 @@ export const cliRegistry: CliCommandDefinition[] = [
 						positionals: parsed.positionals,
 					}),
 					createPackets: asBoolean(parsed.options["create-packets"]),
+					requestApproval: asBoolean(parsed.options["request-approval"]),
+					approve: asBoolean(parsed.options.approve),
+					createApprovedPackets: asBoolean(
+						parsed.options["create-approved-packets"],
+					),
 				}),
 		),
 	]),
@@ -1098,6 +1135,28 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 				}),
 		),
+		{
+			name: "vercel-readiness",
+			description:
+				"Audit whether the Vercel rollout manifest is ready for rollout execution.",
+			options: [
+				commonOptions.config,
+				{
+					name: "manifest",
+					description: "Path to the Vercel rollout manifest file.",
+					type: "string",
+					valueName: "path",
+				},
+			],
+			run: async ({ parsed }) =>
+				runVercelRolloutReadinessCommand({
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					manifest: asString(parsed.options.manifest),
+				}),
+		},
 	]),
 	buildFamily("bridge-db", "Sync bridge-db activity log entries into Notion.", [
 		buildConfigCommand(

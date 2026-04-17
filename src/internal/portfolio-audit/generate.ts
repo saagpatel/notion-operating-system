@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import ExcelJS from "exceljs";
+import { isDirectExecution } from "../../cli/legacy.js";
 
 const PROJECTS_ROOT = "/Users/d/Projects";
 const REPORT_PATH = path.join(PROJECTS_ROOT, "PORTFOLIO-AUDIT-REPORT.md");
@@ -1136,4 +1137,6 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-void main();
+if (isDirectExecution(import.meta.url)) {
+  void main();
+}

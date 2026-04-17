@@ -1,4 +1,4 @@
-import { Client } from "@notionhq/client";
+import type { Client } from "@notionhq/client";
 
 import { AppError } from "../utils/errors.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";

@@ -1,4 +1,4 @@
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
@@ -244,10 +244,7 @@ export async function runActionDryRunCommand(
       throw new AppError("Phase 7 dry run requires phase6Governance and phase5ExternalSignals");
     }
 
-    const sdk = new Client({
-      auth: token,
-      notionVersion: "2026-03-11",
-    });
+    const sdk = createNotionSdkClient(token);
     const api = new DirectNotionClient(token);
     const targetConfig = await loadLocalPortfolioActuationTargetConfig();
 

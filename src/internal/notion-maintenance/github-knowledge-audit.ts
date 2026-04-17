@@ -3,20 +3,21 @@ import "dotenv/config";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { recordCommandOutputSummary } from "../cli/command-summary.js";
-import { resolveRequiredNotionToken } from "../cli/context.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { readJsonFile } from "../utils/files.js";
-import { losAngelesToday } from "../utils/date.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
+import { recordCommandOutputSummary } from "../../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../../cli/context.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { readJsonFile } from "../../utils/files.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH,
   type LocalPortfolioExternalSignalSourceConfig,
-} from "./local-portfolio-external-signals.js";
+} from "../../notion/local-portfolio-external-signals.js";
 import {
   dateValue,
   datePropertyValue,
@@ -34,8 +35,8 @@ import {
   titleFromProperty,
   upsertPageByTitle,
   type DataSourcePageRef,
-} from "./local-portfolio-control-tower-live.js";
-import { mapWithConcurrencyLimit } from "../utils/async.js";
+} from "../../notion/local-portfolio-control-tower-live.js";
+import { mapWithConcurrencyLimit } from "../../utils/async.js";
 
 const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
@@ -628,7 +629,27 @@ function parseFlags(argv: string[]): GitHubKnowledgeAuditFlags {
 
 async function main(): Promise<void> {
   try {
-    const output = await runGitHubKnowledgeAudit(parseFlags(process.argv.slice(2)));
+    const argv = process.argv.slice(2);
+    if (shouldShowHelp(argv)) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:github-knowledge-audit --",
+          description: "Audit GitHub-backed knowledge rows and repo-driven support seeding.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--live", description: "Write discovered changes back to Notion." },
+            { flag: "--owner <name>", description: "GitHub owner to inspect. Defaults to saagpatel." },
+            { flag: "--limit <count>", description: "Maximum repositories to inspect. Defaults to 200." },
+            { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
+            { flag: "--config <path>", description: "Path to the control-tower config file." },
+            { flag: "--source-config <path>", description: "Path to the external-signal source config file." },
+          ],
+        }),
+      );
+      return;
+    }
+
+    const output = await runGitHubKnowledgeAudit(parseFlags(argv));
     recordCommandOutputSummary(output);
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {

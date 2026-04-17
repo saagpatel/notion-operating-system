@@ -254,7 +254,7 @@ These docs explain:
 - `src/notion/intelligence-sync.ts`
 - `src/notion/external-signal-sync.ts`
 - `src/notion/review-packet.ts`
-- `src/notion/github-support-maintenance.ts`
+- `src/internal/notion-maintenance/github-support-maintenance.ts`
 - `src/notion/local-portfolio-control-tower.ts`
 - `src/notion/local-portfolio-execution.ts`
 - `src/utils/markdown.ts`

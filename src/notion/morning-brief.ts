@@ -1,4 +1,4 @@
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
@@ -360,7 +360,7 @@ export async function runMorningBriefCommand(
 	const config = await loadLocalPortfolioControlTowerConfig(configPath);
 	const phase5 = requirePhase5ExternalSignals(config);
 
-	const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
 
 	// Load only what we need: projects, weekly reviews, events

@@ -1,4 +1,4 @@
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
@@ -68,10 +68,7 @@ export async function runWeeklyPlanCommand(
       throw new AppError("Control tower config is missing phase2Execution");
     }
 
-    const sdk = new Client({
-      auth: token,
-      notionVersion: "2026-03-11",
-    });
+    const sdk = createNotionSdkClient(token);
     const api = new DirectNotionClient(token);
 
     if (live) {

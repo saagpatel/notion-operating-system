@@ -13,3 +13,5 @@ logs/*.log
 .tmp/
 tmp/
 var/
+.claude/
+.serena/

@@ -3,13 +3,13 @@ import "dotenv/config";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { DirectNotionClient } from "./direct-notion-client.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
   saveLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
-import { mergeManagedSection } from "./local-portfolio-execution.js";
+} from "../../notion/local-portfolio-control-tower.js";
+import { mergeManagedSection } from "../../notion/local-portfolio-execution.js";
 import {
   buildNativeOverlayAuditSummary,
   loadLocalPortfolioNativeAutomationConfig,
@@ -18,17 +18,33 @@ import {
   renderNativeBriefsMarkdown,
   renderNativeOverlaySection,
   requirePhase4Native,
-} from "./local-portfolio-native.js";
-import { renderNotionPhaseMemoryMarkdown, renderNotionRoadmapMarkdown } from "./local-portfolio-roadmap.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { assertSafeReplacement, buildReplaceCommand } from "../utils/markdown.js";
-import { losAngelesToday } from "../utils/date.js";
+} from "../../notion/local-portfolio-native.js";
+import { renderNotionPhaseMemoryMarkdown, renderNotionRoadmapMarkdown } from "../../notion/local-portfolio-roadmap.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { assertSafeReplacement, buildReplaceCommand } from "../../utils/markdown.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 
 const NATIVE_OVERLAY_START = "<!-- codex:notion-native-overlays:start -->";
 const NATIVE_OVERLAY_END = "<!-- codex:notion-native-overlays:end -->";
 
 async function main(): Promise<void> {
   try {
+    if (shouldShowHelp(process.argv.slice(2))) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:native-overlay-audit --",
+          description: "Audit the deferred native-overlay layer and optionally patch its managed pages.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--live", description: "Patch the managed native-overlay pages and config live." },
+            { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
+          ],
+        }),
+      );
+      return;
+    }
+
     const token = process.env.NOTION_TOKEN?.trim();
     if (!token) {
       throw new AppError("NOTION_TOKEN is required for native overlay audit");
@@ -151,4 +167,6 @@ function parseFlags(argv: string[]): { live: boolean; today?: string } {
   return { live, today };
 }
 
-void main();
+if (process.argv[1]?.endsWith("native-overlay-audit.ts")) {
+  void main();
+}

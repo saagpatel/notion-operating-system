@@ -5,29 +5,49 @@
  * Creates a temp rollup "_Probe Build Session Count", reads it back,
  * then deletes it. Exits 0 on success, 1 on failure.
  *
- * Usage: npx tsx src/notion/schema-migrate-probe.ts
+ * Usage: npx tsx src/internal/notion-maintenance/schema-migrate-probe.ts
  */
 
-import { Client } from "@notionhq/client";
+import type { Client } from "@notionhq/client";
+
+import { isDirectExecution } from "../../cli/legacy.js";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 import {
 	loadRuntimeConfig,
 	requireNotionToken,
-} from "../config/runtime-config.js";
-import { RunLogger } from "../logging/run-logger.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
-import { loadLocalPortfolioControlTowerConfig } from "./local-portfolio-control-tower.js";
-import { fetchAllPages } from "./local-portfolio-control-tower-live.js";
+} from "../../config/runtime-config.js";
+import { RunLogger } from "../../logging/run-logger.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import { loadLocalPortfolioControlTowerConfig } from "../../notion/local-portfolio-control-tower.js";
+import { fetchAllPages } from "../../notion/local-portfolio-control-tower-live.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 
 const PROBE_PROP = "_Probe Build Session Count";
 
 async function main() {
+	const argv = process.argv.slice(2);
+	if (shouldShowHelp(argv)) {
+		process.stdout.write(
+			renderInternalScriptHelp({
+				command: "npm run schema-migrate-probe --",
+				description:
+					"Run the historical schema migration probe that verifies rollup property creation against the Local Portfolio Projects data source.",
+				options: [{ flag: "--help, -h", description: "Show this help message." }],
+				notes: [
+					"This is a historical migration utility, not part of the shared operator CLI.",
+				],
+			}),
+		);
+		return;
+	}
+
 	const token = requireNotionToken(
 		"NOTION_TOKEN is required for schema-migrate-probe",
 	);
 	const runtimeConfig = loadRuntimeConfig();
 	const logger = new RunLogger(runtimeConfig.paths.logDir);
 	const api = new DirectNotionClient(token, logger);
-	const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+	const sdk = createNotionSdkClient(token);
 	const config = await loadLocalPortfolioControlTowerConfig();
 	const { dataSourceId } = config.database;
 
@@ -136,7 +156,9 @@ async function cleanup(sdk: Client, dataSourceId: string) {
 	}
 }
 
-main().catch((err) => {
-	console.error(err);
-	process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+	void main().catch((err) => {
+		console.error(err);
+		process.exit(1);
+	});
+}

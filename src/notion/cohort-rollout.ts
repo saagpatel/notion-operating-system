@@ -1,4 +1,4 @@
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
@@ -151,10 +151,7 @@ export async function runCohortRolloutCommand(
 
 	const sourceConfig = await loadLocalPortfolioExternalSignalSourceConfig();
 	const targetConfig = await loadLocalPortfolioActuationTargetConfig();
-	const sdk = new Client({
-		auth: token,
-		notionVersion: "2026-03-11",
-	});
+	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
 
 	const [

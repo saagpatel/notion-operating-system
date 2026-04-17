@@ -3,23 +3,24 @@ import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 
-import { recordCommandOutputSummary } from "../cli/command-summary.js";
-import { resolveRequiredNotionToken } from "../cli/context.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { losAngelesToday } from "../utils/date.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
+import { recordCommandOutputSummary } from "../../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../../cli/context.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
   dateValue,
   fetchAllPages,
   relationIds,
   type DataSourcePageRef,
-} from "./local-portfolio-control-tower-live.js";
+} from "../../notion/local-portfolio-control-tower-live.js";
 
 const TODAY = losAngelesToday();
 const DEFAULT_STALE_SUPPORT_CLASSIFICATION_PATH = "config/stale-support-classifications.json";
@@ -110,7 +111,26 @@ function parseFlags(argv: string[]): Flags {
 
 async function main(): Promise<void> {
   try {
-    const output = await runStaleSupportAudit(parseFlags(process.argv.slice(2)));
+    const argv = process.argv.slice(2);
+    if (shouldShowHelp(argv)) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:stale-support-audit --",
+          description: "Review stale or weakly linked support rows before cleanup.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
+            { flag: "--config <path>", description: "Path to the control-tower config file." },
+            { flag: "--limit <count>", description: "Maximum candidates to return. Defaults to 25." },
+            { flag: "--weak-project-threshold <count>", description: "Project-link threshold for weak support. Defaults to 1." },
+            { flag: "--classification-config <path>", description: "Path to the stale-support classification config file." },
+          ],
+        }),
+      );
+      return;
+    }
+
+    const output = await runStaleSupportAudit(parseFlags(argv));
     recordCommandOutputSummary(output);
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {
@@ -123,10 +143,7 @@ export async function runStaleSupportAudit(flags: Flags): Promise<Record<string,
   const token = resolveRequiredNotionToken("NOTION_TOKEN is required for the stale support audit");
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
   const classificationEntries = await loadClassificationEntries(flags.classificationConfig);
-  const sdk = new Client({
-    auth: token,
-    notionVersion: "2026-03-11",
-  });
+  const sdk = createNotionSdkClient(token);
   const api = new DirectNotionClient(token);
 
   const [projectSchema, researchSchema, skillSchema, toolSchema] = await Promise.all([

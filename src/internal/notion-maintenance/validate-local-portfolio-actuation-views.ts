@@ -1,18 +1,37 @@
 import "dotenv/config";
 
-import { DirectNotionClient } from "./direct-notion-client.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { isDirectExecution } from "../../cli/legacy.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import { renderDirectScriptHelp, shouldShowDirectScriptHelp } from "../../notion/direct-script-help.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
   loadLocalPortfolioActuationViewPlan,
   validateLocalPortfolioActuationViewPlanAgainstSchemas,
-} from "./local-portfolio-actuation-views.js";
+} from "../../notion/local-portfolio-actuation-views.js";
 
 async function main(): Promise<void> {
   try {
+    const argv = process.argv.slice(2);
+    if (shouldShowDirectScriptHelp(argv)) {
+      process.stdout.write(
+        renderDirectScriptHelp({
+          command: "tsx src/internal/notion-maintenance/validate-local-portfolio-actuation-views.ts [config-path]",
+          description: "Validate the local portfolio actuation view plan against live Notion schemas.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+          ],
+          notes: [
+            "When no config path is provided, the default control-tower config is used.",
+          ],
+        }),
+      );
+      return;
+    }
+
     const token = process.env.NOTION_TOKEN?.trim();
     if (!token) {
       throw new AppError("NOTION_TOKEN is required for actuation view validation");
@@ -50,4 +69,6 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+if (isDirectExecution(import.meta.url)) {
+  void main();
+}

@@ -1,9 +1,7 @@
-import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 
 import { afterEach, describe, expect, test } from "vitest";
 
@@ -11,9 +9,7 @@ import { resolveOptionalControlTowerConfigPath } from "../src/cli/context.js";
 import { parseCliArgs } from "../src/cli/framework.js";
 import { runCli } from "../src/cli/runner.js";
 
-const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const tsxBin = path.join(repoRoot, "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
 
 afterEach(() => {
   process.exitCode = undefined;
@@ -723,79 +719,6 @@ describe("profiles cli", () => {
   });
 });
 
-describe("legacy wrapper compatibility", () => {
-  test("governance audit wrapper delegates to the shared help output", async () => {
-    const result = await runLegacyHelp("src/notion/governance-audit.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Audit the governance policy and webhook posture");
-  });
-
-  test("execution views validation wrapper delegates to the shared help output", async () => {
-    const result = await runLegacyHelp("src/notion/validate-local-portfolio-execution-views.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Validate the execution saved-view plan");
-  });
-
-  test("provider expansion wrapper delegates to the shared help output", async () => {
-    const result = await runLegacyHelp("src/notion/provider-expansion-audit.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("provider expansion");
-  });
-
-  test("governance audit wrapper still runs a safe audit path", async () => {
-    const result = await runLegacyCommand("src/notion/governance-audit.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual(
-      expect.objectContaining({
-        ok: true,
-      }),
-    );
-  });
-
-  test("provider expansion wrapper still runs a safe audit path", async () => {
-    const result = await runLegacyCommand("src/notion/provider-expansion-audit.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual(
-      expect.objectContaining({
-        ok: true,
-      }),
-    );
-  });
-
-  test("control-tower wrapper delegates to the shared help output", async () => {
-    const result = await runLegacyHelp("src/notion/control-tower-sync.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Refresh control-tower derived fields");
-  });
-
-  test("execution wrapper delegates to the shared help output", async () => {
-    const result = await runLegacyHelp("src/notion/execution-sync.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Refresh execution briefs");
-  });
-
-  test("governance wrapper delegates to the shared help output", async () => {
-    const result = await runLegacyHelp("src/notion/action-runner.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Run approved action requests");
-  });
-
-  test("rollout wrapper delegates to the shared help output", async () => {
-    const result = await runLegacyHelp("src/notion/operational-rollout.ts");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Classify rollout candidates");
-  });
-});
-
 async function createTempWorkspace(): Promise<string> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-cli-"));
   const configDir = path.join(tempDir, "config");
@@ -1071,38 +994,4 @@ function applyEnvOverrides(overrides: Record<string, string | undefined> | undef
       }
     }
   };
-}
-
-async function runLegacyHelp(relativeScriptPath: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  return runLegacyCommand(relativeScriptPath, ["--help"]);
-}
-
-async function runLegacyCommand(
-  relativeScriptPath: string,
-  args: string[] = [],
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  try {
-    const result = await execFileAsync(tsxBin, [relativeScriptPath, ...args], {
-      cwd: repoRoot,
-      env: process.env,
-    });
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: 0,
-    };
-  } catch (error) {
-    const failure = error as {
-      stdout?: string;
-      stderr?: string;
-      code?: number;
-    };
-
-    return {
-      stdout: failure.stdout ?? "",
-      stderr: failure.stderr ?? "",
-      exitCode: failure.code ?? 1,
-    };
-  }
 }

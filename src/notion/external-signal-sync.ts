@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
@@ -169,10 +169,7 @@ export async function runExternalSignalSyncCommand(
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
 	let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
-	const sdk = new Client({
-		auth: token,
-		notionVersion: "2026-03-11",
-	});
+	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
 
 	if (live) {

@@ -1,4 +1,4 @@
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
@@ -29,7 +29,7 @@ export async function runWebhookReconcileCommand(
   const phase6 = requirePhase6Governance(config);
 
   const api = new DirectNotionClient(token);
-  const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+  const sdk = createNotionSdkClient(token);
   const deliverySchema = await api.retrieveDataSource(phase6.webhookDeliveries.dataSourceId);
   const deliveryPages = await fetchAllPages(sdk, phase6.webhookDeliveries.dataSourceId, deliverySchema.titlePropertyName);
   const deliveries = deliveryPages.map((page) => toWebhookDeliveryRecord(page));

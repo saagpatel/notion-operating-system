@@ -4,7 +4,8 @@ import "dotenv/config";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { Client } from "@notionhq/client";
+import type { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 import ExcelJS from "exceljs";
 
 import { DirectNotionClient } from "../../notion/direct-notion-client.js";
@@ -123,10 +124,7 @@ async function main(): Promise<void> {
 
   const [inventory, workbookRows] = await Promise.all([discoverProjects(), loadWorkbookRows()]);
   const importRows = buildImportRows(workbookRows, inventory);
-  const sdk = new Client({
-    auth: token,
-    notionVersion: "2026-03-11",
-  });
+  const sdk = createNotionSdkClient(token);
   const markdownApi = new DirectNotionClient(token);
 
   await assertParentPageAccessible(sdk, parentPageId);

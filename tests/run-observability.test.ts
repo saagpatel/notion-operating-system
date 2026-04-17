@@ -66,19 +66,20 @@ describe("run observability", () => {
       NOTION_LOG_DIR: tempDir,
     };
 
+    let logFilePath = "";
     await withCommandRunContext(
       {
         commandPath: ["publish"],
         parsed: { options: { dryRun: true }, positionals: [], helpRequested: false },
       },
       async () => {
+        logFilePath = getCurrentCommandLogger()?.filePath ?? "";
         await logCommandFailed(new Error("boom"));
       },
     );
 
-    const [logFileName] = await readdir(tempDir);
-    expect(logFileName).toBeTruthy();
-    const logLines = (await readFile(path.join(tempDir, logFileName!), "utf8"))
+    expect(logFilePath).toBeTruthy();
+    const logLines = (await readFile(logFilePath, "utf8"))
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line) as { action: string; details?: Record<string, unknown> });

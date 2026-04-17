@@ -1,16 +1,17 @@
 import "dotenv/config";
 
-import { recordCommandOutputSummary } from "../cli/command-summary.js";
-import { toErrorMessage } from "../utils/errors.js";
-import { losAngelesToday } from "../utils/date.js";
+import { recordCommandOutputSummary } from "../../cli/command-summary.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
   saveLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH,
-} from "./local-portfolio-external-signals.js";
+} from "../../notion/local-portfolio-external-signals.js";
 import {
   runGitHubKnowledgeAudit,
   type GitHubKnowledgeAuditFlags,
@@ -19,7 +20,7 @@ import {
   runSupportDatabaseHygienePass,
   type SupportDatabaseHygieneFlags,
 } from "./support-database-hygiene-pass.js";
-import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
+import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "../../notion/weekly-refresh-contract.js";
 
 const TODAY = losAngelesToday();
 const DEFAULT_OWNER = "saagpatel";
@@ -78,7 +79,27 @@ function parseFlags(argv: string[]): Flags {
 
 async function main(): Promise<void> {
   try {
-    const flags = parseFlags(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    if (shouldShowHelp(argv)) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:github-support-maintenance --",
+          description: "Run the narrow GitHub-backed support-maintenance lane.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--live", description: "Apply the maintenance actions live." },
+            { flag: "--owner <name>", description: "GitHub owner to inspect. Defaults to saagpatel." },
+            { flag: "--limit <count>", description: "Maximum repositories to inspect. Defaults to 200." },
+            { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
+            { flag: "--config <path>", description: "Path to the control-tower config file." },
+            { flag: "--source-config <path>", description: "Path to the external-signal source config file." },
+          ],
+        }),
+      );
+      return;
+    }
+
+    const flags = parseFlags(argv);
     const output = await runGitHubSupportMaintenance(flags);
     recordCommandOutputSummary(output, {
       status: mapWeeklyStepStatusToCommandStatus(

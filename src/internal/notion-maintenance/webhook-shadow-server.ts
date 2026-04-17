@@ -6,13 +6,33 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { loadLocalPortfolioWebhookProviderConfig, createWebhookReceiptEnvelope } from "./local-portfolio-governance.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { losAngelesToday } from "../utils/date.js";
+import { loadLocalPortfolioWebhookProviderConfig, createWebhookReceiptEnvelope } from "../../notion/local-portfolio-governance.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 
 async function main(): Promise<void> {
   try {
-    const flags = parseFlags(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    if (shouldShowHelp(argv)) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:webhook-shadow-server --",
+          description: "Start the local webhook shadow spool server for receipt capture.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--host <host>", description: "Host interface to bind. Defaults to 127.0.0.1." },
+            { flag: "--port <port>", description: "Port to bind. Defaults to 8788." },
+          ],
+          notes: [
+            "This command starts a local server and keeps running until stopped.",
+          ],
+        }),
+      );
+      return;
+    }
+
+    const flags = parseFlags(argv);
     const providerConfig = await loadLocalPortfolioWebhookProviderConfig();
     const pendingDir = path.resolve(providerConfig.spoolDirectory, "pending");
     await mkdir(pendingDir, { recursive: true });
@@ -114,4 +134,6 @@ async function readBody(request: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-void main();
+if (process.argv[1]?.endsWith("webhook-shadow-server.ts")) {
+  void main();
+}

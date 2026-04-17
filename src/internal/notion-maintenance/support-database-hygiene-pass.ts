@@ -1,14 +1,15 @@
 import "dotenv/config";
 
-import { recordCommandOutputSummary } from "../cli/command-summary.js";
-import { resolveRequiredNotionToken } from "../cli/context.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { losAngelesToday } from "../utils/date.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
+import { recordCommandOutputSummary } from "../../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../../cli/context.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
   datePropertyValue,
   fetchAllPages,
@@ -16,7 +17,7 @@ import {
   relationValue,
   richTextValue,
   type DataSourcePageRef,
-} from "./local-portfolio-control-tower-live.js";
+} from "../../notion/local-portfolio-control-tower-live.js";
 
 const TODAY = losAngelesToday();
 
@@ -103,7 +104,24 @@ function parseFlags(argv: string[]): SupportDatabaseHygieneFlags {
 
 async function main(): Promise<void> {
   try {
-    const output = await runSupportDatabaseHygienePass(parseFlags(process.argv.slice(2)));
+    const argv = process.argv.slice(2);
+    if (shouldShowHelp(argv)) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:support-database-hygiene-pass --",
+          description: "Run the review-first hygiene pass for support databases.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--live", description: "Apply the approved hygiene actions live." },
+            { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
+            { flag: "--config <path>", description: "Path to the control-tower config file." },
+          ],
+        }),
+      );
+      return;
+    }
+
+    const output = await runSupportDatabaseHygienePass(parseFlags(argv));
     recordCommandOutputSummary(output);
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {

@@ -2,9 +2,21 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 
 import { loadRuntimeConfig, safeLoadRuntimeConfig } from "../src/config/runtime-config.js";
+
+const runtimeEnvKeys = [
+  "NOTION_PROFILE",
+  "NOTION_TOKEN",
+  "NOTION_DESTINATIONS_PATH",
+] as const;
+
+afterEach(() => {
+  for (const key of runtimeEnvKeys) {
+    delete process.env[key];
+  }
+});
 
 describe("runtime config", () => {
   test("loads defaults and resolves runtime paths from the provided cwd", () => {
@@ -144,5 +156,73 @@ describe("runtime config", () => {
     );
     expect(env.NOTION_TOKEN).toBeUndefined();
     expect(env.NOTION_DESTINATIONS_PATH).toBeUndefined();
+  });
+
+  test("selected profile env files override inherited process env values", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-override-"));
+    const profileDir = path.join(tempDir, "config", "profiles");
+    await mkdir(profileDir, { recursive: true });
+    await writeFile(
+      path.join(tempDir, "config", "profiles.json"),
+      JSON.stringify({
+        version: 1,
+        defaultProfile: "default",
+        profiles: ["default", "sandbox"],
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(profileDir, "default.json"),
+      JSON.stringify({
+        configVersion: 1,
+        name: "default",
+        label: "Default Workspace",
+        kind: "primary",
+        envFile: ".env",
+        destinationsPath: "./config/destinations.json",
+        controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(profileDir, "sandbox.json"),
+      JSON.stringify({
+        configVersion: 1,
+        name: "sandbox",
+        label: "Sandbox Workspace",
+        kind: "sandbox",
+        envFile: ".env.sandbox",
+        destinationsPath: "./config/profiles/sandbox/destinations.json",
+        controlTowerConfigPath: "./config/profiles/sandbox/local-portfolio-control-tower.json",
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(tempDir, ".env"),
+      ["NOTION_TOKEN=default-token", "NOTION_DESTINATIONS_PATH=./config/destinations.json"].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      path.join(tempDir, ".env.sandbox"),
+      [
+        "NOTION_TOKEN=sandbox-token",
+        "NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
+      ].join("\n"),
+      "utf8",
+    );
+
+    process.env.NOTION_PROFILE = "sandbox";
+    process.env.NOTION_TOKEN = "default-token";
+    process.env.NOTION_DESTINATIONS_PATH = "./config/destinations.json";
+
+    const config = loadRuntimeConfig({
+      cwd: tempDir,
+    });
+
+    expect(config.profile.name).toBe("sandbox");
+    expect(config.notion.token).toBe("sandbox-token");
+    expect(config.paths.destinationsPath).toBe(
+      path.resolve(tempDir, "./config/profiles/sandbox/destinations.json"),
+    );
   });
 });

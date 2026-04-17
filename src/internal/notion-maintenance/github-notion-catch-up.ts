@@ -3,18 +3,19 @@ import "dotenv/config";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { Client } from "@notionhq/client";
+import { isDirectExecution } from "../../cli/legacy.js";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 
-import { recordCommandOutputSummary } from "../cli/command-summary.js";
-import { resolveRequiredNotionToken } from "../cli/context.js";
-import { losAngelesToday } from "../utils/date.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { readJsonFile, writeJsonFile } from "../utils/files.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
+import { recordCommandOutputSummary } from "../../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../../cli/context.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { readJsonFile, writeJsonFile } from "../../utils/files.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
 	loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
 	type DataSourcePageRef,
 	datePropertyValue,
@@ -26,12 +27,13 @@ import {
 	textValue,
 	titleValue,
 	upsertPageByTitle,
-} from "./local-portfolio-control-tower-live.js";
+} from "../../notion/local-portfolio-control-tower-live.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH,
 	type LocalPortfolioExternalSignalSourceConfig,
 	type ManualExternalSignalSeedPlan,
-} from "./local-portfolio-external-signals.js";
+} from "../../notion/local-portfolio-external-signals.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 
 const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
@@ -199,7 +201,31 @@ function parseFlags(argv: string[]): Flags {
 }
 
 async function main(): Promise<void> {
-	const flags = parseFlags(process.argv.slice(2));
+	const argv = process.argv.slice(2);
+	if (shouldShowHelp(argv)) {
+		process.stdout.write(
+			renderInternalScriptHelp({
+				command: "npm run portfolio-audit:github-notion-catch-up --",
+				description:
+					"Compare GitHub repos against Notion project rows and prepare catch-up actions.",
+				options: [
+					{ flag: "--help, -h", description: "Show this help message." },
+					{ flag: "--live", description: "Apply the catch-up updates in Notion." },
+					{ flag: "--owner <login>", description: "GitHub owner or org to audit." },
+					{ flag: "--limit <n>", description: "Limit the number of repos inspected." },
+					{ flag: "--today <date>", description: "Override the YYYY-MM-DD date anchor." },
+					{ flag: "--config <path>", description: "Path to the control-tower config file." },
+					{
+						flag: "--source-config <path>",
+						description: "Path to the external signal source config file.",
+					},
+				],
+			}),
+		);
+		return;
+	}
+
+	const flags = parseFlags(argv);
 	const token = resolveRequiredNotionToken(
 		"NOTION_TOKEN is required for GitHub versus Notion catch-up",
 	);
@@ -208,10 +234,7 @@ async function main(): Promise<void> {
 		await readJsonFile<LocalPortfolioExternalSignalSourceConfig>(
 			flags.sourceConfig,
 		);
-	const sdk = new Client({
-		auth: token,
-		notionVersion: "2026-03-11",
-	});
+	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
 
 	const [repos, localProjects, intakeProjects, sourceRows] = await Promise.all([
@@ -921,8 +944,10 @@ function stripTrailingPeriod(value: string): string {
 	return value.replace(/\.$/, "");
 }
 
-void main().catch((error) => {
-	const message = toErrorMessage(error);
-	console.error(message);
-	process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+	void main().catch((error) => {
+		const message = toErrorMessage(error);
+		console.error(message);
+		process.exit(1);
+	});
+}

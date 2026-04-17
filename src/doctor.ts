@@ -53,10 +53,10 @@ interface DoctorOptions {
 }
 
 export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorReport> {
-  const runtimeEnv = { ...(options.env ?? process.env) };
+  const runtimeEnv = options.env ?? process.env;
   const runtimeResult = safeLoadRuntimeConfig({
     cwd: options.cwd,
-    env: runtimeEnv,
+    env: options.env,
   });
   const runtimeConfig = runtimeResult.config;
   const checks: DoctorCheck[] = [];
@@ -200,7 +200,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
 
   checks.push(buildOptionalCredentialCheck(runtimeConfig));
   if (runtimeConfig.profile.kind === "sandbox") {
-    checks.push(...(await buildSandboxIsolationChecks(runtimeConfig, { ...(options.env ?? process.env) })));
+    checks.push(...(await buildSandboxIsolationChecks(runtimeConfig, runtimeEnv)));
   }
 
   return {
@@ -273,7 +273,7 @@ async function buildSandboxIsolationChecks(
   });
   const primaryRuntime = safeLoadRuntimeConfig({
     cwd: runtimeConfig.cwd,
-    env: { ...env },
+    env,
     profile: primaryProfileName,
   }).config;
 

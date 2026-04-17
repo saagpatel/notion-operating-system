@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createSign, generateKeyPairSync } from "node:crypto";
 
 import { describe, expect, test } from "vitest";
 
@@ -19,6 +20,7 @@ import {
   fetchVercelRollbackPreflight,
   formatVercelPromoteRequestKey,
   formatVercelRollbackRequestKey,
+  normalizePemForSigning,
   parseLocalPortfolioActuationTargetConfig,
   parseLocalPortfolioActuationViewPlan,
   renderActuationCommandCenterSection,
@@ -188,6 +190,28 @@ describe("local portfolio actuation", () => {
 
     expect(payload.title).toContain("[Portfolio]");
     expect(key).toHaveLength(64);
+  });
+
+  test("normalizes quoted GitHub App PEM values before signing", () => {
+    const { privateKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: {
+        format: "pem",
+        type: "pkcs1",
+      },
+      publicKeyEncoding: {
+        format: "pem",
+        type: "pkcs1",
+      },
+    });
+    const quotedPem = JSON.stringify(privateKey);
+    const normalizedPem = normalizePemForSigning(quotedPem);
+    const signature = createSign("RSA-SHA256").update("sandbox-proof").sign(normalizedPem).toString("base64url");
+
+    expect(normalizedPem).toContain("BEGIN RSA PRIVATE KEY");
+    expect(normalizedPem.startsWith('"')).toBe(false);
+    expect(normalizedPem.endsWith('"')).toBe(false);
+    expect(signature.length).toBeGreaterThan(0);
   });
 
   test("validates actuation views against representative schemas", async () => {

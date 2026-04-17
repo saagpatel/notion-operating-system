@@ -149,6 +149,7 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `npm run destinations:check` | List configured Notion destination aliases |
 | `npm run destinations:resolve` | Resolve and persist Notion IDs for all destinations |
 | `npm run portfolio-audit:control-tower-sync` | Refresh derived PM signals (dry-run) |
+| `npm run control-tower:schema-report` | Analyze property usage before schema cleanup or deletion |
 | `npm run portfolio-audit:review-packet` | Generate weekly review packet (dry-run) |
 | `npm run portfolio-audit:external-signal-sync -- --provider github --live` | Sync GitHub signals (live) |
 | `npm run portfolio-audit:recommendation-run -- --type weekly` | Weekly recommendations (dry-run) |

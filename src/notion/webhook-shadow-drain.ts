@@ -1,7 +1,7 @@
 import { readdir, readFile, rename, mkdir } from "node:fs/promises";
 import path from "node:path";
 
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
@@ -49,7 +49,7 @@ export async function runWebhookShadowDrainCommand(
   await mkdir(processedDir, { recursive: true });
 
   const entries = (await readdir(pendingDir)).filter((entry) => entry.endsWith(".json")).sort();
-  const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+  const sdk = createNotionSdkClient(token);
   let config = await loadLocalPortfolioControlTowerConfig(configPath);
   config = await ensurePhase6GovernanceSchema(sdk, config);
 

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import type { ControlTowerProjectRecord } from "../src/notion/local-portfolio-control-tower.js";
-import { classifyOrphan } from "../src/notion/orphan-classification.js";
+import {
+	buildKickoffApprovalRequestDraft,
+	buildKickoffPacketDraft,
+	classifyOrphan,
+} from "../src/notion/orphan-classification.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -135,5 +139,89 @@ describe("classifyOrphan — result fields", () => {
 		expect(result.category).toBe("Tool");
 		expect(result.portfolioCall).toBe("Worth Finishing");
 		expect(result.currentState).toBe("Active");
+	});
+});
+
+describe("buildKickoffPacketDraft", () => {
+	test("creates a structured kickoff packet draft tied to the local project", () => {
+		const result = classifyOrphan(
+			baseProject({
+				id: "proj-kickoff",
+				title: "Kickoff Project",
+				category: "Feature",
+			}),
+			TODAY,
+		);
+		expect(result.disposition).toBe("viable_needs_kickoff");
+
+		const draft = buildKickoffPacketDraft(result, TODAY, "user-123");
+		expect(draft.title).toBe("Kickoff: Kickoff Project");
+		expect(draft.markdown).toContain("Viable — Needs Kickoff");
+		expect(draft.markdown).toContain("Add one build log entry");
+		expect(draft.properties["Local Project"]).toEqual({
+			relation: [{ id: "proj-kickoff" }],
+		});
+		expect(draft.properties.Status).toEqual({ status: { name: "Ready" } });
+		expect(draft.properties.Priority).toEqual({
+			select: { name: "Later" },
+		});
+		expect(draft.properties.Owner).toEqual({
+			people: [{ id: "user-123" }],
+		});
+	});
+});
+
+describe("buildKickoffApprovalRequestDraft", () => {
+	test("creates a pending approval request for a kickoff packet by default", () => {
+		const result = classifyOrphan(
+			baseProject({
+				id: "proj-approval",
+				title: "Approval Project",
+				category: "Feature",
+			}),
+			TODAY,
+		);
+		const draft = buildKickoffApprovalRequestDraft(result, TODAY, {
+			requestedByUserId: "user-123",
+		});
+
+		expect(draft.title).toBe("Approve kickoff packet: Approval Project");
+		expect(draft.providerRequestKey).toBe("orphan-kickoff:proj-approval");
+		expect(draft.markdown).toContain("Pending Approval");
+		expect(draft.properties.Status).toEqual({
+			select: { name: "Pending Approval" },
+		});
+		expect(draft.properties["Local Project"]).toEqual({
+			relation: [{ id: "proj-approval" }],
+		});
+		expect(draft.properties["Requested By"]).toEqual({
+			people: [{ id: "user-123" }],
+		});
+	});
+
+	test("marks the approval request approved when approve=true", () => {
+		const result = classifyOrphan(
+			baseProject({
+				id: "proj-approved",
+				title: "Approved Project",
+				category: "Feature",
+			}),
+			TODAY,
+		);
+		const draft = buildKickoffApprovalRequestDraft(result, TODAY, {
+			approve: true,
+			requestedByUserId: "user-123",
+		});
+
+		expect(draft.markdown).toContain("Approved");
+		expect(draft.properties.Status).toEqual({
+			select: { name: "Approved" },
+		});
+		expect(draft.properties.Approver).toEqual({
+			people: [{ id: "user-123" }],
+		});
+		expect(draft.properties["Decided At"]).toEqual({
+			date: { start: TODAY },
+		});
 	});
 });

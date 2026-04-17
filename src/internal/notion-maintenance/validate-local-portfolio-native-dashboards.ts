@@ -1,18 +1,34 @@
 import "dotenv/config";
 
-import { DirectNotionClient } from "./direct-notion-client.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { isDirectExecution } from "../../cli/legacy.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
   loadLocalPortfolioNativeDashboardConfig,
   validateNativeDashboardPlanAgainstSchemas,
-} from "./local-portfolio-native.js";
+} from "../../notion/local-portfolio-native.js";
 
 async function main(): Promise<void> {
   try {
+    if (shouldShowHelp(process.argv.slice(2))) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:native-dashboard-validate --",
+          description: "Validate the native dashboard plan against live schemas.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--config <path>", description: "Path to the control-tower config file." },
+          ],
+        }),
+      );
+      return;
+    }
+
     const token = process.env.NOTION_TOKEN?.trim();
     if (!token) {
       throw new AppError("NOTION_TOKEN is required for native dashboard validation");
@@ -50,4 +66,6 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+if (isDirectExecution(import.meta.url)) {
+  void main();
+}

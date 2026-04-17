@@ -1,20 +1,21 @@
 import "dotenv/config";
 
-import { Client } from "@notionhq/client";
+import { isDirectExecution } from "../../cli/legacy.js";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 
-import { recordCommandOutputSummary } from "../cli/command-summary.js";
-import { resolveRequiredNotionToken } from "../cli/context.js";
+import { recordCommandOutputSummary } from "../../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../../cli/context.js";
 import {
 	buildProjectIntelligenceDataset,
 	type ProjectIntelligenceRow,
-} from "../portfolio-audit/project-intelligence.js";
-import { losAngelesToday } from "../utils/date.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
+} from "../../portfolio-audit/project-intelligence.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
 	type ControlTowerBuildSessionRecord,
 	loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
 	type DataSourcePageRef,
 	datePropertyValue,
@@ -25,33 +26,34 @@ import {
 	selectValue,
 	textValue,
 	toBuildSessionRecord,
-} from "./local-portfolio-control-tower-live.js";
+} from "../../notion/local-portfolio-control-tower-live.js";
 import {
 	toExecutionTaskRecord,
 	toProjectDecisionRecord,
 	toWorkPacketRecord,
-} from "./local-portfolio-execution-live.js";
+} from "../../notion/local-portfolio-execution-live.js";
 import {
 	buildExternalSignalSummary,
 	type ExternalSignalEventRecord,
 	type ExternalSignalSourceRecord,
 	type ExternalSignalSummary,
-} from "./local-portfolio-external-signals.js";
+} from "../../notion/local-portfolio-external-signals.js";
 import {
 	toExternalSignalEventRecord,
 	toExternalSignalSourceRecord,
-} from "./local-portfolio-external-signals-live.js";
+} from "../../notion/local-portfolio-external-signals-live.js";
 import {
 	buildProjectIntelligenceContext,
 	buildRecommendation,
 	type ProjectRecommendation,
-} from "./local-portfolio-intelligence.js";
+} from "../../notion/local-portfolio-intelligence.js";
 import {
 	toIntelligenceProjectRecord,
 	toResearchLibraryRecord,
 	toSkillLibraryRecord,
 	toToolMatrixRecord,
-} from "./local-portfolio-intelligence-live.js";
+} from "../../notion/local-portfolio-intelligence-live.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 
 const LOCAL_PROJECTS_DATA_SOURCE_ID = "7858b551-4ce9-4bc3-ad1d-07b187d7117b";
 const TODAY = losAngelesToday();
@@ -154,15 +156,29 @@ function parseFlags(argv: string[]): Flags {
 }
 
 async function main(): Promise<void> {
-	const flags = parseFlags(process.argv.slice(2));
+	const argv = process.argv.slice(2);
+	if (shouldShowHelp(argv)) {
+		process.stdout.write(
+			renderInternalScriptHelp({
+				command: "npm run portfolio-audit:fill-empty-local-project-fields --",
+				description:
+					"Backfill missing Local Portfolio Project fields from intelligence, execution, and external-signal evidence.",
+				options: [
+					{ flag: "--help, -h", description: "Show this help message." },
+					{ flag: "--live", description: "Apply the field updates in Notion." },
+					{ flag: "--today <date>", description: "Override the YYYY-MM-DD date anchor." },
+				],
+			}),
+		);
+		return;
+	}
+
+	const flags = parseFlags(argv);
 	const token = resolveRequiredNotionToken(
 		"NOTION_TOKEN is required to fill empty local project fields",
 	);
 	const api = new DirectNotionClient(token);
-	const sdk = new Client({
-		auth: token,
-		notionVersion: "2026-03-11",
-	});
+	const sdk = createNotionSdkClient(token);
 	const config = await loadLocalPortfolioControlTowerConfig();
 
 	const [
@@ -1474,7 +1490,9 @@ const SPECIAL_BLOCKER_OVERRIDES = new Map<string, string>([
 	],
 ]);
 
-void main().catch((error) => {
-	console.error(toErrorMessage(error));
-	process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+	void main().catch((error) => {
+		console.error(toErrorMessage(error));
+		process.exit(1);
+	});
+}

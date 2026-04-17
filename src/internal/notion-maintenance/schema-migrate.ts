@@ -9,22 +9,26 @@
  *   Step 4 — Verify: fetch one page and confirm rollup types are present + deprecated fields are gone
  *
  * Usage:
- *   npx tsx src/notion/schema-migrate.ts           # dry-run (prints what would happen, no Notion writes)
- *   npx tsx src/notion/schema-migrate.ts --live    # applies changes to live Notion database
+ *   npx tsx src/internal/notion-maintenance/schema-migrate.ts           # dry-run (prints what would happen, no Notion writes)
+ *   npx tsx src/internal/notion-maintenance/schema-migrate.ts --live    # applies changes to live Notion database
  *
  * IMPORTANT: Run Phase 0 probe (schema-migrate-probe) first to confirm rollup creation works.
  * IMPORTANT: --live makes irreversible schema changes. Properties deleted here cannot be recovered.
  */
 
-import { Client } from "@notionhq/client";
+import type { Client } from "@notionhq/client";
+
+import { isDirectExecution } from "../../cli/legacy.js";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 import {
 	loadRuntimeConfig,
 	requireNotionToken,
-} from "../config/runtime-config.js";
-import { RunLogger } from "../logging/run-logger.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
-import { loadLocalPortfolioControlTowerConfig } from "./local-portfolio-control-tower.js";
-import { fetchAllPages } from "./local-portfolio-control-tower-live.js";
+} from "../../config/runtime-config.js";
+import { RunLogger } from "../../logging/run-logger.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import { loadLocalPortfolioControlTowerConfig } from "../../notion/local-portfolio-control-tower.js";
+import { fetchAllPages } from "../../notion/local-portfolio-control-tower-live.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -77,7 +81,27 @@ const ROLLUP_DEFINITIONS: Array<{
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-	const isLive = process.argv.includes("--live");
+	const argv = process.argv.slice(2);
+	if (shouldShowHelp(argv)) {
+		process.stdout.write(
+			renderInternalScriptHelp({
+				command: "npm run schema-migrate --",
+				description:
+					"Run the historical Local Portfolio Projects schema migration that replaces manual count fields with native rollups.",
+				options: [
+					{ flag: "--help, -h", description: "Show this help message." },
+					{ flag: "--live", description: "Apply the irreversible schema changes in Notion." },
+				],
+				notes: [
+					"Run schema-migrate-probe first before using --live.",
+					"This is a historical migration utility, not part of the shared operator CLI.",
+				],
+			}),
+		);
+		return;
+	}
+
+	const isLive = argv.includes("--live");
 
 	const token = requireNotionToken(
 		"NOTION_TOKEN is required for schema-migrate",
@@ -85,7 +109,7 @@ async function main() {
 	const runtimeConfig = loadRuntimeConfig();
 	const logger = new RunLogger(runtimeConfig.paths.logDir);
 	const api = new DirectNotionClient(token, logger);
-	const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+	const sdk = createNotionSdkClient(token);
 	const config = await loadLocalPortfolioControlTowerConfig();
 	const { dataSourceId } = config.database;
 
@@ -280,7 +304,9 @@ function printDryRunPlan(): void {
 	console.log("  Step 4 — VERIFY via page fetch (reads only)");
 }
 
-main().catch((err) => {
-	console.error(err);
-	process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+	void main().catch((err) => {
+		console.error(err);
+		process.exit(1);
+	});
+}

@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
@@ -75,10 +75,7 @@ export async function runControlTowerSyncCommand(
 		DestinationRegistry.load(runtimeConfig.paths.destinationsPath),
 	]);
 
-	const sdk = new Client({
-		auth: token,
-		notionVersion: "2026-03-11",
-	});
+	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token, logger);
 	const publisher = new Publisher(api, logger);
 

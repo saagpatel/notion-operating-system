@@ -2023,7 +2023,7 @@ async function mintGitHubInstallationAccess(input: {
   repo: string;
 }): Promise<GitHubInstallationAccess> {
   const appId = process.env.GITHUB_APP_ID?.trim();
-  const pem = process.env.GITHUB_APP_PRIVATE_KEY_PEM?.trim();
+  const pem = normalizePemForSigning(process.env.GITHUB_APP_PRIVATE_KEY_PEM);
   if (!appId || !pem) {
     throw new AppError("GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_PEM are required for live GitHub execution");
   }
@@ -3216,12 +3216,26 @@ async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function normalizePemForSigning(privateKeyPem?: string): string {
+  if (!privateKeyPem) {
+    return "";
+  }
+  const normalized = privateKeyPem.trim().replace(/\\n/g, "\n").trim();
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    return normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
+
 function signJwt(payload: Record<string, unknown>, privateKeyPem: string): string {
   const header = { alg: "RS256", typ: "JWT" };
   const encode = (value: Record<string, unknown>) =>
     Buffer.from(JSON.stringify(value)).toString("base64url");
   const signingInput = `${encode(header)}.${encode(payload)}`;
-  const normalizedPrivateKeyPem = privateKeyPem.replace(/\\n/g, "\n");
+  const normalizedPrivateKeyPem = normalizePemForSigning(privateKeyPem);
   const signature = createSign("RSA-SHA256")
     .update(signingInput)
     .sign(normalizedPrivateKeyPem)

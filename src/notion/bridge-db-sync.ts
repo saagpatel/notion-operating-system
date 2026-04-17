@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "./notion-sdk.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { losAngelesToday } from "../utils/date.js";
@@ -63,7 +63,7 @@ export async function runBridgeDbSyncCommand(
 		options.dbPath ?? process.env["BRIDGE_DB_PATH"] ?? BRIDGE_DB_DEFAULT_PATH;
 	const limit = options.limit ?? 50;
 
-	const sdk = new Client({ auth: token, notionVersion: "2026-03-11" });
+	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
 
 	// Fetch project list and build log schema

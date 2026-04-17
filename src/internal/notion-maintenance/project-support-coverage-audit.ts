@@ -1,22 +1,23 @@
 import "dotenv/config";
 
-import { Client } from "@notionhq/client";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 
-import { recordCommandOutputSummary } from "../cli/command-summary.js";
-import { resolveRequiredNotionToken } from "../cli/context.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
-import { losAngelesToday } from "../utils/date.js";
-import { DirectNotionClient } from "./direct-notion-client.js";
+import { recordCommandOutputSummary } from "../../cli/command-summary.js";
+import { resolveRequiredNotionToken } from "../../cli/context.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { losAngelesToday } from "../../utils/date.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
-} from "./local-portfolio-control-tower.js";
+} from "../../notion/local-portfolio-control-tower.js";
 import {
   fetchAllPages,
   relationIds,
   selectValue,
   type DataSourcePageRef,
-} from "./local-portfolio-control-tower-live.js";
+} from "../../notion/local-portfolio-control-tower-live.js";
 
 const TODAY = losAngelesToday();
 
@@ -103,7 +104,25 @@ function parseFlags(argv: string[]): Flags {
 
 async function main(): Promise<void> {
   try {
-    const output = await runProjectSupportCoverageAudit(parseFlags(process.argv.slice(2)));
+    const argv = process.argv.slice(2);
+    if (shouldShowHelp(argv)) {
+      process.stdout.write(
+        renderInternalScriptHelp({
+          command: "npm run portfolio-audit:project-support-coverage-audit --",
+          description: "Rank projects with thin support coverage for review.",
+          options: [
+            { flag: "--help, -h", description: "Show this help message." },
+            { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
+            { flag: "--config <path>", description: "Path to the control-tower config file." },
+            { flag: "--limit <count>", description: "Maximum projects to return. Defaults to 25." },
+            { flag: "--minimum-total-support <count>", description: "Minimum support threshold before a project is excluded. Defaults to 3." },
+          ],
+        }),
+      );
+      return;
+    }
+
+    const output = await runProjectSupportCoverageAudit(parseFlags(argv));
     recordCommandOutputSummary(output);
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {
@@ -115,10 +134,7 @@ async function main(): Promise<void> {
 export async function runProjectSupportCoverageAudit(flags: Flags): Promise<Record<string, unknown>> {
   const token = resolveRequiredNotionToken("NOTION_TOKEN is required for the project support coverage audit");
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
-  const sdk = new Client({
-    auth: token,
-    notionVersion: "2026-03-11",
-  });
+  const sdk = createNotionSdkClient(token);
   const api = new DirectNotionClient(token);
 
   const [projectSchema, researchSchema, skillSchema, toolSchema] = await Promise.all([
