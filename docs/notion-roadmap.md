@@ -17,7 +17,7 @@ Updated: 2026-04-17
 
 ## Fresh Verification Snapshot
 - `npm run typecheck` passed on 2026-04-17.
-- `npm test` passed on 2026-04-17 with 44 files and 277 tests.
+- `npm test` passed on 2026-04-17 with 44 files and 284 tests.
 - `npm run control-tower:trend-analysis` returned a clean dry-run report on 2026-04-17.
 - `npm run governance:orphan-classify` returned a dry-run classification table on 2026-04-17.
 - `npm run bridge-db:status` returned a healthy read-only bridge-db snapshot on 2026-04-17.
@@ -221,7 +221,7 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - Orphan classification dry-run buckets all orphan projects without Notion writes
   - Trend analysis reports queue changes after two consecutive control-tower syncs
   - Sandbox proving lane stays isolated enough to trust `doctor` and `sandbox:smoke` before risky live rehearsal
-  - Typecheck clean, 277+ tests pass
+  - Typecheck clean, 284+ tests pass
 - Restart note:
   - structural cleanup and script-surface hardening are complete enough that Phase 10 work can proceed without another broad repo-audit pass first
   - as of 2026-04-17, dry-run confidence is strongest for `trend-analysis`, `orphan-classify`, `bridge-db status`, and `morning-brief`; the sandbox proving lane is healthy again

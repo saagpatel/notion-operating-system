@@ -12,7 +12,7 @@
 - Repo-state note:
   - do not treat this file as the source of truth for the current branch or working tree
   - check `git status --short --branch` when you need live repo state
-  - the current worktree is still intentionally busy with the broader cleanup branch; treat new sandbox GitHub proof work as scoped additions inside that branch, not as a separate clean-room slice
+  - the broad cleanup and hardening work landed on `main` on 2026-04-17; treat any future work as normal product or maintenance follow-through, not as an in-progress rescue branch
 
 ## Structural work completed
 
@@ -64,6 +64,7 @@ Current confidence state:
 
 - package surface, script surface, and docs are much more aligned than before this cleanup track
 - the repo has passed repeated `npm test`, `npm run typecheck`, and `npm run build` verification loops after these changes
+- the merged 2026-04-17 confidence pass also verified `npm run verify` end to end with 44 passing test files and 284 passing tests
 - a 2026-04-17 confidence pass also verified:
   - `npm run control-tower:trend-analysis` returns a clean dry-run report
   - `npm run governance:orphan-classify` returns a dry-run classification table
