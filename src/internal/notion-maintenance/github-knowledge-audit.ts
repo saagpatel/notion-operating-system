@@ -939,7 +939,7 @@ function buildRepoProjectIdMap(input: {
       continue;
     }
     const repoName = normalized.slice(prefix.length);
-    if (repoName) {
+    if (repoName && seed.localProjectId?.trim()) {
       repoToProjectId.set(repoName, seed.localProjectId);
     }
   }

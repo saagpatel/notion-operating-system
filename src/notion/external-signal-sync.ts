@@ -1118,6 +1118,7 @@ export async function syncProviders(input: {
 					input.eventKeySet,
 					input.projects ?? [],
 					input.flags.live,
+					input.sources,
 				),
 			);
 			continue;
@@ -1133,6 +1134,7 @@ export async function syncProviders(input: {
 					input.eventKeySet,
 					input.projects ?? [],
 					input.flags.live,
+					input.sources,
 				),
 			);
 			continue;
@@ -1333,6 +1335,8 @@ interface NotificationHubEvent {
 	classified_level?: string;
 }
 
+type ProjectResolver = (value: string) => string | undefined;
+
 const NOTIFICATION_HUB_DEFAULT_LOG_PATH = `${homedir()}/.local/share/notification-hub/events.jsonl`;
 
 export async function syncNotificationHubSources(
@@ -1343,6 +1347,7 @@ export async function syncNotificationHubSources(
 	eventKeySet: Set<string>,
 	projects: Array<{ id: string; title: string }>,
 	live = false,
+	allSources: ExternalSignalSourceRecord[] = [],
 ): Promise<ProviderSyncResult> {
 	if (sources.length === 0) {
 		return emptyProviderResult(
@@ -1369,11 +1374,15 @@ export async function syncNotificationHubSources(
 		};
 	}
 
-	const projectIndex = buildProjectNameIndex(projects);
+	const resolveProjectId = buildProjectResolver({
+		projects,
+		sources: allSources,
+	});
 	const source = sources[0]!;
 	const events: NormalizedSignalEvent[] = [];
 	let itemsSeen = 0;
 	let itemsDeduped = 0;
+	let missingProject = 0;
 	let unmatchedProject = 0;
 
 	try {
@@ -1387,9 +1396,12 @@ export async function syncNotificationHubSources(
 				continue;
 			}
 
-			const localProjectId = raw.project
-				? resolveProjectId(raw.project, projectIndex)
-				: undefined;
+			if (!raw.project?.trim()) {
+				missingProject += 1;
+				continue;
+			}
+
+			const localProjectId = resolveProjectId(raw.project);
 			if (!localProjectId) {
 				unmatchedProject += 1;
 				continue;
@@ -1432,10 +1444,16 @@ export async function syncNotificationHubSources(
 		itemsSeen,
 		newEvents: events.length,
 		itemsDeduped,
+		missingProject,
 		unmatchedProject,
 	});
 
 	const notes: string[] = [];
+	if (missingProject > 0) {
+		notes.push(
+			`${missingProject} event(s) skipped: notification-hub event had no project value.`,
+		);
+	}
 	if (unmatchedProject > 0) {
 		notes.push(
 			`${unmatchedProject} event(s) skipped: project name could not be matched to a local portfolio project.`,
@@ -1460,36 +1478,62 @@ export async function syncNotificationHubSources(
 	};
 }
 
-function buildProjectNameIndex(
-	projects: Array<{ id: string; title: string }>,
-): Map<string, string> {
-	const index = new Map<string, string>();
-	for (const project of projects) {
-		// Exact lowercase match
-		index.set(project.title.toLowerCase().trim(), project.id);
-		// Kebab-to-spaces and spaces-to-kebab variants
-		index.set(
-			project.title.toLowerCase().trim().replace(/\s+/g, "-"),
-			project.id,
-		);
-		index.set(
-			project.title.toLowerCase().trim().replace(/-/g, " "),
-			project.id,
-		);
+function buildProjectResolver(input: {
+	projects: Array<{ id: string; title: string }>;
+	sources: ExternalSignalSourceRecord[];
+}): ProjectResolver {
+	const exactTitleIndex = new Map<string, string>();
+	const variantTitleIndex = new Map<string, string>();
+	const githubIdentifierIndex = new Map<string, string>();
+
+	for (const project of input.projects) {
+		const normalized = normalizeResolverKey(project.title);
+		exactTitleIndex.set(normalized, project.id);
+		variantTitleIndex.set(normalized.replace(/\s+/g, "-"), project.id);
+		variantTitleIndex.set(normalized.replace(/-/g, " "), project.id);
 	}
-	return index;
+
+	for (const source of input.sources) {
+		if (normalizeProviderName(source.provider) !== "github") {
+			continue;
+		}
+		const localProjectId = getPrimarySourceProjectId(source);
+		if (!localProjectId) {
+			continue;
+		}
+		const identifier = normalizeResolverKey(source.identifier);
+		if (!identifier) {
+			continue;
+		}
+		if (!githubIdentifierIndex.has(identifier)) {
+			githubIdentifierIndex.set(identifier, localProjectId);
+		}
+		const repoName = identifier.split("/").pop() ?? "";
+		if (repoName && !githubIdentifierIndex.has(repoName)) {
+			githubIdentifierIndex.set(repoName, localProjectId);
+		}
+	}
+
+	return (value: string): string | undefined => {
+		const normalized = normalizeResolverKey(value);
+		if (!normalized) {
+			return undefined;
+		}
+		return (
+			exactTitleIndex.get(normalized) ||
+			githubIdentifierIndex.get(normalized) ||
+			variantTitleIndex.get(normalized)
+		);
+	};
 }
 
-function resolveProjectId(
-	projectName: string,
-	index: Map<string, string>,
-): string | undefined {
-	const normalized = projectName.toLowerCase().trim();
-	return (
-		index.get(normalized) ||
-		index.get(normalized.replace(/\s+/g, "-")) ||
-		index.get(normalized.replace(/-/g, " "))
-	);
+function normalizeResolverKey(value: string): string {
+	return value
+		.toLowerCase()
+		.trim()
+		.replace(/[_-]+/g, " ")
+		.replace(/[^\p{L}\p{N}/ ]+/gu, " ")
+		.replace(/\s+/g, " ");
 }
 
 async function readNotificationHubJsonl(
@@ -1576,6 +1620,7 @@ export async function syncRepoAuditorSources(
 	eventKeySet: Set<string>,
 	projects: Array<{ id: string; title: string }>,
 	live = false,
+	allSources: ExternalSignalSourceRecord[] = [],
 ): Promise<ProviderSyncResult> {
 	if (sources.length === 0) {
 		return emptyProviderResult(
@@ -1636,7 +1681,10 @@ export async function syncRepoAuditorSources(
 		? report.generated_at.slice(0, 10)
 		: today;
 	const audits = report.audits ?? report.results ?? [];
-	const projectIndex = buildProjectNameIndex(projects);
+	const resolveProjectId = buildProjectResolver({
+		projects,
+		sources: allSources,
+	});
 	const source = sources[0]!;
 	const events: NormalizedSignalEvent[] = [];
 	let itemsSeen = 0;
@@ -1661,7 +1709,7 @@ export async function syncRepoAuditorSources(
 		}
 
 		const repoName = audit.metadata?.name ?? fullName;
-		const localProjectId = resolveProjectId(repoName, projectIndex);
+		const localProjectId = resolveProjectId(fullName) ?? resolveProjectId(repoName);
 		if (!localProjectId) {
 			unmatchedProject += 1;
 			continue;

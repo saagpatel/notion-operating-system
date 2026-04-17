@@ -23,6 +23,11 @@ Updated: 2026-04-17
 - `npm run governance:orphan-classify` returned a dry-run classification table on 2026-04-17.
 - `npm run bridge-db:status` returned a healthy read-only bridge-db snapshot on 2026-04-17.
 - `npm run signals:morning-brief` returned a clean dry-run report on 2026-04-17.
+- `notification-hub` and `repo-auditor` are now fully landed on 2026-04-17 as global local-provider rows with bounded sandbox live proof.
+  - sandbox source rows exist for both providers
+  - `notification-hub` wrote one bounded proof event and one sync-run row
+  - `repo-auditor` wrote one bounded proof audit event and one sync-run row
+  - `signals:morning-brief -- --profile sandbox` now sees the notification-hub proof event
 - `notion-os --profile sandbox doctor --json` now passes sandbox path isolation, token isolation, and target isolation checks.
 - `npm run sandbox:smoke` now passes end to end.
 - The sandbox GitHub lane is now sufficiently proven in live mode on 2026-04-17 against `portfolio-actuation-sandbox` issue `#3`.
@@ -227,6 +232,11 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
 - Restart note:
   - structural cleanup and script-surface hardening are complete enough that Phase 10 work can proceed without another broad repo-audit pass first
   - as of 2026-04-17, dry-run confidence is strongest for `trend-analysis`, `orphan-classify`, `bridge-db status`, and `morning-brief`; the sandbox proving lane is healthy again
+  - as of 2026-04-17, `notification-hub` and `repo-auditor` are no longer “partially wired”:
+    - both are modeled as global local-provider source rows rather than fake per-project rows
+    - `notification-hub` is project-only in v1 and records skipped null/unmatched counts
+    - `repo-auditor` resolves through active GitHub source identifiers first, then project-title fallback
+    - sandbox live proof wrote real `External Signal Events` and `External Signal Sync Runs` rows for both providers
   - as of 2026-04-17, the orphan-classification live packet lane writes structured `work_packets` entries with execution metadata and project relations
   - as of 2026-04-17, orphan follow-through also has an approval-backed path: `--request-approval` creates or refreshes governance requests and `--create-approved-packets` materializes only approved kickoff packets
   - as of 2026-04-17, the sandbox GitHub lane has enough live evidence to stop proving it further unless a new action family is needed; the next work should be productization, not more sandbox mutation depth
@@ -236,9 +246,9 @@ Phase 10 - Signal Wiring and Intelligence Layer
 
 Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
 
-Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox lane, with the best next slice likely being additional signal wiring or using the new approval-backed orphan packet flow in live operations.
+Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox lane, but do not reopen `notification-hub` or `repo-auditor` as open adapter work.
 Recommended next slice:
-- wire one remaining local signal adapter end to end, preferably `notification-hub` or `GithubRepoAuditor`
-- keep the orphan approval-backed packet path and sandbox GitHub lane as already-proven supporting foundations rather than reopening them first
+- finish the remaining less-proven signal lane, most likely `bridge-db sync`
+- or improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
 
-Phase 10C should finish the remaining gaps by wiring at least one more local signal source, tightening morning-brief synthesis around top-priority projects, refining the orphan approval flow into a more explicit governed operating routine, and continuing managed weekly-review trend output.
+Phase 10C should now focus on the remaining gaps after adapter closure: bridge-db completion, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.

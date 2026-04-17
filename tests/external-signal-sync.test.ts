@@ -310,7 +310,86 @@ describe("notification hub sync", () => {
 			sourceIdValue: "bbb222",
 		});
 		expect(result.notes[0]).toContain("1 event(s) skipped");
+		expect(result.notes[0]).toContain("no project value");
 		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+	});
+
+	test("skips notification-hub events whose project cannot be resolved", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		await writeFile(
+			logPath,
+			JSON.stringify({
+				source: "cc",
+				level: "normal",
+				title: "Unknown project event",
+				body: "body",
+				project: "unknown-project",
+				timestamp: "2026-04-14T10:00:00Z",
+				event_id: "unknown-001",
+				received_at: "2026-04-14T10:00:01Z",
+				classified_level: "normal",
+			}),
+			"utf8",
+		);
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "my-project" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events).toHaveLength(0);
+		expect(result.notes[0]).toContain("could not be matched");
+	});
+
+	test("resolves notification-hub events through existing GitHub source identifiers", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		await writeFile(
+			logPath,
+			JSON.stringify({
+				source: "cc",
+				level: "info",
+				title: "Repo activity",
+				body: "body",
+				project: "owner/repo-mapped",
+				timestamp: "2026-04-14T10:00:00Z",
+				event_id: "mapped-001",
+				received_at: "2026-04-14T10:00:01Z",
+				classified_level: "info",
+			}),
+			"utf8",
+		);
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "Different Title" }],
+			false,
+			[
+				baseSource({
+					id: "gh-source-1",
+					localProjectIds: ["project-abc"],
+					identifier: "owner/repo-mapped",
+				}),
+			],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events).toHaveLength(1);
+		expect(result.events[0]?.localProjectId).toBe("project-abc");
 	});
 
 	test("deduplicates events already in eventKeySet", async () => {
@@ -725,6 +804,50 @@ describe("repo auditor sync", () => {
 		});
 		expect(result.notes[0]).toContain("Report date: 2026-04-10");
 		expect(result.notes[1]).toContain("1 audit(s) skipped");
+	});
+
+	test("resolves repo auditor events through existing GitHub source identifiers", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "ra-test-"));
+		const report = {
+			generated_at: "2026-04-10T00:00:00Z",
+			audits: [
+				{
+					metadata: {
+						name: "repo-mapped",
+						full_name: "owner/repo-mapped",
+					},
+					grade: "B",
+					overall_score: 0.8,
+					flags: [],
+				},
+			],
+		};
+		await writeFile(
+			join(tmpDir, "audit-report-saagpatel-2026-04-10.json"),
+			JSON.stringify(report),
+			"utf8",
+		);
+
+		process.env["GITHUB_AUDITOR_OUTPUT_DIR"] = tmpDir;
+		const result = await syncRepoAuditorSources(
+			repoAuditorProvider(),
+			[repoAuditorSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "Different Title" }],
+			false,
+			[
+				baseSource({
+					id: "gh-source-1",
+					localProjectIds: ["project-abc"],
+					identifier: "owner/repo-mapped",
+				}),
+			],
+		);
+
+		expect(result.events).toHaveLength(1);
+		expect(result.events[0]?.localProjectId).toBe("project-abc");
 	});
 
 	test("deduplicates events already in eventKeySet", async () => {

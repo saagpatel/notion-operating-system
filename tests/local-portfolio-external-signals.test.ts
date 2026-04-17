@@ -221,6 +221,64 @@ describe("local portfolio external signals", () => {
 		expect(sourceConfig.manualSeeds[0]?.providerScopeSlug).toBeUndefined();
 	});
 
+	test("allows global local-provider manual seeds without localProjectId", async () => {
+		const sourceConfig = parseLocalPortfolioExternalSignalSourceConfig(
+			await readConfig(
+				"../config/local-portfolio-external-signal-sources.json",
+			),
+		);
+
+		const notificationHubSeed = sourceConfig.manualSeeds.find(
+			(seed) => seed.identifier === "notification-hub",
+		);
+		const repoAuditorSeed = sourceConfig.manualSeeds.find(
+			(seed) => seed.identifier === "repo-auditor",
+		);
+
+		expect(notificationHubSeed?.localProjectId).toBeUndefined();
+		expect(notificationHubSeed?.provider).toBe("Notification Hub");
+		expect(repoAuditorSeed?.localProjectId).toBeUndefined();
+		expect(repoAuditorSeed?.provider).toBe("Repo Auditor");
+	});
+
+	test("dedupes global manual seeds by provider source type and identifier", async () => {
+		const sourceConfig = parseLocalPortfolioExternalSignalSourceConfig({
+			...(await readConfig(
+				"../config/local-portfolio-external-signal-sources.json",
+			)),
+			manualSeeds: [
+				{
+					title: "Notification Hub - Event Log",
+					provider: "Notification Hub",
+					sourceType: "Event Log",
+					status: "Active",
+					environment: "N/A",
+					syncStrategy: "Incremental",
+					identifier: "notification-hub",
+				},
+				{
+					title: "Duplicate Notification Hub Row",
+					provider: "Notification Hub",
+					sourceType: "Event Log",
+					status: "Active",
+					environment: "N/A",
+					syncStrategy: "Incremental",
+					identifier: "notification-hub",
+				},
+			],
+		});
+
+		const plans = buildExternalSignalSeedPlans({
+			projects: [],
+			packets: [],
+			sourceConfig,
+		});
+
+		expect(plans).toHaveLength(1);
+		expect(plans[0]?.identifier).toBe("notification-hub");
+		expect(plans[0]?.localProjectId).toBeUndefined();
+	});
+
 	test("validates the phase-5 view plan against representative schemas", async () => {
 		const controlConfig = parseLocalPortfolioControlTowerConfig(
 			await readConfig("../config/local-portfolio-control-tower.json"),

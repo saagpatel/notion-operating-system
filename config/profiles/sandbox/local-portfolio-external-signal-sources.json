@@ -39,5 +39,25 @@
       "defaultSyncStrategy": "Poll"
     }
   ],
-  "manualSeeds": []
+  "manualSeeds": [
+    {
+      "title": "Notification Hub - Event Log",
+      "provider": "Notification Hub",
+      "sourceType": "Event Log",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Incremental",
+      "identifier": "notification-hub"
+    },
+    {
+      "title": "GithubRepoAuditor - Audit Reports",
+      "provider": "Repo Auditor",
+      "sourceType": "Event Log",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Incremental",
+      "identifier": "repo-auditor",
+      "sourceUrl": "https://github.com/saagpatel/GithubRepoAuditor"
+    }
+  ]
 }

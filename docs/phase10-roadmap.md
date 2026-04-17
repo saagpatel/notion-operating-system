@@ -1,5 +1,26 @@
 # Phase 10 Roadmap: Signal Consolidation and AI Synthesis
 
+## Update — 2026-04-17
+
+Two of the originally planned local adapters are now fully landed on `main`:
+
+- `notification-hub`
+- `GithubRepoAuditor`
+
+What is now true:
+
+- both are wired through `src/notion/external-signal-sync.ts`
+- both are modeled as global local-provider source rows, not fake per-project rows
+- `notification-hub` is intentionally project-only in v1 and skips null or unmatched project events with counted notes
+- `GithubRepoAuditor` resolves projects through active GitHub source identifiers first, then project-title fallback
+- both were proven in sandbox live mode on 2026-04-17 with real `External Signal Events` and `External Signal Sync Runs` writes
+
+What remains open from the old Phase 10C framing:
+
+- `bridge-db` completion
+- morning-brief and command-center productization on top of the richer signal graph
+- governed orphan-flow polish and trend-output maturity
+
 Generated: 2026-04-14. Context: post-Phase-9 cleanup session brainstorm.
 
 ---

@@ -60,10 +60,11 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
 - the orphan-classification lane now has an approval-backed path too: `--request-approval` creates governance requests for kickoff packets, and `--create-approved-packets` only materializes approved ones
 - Current `governance:health-report` may still warn in active runtime about missing `VERCEL_TOKEN` and `VERCEL_WEBHOOK_SECRET`; treat that as an operational-env follow-up, not a code bug
 - The next meaningful work should start from one explicit Phase 10 delivery slice, not from another repo cleanup pass
+- `notification-hub` and `repo-auditor` are now fully landed enough that they should be treated as completed supporting infrastructure, not as the next default adapter tasks
 
 ## Open Loops
 - Advance active Phase 10 work rather than reopening generic cleanup:
-  - continue signal-adapter wiring where it is operationally useful
+  - continue signal-adapter wiring only where a real gap still remains, most likely `bridge-db`
   - keep morning-brief, orphan classification, and trend-analysis lanes coherent
   - prefer the new approval-backed orphan path for live use when human signoff is desirable
   - preserve script-surface discipline as new commands are added
@@ -75,10 +76,15 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
 ## Next Best Step
 1. Re-ground from `HANDOFF.md`, `docs/notion-roadmap.md`, and `docs/script-surface-classification.md`.
 2. Choose the next explicit Phase 10 implementation slice now that the sandbox rehearsal lane is healthy again.
-   The best current candidate is one more local signal-adapter wiring pass, preferably `notification-hub` or `GithubRepoAuditor`.
+   The best current candidate is no longer `notification-hub` or `GithubRepoAuditor`; those are already proven in sandbox live mode.
+   Choose either `bridge-db` completion or operator-surface productization on top of the proven adapters.
 3. Treat the sandbox GitHub lane, orphan packet structure, and approval-backed orphan flow as already-proven foundations unless a new bug appears.
-4. Prefer shared CLI additions over new standalone script entrypoints.
-5. Re-run `notion-os --profile sandbox doctor --json`, `npm run sandbox:smoke`, and the relevant Phase 10 dry-run checks after any new work.
+4. Treat the `notification-hub` and `repo-auditor` adapters as already-proven foundations too:
+   - both use global local-provider source rows
+   - `notification-hub` is project-only in v1
+   - `repo-auditor` resolves through GitHub source identifiers first
+5. Prefer shared CLI additions over new standalone script entrypoints.
+6. Re-run `notion-os --profile sandbox doctor --json`, `npm run sandbox:smoke`, and the relevant Phase 10 dry-run checks after any new work.
 
 ## Guardrails
 - Reuse established decisions unless I explicitly reopen them

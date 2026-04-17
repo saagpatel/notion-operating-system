@@ -28,7 +28,7 @@ The repo has completed the Phase 1 through Phase 9 cleanup and product-shape pro
 7. deeper observability and operator diagnosis with recent-run inspection
 8. profile portability, bootstrap, diff, clone, upgrade, and config lifecycle support
 9. product-shape cleanup, modern npm aliases, and internal utility quarantine
-10. early Phase 10 signal wiring, morning-brief, orphan classification, trend analysis, and bridge-db integration work is now present in the codebase, with partial dry-run verification completed but the sandbox proving lane still not trusted
+10. early Phase 10 signal wiring, morning-brief, orphan classification, trend analysis, and bridge-db integration work is now present in the codebase, with the `notification-hub` and `repo-auditor` adapters now proven in sandbox live mode and the remaining Phase 10 work narrowed to bridge-db plus operator-surface productization
 
 ## Post-Phase-10 hardening track
 
@@ -71,6 +71,17 @@ Current confidence state:
   - `npm run governance:orphan-classify` returns a dry-run classification table
   - `npm run bridge-db:status` returns a healthy read-only bridge-db snapshot
 - `npm run signals:morning-brief` now returns a clean dry-run report
+- the `notification-hub` and `repo-auditor` adapters are now fully landed as first-class global local-provider rows
+  - manual seeds may omit `localProjectId` for those global providers when they include a stable `identifier`
+  - `notification-hub` is intentionally project-only in v1 and skips null or unmatched project events with note counts
+  - `repo-auditor` now resolves through active GitHub source identifiers first, then project-title fallback
+- the sandbox profile provider config now includes `notification_hub` and `repo_auditor`, and the Phase 5 live schema now includes `Notification Hub`, `Repo Auditor`, `Event Log`, `Notification`, and `Audit` select options
+- sandbox live proof on 2026-04-17 now includes:
+  - global source rows for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports`
+  - one bounded `Notification Hub` event written through the real sync path
+  - one bounded `Repo Auditor` audit event written through the real sync path
+  - matching `External Signal Sync Runs` rows for both providers
+  - `signals:morning-brief -- --profile sandbox` now surfaces the notification-hub proof event
 - `governance:orphan-classify --live --create-packets` now builds structured `work_packets` records with execution fields and `Local Project` relations instead of generic markdown-only packet publishes
 - `governance:orphan-classify` now also supports an approval-backed orphan flow via `--request-approval`, optional `--approve`, and `--create-approved-packets`
 - `notion-os --profile sandbox doctor --json` now passes all sandbox isolation checks
@@ -182,10 +193,11 @@ If resuming from here, do not start with another repo cleanup pass.
 
 Start with one explicit Phase 10 product slice:
 
-1. wire one remaining local signal adapter end to end, preferably `notification-hub` or `GithubRepoAuditor`
-2. or tighten the morning-brief / orphan-approval flow into a more polished governed operating routine
+1. finish the remaining Phase 10 signal lane that is still less-proven than the others, most likely `bridge-db sync`
+2. or productize the operator surface on top of the now-proven adapters:
+   morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
 
-The preferred first move is additional signal-adapter wiring, because the sandbox, orphan packet, and governed GitHub foundations are already strong enough.
+The preferred first move is no longer `notification-hub` or `GithubRepoAuditor`; those are now closed enough. The best next move is either `bridge-db` completion or operator-surface productization on top of the proven signal lanes.
 
 ## Known assumptions
 
@@ -209,6 +221,7 @@ The correct current posture is:
 
 - the repo is structurally healthy
 - the cleanup and command-surface simplification pass is complete
-- several Phase 10 dry-run lanes are already usable (`trend-analysis`, `orphan-classify`, `bridge-db status`, `morning-brief`)
+- several Phase 10 dry-run lanes are already usable (`trend-analysis`, `orphan-classify`, `bridge-db status`, `morning-brief`, `signals sync --provider notification_hub`, `signals sync --provider repo_auditor`)
 - the sandbox proving lane is healthy again and `npm run sandbox:smoke` passes
+- the `notification-hub` and `repo-auditor` adapters are now proven in sandbox live mode with real event and sync-run writes
 - the next meaningful work should start from one explicit Phase 10 productization slice rather than another broad cleanup sweep

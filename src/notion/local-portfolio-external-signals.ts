@@ -93,7 +93,7 @@ export interface ExternalSignalSourceSeedTemplate {
 
 export interface ManualExternalSignalSeedPlan {
 	title: string;
-	localProjectId: string;
+	localProjectId?: string;
 	provider: ExternalSignalProviderName;
 	sourceType: ExternalSourceType;
 	status: ExternalSourceStatus;
@@ -254,7 +254,7 @@ export interface ExternalRecommendationAdjustments {
 
 export interface ExternalSignalSeedPlan {
 	title: string;
-	localProjectId: string;
+	localProjectId?: string;
 	provider: ExternalSignalProviderName;
 	sourceType: ExternalSourceType;
 	status: ExternalSourceStatus;
@@ -561,11 +561,7 @@ export function buildExternalSignalSeedPlans(input: {
 	const seenSeedKeys = new Set<string>();
 	return [...input.sourceConfig.manualSeeds, ...generatedSeeds].filter(
 		(plan) => {
-			const key = [
-				plan.localProjectId.trim().toLowerCase(),
-				plan.provider.trim().toLowerCase(),
-				plan.sourceType.trim().toLowerCase(),
-			].join("::");
+			const key = buildExternalSignalSeedPlanKey(plan);
 			if (seenSeedKeys.has(key)) {
 				return false;
 			}
@@ -573,6 +569,33 @@ export function buildExternalSignalSeedPlans(input: {
 			return true;
 		},
 	);
+}
+
+function buildExternalSignalSeedPlanKey(
+	plan: Pick<
+		ExternalSignalSeedPlan,
+		"localProjectId" | "provider" | "sourceType" | "identifier"
+	>,
+): string {
+	if (plan.localProjectId?.trim()) {
+		return [
+			plan.localProjectId.trim().toLowerCase(),
+			plan.provider.trim().toLowerCase(),
+			plan.sourceType.trim().toLowerCase(),
+		].join("::");
+	}
+	return [
+		"global",
+		plan.provider.trim().toLowerCase(),
+		plan.sourceType.trim().toLowerCase(),
+		(plan.identifier ?? "").trim().toLowerCase(),
+	].join("::");
+}
+
+function providerSupportsGlobalManualSeed(
+	provider: ExternalSignalProviderName,
+): boolean {
+	return provider === "Notification Hub" || provider === "Repo Auditor";
 }
 
 export function selectPriorityProjectsForExternalSignals(input: {
@@ -1116,10 +1139,7 @@ function parseManualSeeds(raw: unknown): ManualExternalSignalSeedPlan[] {
 		const value = entry as Record<string, unknown>;
 		const parsed = {
 			title: requiredString(value.title, `manualSeeds[${index}].title`),
-			localProjectId: requiredString(
-				value.localProjectId,
-				`manualSeeds[${index}].localProjectId`,
-			),
+			localProjectId: optionalString(value.localProjectId),
 			provider: parseProviderName(
 				requiredString(value.provider, `manualSeeds[${index}].provider`),
 			),
@@ -1147,6 +1167,18 @@ function parseManualSeeds(raw: unknown): ManualExternalSignalSeedPlan[] {
 			providerScopeId: optionalString(value.providerScopeId),
 			providerScopeSlug: optionalString(value.providerScopeSlug),
 		};
+		if (!parsed.localProjectId?.trim()) {
+			if (!providerSupportsGlobalManualSeed(parsed.provider)) {
+				throw new AppError(
+					`manualSeeds[${index}].localProjectId is required for ${parsed.provider} sources`,
+				);
+			}
+			if (!parsed.identifier?.trim()) {
+				throw new AppError(
+					`manualSeeds[${index}].identifier is required when localProjectId is omitted`,
+				);
+			}
+		}
 		if (parsed.provider === "Vercel") {
 			if (!parsed.identifier?.trim()) {
 				throw new AppError(

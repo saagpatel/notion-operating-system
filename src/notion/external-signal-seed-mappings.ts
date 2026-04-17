@@ -79,7 +79,9 @@ export async function runExternalSignalSeedMappingsCommand(
           title: plan.title,
           properties: {
             [sourceSchema.titlePropertyName]: titleValue(plan.title),
-            "Local Project": relationValue([plan.localProjectId]),
+            "Local Project": relationValue(
+              plan.localProjectId ? [plan.localProjectId] : [],
+            ),
             Provider: selectPropertyValue(plan.provider),
             "Source Type": selectPropertyValue(plan.sourceType),
             Status: selectPropertyValue(plan.status),
@@ -99,6 +101,9 @@ export async function runExternalSignalSeedMappingsCommand(
             `- Provider: ${plan.provider}`,
             `- Source type: ${plan.sourceType}`,
             `- Status: ${plan.status}`,
+            plan.localProjectId
+              ? `- Local Project: ${plan.localProjectId}`
+              : "- Local Project: global provider row",
             ...(plan.identifier ? [`- Identifier: ${plan.identifier}`] : []),
             ...(plan.sourceUrl ? [`- Source URL: ${plan.sourceUrl}`] : []),
             ...(plan.providerScopeType ? [`- Scope type: ${plan.providerScopeType}`] : []),
