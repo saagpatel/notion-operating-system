@@ -107,6 +107,14 @@ describe("package surface", () => {
     }
   }, 20_000);
 
+  test("dry-run example script stays executable", async () => {
+    const result = await runNpmScript("dry-run:example", []);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain('"dryRun": true');
+  }, 20_000);
+
   test("straggler direct scripts render help safely instead of doing work", async () => {
     const checks = [
       {

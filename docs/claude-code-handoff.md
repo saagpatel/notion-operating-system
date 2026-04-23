@@ -53,18 +53,18 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
   - shared CLI + modern npm aliases are the public operator path
   - internal maintenance tools are quarantined under `src/internal/*`
   - compatibility aliases remain only where they still buy something
-- a 2026-04-17 confidence pass verified that `control-tower:trend-analysis`, `governance:orphan-classify`, `bridge-db:status`, and `signals:morning-brief` all produce useful dry-run or read-only output
+- a 2026-04-23 remediation pass verified that `dry-run:example`, `bridge-db:status`, and `bridge-db:sync` all produce useful dry-run or read-only output
 - the same pass repaired the `sandbox` profile so that sandbox doctor now passes path isolation, token isolation, and target isolation, and `npm run sandbox:smoke` now passes end to end
 - the sandbox profile-owned Vercel manual seeds and rollout targets were trimmed because the sandbox workspace does not currently contain matching local project rows for those primary-profile IDs
 - the orphan-classification packet lane now creates structured `work_packets` entries with execution fields and `Local Project` relations; the remaining orphan follow-through gap is approval gating rather than packet shape
 - the orphan-classification lane now has an approval-backed path too: `--request-approval` creates governance requests for kickoff packets, and `--create-approved-packets` only materializes approved ones
 - Current `governance:health-report` may still warn in active runtime about missing `VERCEL_TOKEN` and `VERCEL_WEBHOOK_SECRET`; treat that as an operational-env follow-up, not a code bug
 - The next meaningful work should start from one explicit Phase 10 delivery slice, not from another repo cleanup pass
-- `notification-hub` and `repo-auditor` are now fully landed enough that they should be treated as completed supporting infrastructure, not as the next default adapter tasks
+- `notification-hub` and `repo-auditor` are implemented, sandbox-proven, and now exercise primary-profile source rows in dry-run mode
 
 ## Open Loops
 - Advance active Phase 10 work rather than reopening generic cleanup:
-  - continue signal-adapter wiring only where a real gap still remains, most likely `bridge-db`
+  - clean up signal quality for `notification_hub` unmatched/null project events and refresh or document the `repo_auditor` audit input date
   - keep morning-brief, orphan classification, and trend-analysis lanes coherent
   - prefer the new approval-backed orphan path for live use when human signoff is desirable
   - preserve script-surface discipline as new commands are added
