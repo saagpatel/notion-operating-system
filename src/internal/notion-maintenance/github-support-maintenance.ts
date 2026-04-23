@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../../config/load-default-env.js";
 
 import { recordCommandOutputSummary } from "../../cli/command-summary.js";
 import { toErrorMessage } from "../../utils/errors.js";

@@ -1,5 +1,5 @@
 // Internal historical utility. Kept for compatibility scripts, not the shared operator surface.
-import "dotenv/config";
+import "../../config/load-default-env.js";
 
 import fs from "node:fs/promises";
 import path from "node:path";

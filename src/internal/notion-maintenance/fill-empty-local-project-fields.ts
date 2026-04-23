@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../../config/load-default-env.js";
 
 import { isDirectExecution } from "../../cli/legacy.js";
 import { createNotionSdkClient } from "../../notion/notion-sdk.js";
