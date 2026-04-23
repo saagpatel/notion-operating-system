@@ -1,8 +1,8 @@
 # Phase 10 Roadmap: Signal Consolidation and AI Synthesis
 
-## Update — 2026-04-17
+## Update — 2026-04-23
 
-Two of the originally planned local adapters are now fully landed on `main`:
+Two of the originally planned local adapters are implemented and sandbox-proven:
 
 - `notification-hub`
 - `GithubRepoAuditor`
@@ -14,6 +14,9 @@ What is now true:
 - `notification-hub` is intentionally project-only in v1 and skips null or unmatched project events with counted notes
 - `GithubRepoAuditor` resolves projects through active GitHub source identifiers first, then project-title fallback
 - both were proven in sandbox live mode on 2026-04-17 with real `External Signal Events` and `External Signal Sync Runs` writes
+- primary-profile dry-runs now exercise active rows for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports`
+- remaining provider follow-up is signal quality: notification-hub null/unmatched project events and the repo-auditor audit input date
+- bridge-db sync now reads MCP `structuredContent.result`, accepts single-row result shapes, forwards `--db-path` through `BRIDGE_DB_PATH`, and completed a 2026-04-23 dry-run with zero failures
 
 What remains open from the old Phase 10C framing:
 
@@ -122,7 +125,7 @@ Each shipped event maps to:
 
 Bridge-db handoffs → `work_packets` is Phase 2 of this initiative. Lower urgency than the shipped events feed since handoffs are transient.
 
-**Implementation path:** New TypeScript adapter `src/notion/bridge-db-sync.ts`. Reads bridge-db SQLite directly (the DB path is `~/.local/share/bridge-db/bridge.db`) or via the MCP tools if the server is running. Wire into CLI as `notion-os bridge-db sync`.
+**Implementation path:** TypeScript adapter `src/notion/bridge-db-sync.ts` reads bridge-db through the MCP server. The default DB path is `~/.local/share/bridge-db/bridge.db`, and `notion-os bridge-db sync --db-path <path>` forwards that override to the subprocess as `BRIDGE_DB_PATH`.
 
 ---
 

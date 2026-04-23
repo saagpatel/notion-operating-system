@@ -113,7 +113,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 				type: "string",
 				valueName: "path",
 			},
-			{ name: "dryRun", description: "Force dry-run mode.", type: "boolean" },
+			{
+				name: "dryRun",
+				aliases: ["dry-run"],
+				description: "Force dry-run mode.",
+				type: "boolean",
+			},
 			{ name: "live", description: "Run a live publish.", type: "boolean" },
 			{
 				name: "title",
