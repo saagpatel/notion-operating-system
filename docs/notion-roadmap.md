@@ -23,6 +23,10 @@ Updated: 2026-04-23
 - `npm run dry-run:example` passed on 2026-04-23 using the documented `--dry-run` flag.
 - `npm run bridge-db:status` returned a healthy read-only bridge-db snapshot on 2026-04-23 with `unprocessed_shipped_count: 0`.
 - `npm run bridge-db:sync` completed in dry-run mode on 2026-04-23 with 0 SHIPPED rows, 50 personal-ops rows, and 0 failures.
+- A post-merge fresh clone from GitHub passed `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke:built-cli`, `npm run smoke:packed-install`, and `npm run smoke:git-install` on 2026-04-23.
+- Hosted Dependabot checks ran successfully on the final merged dependency heads after PR cleanup; Dependabot's `uuid` advisory workflow still fails because of the accepted `exceljs -> uuid` exception.
+- The 2026-04-23 dependency cleanup merged GitHub Actions, production dependency, TypeScript/Node types, and Vitest updates. It also added quiet dotenv loading for the `dotenv` 17 default banner so CLI JSON output remains machine-readable.
+- Stale fully merged remote feature branches were pruned on 2026-04-23; `origin/main` is now the only remaining remote branch.
 - `npm run signals:seed-mappings -- --limit 2` completed in dry-run mode on 2026-04-23.
 - `npm run signals:seed-mappings -- --live --limit 2` created active primary-profile source rows for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports` on 2026-04-23.
 - `signals:sync -- --provider notification_hub` and `signals:sync -- --provider repo_auditor` both complete dry-run on 2026-04-23 with `syncedSourceCount: 1`.
