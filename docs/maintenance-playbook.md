@@ -52,6 +52,7 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Treat npm `overrides` as temporary mitigations, not permanent architecture.
 - When upstream packages land the needed fix cleanly, remove the matching override and validate with `npm run verify` before merge.
 - Current accepted audit exception: `exceljs@4.4.0` still depends on `uuid@8.3.2`, which triggers the moderate `uuid` advisory path reported by `npm audit`. Do not downgrade `exceljs`; keep the risk limited to workbook import/export utilities and revisit replacement or isolation when a maintained upstream fix exists.
+- Current Dependabot posture after the 2026-04-23 cleanup: package and GitHub Actions update PRs are merged, but the `uuid` advisory workflow is still expected to fail until the accepted `exceljs` path is replaced, isolated, or fixed upstream.
 
 ## CI maintenance note
 

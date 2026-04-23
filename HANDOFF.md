@@ -14,7 +14,9 @@
   - check `git status --short --branch` when you need live repo state
   - the broad cleanup and hardening work landed on `main` on 2026-04-17; treat any future work as normal product or maintenance follow-through, not as an in-progress rescue branch
   - the restart docs were refreshed again after the final confidence pass on 2026-04-17 so they describe the merged repo state, not the pre-merge branch state
-  - the 2026-04-23 remediation pass repaired the `--dry-run` CLI alias, bridge-db MCP structured-result parsing, bridge-db `--db-path` forwarding, and the two primary-profile local-provider source rows; check `git status --short --branch` for whether those local changes have been committed yet
+  - the 2026-04-23 remediation pass repaired the `--dry-run` CLI alias, bridge-db MCP structured-result parsing, bridge-db `--db-path` forwarding, and the two primary-profile local-provider source rows; that work is merged on `main`
+  - the 2026-04-23 dependency cleanup merged the GitHub Actions, production dependency, TypeScript/Node types, and Vitest updates; `dotenv` 17 output is silenced through the repo loader so JSON CLI output stays parseable
+  - the 2026-04-23 branch cleanup deleted fully merged stale remote refs and local feature refs; only `origin/main` remains as a remote branch after pruning
 
 ## Structural work completed
 
@@ -68,6 +70,9 @@ Current confidence state:
 - the repo has passed repeated `npm test`, `npm run typecheck`, and `npm run build` verification loops after these changes
 - the merged 2026-04-17 confidence pass also verified `npm run verify` end to end with 44 passing test files and 284 passing tests
 - the 2026-04-23 remediation pass verified `npm run typecheck`, `npm test` with 44 passing files and 299 passing tests, `npm run build`, `npm run dry-run:example`, `npm run bridge-db:status`, `npm run bridge-db:sync`, `npm run signals:seed-mappings -- --live --limit 2`, and both provider-specific signal sync dry-runs
+- the 2026-04-23 dependency cleanup verified `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke:built-cli`, `npm run smoke:packed-install`, `npm run smoke:git-install`, `npm run dry-run:example`, `npm run bridge-db:status`, `npm run bridge-db:sync`, both provider-specific signal sync dry-runs, and `npm audit --json`
+- the 2026-04-23 post-merge confidence pass verified a fresh clone from GitHub with `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke:built-cli`, `npm run smoke:packed-install`, and `npm run smoke:git-install`
+- hosted Dependabot checks ran successfully on the final merged dependency heads; Dependabot's `uuid` advisory workflow still fails as expected because of the accepted `exceljs -> uuid` exception
 - a 2026-04-17 confidence pass also verified:
   - `npm run control-tower:trend-analysis` returns a clean dry-run report
   - `npm run governance:orphan-classify` returns a dry-run classification table
