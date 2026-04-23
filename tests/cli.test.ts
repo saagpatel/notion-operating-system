@@ -353,6 +353,33 @@ describe("cli parser", () => {
     expect(parsed.options.property).toEqual(["a=1", "b=true"]);
   });
 
+  test("maps option aliases to their canonical option names", () => {
+    const parsed = parseCliArgs(["--dry-run"], [
+      {
+        name: "dryRun",
+        aliases: ["dry-run"],
+        description: "dry",
+        type: "boolean",
+      },
+    ]);
+
+    expect(parsed.options.dryRun).toBe(true);
+    expect(parsed.options["dry-run"]).toBeUndefined();
+  });
+
+  test("keeps canonical camelCase flags working when aliases exist", () => {
+    const parsed = parseCliArgs(["--dryRun"], [
+      {
+        name: "dryRun",
+        aliases: ["dry-run"],
+        description: "dry",
+        type: "boolean",
+      },
+    ]);
+
+    expect(parsed.options.dryRun).toBe(true);
+  });
+
   test("keeps a legacy positional config path compatible with named flags", () => {
     const parsed = parseCliArgs(["./control-tower.json", "--today", "2026-03-28"], [
       { name: "today", description: "today", type: "string" },

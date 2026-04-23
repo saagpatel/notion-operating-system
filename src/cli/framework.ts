@@ -8,6 +8,7 @@ export interface GlobalCliOptions {
 
 export interface CliOptionDefinition {
   name: string;
+  aliases?: string[];
   description: string;
   type: CliOptionType;
   valueName?: string;
@@ -63,7 +64,13 @@ export const globalCliOptions = [
 ];
 
 export function parseCliArgs(argv: string[], options: CliOptionDefinition[] = []): ParsedCliArgs {
-  const optionMap = new Map(options.map((option) => [option.name, option]));
+  const optionMap = new Map<string, CliOptionDefinition>();
+  for (const option of options) {
+    optionMap.set(option.name, option);
+    for (const alias of option.aliases ?? []) {
+      optionMap.set(alias, option);
+    }
+  }
   const parsedOptions: Record<string, boolean | string | number | string[] | undefined> = {};
   const positionals: string[] = [];
   let helpRequested = false;
@@ -181,7 +188,11 @@ export function renderCommandHelp(command: CliCommandDefinition, commandPath: st
     lines.push("Options:");
     lines.push("  --help".padEnd(26) + "Show help for this command");
     for (const option of command.options) {
-      const label = `--${option.name}${option.type === "boolean" ? "" : ` <${option.valueName ?? option.name}>`}`;
+      const valueSuffix = option.type === "boolean" ? "" : ` <${option.valueName ?? option.name}>`;
+      const displayNames = [option.name, ...(option.aliases ?? [])].sort(
+        (left, right) => Number(!left.includes("-")) - Number(!right.includes("-")),
+      );
+      const label = displayNames.map((name) => `--${name}${valueSuffix}`).join(", ");
       const suffix =
         option.type === "enum" && option.choices
           ? ` Choices: ${option.choices.join(", ")}.`

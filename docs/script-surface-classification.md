@@ -1,6 +1,6 @@
 # Script Surface Classification
 
-Updated: 2026-03-29
+Updated: 2026-04-23
 
 ## Purpose
 
@@ -11,7 +11,7 @@ Use this file when deciding whether a legacy script should be migrated, kept as 
 Preferred operator surface:
 
 - `notion-os ...`
-- modern npm aliases such as `control-tower:sync`, `governance:audit`, `signals:sync`, and `rollout:operational`
+- modern npm aliases such as `control-tower:sync`, `governance:audit`, `signals:sync`, `bridge-db:sync`, and `rollout:operational`
 
 Legacy `portfolio-audit:*` script names remain compatibility aliases where they still matter, but they are no longer the recommended default surface.
 
@@ -22,6 +22,8 @@ These commands are part of the durable shared CLI surface and should stay discov
 ### Core
 
 - `publish`
+  - `--dry-run` is the preferred dry-run flag.
+  - `--dryRun` remains a backward-compatible alias.
 - `doctor`
 - `destinations check`
 - `destinations resolve`
@@ -30,6 +32,11 @@ These commands are part of the durable shared CLI surface and should stay discov
 - `profiles migrate`
 - `profiles export`
 - `profiles import`
+- `profiles diff`
+- `profiles clone`
+- `profiles bootstrap`
+- `profiles upgrade`
+- `logs recent`
 
 ### Control Tower
 
@@ -38,6 +45,9 @@ These commands are part of the durable shared CLI surface and should stay discov
 - `control-tower phase-closeout`
 - `control-tower views-plan`
 - `control-tower views-validate`
+- `control-tower export-project-snapshot`
+- `control-tower schema-report`
+- `control-tower trend-analysis`
 
 ### Execution
 
@@ -59,6 +69,7 @@ These commands are part of the durable shared CLI surface and should stay discov
 - `signals activity-refresh`
 - `signals views-validate`
 - `signals provider-expansion-audit`
+- `signals morning-brief`
 
 ### Governance
 
@@ -70,12 +81,23 @@ These commands are part of the durable shared CLI surface and should stay discov
 - `governance actuation-audit`
 - `governance webhook-shadow-drain`
 - `governance webhook-reconcile`
+- `governance orphan-classify`
+- `governance health-report`
 
 ### Rollout
 
 - `rollout operational`
 - `rollout cohort`
 - `rollout vercel-readiness`
+
+### Bridge DB
+
+- `bridge-db sync`
+- `bridge-db status`
+
+### Maintenance
+
+- `maintenance weekly-refresh`
 
 ## Compatibility Wrappers
 

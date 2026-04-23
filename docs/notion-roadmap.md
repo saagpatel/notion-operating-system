@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-04-17
+Updated: 2026-04-23
 
 ## Current Phase
 - Phase: 10 - Signal Wiring and Intelligence Layer
@@ -17,13 +17,19 @@ Updated: 2026-04-17
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
-- `npm run typecheck` passed on 2026-04-17.
-- `npm test` passed on 2026-04-17 with 44 files and 284 tests.
-- `npm run control-tower:trend-analysis` returned a clean dry-run report on 2026-04-17.
-- `npm run governance:orphan-classify` returned a dry-run classification table on 2026-04-17.
-- `npm run bridge-db:status` returned a healthy read-only bridge-db snapshot on 2026-04-17.
-- `npm run signals:morning-brief` returned a clean dry-run report on 2026-04-17.
-- `notification-hub` and `repo-auditor` are now fully landed on 2026-04-17 as global local-provider rows with bounded sandbox live proof.
+- `npm run typecheck` passed on 2026-04-23.
+- `npm test` passed on 2026-04-23 with 44 files and 299 tests.
+- `npm run build` passed on 2026-04-23.
+- `npm run dry-run:example` passed on 2026-04-23 using the documented `--dry-run` flag.
+- `npm run bridge-db:status` returned a healthy read-only bridge-db snapshot on 2026-04-23 with `unprocessed_shipped_count: 0`.
+- `npm run bridge-db:sync` completed in dry-run mode on 2026-04-23 with 0 SHIPPED rows, 50 personal-ops rows, and 0 failures.
+- `npm run signals:seed-mappings -- --limit 2` completed in dry-run mode on 2026-04-23.
+- `npm run signals:seed-mappings -- --live --limit 2` created active primary-profile source rows for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports` on 2026-04-23.
+- `signals:sync -- --provider notification_hub` and `signals:sync -- --provider repo_auditor` both complete dry-run on 2026-04-23 with `syncedSourceCount: 1`.
+  - `notification_hub` now exercises, but reports one event with no project value and 19 unmatched project names.
+  - `repo_auditor` now exercises, and reports audit input dated 2026-03-29 with 25 audits in file.
+- `npm audit --json` still reports 2 moderate findings through `exceljs -> uuid`; this is documented as an accepted temporary exception because the maintained `exceljs` line still depends on vulnerable `uuid`.
+- `notification-hub` and `repo-auditor` have sandbox live proof from 2026-04-17 and primary-profile dry-run exercise from 2026-04-23.
   - sandbox source rows exist for both providers
   - `notification-hub` wrote one bounded proof event and one sync-run row
   - `repo-auditor` wrote one bounded proof audit event and one sync-run row
@@ -228,15 +234,17 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - Orphan classification dry-run buckets all orphan projects without Notion writes
   - Trend analysis reports queue changes after two consecutive control-tower syncs
   - Sandbox proving lane stays isolated enough to trust `doctor` and `sandbox:smoke` before risky live rehearsal
-  - Typecheck clean, 284+ tests pass
+  - Typecheck clean, 299+ tests pass
 - Restart note:
   - structural cleanup and script-surface hardening are complete enough that Phase 10 work can proceed without another broad repo-audit pass first
-  - as of 2026-04-17, dry-run confidence is strongest for `trend-analysis`, `orphan-classify`, `bridge-db status`, and `morning-brief`; the sandbox proving lane is healthy again
-  - as of 2026-04-17, `notification-hub` and `repo-auditor` are no longer “partially wired”:
+  - as of 2026-04-23, dry-run confidence is strongest for `trend-analysis`, `orphan-classify`, `bridge-db status`, `bridge-db sync`, `dry-run:example`, and `morning-brief`; the sandbox proving lane is healthy again
+  - as of 2026-04-23, `notification-hub` and `repo-auditor` are implemented, sandbox-proven, and primary-profile dry-run exercised:
     - both are modeled as global local-provider source rows rather than fake per-project rows
     - `notification-hub` is project-only in v1 and records skipped null/unmatched counts
     - `repo-auditor` resolves through active GitHub source identifiers first, then project-title fallback
     - sandbox live proof wrote real `External Signal Events` and `External Signal Sync Runs` rows for both providers
+    - primary-profile source rows now exist for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports`
+    - next cleanup is signal quality: unmatched notification projects and aging repo-auditor input
   - as of 2026-04-17, the orphan-classification live packet lane writes structured `work_packets` entries with execution metadata and project relations
   - as of 2026-04-17, orphan follow-through also has an approval-backed path: `--request-approval` creates or refreshes governance requests and `--create-approved-packets` materializes only approved kickoff packets
   - as of 2026-04-17, the sandbox GitHub lane has enough live evidence to stop proving it further unless a new action family is needed; the next work should be productization, not more sandbox mutation depth
@@ -246,9 +254,9 @@ Phase 10 - Signal Wiring and Intelligence Layer
 
 Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
 
-Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox lane, but do not reopen `notification-hub` or `repo-auditor` as open adapter work.
+Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters with signal-quality and operator-surface follow-through remaining.
 Recommended next slice:
-- finish the remaining less-proven signal lane, most likely `bridge-db sync`
-- or improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
+- clean up `notification_hub` unmatched/null project skips and refresh or document the `repo_auditor` input date
+- improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
 
-Phase 10C should now focus on the remaining gaps after adapter closure: bridge-db completion, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.
+Phase 10C should now focus on the remaining gaps after adapter closure: signal-quality cleanup, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.

@@ -26,7 +26,7 @@ This repo exists to make future Codex sessions short and safe when publishing lo
 - `npm run destinations:resolve`
 - `npm run publish:notion -- --request <file>`
 - `npm run publish:notion -- --destination <alias> --file <path> --dry-run`
-- `npm run portfolio-audit:overhaul-notion`
+- `npm run maintenance:weekly-refresh`
 - `npm run portfolio-audit:views-plan`
 - `npm run portfolio-audit:views-validate`
 - `npm run portfolio-audit:control-tower-sync`
@@ -55,7 +55,7 @@ This repo exists to make future Codex sessions short and safe when publishing lo
 
 ## Scoped operations rule for single-project pipeline pushes
 
-- When a session is pushing a single project through the Notion and GitHub pipeline, do not finish by running `npm run portfolio-audit:overhaul-notion`, `npm run portfolio-audit:external-signal-sync`, or `npm run portfolio-audit:control-tower-sync` unless the user explicitly asks for a portfolio-wide refresh.
+- When a session is pushing a single project through the Notion and GitHub pipeline, do not finish by running `npm run maintenance:weekly-refresh`, `npm run portfolio-audit:external-signal-sync`, or `npm run portfolio-audit:control-tower-sync` unless the user explicitly asks for a portfolio-wide refresh.
 - Treat requests such as "refresh everything live", "run the weekly sequence", and "catch me up" as explicit permission to use the portfolio-wide commands.
 - Preferred fast path for one project: explore the project and search Notion for an existing row, create or push the GitHub repo if needed, publish the build log and any skills, research, or tool records, run `npm run portfolio-audit:external-signal-seed-mappings -- --live --limit <N>` to create the source row, then do one Notion MCP property update that sets counts, state fields, and any needed derived fields.
 - For this single-project lane only, direct Notion MCP property updates are preferred over repo-wide sync commands because there is no single-project CLI for those field updates today.
@@ -71,9 +71,9 @@ Only stop for:
 
 ## Local Portfolio Projects
 
-- Use `npm run portfolio-audit:overhaul-notion` only when the user explicitly wants a portfolio-wide refresh of `Local Portfolio Projects` from the local audit and report evidence.
-- This command upgrades the schema, refreshes project pages, and backfills reverse relations from the operating databases.
-- Do not use `portfolio-audit:overhaul-notion` as the default follow-up after publishing or wiring a single project. For single-project pushes, follow the scoped rule above and set the project fields directly.
+- Use `npm run maintenance:weekly-refresh` only when the user explicitly wants the portfolio-wide weekly refresh sequence.
+- Use targeted shared-CLI commands such as `npm run portfolio-audit:control-tower-sync` when the user asks for a narrower portfolio-wide refresh.
+- Do not use portfolio-wide refresh commands as the default follow-up after publishing or wiring a single project. For single-project pushes, follow the scoped rule above and set the project fields directly.
 - Saved view definitions live in `/Users/d/Notion/config/local-portfolio-views.json`.
 - The view config now also stores the live Notion view IDs for the target eight views.
 - Use `npm run portfolio-audit:views-plan` to print the exact saved-view plan for future sessions.
