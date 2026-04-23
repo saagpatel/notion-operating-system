@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../../config/load-default-env.js";
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";

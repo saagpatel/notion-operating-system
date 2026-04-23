@@ -14,6 +14,7 @@
   - check `git status --short --branch` when you need live repo state
   - the broad cleanup and hardening work landed on `main` on 2026-04-17; treat any future work as normal product or maintenance follow-through, not as an in-progress rescue branch
   - the restart docs were refreshed again after the final confidence pass on 2026-04-17 so they describe the merged repo state, not the pre-merge branch state
+  - the 2026-04-23 remediation pass repaired the `--dry-run` CLI alias, bridge-db MCP structured-result parsing, bridge-db `--db-path` forwarding, and the two primary-profile local-provider source rows; check `git status --short --branch` for whether those local changes have been committed yet
 
 ## Structural work completed
 
@@ -28,7 +29,7 @@ The repo has completed the Phase 1 through Phase 9 cleanup and product-shape pro
 7. deeper observability and operator diagnosis with recent-run inspection
 8. profile portability, bootstrap, diff, clone, upgrade, and config lifecycle support
 9. product-shape cleanup, modern npm aliases, and internal utility quarantine
-10. early Phase 10 signal wiring, morning-brief, orphan classification, trend analysis, and bridge-db integration work is now present in the codebase, with the `notification-hub` and `repo-auditor` adapters now proven in sandbox live mode and the remaining Phase 10 work narrowed to bridge-db plus operator-surface productization
+10. early Phase 10 signal wiring, morning-brief, orphan classification, trend analysis, and bridge-db integration work is now present in the codebase, with the `notification-hub` and `repo-auditor` adapters proven in sandbox and primary-profile dry-run mode; remaining Phase 10 work is now operator-surface productization and signal-quality cleanup
 
 ## Post-Phase-10 hardening track
 
@@ -66,12 +67,13 @@ Current confidence state:
 - package surface, script surface, and docs are much more aligned than before this cleanup track
 - the repo has passed repeated `npm test`, `npm run typecheck`, and `npm run build` verification loops after these changes
 - the merged 2026-04-17 confidence pass also verified `npm run verify` end to end with 44 passing test files and 284 passing tests
+- the 2026-04-23 remediation pass verified `npm run typecheck`, `npm test` with 44 passing files and 299 passing tests, `npm run build`, `npm run dry-run:example`, `npm run bridge-db:status`, `npm run bridge-db:sync`, `npm run signals:seed-mappings -- --live --limit 2`, and both provider-specific signal sync dry-runs
 - a 2026-04-17 confidence pass also verified:
   - `npm run control-tower:trend-analysis` returns a clean dry-run report
   - `npm run governance:orphan-classify` returns a dry-run classification table
   - `npm run bridge-db:status` returns a healthy read-only bridge-db snapshot
 - `npm run signals:morning-brief` now returns a clean dry-run report
-- the `notification-hub` and `repo-auditor` adapters are now fully landed as first-class global local-provider rows
+- the `notification-hub` and `repo-auditor` adapters are implemented, sandbox-proven, and now have active primary-profile local-provider source rows
   - manual seeds may omit `localProjectId` for those global providers when they include a stable `identifier`
   - `notification-hub` is intentionally project-only in v1 and skips null or unmatched project events with note counts
   - `repo-auditor` now resolves through active GitHub source identifiers first, then project-title fallback
@@ -82,6 +84,10 @@ Current confidence state:
   - one bounded `Repo Auditor` audit event written through the real sync path
   - matching `External Signal Sync Runs` rows for both providers
   - `signals:morning-brief -- --profile sandbox` now surfaces the notification-hub proof event
+- primary-profile dry-runs on 2026-04-23 now exercise both providers with `syncedSourceCount: 1`
+  - `notification_hub` still reports data-quality skips for one event with no project value and 19 unmatched project names
+  - `repo_auditor` reports the current audit input date as `2026-03-29` with 25 audits in file
+- `npm audit --json` currently reports the accepted moderate `exceljs -> uuid` exception; do not downgrade `exceljs` for that advisory
 - `governance:orphan-classify --live --create-packets` now builds structured `work_packets` records with execution fields and `Local Project` relations instead of generic markdown-only packet publishes
 - `governance:orphan-classify` now also supports an approval-backed orphan flow via `--request-approval`, optional `--approve`, and `--create-approved-packets`
 - `notion-os --profile sandbox doctor --json` now passes all sandbox isolation checks
@@ -167,7 +173,7 @@ The repo now includes the tracked `sandbox` profile descriptor and profile-owned
 
 Important safety note: `notion-os --profile sandbox doctor` is the first proof gate and `npm run sandbox:smoke` is the fuller operational rehearsal. The smoke path runs from a temporary workspace copy so repo-tracked files do not get rewritten while the sandbox sequence exercises dry-run, validation, live-safe sync, and recent-log inspection. If the doctor reports token overlap, target overlap, or env-path masking, fix the sandbox before any live rehearsal.
 
-Current local reality from the 2026-04-17 confidence pass:
+Sandbox local reality from the 2026-04-17 confidence pass:
 
 - `notion-os --profile sandbox doctor --json` now passes `sandbox-path-overrides`, `sandbox-token-isolation`, and `sandbox-target-isolation`
 - `npm run sandbox:smoke` now passes end to end
@@ -179,7 +185,8 @@ Current local reality from the 2026-04-17 confidence pass:
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
   - Phase 10 completion and signal-layer productization
-  - dependency review and override cleanup as upstream fixes land
+  - signal-quality cleanup for `notification-hub` unmatched/null project events and aging `repo_auditor` report input
+  - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
   - continued docs accuracy
   - sandbox smoke rehearsal discipline for risky advanced workflows
   - packaging the new generic GitHub action-request helper into whichever higher-level workflows should own comment/update request creation next
@@ -193,11 +200,11 @@ If resuming from here, do not start with another repo cleanup pass.
 
 Start with one explicit Phase 10 product slice:
 
-1. finish the remaining Phase 10 signal lane that is still less-proven than the others, most likely `bridge-db sync`
-2. or productize the operator surface on top of the now-proven adapters:
+1. clean up signal quality: map or suppress noisy `notification_hub` project misses and refresh the `repo_auditor` audit input if it should be current
+2. productize the operator surface on top of the now-proven adapters:
    morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
 
-The preferred first move is no longer `notification-hub` or `GithubRepoAuditor`; those are now closed enough. The best next move is either `bridge-db` completion or operator-surface productization on top of the proven signal lanes.
+The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`. The best next move is signal-quality cleanup, then operator-surface productization on top of the proven signal lanes.
 
 ## Known assumptions
 
@@ -223,5 +230,5 @@ The correct current posture is:
 - the cleanup and command-surface simplification pass is complete
 - several Phase 10 dry-run lanes are already usable (`trend-analysis`, `orphan-classify`, `bridge-db status`, `morning-brief`, `signals sync --provider notification_hub`, `signals sync --provider repo_auditor`)
 - the sandbox proving lane is healthy again and `npm run sandbox:smoke` passes
-- the `notification-hub` and `repo-auditor` adapters are now proven in sandbox live mode with real event and sync-run writes
+- the `notification-hub` and `repo-auditor` adapters are proven in sandbox live mode and now exercise primary-profile source rows in dry-run mode
 - the next meaningful work should start from one explicit Phase 10 productization slice rather than another broad cleanup sweep

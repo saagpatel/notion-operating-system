@@ -44,7 +44,7 @@ After this change:
 
 - GitHub Actions as the live scheduler
 - non-GitHub provider expansion in the weekly lane
-- `overhaul-notion`
+- removed legacy portfolio-wide overhaul commands
 - governance actuation
 - rollout commands
 - official Notion Views API migration

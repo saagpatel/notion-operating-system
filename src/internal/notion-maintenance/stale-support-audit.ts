@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../../config/load-default-env.js";
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
