@@ -11,7 +11,12 @@ import type {
 	BridgeDbStatus,
 	ShippedEvent,
 } from "../src/notion/bridge-db-mcp-client.js";
-import { BridgeDbMcpSession } from "../src/notion/bridge-db-mcp-client.js";
+import {
+	BridgeDbMcpSession,
+	buildBridgeDbMcpEnvironment,
+	normalizeBridgeDbToolArray,
+	parseBridgeDbToolResult,
+} from "../src/notion/bridge-db-mcp-client.js";
 import {
 	markRowProcessed,
 	readShippedRows,
@@ -95,9 +100,11 @@ describe("readShippedRows", () => {
 		const events = [makeEvent()];
 		session.getShippedEvents.mockResolvedValue(events);
 
-		const result = await readShippedRows("/ignored/path", 25);
+		const result = await readShippedRows("/custom/bridge.db", 25);
 
-		expect(BridgeDbMcpSession.open).toHaveBeenCalledOnce();
+		expect(BridgeDbMcpSession.open).toHaveBeenCalledWith({
+			dbPath: "/custom/bridge.db",
+		});
 		expect(session.getShippedEvents).toHaveBeenCalledWith(25);
 		expect(session.close).toHaveBeenCalledOnce();
 		expect(result).toEqual(events);
@@ -134,14 +141,12 @@ describe("readShippedRows", () => {
 		expect(session.close).toHaveBeenCalledOnce();
 	});
 
-	test("dbPath parameter is accepted but not forwarded to MCP (MCP uses own config)", async () => {
+	test("forwards dbPath to the MCP session", async () => {
 		await readShippedRows("/custom/bridge.db", 5);
-		// getShippedEvents only gets limit — dbPath is intentionally dropped
+		expect(BridgeDbMcpSession.open).toHaveBeenCalledWith({
+			dbPath: "/custom/bridge.db",
+		});
 		expect(session.getShippedEvents).toHaveBeenCalledWith(5);
-		expect(session.getShippedEvents).not.toHaveBeenCalledWith(
-			expect.stringContaining("/custom/bridge.db"),
-			expect.anything(),
-		);
 	});
 });
 
@@ -161,9 +166,11 @@ describe("markRowProcessed", () => {
 	});
 
 	test("opens a session, calls markProcessed with rowId, and closes", async () => {
-		await markRowProcessed("/ignored/path", 123);
+		await markRowProcessed("/custom/bridge.db", 123);
 
-		expect(BridgeDbMcpSession.open).toHaveBeenCalledOnce();
+		expect(BridgeDbMcpSession.open).toHaveBeenCalledWith({
+			dbPath: "/custom/bridge.db",
+		});
 		expect(session.markProcessed).toHaveBeenCalledWith(123);
 		expect(session.close).toHaveBeenCalledOnce();
 	});
@@ -179,6 +186,66 @@ describe("markRowProcessed", () => {
 
 	test("resolves without error on success", async () => {
 		await expect(markRowProcessed("/ignored/path", 1)).resolves.toBeUndefined();
+	});
+
+	test("forwards dbPath to the MCP session", async () => {
+		await markRowProcessed("/custom/bridge.db", 1);
+		expect(BridgeDbMcpSession.open).toHaveBeenCalledWith({
+			dbPath: "/custom/bridge.db",
+		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tool result parsing helpers
+// ---------------------------------------------------------------------------
+
+describe("bridge-db MCP result parsing", () => {
+	test("prefers structuredContent.result over text content", () => {
+		const structured = [makeEvent({ id: 7 })];
+		const parsed = parseBridgeDbToolResult({
+			content: [{ type: "text", text: JSON.stringify([makeEvent({ id: 1 })]) }],
+			structuredContent: { result: structured },
+		});
+
+		expect(parsed).toEqual(structured);
+	});
+
+	test("falls back to JSON text content", () => {
+		const events = [makeEvent({ id: 2 })];
+		const parsed = parseBridgeDbToolResult({
+			content: [{ type: "text", text: JSON.stringify(events) }],
+		});
+
+		expect(parsed).toEqual(events);
+	});
+
+	test("normalizes a single object result to an array", () => {
+		const event = makeEvent({ id: 3 });
+		expect(normalizeBridgeDbToolArray(event, "get_shipped_events")).toEqual([
+			event,
+		]);
+	});
+
+	test("keeps array results as arrays", () => {
+		const events = [makeEvent({ id: 4 })];
+		expect(normalizeBridgeDbToolArray(events, "get_shipped_events")).toBe(
+			events,
+		);
+	});
+
+	test("rejects scalar results with the tool name", () => {
+		expect(() =>
+			normalizeBridgeDbToolArray("not-json", "get_shipped_events"),
+		).toThrow("get_shipped_events returned unexpected type: string");
+	});
+
+	test("threads BRIDGE_DB_PATH into the MCP subprocess environment", () => {
+		const env = buildBridgeDbMcpEnvironment({
+			dbPath: " /custom/bridge.db ",
+		});
+
+		expect(env["BRIDGE_DB_PATH"]).toBe("/custom/bridge.db");
 	});
 });
 

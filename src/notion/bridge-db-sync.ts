@@ -176,7 +176,7 @@ export async function runBridgeDbSyncCommand(
 	// ---------------------------------------------------------------------------
 	let opsSession: BridgeDbMcpSession | null = null;
 	try {
-		opsSession = await BridgeDbMcpSession.open();
+		opsSession = await BridgeDbMcpSession.open({ dbPath });
 		const opsEntries = await opsSession.getPersonalOpsEvents(limit);
 		result.opsRowsFound = opsEntries.length;
 		if (opsEntries.length > 0) {
@@ -249,7 +249,7 @@ export async function runBridgeDbSyncCommand(
 
 	// Log activity to bridge-db (best-effort, errors are swallowed in logActivity)
 	if (live && (result.rowsWritten > 0 || result.opsRowsWritten > 0)) {
-		const logSession = await BridgeDbMcpSession.open();
+		const logSession = await BridgeDbMcpSession.open({ dbPath });
 		try {
 			const totalWritten = result.rowsWritten + result.opsRowsWritten;
 			await logSession.logActivity(
@@ -297,7 +297,7 @@ export async function runBridgeDbStatusCommand(
 		options.dbPath ??
 		(process.env["BRIDGE_DB_PATH"]?.trim() || BRIDGE_DB_DEFAULT_PATH);
 
-	const session = await BridgeDbMcpSession.open();
+	const session = await BridgeDbMcpSession.open({ dbPath });
 	try {
 		const status = await session.getStatus();
 		// Augment with dbPath so callers get the same shape as before
@@ -325,14 +325,14 @@ export type {
 
 /**
  * Read unprocessed SHIPPED rows from bridge-db via MCP.
- * @param _dbPath - retained for API compatibility; MCP uses its own configured path
+ * @param dbPath - bridge.db path forwarded to the MCP subprocess
  * @param limit - maximum rows to return
  */
 export async function readShippedRows(
-	_dbPath: string,
+	dbPath: string,
 	limit: number,
 ): Promise<ShippedEvent[]> {
-	const session = await BridgeDbMcpSession.open();
+	const session = await BridgeDbMcpSession.open({ dbPath });
 	try {
 		return await session.getShippedEvents(limit);
 	} finally {
@@ -343,14 +343,14 @@ export async function readShippedRows(
 /**
  * Mark a row as PROCESSED in bridge-db via MCP.
  * Throws on failure so callers can catch and handle.
- * @param _dbPath - retained for API compatibility; MCP uses its own configured path
+ * @param dbPath - bridge.db path forwarded to the MCP subprocess
  * @param rowId - the activity_log row id
  */
 export async function markRowProcessed(
-	_dbPath: string,
+	dbPath: string,
 	rowId: number,
 ): Promise<void> {
-	const session = await BridgeDbMcpSession.open();
+	const session = await BridgeDbMcpSession.open({ dbPath });
 	try {
 		await session.markProcessed(rowId);
 	} finally {
