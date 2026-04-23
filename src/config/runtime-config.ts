@@ -301,6 +301,7 @@ function hydrateEnv(
     path: envFilePath,
     processEnv: env as Record<string, string>,
     override: options.overrideExisting,
+    quiet: true,
   });
   return env;
 }

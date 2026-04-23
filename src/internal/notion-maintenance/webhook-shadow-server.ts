@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../../config/load-default-env.js";
 
 import { createServer } from "node:http";
 import type { IncomingMessage } from "node:http";
