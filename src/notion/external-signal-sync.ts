@@ -1338,6 +1338,15 @@ interface NotificationHubEvent {
 type ProjectResolver = (value: string) => string | undefined;
 
 const NOTIFICATION_HUB_DEFAULT_LOG_PATH = `${homedir()}/.local/share/notification-hub/events.jsonl`;
+const MAX_UNMATCHED_SAMPLE_NAMES = 5;
+const IGNORED_NOTIFICATION_PROJECT_KEYS = new Set([
+	"bridge sync",
+	"bridge scaffolding",
+	"bridge baseline seed",
+]);
+const PROJECT_RESOLVER_ALIASES = new Map([
+	["notion", "notion operating system"],
+]);
 
 export async function syncNotificationHubSources(
 	provider: ExternalSignalProviderPlan,
@@ -1384,6 +1393,9 @@ export async function syncNotificationHubSources(
 	let itemsDeduped = 0;
 	let missingProject = 0;
 	let unmatchedProject = 0;
+	let ignoredOperationalProject = 0;
+	const unmatchedProjectNames = new Set<string>();
+	const ignoredProjectNames = new Set<string>();
 
 	try {
 		const capped = await readNotificationHubJsonl(logPath, maxEventsPerSource);
@@ -1401,9 +1413,18 @@ export async function syncNotificationHubSources(
 				continue;
 			}
 
-			const localProjectId = resolveProjectId(raw.project);
+			const candidateProject = normalizeNotificationProjectValue(raw.project);
+			if (isIgnoredNotificationProject(candidateProject)) {
+				ignoredOperationalProject += 1;
+				ignoredProjectNames.add(raw.project);
+				continue;
+			}
+
+			const localProjectId =
+				resolveProjectId(raw.project) || resolveProjectId(candidateProject);
 			if (!localProjectId) {
 				unmatchedProject += 1;
+				unmatchedProjectNames.add(raw.project);
 				continue;
 			}
 
@@ -1446,6 +1467,7 @@ export async function syncNotificationHubSources(
 		itemsDeduped,
 		missingProject,
 		unmatchedProject,
+		ignoredOperationalProject,
 	});
 
 	const notes: string[] = [];
@@ -1456,7 +1478,12 @@ export async function syncNotificationHubSources(
 	}
 	if (unmatchedProject > 0) {
 		notes.push(
-			`${unmatchedProject} event(s) skipped: project name could not be matched to a local portfolio project.`,
+			`${unmatchedProject} event(s) skipped: project name could not be matched to a local portfolio project${formatSampleNames(unmatchedProjectNames)}.`,
+		);
+	}
+	if (ignoredOperationalProject > 0) {
+		notes.push(
+			`${ignoredOperationalProject} event(s) ignored: notification-hub project value is an operational tag, not a Local Portfolio Project${formatSampleNames(ignoredProjectNames)}.`,
 		);
 	}
 
@@ -1476,6 +1503,17 @@ export async function syncNotificationHubSources(
 		syncedSourceIds: [source.id],
 		providerExercised: true,
 	};
+}
+
+function normalizeNotificationProjectValue(project: string): string {
+	return project
+		.trim()
+		.replace(/^(?:\[[^\]]+\]\s*)+/, "")
+		.trim();
+}
+
+function isIgnoredNotificationProject(project: string): boolean {
+	return IGNORED_NOTIFICATION_PROJECT_KEYS.has(normalizeResolverKey(project));
 }
 
 function buildProjectResolver(input: {
@@ -1519,10 +1557,16 @@ function buildProjectResolver(input: {
 		if (!normalized) {
 			return undefined;
 		}
+		const aliasTarget = PROJECT_RESOLVER_ALIASES.get(normalized);
 		return (
 			exactTitleIndex.get(normalized) ||
 			githubIdentifierIndex.get(normalized) ||
-			variantTitleIndex.get(normalized)
+			variantTitleIndex.get(normalized) ||
+			(aliasTarget
+				? exactTitleIndex.get(aliasTarget) ||
+					githubIdentifierIndex.get(aliasTarget) ||
+					variantTitleIndex.get(aliasTarget)
+				: undefined)
 		);
 	};
 }
@@ -1691,6 +1735,7 @@ export async function syncRepoAuditorSources(
 	let itemsDeduped = 0;
 	let unmatchedProject = 0;
 	let malformed = 0;
+	const unmatchedProjectNames = new Set<string>();
 
 	for (const audit of audits) {
 		if (events.length >= maxEventsPerSource) {
@@ -1712,6 +1757,7 @@ export async function syncRepoAuditorSources(
 		const localProjectId = resolveProjectId(fullName) ?? resolveProjectId(repoName);
 		if (!localProjectId) {
 			unmatchedProject += 1;
+			unmatchedProjectNames.add(fullName);
 			continue;
 		}
 
@@ -1762,7 +1808,7 @@ export async function syncRepoAuditorSources(
 	}
 	if (unmatchedProject > 0) {
 		notes.push(
-			`${unmatchedProject} audit(s) skipped: repo name could not be matched to a local portfolio project.`,
+			`${unmatchedProject} audit(s) skipped: repo name could not be matched to a local portfolio project${formatSampleNames(unmatchedProjectNames)}.`,
 		);
 	}
 
@@ -1779,6 +1825,15 @@ export async function syncRepoAuditorSources(
 		syncedSourceIds: [source.id],
 		providerExercised: true,
 	};
+}
+
+function formatSampleNames(names: Set<string>): string {
+	const sample = [...names].slice(0, MAX_UNMATCHED_SAMPLE_NAMES);
+	if (sample.length === 0) {
+		return "";
+	}
+	const suffix = names.size > sample.length ? ", ..." : "";
+	return ` (sample: ${sample.join(", ")}${suffix})`;
 }
 
 function classifyRepoAuditGrade(

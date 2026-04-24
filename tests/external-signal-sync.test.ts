@@ -347,6 +347,79 @@ describe("notification hub sync", () => {
 
 		expect(result.events).toHaveLength(0);
 		expect(result.notes[0]).toContain("could not be matched");
+		expect(result.notes[0]).toContain("unknown-project");
+	});
+
+	test("resolves notification-hub events after status-prefix project tags", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		await writeFile(
+			logPath,
+			JSON.stringify({
+				source: "cc",
+				level: "normal",
+				title: "Merged project",
+				body: "body",
+				project: "[MERGED] bridge-db",
+				timestamp: "2026-04-14T10:00:00Z",
+				event_id: "prefixed-001",
+				received_at: "2026-04-14T10:00:01Z",
+				classified_level: "normal",
+			}),
+			"utf8",
+		);
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-bridge", title: "bridge-db" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events).toHaveLength(1);
+		expect(result.events[0]?.localProjectId).toBe("project-bridge");
+		expect(result.notes).toEqual([]);
+	});
+
+	test("ignores operational notification-hub project tags", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		await writeFile(
+			logPath,
+			JSON.stringify({
+				source: "cc",
+				level: "normal",
+				title: "Bridge sync state",
+				body: "body",
+				project: "[CODEX-STATE][TRUTH-RECONCILED] bridge-baseline-seed",
+				timestamp: "2026-04-14T10:00:00Z",
+				event_id: "operational-001",
+				received_at: "2026-04-14T10:00:01Z",
+				classified_level: "normal",
+			}),
+			"utf8",
+		);
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events).toHaveLength(0);
+		expect(result.notes[0]).toContain("ignored");
+		expect(result.notes[0]).toContain("bridge-baseline-seed");
 	});
 
 	test("resolves notification-hub events through existing GitHub source identifiers", async () => {
@@ -473,6 +546,41 @@ describe("notification hub sync", () => {
 		expect(result.events[0]?.localProjectId).toBe("project-ghost");
 		expect(result.events[1]?.localProjectId).toBe("project-ghost");
 		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+	});
+
+	test("resolves known project aliases from local signal producers", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+
+		await writeFile(
+			logPath,
+			JSON.stringify({
+				source: "cc",
+				level: "info",
+				title: "Notion repo activity",
+				body: "body",
+				project: "Notion",
+				timestamp: "2026-04-14T10:00:00Z",
+				event_id: "alias-001",
+				received_at: "2026-04-14T10:00:01Z",
+				classified_level: "info",
+			}),
+			"utf8",
+		);
+
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-notion", title: "Notion Operating System" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events).toHaveLength(1);
+		expect(result.events[0]?.localProjectId).toBe("project-notion");
 	});
 
 	test("normalizeProviderName maps Notification Hub to notification_hub key", () => {
@@ -804,6 +912,7 @@ describe("repo auditor sync", () => {
 		});
 		expect(result.notes[0]).toContain("Report date: 2026-04-10");
 		expect(result.notes[1]).toContain("1 audit(s) skipped");
+		expect(result.notes[1]).toContain("owner/orphan-repo");
 	});
 
 	test("resolves repo auditor events through existing GitHub source identifiers", async () => {
