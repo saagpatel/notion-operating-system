@@ -390,9 +390,8 @@ describe("notification hub sync", () => {
 		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
 		const logPath = join(tmpDir, "events.jsonl");
 
-		await writeFile(
-			logPath,
-			JSON.stringify({
+		const events = [
+			{
 				source: "cc",
 				level: "normal",
 				title: "Bridge sync state",
@@ -402,7 +401,33 @@ describe("notification hub sync", () => {
 				event_id: "operational-001",
 				received_at: "2026-04-14T10:00:01Z",
 				classified_level: "normal",
-			}),
+			},
+			{
+				source: "codex",
+				level: "normal",
+				title: "Codex finished a turn",
+				body: "A Codex turn completed.",
+				project: "memories",
+				timestamp: "2026-04-14T10:01:00Z",
+				event_id: "operational-002",
+				received_at: "2026-04-14T10:01:01Z",
+				classified_level: "normal",
+			},
+			{
+				source: "codex",
+				level: "normal",
+				title: "Codex finished a turn",
+				body: "A Codex turn completed.",
+				project: "d",
+				timestamp: "2026-04-14T10:02:00Z",
+				event_id: "operational-003",
+				received_at: "2026-04-14T10:02:01Z",
+				classified_level: "normal",
+			},
+		];
+		await writeFile(
+			logPath,
+			events.map((event) => JSON.stringify(event)).join("\n"),
 			"utf8",
 		);
 
@@ -418,8 +443,10 @@ describe("notification hub sync", () => {
 		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
 
 		expect(result.events).toHaveLength(0);
-		expect(result.notes[0]).toContain("ignored");
+		expect(result.notes[0]).toContain("3 event(s) ignored");
 		expect(result.notes[0]).toContain("bridge-baseline-seed");
+		expect(result.notes[0]).toContain("memories");
+		expect(result.notes[0]).toContain("d");
 	});
 
 	test("resolves notification-hub events through existing GitHub source identifiers", async () => {

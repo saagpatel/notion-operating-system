@@ -91,10 +91,12 @@ Current confidence state:
   - `signals:morning-brief -- --profile sandbox` now surfaces the notification-hub proof event
 - primary-profile dry-runs on 2026-04-23 now exercise both providers with `syncedSourceCount: 1`
   - the 2026-04-24 signal-quality follow-up keeps `notification_hub` dry-run healthy and makes unmatched/ignored project warnings actionable with sample names
-  - `notification_hub` now strips status prefixes such as `[MERGED]` before matching and ignores known bridge operational tags instead of treating them as project-mapping failures
+  - `notification_hub` now strips status prefixes such as `[MERGED]` before matching and ignores known bridge/Codex operational tags (`bridge-sync`, `memories`, `d`) instead of treating them as project-mapping failures
   - the 2026-04-24 mapping follow-up created Local Portfolio Project rows for `bridge-db`, `notification-hub`, and `DecisionStressTest`, then seeded their GitHub source rows live
   - after that live mapping batch, `notification_hub` dry-run has no unmatched project warnings; it only ignores known bridge operational tags
   - after that live mapping batch, `repo_auditor` dry-run has no unmatched repo warnings and reports current audit input dated `2026-04-24`
+  - the 2026-04-24 broad live `signals:sync -- --live` attempt reconciled new signal events and sync runs, then stalled on Notion transport before refreshing project briefs and command-center sections
+  - the follow-up dry-run still reports `projectExternalSignalBriefsWouldChange: 117`, command-center section drift, and no remaining new event/sync-run creations
 - `npm audit --json` currently reports the accepted moderate `exceljs -> uuid` exception; do not downgrade `exceljs` for that advisory
 - `governance:orphan-classify --live --create-packets` now builds structured `work_packets` records with execution fields and `Local Project` relations instead of generic markdown-only packet publishes
 - `governance:orphan-classify` now also supports an approval-backed orphan flow via `--request-approval`, optional `--approve`, and `--create-approved-packets`
@@ -193,7 +195,7 @@ Sandbox local reality from the 2026-04-17 confidence pass:
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
   - Phase 10 completion and signal-layer productization
-  - decide whether to run a broad live signal sync after reviewing the dry-run blast radius; the latest dry-run would update 117 project external-signal briefs
+  - make broad live signal page refresh reliable after the 2026-04-24 Notion transport stall; the latest dry-run still wants to refresh 117 project external-signal briefs and command-center sections
   - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
   - continued docs accuracy
   - sandbox smoke rehearsal discipline for risky advanced workflows
@@ -208,11 +210,11 @@ If resuming from here, do not start with another repo cleanup pass.
 
 Start with one explicit Phase 10 product slice:
 
-1. clean up signal quality: map or suppress noisy `notification_hub` project misses and refresh the `repo_auditor` audit input if it should be current
+1. harden or chunk the broad live signal page refresh so the remaining 117 project brief updates and command-center sections can finish despite Notion transport retries
 2. productize the operator surface on top of the now-proven adapters:
    morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
 
-The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`. The best next move is signal-quality cleanup, then operator-surface productization on top of the proven signal lanes.
+The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`. The best next move is live-refresh reliability for the proven signal lanes, then operator-surface productization on top of them.
 
 ## Known assumptions
 

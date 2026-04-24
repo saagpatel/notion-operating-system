@@ -1343,6 +1343,8 @@ const IGNORED_NOTIFICATION_PROJECT_KEYS = new Set([
 	"bridge sync",
 	"bridge scaffolding",
 	"bridge baseline seed",
+	"d",
+	"memories",
 ]);
 const PROJECT_RESOLVER_ALIASES = new Map([
 	["notion", "notion operating system"],
