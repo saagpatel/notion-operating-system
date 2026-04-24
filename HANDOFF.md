@@ -92,8 +92,9 @@ Current confidence state:
 - primary-profile dry-runs on 2026-04-23 now exercise both providers with `syncedSourceCount: 1`
   - the 2026-04-24 signal-quality follow-up keeps `notification_hub` dry-run healthy and makes unmatched/ignored project warnings actionable with sample names
   - `notification_hub` now strips status prefixes such as `[MERGED]` before matching and ignores known bridge operational tags instead of treating them as project-mapping failures
-  - remaining `notification_hub` unmatched samples are project/source mapping work such as `bridge-db` and `notification-hub`
-  - `repo_auditor` now reports the current audit input date as `2026-04-24`; remaining unmatched samples are `saagpatel/bridge-db` and `saagpatel/DecisionStressTest`
+  - the 2026-04-24 mapping follow-up created Local Portfolio Project rows for `bridge-db`, `notification-hub`, and `DecisionStressTest`, then seeded their GitHub source rows live
+  - after that live mapping batch, `notification_hub` dry-run has no unmatched project warnings; it only ignores known bridge operational tags
+  - after that live mapping batch, `repo_auditor` dry-run has no unmatched repo warnings and reports current audit input dated `2026-04-24`
 - `npm audit --json` currently reports the accepted moderate `exceljs -> uuid` exception; do not downgrade `exceljs` for that advisory
 - `governance:orphan-classify --live --create-packets` now builds structured `work_packets` records with execution fields and `Local Project` relations instead of generic markdown-only packet publishes
 - `governance:orphan-classify` now also supports an approval-backed orphan flow via `--request-approval`, optional `--approve`, and `--create-approved-packets`
@@ -192,7 +193,7 @@ Sandbox local reality from the 2026-04-17 confidence pass:
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
   - Phase 10 completion and signal-layer productization
-  - live or manual source mapping follow-up for remaining `notification_hub` and `repo_auditor` misses such as `bridge-db`, `notification-hub`, and `DecisionStressTest`
+  - decide whether to run a broad live signal sync after reviewing the dry-run blast radius; the latest dry-run would update 117 project external-signal briefs
   - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
   - continued docs accuracy
   - sandbox smoke rehearsal discipline for risky advanced workflows

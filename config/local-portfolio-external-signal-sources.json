@@ -60,6 +60,39 @@
       "sourceUrl": "https://github.com/saagpatel/GithubRepoAuditor"
     },
     {
+      "title": "bridge-db - GitHub Repo",
+      "localProjectId": "34cc21f1-caf0-81cd-9650-cf2253d7afd4",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Poll",
+      "identifier": "saagpatel/bridge-db",
+      "sourceUrl": "https://github.com/saagpatel/bridge-db"
+    },
+    {
+      "title": "notification-hub - GitHub Repo",
+      "localProjectId": "34cc21f1-caf0-81f2-a4c9-e55158198f4f",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Poll",
+      "identifier": "saagpatel/notification-hub",
+      "sourceUrl": "https://github.com/saagpatel/notification-hub"
+    },
+    {
+      "title": "DecisionStressTest - GitHub Repo",
+      "localProjectId": "34cc21f1-caf0-8152-9abf-fa29ce7bbf85",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Poll",
+      "identifier": "saagpatel/DecisionStressTest",
+      "sourceUrl": "https://github.com/saagpatel/DecisionStressTest"
+    },
+    {
       "title": "premise-debate - Vercel Deployment Project",
       "localProjectId": "32dc21f1-caf0-819d-9d50-fd3c4530292f",
       "provider": "Vercel",
