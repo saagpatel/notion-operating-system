@@ -30,8 +30,9 @@ Updated: 2026-04-23
 - `npm run signals:seed-mappings -- --limit 2` completed in dry-run mode on 2026-04-23.
 - `npm run signals:seed-mappings -- --live --limit 2` created active primary-profile source rows for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports` on 2026-04-23.
 - `signals:sync -- --provider notification_hub` and `signals:sync -- --provider repo_auditor` both complete dry-run on 2026-04-23 with `syncedSourceCount: 1`.
-  - `notification_hub` now exercises, but reports one event with no project value and 19 unmatched project names.
-  - `repo_auditor` now exercises, and reports audit input dated 2026-03-29 with 25 audits in file.
+  - `notification_hub` now exercises, strips status prefixes before matching, ignores known bridge operational tags, and reports sample names for remaining unmatched project values.
+  - `repo_auditor` now exercises, reports audit input dated 2026-04-24, and reports sample names for remaining unmatched repos.
+  - remaining signal-quality work is now mapping-oriented: `bridge-db`, `notification-hub`, and `DecisionStressTest` need explicit Local Portfolio Project/source decisions before live sync.
 - `npm audit --json` still reports 2 moderate findings through `exceljs -> uuid`; this is documented as an accepted temporary exception because the maintained `exceljs` line still depends on vulnerable `uuid`.
 - `notification-hub` and `repo-auditor` have sandbox live proof from 2026-04-17 and primary-profile dry-run exercise from 2026-04-23.
   - sandbox source rows exist for both providers
@@ -248,7 +249,7 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
     - `repo-auditor` resolves through active GitHub source identifiers first, then project-title fallback
     - sandbox live proof wrote real `External Signal Events` and `External Signal Sync Runs` rows for both providers
     - primary-profile source rows now exist for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports`
-    - next cleanup is signal quality: unmatched notification projects and aging repo-auditor input
+    - next cleanup is mapping quality: remaining notification/repo-auditor misses need explicit Local Portfolio Project/source decisions
   - as of 2026-04-17, the orphan-classification live packet lane writes structured `work_packets` entries with execution metadata and project relations
   - as of 2026-04-17, orphan follow-through also has an approval-backed path: `--request-approval` creates or refreshes governance requests and `--create-approved-packets` materializes only approved kickoff packets
   - as of 2026-04-17, the sandbox GitHub lane has enough live evidence to stop proving it further unless a new action family is needed; the next work should be productization, not more sandbox mutation depth
@@ -260,7 +261,7 @@ Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the 
 
 Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters with signal-quality and operator-surface follow-through remaining.
 Recommended next slice:
-- clean up `notification_hub` unmatched/null project skips and refresh or document the `repo_auditor` input date
+- decide live or manual mappings for remaining `notification_hub` and `repo_auditor` misses such as `bridge-db`, `notification-hub`, and `DecisionStressTest`
 - improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
 
 Phase 10C should now focus on the remaining gaps after adapter closure: signal-quality cleanup, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.
