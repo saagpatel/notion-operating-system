@@ -8,12 +8,16 @@ import {
 	deriveExternalSignalSyncFailureCategories,
 	deriveExternalSignalSyncStatus,
 	deriveExternalSignalSyncWarningCategories,
+	deriveExternalSignalSyncWritePlan,
 	normalizeProviderName,
+	selectProjectRefreshBatch,
+	syncExternalSignalProjectBrief,
 	type ProviderSyncResult,
 	syncGithubSources,
 	syncNotificationHubSources,
 	syncProviders,
 	syncRepoAuditorSources,
+	validateExternalSignalSyncOptions,
 } from "../src/notion/external-signal-sync.js";
 import type {
 	ExternalSignalProviderPlan,
@@ -29,6 +33,106 @@ describe("external signal sync hardening", () => {
 
 	test("does not silently coerce unknown source providers into github", () => {
 		expect(normalizeProviderName("Render" as never)).toBeUndefined();
+	});
+
+	test("validates scoped project page batch flags", () => {
+		expect(() =>
+			validateExternalSignalSyncOptions({
+				writeScope: "project-pages",
+				projectLimit: 10,
+				projectOffset: 0,
+			}),
+		).not.toThrow();
+		expect(() =>
+			validateExternalSignalSyncOptions({
+				writeScope: "full",
+				projectLimit: 10,
+			}),
+		).toThrow("--project-limit and --project-offset require --write-scope project-pages");
+		expect(() =>
+			validateExternalSignalSyncOptions({
+				writeScope: "project-pages",
+				projectLimit: 0,
+			}),
+		).toThrow("--project-limit must be a positive integer");
+		expect(() =>
+			validateExternalSignalSyncOptions({
+				writeScope: "project-pages",
+				projectOffset: -1,
+			}),
+		).toThrow("--project-offset must be a non-negative integer");
+	});
+
+	test("selects deterministic project refresh batches by normalized title then id", () => {
+		const projects = [
+			{ id: "p-3", title: "zeta" },
+			{ id: "p-2", title: " Alpha" },
+			{ id: "p-1", title: "alpha" },
+			{ id: "p-4", title: "Beta" },
+		];
+
+		expect(
+			selectProjectRefreshBatch({
+				projects,
+				limit: 2,
+				offset: 1,
+			}).map((project) => project.id),
+		).toEqual(["p-2", "p-4"]);
+		expect(selectProjectRefreshBatch({ projects }).map((project) => project.id)).toEqual([
+			"p-1",
+			"p-2",
+			"p-4",
+			"p-3",
+		]);
+	});
+
+	test("derives scoped write plans without crossing provider/page boundaries", () => {
+		expect(deriveExternalSignalSyncWritePlan({ writeScope: "project-pages" })).toEqual({
+			writeScope: "project-pages",
+			shouldRunProviders: false,
+			shouldEvaluateProjectPages: true,
+			shouldEvaluatePortfolioSections: false,
+			shouldPersistMetrics: false,
+		});
+		expect(deriveExternalSignalSyncWritePlan({ writeScope: "portfolio-sections" })).toEqual({
+			writeScope: "portfolio-sections",
+			shouldRunProviders: false,
+			shouldEvaluateProjectPages: false,
+			shouldEvaluatePortfolioSections: true,
+			shouldPersistMetrics: true,
+		});
+		expect(deriveExternalSignalSyncWritePlan({ writeScope: "providers" })).toEqual({
+			writeScope: "providers",
+			shouldRunProviders: true,
+			shouldEvaluateProjectPages: false,
+			shouldEvaluatePortfolioSections: false,
+			shouldPersistMetrics: false,
+		});
+	});
+
+	test("throws when project brief markdown does not converge after write", async () => {
+		const markdown =
+			"# Project\n\n<!-- codex:notion-recommendation-brief:start -->\nold\n<!-- codex:notion-recommendation-brief:end -->\n\n<!-- codex:notion-external-signal-brief:start -->\nold\n<!-- codex:notion-external-signal-brief:end -->";
+		const nextMarkdown = markdown.replaceAll("old", "new");
+		const api = {
+			patchPageMarkdown: async () => undefined,
+			readPageMarkdown: async () => ({
+				markdown,
+				raw: {},
+				truncated: false,
+				unknownBlockIds: [],
+			}),
+		};
+
+		await expect(
+			syncExternalSignalProjectBrief({
+				api: api as never,
+				pageId: "page-1",
+				projectTitle: "Project One",
+				previousMarkdown: markdown,
+				nextMarkdown,
+			}),
+		).rejects.toThrow("External signal project brief did not converge after write");
 	});
 
 	test("fails safely when GitHub credentials are missing", async () => {
@@ -579,9 +683,8 @@ describe("notification hub sync", () => {
 		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
 		const logPath = join(tmpDir, "events.jsonl");
 
-		await writeFile(
-			logPath,
-			JSON.stringify({
+		const events = [
+			{
 				source: "cc",
 				level: "info",
 				title: "Notion repo activity",
@@ -591,7 +694,22 @@ describe("notification hub sync", () => {
 				event_id: "alias-001",
 				received_at: "2026-04-14T10:00:01Z",
 				classified_level: "info",
-			}),
+			},
+			{
+				source: "personal-ops",
+				level: "info",
+				title: "Draft Ready",
+				body: "reply needed",
+				project: "mail",
+				timestamp: "2026-04-14T10:01:00Z",
+				event_id: "alias-002",
+				received_at: "2026-04-14T10:01:01Z",
+				classified_level: "info",
+			},
+		];
+		await writeFile(
+			logPath,
+			events.map((event) => JSON.stringify(event)).join("\n"),
 			"utf8",
 		);
 
@@ -602,12 +720,16 @@ describe("notification hub sync", () => {
 			10,
 			"2026-04-14",
 			new Set(),
-			[{ id: "project-notion", title: "Notion Operating System" }],
+			[
+				{ id: "project-notion", title: "Notion Operating System" },
+				{ id: "project-personal-ops", title: "Personal Ops" },
+			],
 		);
 		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
 
-		expect(result.events).toHaveLength(1);
+		expect(result.events).toHaveLength(2);
 		expect(result.events[0]?.localProjectId).toBe("project-notion");
+		expect(result.events[1]?.localProjectId).toBe("project-personal-ops");
 	});
 
 	test("normalizeProviderName maps Notification Hub to notification_hub key", () => {
