@@ -153,11 +153,44 @@ export interface ExternalSignalSyncCommandOptions {
 	config?: string;
 	sourceLimit?: number;
 	maxEventsPerSource?: number;
+	writeScope?: ExternalSignalSyncWriteScope;
+	projectLimit?: number;
+	projectOffset?: number;
+}
+
+export type ExternalSignalSyncWriteScope =
+	| "full"
+	| "providers"
+	| "project-pages"
+	| "portfolio-sections";
+
+interface ProjectBriefRefresh {
+	projectId: string;
+	projectTitle: string;
+	previousMarkdown: string;
+	nextMarkdown: string;
+	changed: boolean;
+}
+
+export interface ExternalSignalSyncWritePlan {
+	writeScope: ExternalSignalSyncWriteScope;
+	shouldRunProviders: boolean;
+	shouldEvaluateProjectPages: boolean;
+	shouldEvaluatePortfolioSections: boolean;
+	shouldPersistMetrics: boolean;
 }
 
 export async function runExternalSignalSyncCommand(
 	options: ExternalSignalSyncCommandOptions = {},
 ): Promise<void> {
+	const writePlan = deriveExternalSignalSyncWritePlan(options);
+	const {
+		writeScope,
+		shouldRunProviders,
+		shouldEvaluateProjectPages,
+		shouldEvaluatePortfolioSections,
+		shouldPersistMetrics,
+	} = writePlan;
 	const token = resolveRequiredNotionToken(
 		"NOTION_TOKEN is required for external signal sync",
 	);
@@ -179,6 +212,12 @@ export async function runExternalSignalSyncCommand(
 
 	const phase5 = requirePhase5ExternalSignals(config);
 	const providerConfig = await loadLocalPortfolioExternalSignalProviderConfig();
+	logLiveStage(live, "Starting external signal sync", {
+		provider,
+		writeScope,
+		projectLimit: options.projectLimit,
+		projectOffset: options.projectOffset ?? 0,
+	});
 
 	logLiveStage(live, "Loading external signal schemas");
 	const [
@@ -338,19 +377,21 @@ export async function runExternalSignalSyncCommand(
 	let createdSyncRunCount = 0;
 	const eventKeySet = new Set(existingEvents.map((event) => event.eventKey));
 	const sourceMap = new Map(sources.map((source) => [source.id, source]));
-	const providerResults = await syncProviders({
-		flags: { live, provider, today: options.today },
-		today,
-		phase5,
-		providers: providerConfig.providers,
-		sources,
-		eventKeySet: new Set(eventKeySet),
-		projects: projects.map((p) => ({ id: p.id, title: p.title })),
-		sourceLimit: options.sourceLimit,
-		maxEventsPerSource: options.maxEventsPerSource,
-	});
+	const providerResults = shouldRunProviders
+		? await syncProviders({
+				flags: { live, provider, today: options.today },
+				today,
+				phase5,
+				providers: providerConfig.providers,
+				sources,
+				eventKeySet: new Set(eventKeySet),
+				projects: projects.map((p) => ({ id: p.id, title: p.title })),
+				sourceLimit: options.sourceLimit,
+				maxEventsPerSource: options.maxEventsPerSource,
+			})
+		: [];
 
-	if (live) {
+	if (live && shouldRunProviders) {
 		logLiveStage(live, "Syncing providers", { provider });
 		logLiveStage(live, "Writing sync runs", {
 			providerRunCount: providerResults.length,
@@ -430,15 +471,37 @@ export async function runExternalSignalSyncCommand(
 	const latestDailyRun = runs
 		.filter((run) => run.runType === "Daily Focus")
 		.sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
-	const targetProjectIds = options.sourceLimit
-		? deriveTargetProjectIdsFromSources(scopedSources)
-		: new Set(projects.map((project) => project.id));
-	const targetProjects = projects.filter((project) =>
+	const targetProjectIds =
+		writeScope === "full" && options.sourceLimit
+			? deriveTargetProjectIdsFromSources(scopedSources)
+			: new Set(projects.map((project) => project.id));
+	const allTargetProjects = projects.filter((project) =>
 		targetProjectIds.has(project.id),
 	);
+	const projectRefreshTotalCount = allTargetProjects.length;
+	const targetProjects =
+		writeScope === "project-pages"
+			? selectProjectRefreshBatch({
+					projects: allTargetProjects,
+					limit: options.projectLimit,
+					offset: options.projectOffset,
+				})
+			: allTargetProjects;
+	const projectRefreshOffset =
+		writeScope === "project-pages" ? (options.projectOffset ?? 0) : undefined;
+	const projectRefreshLimit =
+		writeScope === "project-pages" ? options.projectLimit : undefined;
+	const projectRefreshBatchCount =
+		writeScope === "project-pages"
+			? targetProjects.length
+			: projectRefreshTotalCount;
+	const evaluatedProjectCount = shouldEvaluateProjectPages
+		? targetProjects.length
+		: 0;
 
-	const projectBriefs = await Promise.all(
-		targetProjects.map(async (project) => {
+	const projectBriefs: ProjectBriefRefresh[] = shouldEvaluateProjectPages
+		? await Promise.all(
+				targetProjects.map(async (project) => {
 			const recommendation = recommendations.find(
 				(entry) => entry.projectId === project.id,
 			);
@@ -447,6 +510,7 @@ export async function runExternalSignalSyncCommand(
 			if (!recommendation || !summary) {
 				return {
 					projectId: project.id,
+					projectTitle: project.title,
 					previousMarkdown: previous.markdown,
 					nextMarkdown: previous.markdown,
 					changed: false,
@@ -492,58 +556,77 @@ export async function runExternalSignalSyncCommand(
 
 			return {
 				projectId: project.id,
+				projectTitle: project.title,
 				previousMarkdown: previous.markdown,
 				nextMarkdown,
 				changed:
 					normalizeMarkdown(nextMarkdown) !==
 					normalizeMarkdown(previous.markdown),
 			};
-		}),
-	);
+				}),
+			)
+		: [];
 	const projectExternalSignalBriefsWouldChange = projectBriefs.filter(
 		(entry) => entry.changed,
 	).length;
+	const changedProjectPageSamples = projectBriefs
+		.filter((entry) => entry.changed)
+		.slice(0, 15)
+		.map((entry) => ({
+			projectId: entry.projectId,
+			projectTitle: entry.projectTitle,
+		}));
 
-	const previousCommandCenter = await api.readPageMarkdown(
-		config.commandCenter.pageId!,
-	);
-	const withIntelligence = mergeManagedSection(
-		previousCommandCenter.markdown,
-		renderIntelligenceCommandCenterSection({
-			recommendations,
-			projects: projects.map((project) => ({
-				...project,
-				recommendationLane: recommendations.find(
-					(entry) => entry.projectId === project.id,
-				)?.lane,
-			})),
-			latestWeeklyRun,
-			latestDailyRun,
-			linkSuggestionQueue: suggestions,
-		}),
-		INTELLIGENCE_COMMAND_CENTER_START,
-		INTELLIGENCE_COMMAND_CENTER_END,
-	);
+	const previousCommandCenter = shouldEvaluatePortfolioSections
+		? await api.readPageMarkdown(config.commandCenter.pageId!)
+		: undefined;
+	const withIntelligence =
+		previousCommandCenter && shouldEvaluatePortfolioSections
+			? mergeManagedSection(
+					previousCommandCenter.markdown,
+					renderIntelligenceCommandCenterSection({
+						recommendations,
+						projects: projects.map((project) => ({
+							...project,
+							recommendationLane: recommendations.find(
+								(entry) => entry.projectId === project.id,
+							)?.lane,
+						})),
+						latestWeeklyRun,
+						latestDailyRun,
+						linkSuggestionQueue: suggestions,
+					}),
+					INTELLIGENCE_COMMAND_CENTER_START,
+					INTELLIGENCE_COMMAND_CENTER_END,
+				)
+			: undefined;
 	const intelligenceCommandCenterSectionWouldChange =
-		normalizeMarkdown(withIntelligence) !==
-		normalizeMarkdown(previousCommandCenter.markdown);
-	const withExternalSignals = mergeManagedSection(
-		withIntelligence,
-		renderExternalSignalCommandCenterSection({
-			summaries: [...summaryMap.values()],
-			syncRuns: summarySyncRuns,
-			projects,
-		}),
-		EXTERNAL_SIGNAL_COMMAND_CENTER_START,
-		EXTERNAL_SIGNAL_COMMAND_CENTER_END,
-	);
+		previousCommandCenter && withIntelligence
+			? normalizeMarkdown(withIntelligence) !==
+				normalizeMarkdown(previousCommandCenter.markdown)
+			: false;
+	const withExternalSignals =
+		withIntelligence && shouldEvaluatePortfolioSections
+			? mergeManagedSection(
+					withIntelligence,
+					renderExternalSignalCommandCenterSection({
+						summaries: [...summaryMap.values()],
+						syncRuns: summarySyncRuns,
+						projects,
+					}),
+					EXTERNAL_SIGNAL_COMMAND_CENTER_START,
+					EXTERNAL_SIGNAL_COMMAND_CENTER_END,
+				)
+			: undefined;
 	const externalSignalsCommandCenterSectionWouldChange =
-		normalizeMarkdown(withExternalSignals) !==
-		normalizeMarkdown(withIntelligence);
+		withExternalSignals && withIntelligence
+			? normalizeMarkdown(withExternalSignals) !==
+				normalizeMarkdown(withIntelligence)
+			: false;
 	const weeklyReview = weeklyPages.find(
 		(page) => page.title === `Week of ${weekStart}`,
 	);
-	const previousWeeklyReview = weeklyReview
+	const previousWeeklyReview = weeklyReview && shouldEvaluatePortfolioSections
 		? await api.readPageMarkdown(weeklyReview.id)
 		: undefined;
 	const nextWeeklyReview = previousWeeklyReview
@@ -564,18 +647,24 @@ export async function runExternalSignalSyncCommand(
 			: false;
 
 	let changedProjectPages = 0;
-	if (live) {
+	if (live && shouldEvaluateProjectPages) {
 		logLiveStage(live, "Refreshing project signal briefs", {
+			writeScope,
 			projectCount: targetProjects.length,
+			projectRefreshTotalCount,
+			projectRefreshOffset,
+			projectRefreshLimit,
 		});
 		for (const [index, project] of targetProjects.entries()) {
-			logLoopProgress(
-				live,
-				"external-signal-sync",
-				"Project brief",
-				index + 1,
-				targetProjects.length,
-			);
+			logProjectRefreshProgress(live, {
+				index: index + 1,
+				total: targetProjects.length,
+				projectTitle: project.title,
+				pageId: project.id,
+				writeScope,
+				projectRefreshOffset,
+				projectRefreshLimit,
+			});
 			const recommendation = recommendations.find(
 				(entry) => entry.projectId === project.id,
 			);
@@ -601,17 +690,22 @@ export async function runExternalSignalSyncCommand(
 				await syncExternalSignalProjectBrief({
 					api,
 					pageId: project.id,
+					projectTitle: project.title,
 					previousMarkdown: projectBrief.previousMarkdown,
 					nextMarkdown: projectBrief.nextMarkdown,
 				});
 				changedProjectPages += 1;
 			}
 		}
+	}
 
+	if (live && shouldEvaluatePortfolioSections) {
 		logLiveStage(live, "Refreshing command center and weekly review");
 		if (
-			intelligenceCommandCenterSectionWouldChange ||
-			externalSignalsCommandCenterSectionWouldChange
+			previousCommandCenter &&
+			withExternalSignals &&
+			(intelligenceCommandCenterSectionWouldChange ||
+				externalSignalsCommandCenterSectionWouldChange)
 		) {
 			assertSafeReplacement(
 				previousCommandCenter.markdown,
@@ -638,32 +732,34 @@ export async function runExternalSignalSyncCommand(
 			});
 		}
 
-		const externalMetrics = calculateExternalSignalMetrics({
-			summaries: [...summaryMap.values()],
-		});
-		logLiveStage(live, "Persisting external signal metrics");
-		const nextConfig = {
-			...config,
-			phaseState: {
-				...config.phaseState,
-			},
-			phase3Intelligence: config.phase3Intelligence
-				? {
-						...config.phase3Intelligence,
-						scoringModelVersion: phase5.scoringModelVersion,
-					}
-				: undefined,
-			phase5ExternalSignals: {
-				...phase5,
-				baselineCapturedAt: phase5.baselineCapturedAt ?? today,
-				baselineMetrics:
-					phase5.baselineMetrics ?? serializeMetrics(externalMetrics),
-				lastSyncAt: today,
-				lastSyncMetrics: serializeMetrics(externalMetrics),
-			},
-		};
-		await saveLocalPortfolioControlTowerConfig(nextConfig, configPath);
-		config = nextConfig;
+		if (shouldPersistMetrics) {
+			const externalMetrics = calculateExternalSignalMetrics({
+				summaries: [...summaryMap.values()],
+			});
+			logLiveStage(live, "Persisting external signal metrics");
+			const nextConfig = {
+				...config,
+				phaseState: {
+					...config.phaseState,
+				},
+				phase3Intelligence: config.phase3Intelligence
+					? {
+							...config.phase3Intelligence,
+							scoringModelVersion: phase5.scoringModelVersion,
+						}
+					: undefined,
+				phase5ExternalSignals: {
+					...phase5,
+					baselineCapturedAt: phase5.baselineCapturedAt ?? today,
+					baselineMetrics:
+						phase5.baselineMetrics ?? serializeMetrics(externalMetrics),
+					lastSyncAt: today,
+					lastSyncMetrics: serializeMetrics(externalMetrics),
+				},
+			};
+			await saveLocalPortfolioControlTowerConfig(nextConfig, configPath);
+			config = nextConfig;
+		}
 	}
 
 	const output = {
@@ -674,10 +770,17 @@ export async function runExternalSignalSyncCommand(
 		summaryCounts: {},
 		warnings: [] as string[],
 		provider,
+		writeScope,
 		createdEventCount,
 		createdSyncRunCount,
 		changedProjectPages,
 		projectExternalSignalBriefsWouldChange,
+		projectRefreshTotalCount,
+		projectRefreshBatchCount,
+		projectRefreshOffset,
+		projectRefreshLimit,
+		evaluatedProjectCount,
+		changedProjectPageSamples,
 		intelligenceCommandCenterSectionWouldChange,
 		externalSignalsCommandCenterSectionWouldChange,
 		weeklyExternalSignalsSectionWouldChange:
@@ -706,12 +809,17 @@ export async function runExternalSignalSyncCommand(
 		summaryCounts: {
 			createdEventCount,
 			createdSyncRunCount,
-			targetProjectCount: targetProjects.length,
+			targetProjectCount: evaluatedProjectCount,
 			syncedSourceCount: providerResults.reduce(
 				(sum, result) => sum + result.syncedSourceIds.length,
 				0,
 			),
 			projectExternalSignalBriefsWouldChange,
+			projectRefreshTotalCount,
+			projectRefreshBatchCount,
+			projectRefreshOffset: projectRefreshOffset ?? 0,
+			projectRefreshLimit: projectRefreshLimit ?? 0,
+			evaluatedProjectCount,
 			intelligenceCommandCenterSectionWouldChange:
 				intelligenceCommandCenterSectionWouldChange ? 1 : 0,
 			externalSignalsCommandCenterSectionWouldChange:
@@ -735,7 +843,9 @@ export async function runExternalSignalSyncCommand(
 			deriveExternalSignalSyncFailureCategories(providerResults),
 		metadata: {
 			provider,
+			writeScope,
 			providerRunCount: providerResults.length,
+			evaluatedProjectCount,
 		},
 	});
 	postNotificationHubEvent({
@@ -760,18 +870,83 @@ function logLiveStage(
 	console.error(`[external-signal-sync] ${stage}${suffix}`);
 }
 
-function logLoopProgress(
+function logProjectRefreshProgress(
 	live: boolean,
-	scope: string,
-	label: string,
-	index: number,
-	total: number,
+	input: {
+		index: number;
+		total: number;
+		projectTitle: string;
+		pageId: string;
+		writeScope: ExternalSignalSyncWriteScope;
+		projectRefreshOffset?: number;
+		projectRefreshLimit?: number;
+	},
 ): void {
 	if (!live) {
 		return;
 	}
-	if (index === 1 || index === total || index % 10 === 0) {
-		console.error(`[${scope}] ${label} ${index}/${total}`);
+	if (input.index === 1 || input.index === input.total || input.index % 10 === 0) {
+		console.error(
+			`[external-signal-sync] Project brief ${input.index}/${input.total} ${JSON.stringify(
+				{
+					writeScope: input.writeScope,
+					projectRefreshOffset: input.projectRefreshOffset,
+					projectRefreshLimit: input.projectRefreshLimit,
+					projectTitle: input.projectTitle,
+					pageId: input.pageId,
+				},
+			)}`,
+		);
+	}
+}
+
+export function validateExternalSignalSyncOptions(
+	options: ExternalSignalSyncCommandOptions & {
+		writeScope: ExternalSignalSyncWriteScope;
+	},
+): void {
+	if (options.projectLimit !== undefined) {
+		assertPositiveInteger(options.projectLimit, "--project-limit");
+	}
+	if (options.projectOffset !== undefined) {
+		assertNonNegativeInteger(options.projectOffset, "--project-offset");
+	}
+	if (
+		options.writeScope !== "project-pages" &&
+		(options.projectLimit !== undefined || options.projectOffset !== undefined)
+	) {
+		throw new AppError(
+			"--project-limit and --project-offset require --write-scope project-pages",
+		);
+	}
+}
+
+export function deriveExternalSignalSyncWritePlan(
+	options: ExternalSignalSyncCommandOptions = {},
+): ExternalSignalSyncWritePlan {
+	const writeScope = options.writeScope ?? "full";
+	validateExternalSignalSyncOptions({ ...options, writeScope });
+	return {
+		writeScope,
+		shouldRunProviders: writeScope === "full" || writeScope === "providers",
+		shouldEvaluateProjectPages:
+			writeScope === "full" || writeScope === "project-pages",
+		shouldEvaluatePortfolioSections:
+			writeScope === "full" || writeScope === "portfolio-sections",
+		shouldPersistMetrics:
+			writeScope === "full" || writeScope === "portfolio-sections",
+	};
+}
+
+function assertPositiveInteger(value: number, flag: string): void {
+	if (!Number.isInteger(value) || value <= 0) {
+		throw new AppError(`${flag} must be a positive integer`);
+	}
+}
+
+function assertNonNegativeInteger(value: number, flag: string): void {
+	if (!Number.isInteger(value) || value < 0) {
+		throw new AppError(`${flag} must be a non-negative integer`);
 	}
 }
 
@@ -845,9 +1020,10 @@ function buildExternalSignalProjectPropertyUpdates(input: {
 	return updates;
 }
 
-async function syncExternalSignalProjectBrief(input: {
+export async function syncExternalSignalProjectBrief(input: {
 	api: DirectNotionClient;
 	pageId: string;
+	projectTitle?: string;
 	previousMarkdown: string;
 	nextMarkdown: string;
 }): Promise<void> {
@@ -882,10 +1058,10 @@ async function syncExternalSignalProjectBrief(input: {
 	if (
 		normalizeMarkdown(currentMarkdown) !== normalizeMarkdown(input.nextMarkdown)
 	) {
-		console.warn(
-			"External signal project brief did not converge after write",
-			JSON.stringify({ pageId: input.pageId }),
-		);
+		throw new AppError("External signal project brief did not converge after write", {
+			pageId: input.pageId,
+			projectTitle: input.projectTitle,
+		});
 	}
 }
 
@@ -1347,6 +1523,7 @@ const IGNORED_NOTIFICATION_PROJECT_KEYS = new Set([
 	"memories",
 ]);
 const PROJECT_RESOLVER_ALIASES = new Map([
+	["mail", "personal ops"],
 	["notion", "notion operating system"],
 ]);
 
@@ -2362,6 +2539,29 @@ function selectScopedSources(input: {
 			input.sourceLimit,
 		),
 	);
+}
+
+export function selectProjectRefreshBatch<T extends { id: string; title: string }>(
+	input: {
+		projects: T[];
+		limit?: number;
+		offset?: number;
+	},
+): T[] {
+	const offset = input.offset ?? 0;
+	const sorted = [...input.projects].sort(
+		(left, right) =>
+			normalizeProjectSortKey(left.title).localeCompare(
+				normalizeProjectSortKey(right.title),
+			) || left.id.localeCompare(right.id),
+	);
+	return input.limit === undefined
+		? sorted.slice(offset)
+		: sorted.slice(offset, offset + input.limit);
+}
+
+function normalizeProjectSortKey(value: string): string {
+	return value.trim().toLowerCase();
 }
 
 function deriveTargetProjectIdsFromSources(

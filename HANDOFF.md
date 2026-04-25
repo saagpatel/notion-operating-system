@@ -96,7 +96,11 @@ Current confidence state:
   - after that live mapping batch, `notification_hub` dry-run has no unmatched project warnings; it only ignores known bridge operational tags
   - after that live mapping batch, `repo_auditor` dry-run has no unmatched repo warnings and reports current audit input dated `2026-04-24`
   - the 2026-04-24 broad live `signals:sync -- --live` attempt reconciled new signal events and sync runs, then stalled on Notion transport before refreshing project briefs and command-center sections
-  - the follow-up dry-run still reports `projectExternalSignalBriefsWouldChange: 117`, command-center section drift, and no remaining new event/sync-run creations
+  - the 2026-04-25 scoped recovery added 23 notification-hub events and one provider sync-run through `--write-scope providers`
+  - project-page live batches reduced `projectExternalSignalBriefsWouldChange` from 117 to 38 before the new convergence guard stopped on project brief read-back drift for `Phantom Frequencies` and `Recall`
+  - the latest follow-up dry-run reports no remaining new event/sync-run creations, 38 project brief changes, and command-center section drift still pending
+  - `signals:sync` now supports resumable write scopes for recovery: `--write-scope providers`, `--write-scope project-pages`, and `--write-scope portfolio-sections`
+  - use `npm run signals:sync -- --live --write-scope project-pages --project-limit 10 --project-offset <N>` to continue deterministic project batches after resolving the non-converging pages, then run `npm run signals:sync -- --live --write-scope portfolio-sections` last
 - `npm audit --json` currently reports the accepted moderate `exceljs -> uuid` exception; do not downgrade `exceljs` for that advisory
 - `governance:orphan-classify --live --create-packets` now builds structured `work_packets` records with execution fields and `Local Project` relations instead of generic markdown-only packet publishes
 - `governance:orphan-classify` now also supports an approval-backed orphan flow via `--request-approval`, optional `--approve`, and `--create-approved-packets`
@@ -195,7 +199,7 @@ Sandbox local reality from the 2026-04-17 confidence pass:
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
   - Phase 10 completion and signal-layer productization
-  - make broad live signal page refresh reliable after the 2026-04-24 Notion transport stall; the latest dry-run still wants to refresh 117 project external-signal briefs and command-center sections
+  - resolve the non-converging `Phantom Frequencies` and `Recall` managed project briefs, then use the scoped signal refresh path to clear the remaining 38 project external-signal briefs and command-center sections after the 2026-04-24 Notion transport stall
   - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
   - continued docs accuracy
   - sandbox smoke rehearsal discipline for risky advanced workflows
@@ -210,11 +214,12 @@ If resuming from here, do not start with another repo cleanup pass.
 
 Start with one explicit Phase 10 product slice:
 
-1. harden or chunk the broad live signal page refresh so the remaining 117 project brief updates and command-center sections can finish despite Notion transport retries
+1. run scoped signal refresh batches:
+   inspect the non-converging `Phantom Frequencies` and `Recall` brief sections first, then continue `npm run signals:sync -- --live --write-scope project-pages --project-limit 10 --project-offset <N>`, verify with `npm run signals:sync` after each batch, and run `npm run signals:sync -- --live --write-scope portfolio-sections` only after project-page drift clears
 2. productize the operator surface on top of the now-proven adapters:
    morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
 
-The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`. The best next move is live-refresh reliability for the proven signal lanes, then operator-surface productization on top of them.
+The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`. The best next move is resolving the managed-markdown convergence blockers, finishing the scoped live-refresh recovery path, then operator-surface productization on top of the proven signal lanes.
 
 ## Known assumptions
 

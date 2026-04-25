@@ -90,6 +90,28 @@ describe("cli smoke tests", () => {
     }
   });
 
+  test("signals sync exposes scoped refresh options and validates batch flags", async () => {
+    const help = await runCliForTest(["signals", "sync", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("--write-scope <scope>");
+    expect(help.stdout).toContain("full, providers, project-pages, portfolio-sections");
+    expect(help.stdout).toContain("--project-limit <count>");
+    expect(help.stdout).toContain("--project-offset <count>");
+
+    const invalidScope = await runCliForTest(["signals", "sync", "--write-scope", "nope"]);
+    expect(invalidScope.exitCode).toBe(1);
+    expect(invalidScope.stderr).toContain('Expected one of full, providers, project-pages, portfolio-sections');
+
+    const invalidBatchScope = await runCliForTest(["signals", "sync", "--project-limit", "10"], {
+      env: { NOTION_TOKEN: undefined },
+    });
+    expect(invalidBatchScope.exitCode).toBe(1);
+    expect(invalidBatchScope.stderr).toContain(
+      "--project-limit and --project-offset require --write-scope project-pages",
+    );
+  });
+
   test("runs doctor json output safely on a fresh machine", async () => {
     const tempDir = await createTempWorkspace();
 

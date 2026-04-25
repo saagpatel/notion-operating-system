@@ -27,13 +27,19 @@ export async function syncManagedMarkdownSection(input: {
   const nextSection = extractManagedSection(input.nextMarkdown, input.startMarker, input.endMarker);
 
   if (previousSection && nextSection) {
-    await input.api.patchPageMarkdown({
-      pageId: input.pageId,
-      command: "update_content",
-      contentUpdates: [{ oldStr: previousSection, newStr: nextSection, replaceAllMatches: true }],
-      recordClientErrorAsFailure: false,
-    });
-    return "update_content";
+    try {
+      await input.api.patchPageMarkdown({
+        pageId: input.pageId,
+        command: "update_content",
+        contentUpdates: [{ oldStr: previousSection, newStr: nextSection, replaceAllMatches: true }],
+        recordClientErrorAsFailure: false,
+      });
+      return "update_content";
+    } catch (error) {
+      if (!isNotionPolicyBlockedError(error)) {
+        throw error;
+      }
+    }
   }
 
   assertSafeReplacement(input.previousMarkdown, input.nextMarkdown);

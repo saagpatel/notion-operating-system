@@ -720,6 +720,26 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "number",
 					valueName: "count",
 				},
+				{
+					name: "write-scope",
+					description: "Limit live writes to a resumable sync stage.",
+					type: "enum",
+					valueName: "scope",
+					choices: ["full", "providers", "project-pages", "portfolio-sections"],
+					defaultValue: "full",
+				},
+				{
+					name: "project-limit",
+					description: "Maximum number of project pages to refresh in project-pages scope.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "project-offset",
+					description: "Stable project-page batch offset for project-pages scope.",
+					type: "number",
+					valueName: "count",
+				},
 			],
 			({ parsed }) =>
 				runExternalSignalSyncCommand({
@@ -735,6 +755,15 @@ export const cliRegistry: CliCommandDefinition[] = [
 							| undefined) ?? "all",
 					sourceLimit: asNumber(parsed.options["source-limit"]),
 					maxEventsPerSource: asNumber(parsed.options["max-events-per-source"]),
+					writeScope:
+						(asString(parsed.options["write-scope"]) as
+							| "full"
+							| "providers"
+							| "project-pages"
+							| "portfolio-sections"
+							| undefined) ?? "full",
+					projectLimit: asNumber(parsed.options["project-limit"]),
+					projectOffset: asNumber(parsed.options["project-offset"]),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,

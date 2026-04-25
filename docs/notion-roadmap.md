@@ -33,7 +33,8 @@ Updated: 2026-04-23
   - `notification_hub` now exercises, strips status prefixes before matching, ignores known bridge/Codex operational tags (`bridge-sync`, `memories`, `d`), and reports sample names for remaining unmatched project values.
   - `repo_auditor` now exercises, reports audit input dated 2026-04-24, and reports sample names for remaining unmatched repos.
   - `bridge-db`, `notification-hub`, and `DecisionStressTest` now have Local Portfolio Project rows and live GitHub source mappings, so local-provider dry-runs no longer report unmatched project/repo names.
-  - broad live signal sync was approved and attempted on 2026-04-24; signal events and sync runs reconciled, but Notion transport instability left the 117 project brief refreshes and command-center sections still pending in dry-run.
+  - broad live signal sync was approved and attempted on 2026-04-24; signal events and sync runs reconciled, and `signals:sync` now has scoped `providers`, `project-pages`, and `portfolio-sections` write modes for safe recovery.
+  - the 2026-04-25 scoped recovery wrote 23 notification-hub events plus one provider sync-run, then reduced project brief drift from 117 to 38 before the new convergence guard stopped on `Phantom Frequencies` and `Recall`.
 - `npm audit --json` still reports 2 moderate findings through `exceljs -> uuid`; this is documented as an accepted temporary exception because the maintained `exceljs` line still depends on vulnerable `uuid`.
 - `notification-hub` and `repo-auditor` have sandbox live proof from 2026-04-17 and primary-profile dry-run exercise from 2026-04-23.
   - sandbox source rows exist for both providers
@@ -250,7 +251,7 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
     - `repo-auditor` resolves through active GitHub source identifiers first, then project-title fallback
     - sandbox live proof wrote real `External Signal Events` and `External Signal Sync Runs` rows for both providers
     - primary-profile source rows now exist for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports`
-    - known provider mapping misses are resolved; the remaining broad live-sync work is page/section refresh reliability after a 2026-04-24 Notion transport stall
+    - known provider mapping misses are resolved; remaining broad live-sync recovery should use scoped page and section refreshes after the 2026-04-24 Notion transport stall
   - as of 2026-04-17, the orphan-classification live packet lane writes structured `work_packets` entries with execution metadata and project relations
   - as of 2026-04-17, orphan follow-through also has an approval-backed path: `--request-approval` creates or refreshes governance requests and `--create-approved-packets` materializes only approved kickoff packets
   - as of 2026-04-17, the sandbox GitHub lane has enough live evidence to stop proving it further unless a new action family is needed; the next work should be productization, not more sandbox mutation depth
@@ -260,9 +261,9 @@ Phase 10 - Signal Wiring and Intelligence Layer
 
 Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
 
-Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters; signal-quality cleanup is now mostly narrowed to reliability and operator-surface follow-through.
+Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters; signal-quality cleanup is now mostly narrowed to managed-markdown convergence repair, scoped live recovery, and operator-surface follow-through.
 Recommended next slice:
-- make the broad live signal page refresh reliable after the 2026-04-24 Notion transport stall, then rerun `signals:sync` until the 117-project brief and command-center drift clears
+- resolve the non-converging `Phantom Frequencies` and `Recall` project brief writes, then continue the scoped signal refresh recovery path (`--write-scope project-pages` batches, then `--write-scope portfolio-sections`) until the remaining 38 project brief and command-center drift clears
 - improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
 
 Phase 10C should now focus on the remaining gaps after adapter closure: signal-quality cleanup, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.

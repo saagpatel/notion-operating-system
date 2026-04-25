@@ -52,6 +52,34 @@ Decision rules:
 - If weekly refresh drifts but has no failed or partial steps, a manual live run is the normal follow-up.
 - If any weekly-refresh step is failed or partial, do not run live; diagnose with targeted dry-run commands first.
 
+## External Signal Refresh Recovery
+
+If `signals:sync -- --live` is interrupted by Notion transport errors after signal events and sync runs have already reconciled, do not rerun a broad full live sync first. Use scoped refreshes so retries do not create duplicate provider sync-run rows.
+
+Start with a dry-run:
+
+```bash
+npm run signals:sync
+```
+
+If the remaining drift is project briefs or command-center sections, refresh project pages in deterministic batches:
+
+```bash
+npm run signals:sync -- --write-scope project-pages --project-limit 10 --project-offset 0
+npm run signals:sync -- --live --write-scope project-pages --project-limit 10 --project-offset 0
+npm run signals:sync
+```
+
+Repeat offsets `10`, `20`, `30`, and so on until project brief drift clears. Then refresh the portfolio sections:
+
+```bash
+npm run signals:sync -- --write-scope portfolio-sections
+npm run signals:sync -- --live --write-scope portfolio-sections
+npm run signals:sync
+```
+
+Current recovery note: the 2026-04-25 live recovery reduced project brief drift from 117 to 38, but stopped on managed-markdown convergence failures for `Phantom Frequencies` and `Recall`. Inspect those project brief sections before continuing live page batches. Do not run `portfolio-sections` live until project-page drift is either cleared or explicitly documented as benign residual drift.
+
 ## Notion Artifact Freshness
 
 Under this model, the following are live artifacts that may lag between manual refreshes:

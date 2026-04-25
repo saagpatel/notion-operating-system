@@ -4,6 +4,7 @@ import {
   buildAppendSectionTailUpdate,
   buildInsertSectionAfterHeadingUpdate,
   isNotionPolicyBlockedError,
+  syncManagedMarkdownSection,
 } from "../src/notion/managed-markdown-sync.js";
 import { limitRelationIds } from "../src/notion/review-packet.js";
 import { extractManagedSection, mergeManagedSection, normalizeMarkdown } from "../src/utils/markdown.js";
@@ -57,6 +58,40 @@ describe("managed markdown sync", () => {
 
     expect(isNotionPolicyBlockedError(error)).toBe(true);
     expect(isNotionPolicyBlockedError(new AppError("bad request", { status: 400, body: "validation" }))).toBe(false);
+  });
+
+  test("falls back to safe replacement when section update is Cloudflare-blocked", async () => {
+    const previousMarkdown = [
+      "# Project",
+      "<!-- codex:notion-execution-brief:start -->",
+      "old",
+      "<!-- codex:notion-execution-brief:end -->",
+    ].join("\n");
+    const nextMarkdown = previousMarkdown.replace("old", "new");
+    const calls: Array<{ command: string }> = [];
+    const api = {
+      patchPageMarkdown: async (input: { command: string }) => {
+        calls.push({ command: input.command });
+        if (input.command === "update_content") {
+          throw new AppError("blocked", {
+            status: 403,
+            body: "<html><title>Cloudflare</title><h1>Sorry, you have been blocked</h1></html>",
+          });
+        }
+      },
+    };
+
+    const mode = await syncManagedMarkdownSection({
+      api: api as never,
+      pageId: "page-1",
+      previousMarkdown,
+      nextMarkdown,
+      startMarker: "<!-- codex:notion-execution-brief:start -->",
+      endMarker: "<!-- codex:notion-execution-brief:end -->",
+    });
+
+    expect(mode).toBe("replace_content");
+    expect(calls.map((call) => call.command)).toEqual(["update_content", "replace_content"]);
   });
 
   test("recognizes managed sections after Notion escapes the markers", () => {
