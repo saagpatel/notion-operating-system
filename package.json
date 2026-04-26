@@ -144,7 +144,7 @@
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "1.29.0",
-		"@notionhq/client": "^5.19.0",
+		"@notionhq/client": "^5.20.0",
 		"dotenv": "^17.4.2",
 		"exceljs": "^4.4.0",
 		"gray-matter": "^4.0.3",
