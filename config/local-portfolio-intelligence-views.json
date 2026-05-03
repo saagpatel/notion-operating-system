@@ -46,7 +46,7 @@
           "viewId": "326c21f1-caf0-81c1-b360-000c0c754fd4",
           "type": "table",
           "purpose": "Show projects that look like hold, archive, or merge candidates.",
-          "configure": "FILTER \"Recommendation Lane\" = \"Defer\"; SORT BY \"Recommendation Score\" DESC; SHOW \"Name\", \"Recommendation Lane\", \"Recommendation Score\", \"Momentum\", \"Evidence Freshness\", \"Setup Friction\""
+          "configure": "FILTER \"Recommendation Lane\" = \"Defer\"; SORT BY \"Recommendation Score\" DESC; SHOW \"Name\", \"Recommendation Lane\", \"Recommendation Score\", \"Evidence Freshness\", \"Setup Friction\""
         },
         {
           "name": "Support Gaps",

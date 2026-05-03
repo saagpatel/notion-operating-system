@@ -791,26 +791,26 @@
     "lastClosedPhase": 9
   },
   "weeklyMaintenance": {
-    "supportMaintenanceLastSyncAt": "2026-04-07",
-    "weeklyRefreshLastRunAt": "2026-04-07",
-    "weeklyRefreshLastStatus": "completed",
+    "supportMaintenanceLastSyncAt": "2026-05-03",
+    "weeklyRefreshLastRunAt": "2026-05-03",
+    "weeklyRefreshLastStatus": "failed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
       "liveExecuted": "yes",
       "preflightTotalSteps": 6,
-      "preflightCleanSteps": 5,
-      "preflightDriftSteps": 1,
+      "preflightCleanSteps": 1,
+      "preflightDriftSteps": 5,
       "preflightCompletedSteps": 0,
       "preflightPartialSteps": 0,
       "preflightFailedSteps": 0,
       "preflightSkippedSteps": 0,
       "liveTotalSteps": 6,
-      "liveCleanSteps": 5,
+      "liveCleanSteps": 1,
       "liveDriftSteps": 0,
-      "liveCompletedSteps": 1,
+      "liveCompletedSteps": 0,
       "livePartialSteps": 0,
-      "liveFailedSteps": 0,
-      "liveSkippedSteps": 0
+      "liveFailedSteps": 1,
+      "liveSkippedSteps": 4
     },
     "weeklyReviewLastPublishedAt": "2026-04-14"
   }
