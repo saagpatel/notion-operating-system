@@ -1280,6 +1280,54 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "number",
 					valueName: "count",
 				},
+				{
+					name: "only",
+					description:
+						"Run only the named weekly step. Repeat or pass comma-separated values.",
+					type: "string-array",
+					valueName: "step",
+				},
+				{
+					name: "skip",
+					description:
+						"Skip the named weekly step. Repeat or pass comma-separated values.",
+					type: "string-array",
+					valueName: "step",
+				},
+				{
+					name: "max-project-pages",
+					description:
+						"Limit project-page writes during the external-signal step.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "project-offset",
+					description:
+						"Offset project-page writes during the external-signal step.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "step-timeout-minutes",
+					description:
+						"Override the child-command timeout for each weekly step.",
+					type: "number",
+					valueName: "minutes",
+				},
+				{
+					name: "max-step-attempts",
+					description:
+						"Override retry attempts for each weekly child command.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "summary-first",
+					description:
+						"Print a compact troubleshooting summary before the full JSON output.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runWeeklyRefreshCommand({
@@ -1295,6 +1343,13 @@ export const cliRegistry: CliCommandDefinition[] = [
 					signalMaxEventsPerSource: asNumber(
 						parsed.options["signal-max-events-per-source"],
 					),
+					only: asStringArray(parsed.options.only),
+					skip: asStringArray(parsed.options.skip),
+					maxProjectPages: asNumber(parsed.options["max-project-pages"]),
+					projectOffset: asNumber(parsed.options["project-offset"]),
+					stepTimeoutMinutes: asNumber(parsed.options["step-timeout-minutes"]),
+					maxStepAttempts: asNumber(parsed.options["max-step-attempts"]),
+					summaryFirst: asBoolean(parsed.options["summary-first"]),
 				}),
 		),
 	]),

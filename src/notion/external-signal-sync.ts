@@ -77,7 +77,11 @@ import {
 	toSkillLibraryRecord,
 	toToolMatrixRecord,
 } from "./local-portfolio-intelligence-live.js";
-import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import {
+	isNotionPolicyBlockedError,
+	isReadBackRecoverableMarkdownError,
+	syncManagedMarkdownSectionWithReadBack,
+} from "./managed-markdown-sync.js";
 import {
 	buildWeeklyStepContract,
 	mapWeeklyStepStatusToCommandStatus,
@@ -647,6 +651,7 @@ export async function runExternalSignalSyncCommand(
 			: false;
 
 	let changedProjectPages = 0;
+	const blockedMarkdownProjects: string[] = [];
 	if (live && shouldEvaluateProjectPages) {
 		logLiveStage(live, "Refreshing project signal briefs", {
 			writeScope,
@@ -687,14 +692,28 @@ export async function runExternalSignalSyncCommand(
 			}
 			const projectBrief = projectBriefs[index];
 			if (projectBrief?.changed) {
-				await syncExternalSignalProjectBrief({
-					api,
-					pageId: project.id,
-					projectTitle: project.title,
-					previousMarkdown: projectBrief.previousMarkdown,
-					nextMarkdown: projectBrief.nextMarkdown,
-				});
-				changedProjectPages += 1;
+				try {
+					await syncExternalSignalProjectBrief({
+						api,
+						pageId: project.id,
+						projectTitle: project.title,
+						previousMarkdown: projectBrief.previousMarkdown,
+						nextMarkdown: projectBrief.nextMarkdown,
+					});
+					changedProjectPages += 1;
+				} catch (error) {
+					if (
+						!isNotionPolicyBlockedError(error) &&
+						!isReadBackRecoverableMarkdownError(error)
+					) {
+						throw error;
+					}
+					blockedMarkdownProjects.push(project.title);
+					logLiveStage(live, "Skipping blocked project markdown patch", {
+						projectId: project.id,
+						projectTitle: project.title,
+					});
+				}
 			}
 		}
 	}
@@ -775,6 +794,8 @@ export async function runExternalSignalSyncCommand(
 		createdSyncRunCount,
 		changedProjectPages,
 		projectExternalSignalBriefsWouldChange,
+		blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+		blockedMarkdownProjects,
 		projectRefreshTotalCount,
 		projectRefreshBatchCount,
 		projectRefreshOffset,
@@ -796,9 +817,10 @@ export async function runExternalSignalSyncCommand(
 	const providerPartial = providerResults.some(
 		(result) => result.status === "Partial",
 	);
+	const markdownPartial = blockedMarkdownProjects.length > 0;
 	const contract = buildWeeklyStepContract({
 		live,
-		status: providerFailed ? "failed" : providerPartial ? "partial" : undefined,
+		status: providerFailed ? "failed" : providerPartial || markdownPartial ? "partial" : undefined,
 		wouldChange:
 			createdEventCount > 0 ||
 			createdSyncRunCount > 0 ||
@@ -815,6 +837,7 @@ export async function runExternalSignalSyncCommand(
 				0,
 			),
 			projectExternalSignalBriefsWouldChange,
+			blockedMarkdownProjectPages: blockedMarkdownProjects.length,
 			projectRefreshTotalCount,
 			projectRefreshBatchCount,
 			projectRefreshOffset: projectRefreshOffset ?? 0,
@@ -829,7 +852,10 @@ export async function runExternalSignalSyncCommand(
 			mappedProjects: output.metrics.mappedProjects,
 			projectsNeedingMapping: output.metrics.projectsNeedingMapping,
 		},
-		warnings: providerWarnings,
+		warnings: [
+			...providerWarnings,
+			...blockedMarkdownProjects.map((projectTitle) => `Skipped blocked project markdown patch: ${projectTitle}`),
+		],
 	});
 	output.status = contract.status;
 	output.wouldChange = contract.wouldChange;
@@ -838,7 +864,10 @@ export async function runExternalSignalSyncCommand(
 	recordCommandOutputSummary(output, {
 		status: mapWeeklyStepStatusToCommandStatus(contract.status),
 		warningCategories:
-			deriveExternalSignalSyncWarningCategories(providerResults),
+			mergeExternalSignalWarningCategories(
+				deriveExternalSignalSyncWarningCategories(providerResults),
+				markdownPartial ? ["partial_success"] : undefined,
+			),
 		failureCategories:
 			deriveExternalSignalSyncFailureCategories(providerResults),
 		metadata: {
@@ -1073,7 +1102,7 @@ async function syncProjectBriefSection(input: {
 	startMarker: string;
 	endMarker: string;
 }): Promise<string> {
-	await syncManagedMarkdownSection({
+	await syncManagedMarkdownSectionWithReadBack({
 		api: input.api,
 		pageId: input.pageId,
 		previousMarkdown: input.currentMarkdown,
@@ -1189,6 +1218,35 @@ export function deriveExternalSignalSyncWarningCategories(
 		}
 	}
 	return categories.size > 0 ? [...categories] : undefined;
+}
+
+function mergeExternalSignalWarningCategories(
+	left:
+		| Array<
+				| "partial_success"
+				| "missing_credentials"
+				| "unsupported_provider"
+				| "validation_gap"
+		  >
+		| undefined,
+	right:
+		| Array<
+				| "partial_success"
+				| "missing_credentials"
+				| "unsupported_provider"
+				| "validation_gap"
+		  >
+		| undefined,
+):
+	| Array<
+			| "partial_success"
+			| "missing_credentials"
+			| "unsupported_provider"
+			| "validation_gap"
+	  >
+	| undefined {
+	const merged = new Set([...(left ?? []), ...(right ?? [])]);
+	return merged.size > 0 ? [...merged] : undefined;
 }
 
 export function deriveExternalSignalSyncFailureCategories(

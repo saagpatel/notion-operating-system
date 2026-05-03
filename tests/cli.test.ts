@@ -112,6 +112,19 @@ describe("cli smoke tests", () => {
     );
   });
 
+  test("weekly refresh exposes targeted fast-maintenance controls", async () => {
+    const help = await runCliForTest(["maintenance", "weekly-refresh", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("--only <step>");
+    expect(help.stdout).toContain("--skip <step>");
+    expect(help.stdout).toContain("--max-project-pages <count>");
+    expect(help.stdout).toContain("--project-offset <count>");
+    expect(help.stdout).toContain("--step-timeout-minutes <minutes>");
+    expect(help.stdout).toContain("--max-step-attempts <count>");
+    expect(help.stdout).toContain("--summary-first");
+  });
+
   test("runs doctor json output safely on a fresh machine", async () => {
     const tempDir = await createTempWorkspace();
 

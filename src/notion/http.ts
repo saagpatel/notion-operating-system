@@ -11,6 +11,7 @@ import {
 interface RequestOptions {
   method?: string;
   body?: unknown;
+  maxAttempts?: number;
   recordClientErrorAsFailure?: boolean;
 }
 
@@ -48,10 +49,11 @@ export class NotionHttp {
 
   public async requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const method = options.method ?? "GET";
+    const maxAttempts = options.maxAttempts ?? this.maxAttempts;
     let recoveredAfterRetry = false;
     let terminalCategory: "timeout_exhausted" | "transport_error" | "unexpected_response" = "timeout_exhausted";
 
-    for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(`Timed out after ${this.timeoutMs}ms`), this.timeoutMs);
       let response: Response;
@@ -78,13 +80,13 @@ export class NotionHttp {
             timeoutMs: this.timeoutMs,
           });
 
-          if (attempt === this.maxAttempts) {
+          if (attempt === maxAttempts) {
             recordCommandFailureCategory("timeout_exhausted");
             terminalCategory = "timeout_exhausted";
             await this.logger?.error("notion_http_timeout_exhausted", {
               path,
               method,
-              attempts: this.maxAttempts,
+              attempts: maxAttempts,
               timeoutMs: this.timeoutMs,
             });
             break;
@@ -103,13 +105,13 @@ export class NotionHttp {
           classification: "transport_error",
           errorMessage: error instanceof Error ? error.message : String(error),
         });
-        if (attempt === this.maxAttempts) {
+        if (attempt === maxAttempts) {
           recordCommandFailureCategory("transport_error");
           terminalCategory = "transport_error";
           await this.logger?.error("notion_http_retry_exhausted", {
             path,
             method,
-            attempts: this.maxAttempts,
+            attempts: maxAttempts,
             classification: "transport_error",
             errorMessage: error instanceof Error ? error.message : String(error),
           });
@@ -141,13 +143,13 @@ export class NotionHttp {
           retryAfterSeconds: retryAfter,
         });
 
-        if (attempt === this.maxAttempts) {
+        if (attempt === maxAttempts) {
           recordCommandFailureCategory("unexpected_response");
           terminalCategory = "unexpected_response";
           await this.logger?.error("notion_http_retry_exhausted", {
             path,
             method,
-            attempts: this.maxAttempts,
+            attempts: maxAttempts,
             status: response.status,
             retryAfterSeconds: retryAfter,
           });
@@ -182,16 +184,16 @@ export class NotionHttp {
     await this.logger?.error("notion_http_failure", {
       path,
       method,
-      attempts: this.maxAttempts,
+      attempts: maxAttempts,
       classification: terminalCategory,
       timeoutMs: this.timeoutMs,
     });
     const errorMessage =
       terminalCategory === "transport_error"
-        ? `Notion request transport error after ${this.maxAttempts} attempt(s) for ${method} ${path}`
+        ? `Notion request transport error after ${maxAttempts} attempt(s) for ${method} ${path}`
         : terminalCategory === "unexpected_response"
-          ? `Notion request returned retryable error responses after ${this.maxAttempts} attempt(s) for ${method} ${path}`
-          : `Notion request timed out after ${this.maxAttempts} attempt(s) for ${method} ${path}`;
+          ? `Notion request returned retryable error responses after ${maxAttempts} attempt(s) for ${method} ${path}`
+          : `Notion request timed out after ${maxAttempts} attempt(s) for ${method} ${path}`;
     throw new AppError(errorMessage, {
       timeoutMs: this.timeoutMs,
       classification: terminalCategory,

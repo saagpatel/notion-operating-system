@@ -330,6 +330,7 @@ export class DirectNotionClient implements NotionApi {
     await this.http.requestJson(`/pages/${input.pageId}/markdown`, {
       method: "PATCH",
       body,
+      maxAttempts: input.maxAttempts,
       recordClientErrorAsFailure: input.recordClientErrorAsFailure,
     });
   }

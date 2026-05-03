@@ -177,6 +177,25 @@ export function requireNotionToken(message = "NOTION_TOKEN is required", options
   return token;
 }
 
+export function hydrateProcessEnvFromRuntimeProfile(options: Pick<RuntimeConfigOptions, "cwd" | "profile"> = {}): RuntimeConfig {
+  const cwd = path.resolve(options.cwd ?? process.cwd());
+  const env = { ...process.env };
+  const profile = resolveWorkspaceProfile({
+    cwd,
+    env,
+    profileName: options.profile,
+  });
+  hydrateEnv(process.env, profile.envFile, {
+    overrideExisting: true,
+  });
+  return loadRuntimeConfig({
+    cwd,
+    env: process.env,
+    profile: options.profile,
+    hydrateEnvFile: false,
+  });
+}
+
 function buildRuntimeConfig(env: RuntimeEnv, cwd: string, profile: WorkspaceProfile): RuntimeConfig {
   return {
     cwd,

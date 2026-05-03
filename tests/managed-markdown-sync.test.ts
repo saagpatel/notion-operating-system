@@ -5,6 +5,7 @@ import {
   buildInsertSectionAfterHeadingUpdate,
   isNotionPolicyBlockedError,
   syncManagedMarkdownSection,
+  syncManagedMarkdownSectionWithReadBack,
 } from "../src/notion/managed-markdown-sync.js";
 import { limitRelationIds } from "../src/notion/review-packet.js";
 import { extractManagedSection, mergeManagedSection, normalizeMarkdown } from "../src/utils/markdown.js";
@@ -92,6 +93,87 @@ describe("managed markdown sync", () => {
 
     expect(mode).toBe("replace_content");
     expect(calls.map((call) => call.command)).toEqual(["update_content", "replace_content"]);
+  });
+
+  test("treats an ambiguous markdown PATCH transport error as success when read-back already converged", async () => {
+    const previousMarkdown = [
+      "# Project",
+      "<!-- codex:notion-execution-brief:start -->",
+      "old",
+      "<!-- codex:notion-execution-brief:end -->",
+    ].join("\n");
+    const nextMarkdown = previousMarkdown.replace("old", "new");
+    const patchInputs: Array<{ command: string; maxAttempts?: number }> = [];
+    const api = {
+      patchPageMarkdown: async (input: { command: string; maxAttempts?: number }) => {
+        patchInputs.push(input);
+        throw new AppError("Notion request transport error after 1 attempt(s) for PATCH /pages/page-1/markdown");
+      },
+      readPageMarkdown: async () => ({
+        markdown: nextMarkdown,
+        raw: {},
+        truncated: false,
+        unknownBlockIds: [],
+      }),
+    };
+
+    const mode = await syncManagedMarkdownSectionWithReadBack({
+      api: api as never,
+      pageId: "page-1",
+      previousMarkdown,
+      nextMarkdown,
+      startMarker: "<!-- codex:notion-execution-brief:start -->",
+      endMarker: "<!-- codex:notion-execution-brief:end -->",
+      maxAttempts: 2,
+    });
+
+    expect(mode).toBe("read_back_converged");
+    expect(patchInputs).toEqual([expect.objectContaining({ command: "update_content", maxAttempts: 1 })]);
+  });
+
+  test("recomputes from read-back markdown before retrying an ambiguous managed-section write", async () => {
+    const previousMarkdown = [
+      "# Project",
+      "<!-- codex:notion-execution-brief:start -->",
+      "old",
+      "<!-- codex:notion-execution-brief:end -->",
+    ].join("\n");
+    const staleReadBack = previousMarkdown.replace("old", "still old");
+    const nextMarkdown = previousMarkdown.replace("old", "new");
+    const patchInputs: Array<{ command: string; contentUpdates?: Array<{ oldStr: string }>; maxAttempts?: number }> = [];
+    const api = {
+      patchPageMarkdown: async (input: {
+        command: string;
+        contentUpdates?: Array<{ oldStr: string }>;
+        maxAttempts?: number;
+      }) => {
+        patchInputs.push(input);
+        if (patchInputs.length === 1) {
+          throw new AppError("Notion request returned retryable error responses after 1 attempt(s) for PATCH /pages/page-1/markdown");
+        }
+      },
+      readPageMarkdown: async () => ({
+        markdown: staleReadBack,
+        raw: {},
+        truncated: false,
+        unknownBlockIds: [],
+      }),
+    };
+
+    const mode = await syncManagedMarkdownSectionWithReadBack({
+      api: api as never,
+      pageId: "page-1",
+      previousMarkdown,
+      nextMarkdown,
+      startMarker: "<!-- codex:notion-execution-brief:start -->",
+      endMarker: "<!-- codex:notion-execution-brief:end -->",
+      maxAttempts: 2,
+    });
+
+    expect(mode).toBe("update_content");
+    expect(patchInputs).toHaveLength(2);
+    expect(patchInputs[1]?.contentUpdates?.[0]?.oldStr).toContain("still old");
+    expect(patchInputs.every((input) => input.maxAttempts === 1)).toBe(true);
   });
 
   test("recognizes managed sections after Notion escapes the markers", () => {

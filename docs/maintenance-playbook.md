@@ -8,7 +8,8 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Review the latest `Dependency Hygiene` workflow run.
 - Triage any failed workflow, audit finding, install-smoke regression, or release-gate failure within the same week.
 - Review the weekly `weekly-notion-maintenance` inbox item as the default Notion maintenance signal.
-- Run `npm run maintenance:weekly-refresh -- --live --confirm-full-live` manually only when that weekly digest recommends a full live refresh.
+- Run `npm run maintenance:weekly-refresh -- --summary-first` first when you need a compact weekly preflight.
+- Run `npm run maintenance:weekly-refresh -- --live --confirm-full-live --summary-first` manually only when that weekly digest recommends a full live refresh.
 
 ## Fast Notion Repair Rule
 
@@ -28,10 +29,17 @@ npm run control-tower:sync -- --today 2026-05-03 --live
 npm run control-tower:sync -- --today 2026-05-03
 ```
 
+The weekly orchestrator can also run a bounded single-step preflight when you need quick triage:
+
+```bash
+npm run maintenance:weekly-refresh -- --today 2026-05-03 --only execution-sync --step-timeout-minutes 5 --max-step-attempts 2 --summary-first
+npm run maintenance:weekly-refresh -- --today 2026-05-03 --only external-signals --max-project-pages 10 --project-offset 0 --summary-first
+```
+
 Run full weekly live only for full weekly maintenance:
 
 ```bash
-npm run maintenance:weekly-refresh -- --today 2026-05-03 --signal-source-limit 5 --signal-max-events-per-source 5 --live --confirm-full-live
+npm run maintenance:weekly-refresh -- --today 2026-05-03 --signal-source-limit 5 --signal-max-events-per-source 5 --live --confirm-full-live --summary-first
 ```
 
 If the full weekly live command fails in `execution-sync`, `intelligence-sync`, or `external-signals`, continue with that lane's targeted command instead of rerunning the full weekly sequence.

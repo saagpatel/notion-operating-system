@@ -207,6 +207,7 @@ export interface MarkdownPatchInput {
   command: "replace_content" | "update_content";
   newMarkdown?: string;
   contentUpdates?: ContentUpdate[];
+  maxAttempts?: number;
   recordClientErrorAsFailure?: boolean;
 }
 

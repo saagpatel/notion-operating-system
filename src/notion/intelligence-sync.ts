@@ -48,7 +48,11 @@ import { AppError } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
-import { isNotionPolicyBlockedError, syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import {
+  isNotionPolicyBlockedError,
+  isReadBackRecoverableMarkdownError,
+  syncManagedMarkdownSectionWithReadBack,
+} from "./managed-markdown-sync.js";
 
 const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
@@ -292,7 +296,7 @@ export async function runIntelligenceSyncCommand(
 
         if (entry.changed) {
           try {
-            const mode = await syncManagedMarkdownSection({
+            const mode = await syncManagedMarkdownSectionWithReadBack({
               api,
               pageId: context.project.id,
               previousMarkdown: entry.previousMarkdown,
@@ -305,7 +309,7 @@ export async function runIntelligenceSyncCommand(
               fallbackMarkdownProjects.push(context.project.title);
             }
           } catch (error) {
-            if (!isNotionPolicyBlockedError(error)) {
+            if (!isNotionPolicyBlockedError(error) && !isReadBackRecoverableMarkdownError(error)) {
               throw error;
             }
             blockedMarkdownProjects.push(context.project.title);

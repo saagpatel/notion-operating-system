@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-355c21f1caf0813c926eea65db646daf",
-    "pageId": "355c21f1-caf0-813c-926e-ea65db646daf"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-355c21f1caf081b483b7fda95dafd27c",
+    "pageId": "355c21f1-caf0-81b4-83b7-fda95dafd27c"
   },
   "fieldOwnership": {
     "manual": [
@@ -793,23 +793,23 @@
   "weeklyMaintenance": {
     "supportMaintenanceLastSyncAt": "2026-05-03",
     "weeklyRefreshLastRunAt": "2026-05-03",
-    "weeklyRefreshLastStatus": "failed",
+    "weeklyRefreshLastStatus": "partial",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
       "liveExecuted": "yes",
-      "preflightTotalSteps": 6,
-      "preflightCleanSteps": 2,
-      "preflightDriftSteps": 4,
+      "preflightTotalSteps": 1,
+      "preflightCleanSteps": 0,
+      "preflightDriftSteps": 1,
       "preflightCompletedSteps": 0,
       "preflightPartialSteps": 0,
       "preflightFailedSteps": 0,
       "preflightSkippedSteps": 0,
-      "liveTotalSteps": 6,
-      "liveCleanSteps": 2,
+      "liveTotalSteps": 1,
+      "liveCleanSteps": 0,
       "liveDriftSteps": 0,
-      "liveCompletedSteps": 1,
-      "livePartialSteps": 0,
-      "liveFailedSteps": 3,
+      "liveCompletedSteps": 0,
+      "livePartialSteps": 1,
+      "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
     "weeklyReviewLastPublishedAt": "2026-05-03"

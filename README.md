@@ -133,6 +133,22 @@ Requires `VERCEL_TOKEN` in your `.env`. The live gate also requires a successful
 
 ### 7. Weekly live sequence (correct order)
 
+Use the guarded orchestrator for a full weekly pass:
+
+```bash
+npm run maintenance:weekly-refresh -- --today "$(date +%F)" --signal-source-limit 5 --signal-max-events-per-source 5 --summary-first
+npm run maintenance:weekly-refresh -- --today "$(date +%F)" --signal-source-limit 5 --signal-max-events-per-source 5 --live --confirm-full-live --summary-first
+```
+
+For repair work, run a single lane instead of the full weekly live pass:
+
+```bash
+npm run maintenance:weekly-refresh -- --today "$(date +%F)" --only intelligence-sync --step-timeout-minutes 5 --max-step-attempts 2 --summary-first
+npm run maintenance:weekly-refresh -- --today "$(date +%F)" --only external-signals --max-project-pages 10 --project-offset 0 --summary-first
+```
+
+The older manual sequence remains useful when you need to run one command directly:
+
 ```bash
 npm run portfolio-audit:control-tower-sync -- --live          # 1. derive PM signals
 npm run portfolio-audit:review-packet -- --live               # 2. create/refresh weekly page
@@ -146,6 +162,7 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | Command | What it does |
 |---|---|
 | `npm run governance:health-report` | Governance health snapshot (no writes) |
+| `npm run maintenance:weekly-refresh -- --summary-first` | Weekly maintenance preflight with compact troubleshooting output |
 | `npm run destinations:check` | List configured Notion destination aliases |
 | `npm run destinations:resolve` | Resolve and persist Notion IDs for all destinations |
 | `npm run portfolio-audit:control-tower-sync` | Refresh derived PM signals (dry-run) |

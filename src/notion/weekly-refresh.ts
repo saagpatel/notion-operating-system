@@ -35,6 +35,13 @@ interface WeeklyRefreshCommandOptions {
   owner?: string;
   signalSourceLimit?: number;
   signalMaxEventsPerSource?: number;
+  only?: string[];
+  skip?: string[];
+  maxProjectPages?: number;
+  projectOffset?: number;
+  stepTimeoutMinutes?: number;
+  maxStepAttempts?: number;
+  summaryFirst?: boolean;
 }
 
 interface WeeklyRefreshStepDefinition {
@@ -76,6 +83,16 @@ interface WeeklyRefreshOutput {
 }
 
 const DEFAULT_OWNER = "saagpatel";
+const WEEKLY_STEP_KEYS = [
+  "support-maintenance",
+  "control-tower-sync",
+  "execution-sync",
+  "intelligence-sync",
+  "review-packet",
+  "external-signals",
+] as const;
+
+type WeeklyStepKey = (typeof WEEKLY_STEP_KEYS)[number];
 
 export async function runWeeklyRefreshCommand(
   options: WeeklyRefreshCommandOptions = {},
@@ -90,7 +107,15 @@ export async function runWeeklyRefreshCommand(
     owner: options.owner ?? DEFAULT_OWNER,
     signalSourceLimit: options.signalSourceLimit,
     signalMaxEventsPerSource: options.signalMaxEventsPerSource,
+    only: normalizeStepSelection(options.only),
+    skip: normalizeStepSelection(options.skip),
+    maxProjectPages: options.maxProjectPages,
+    projectOffset: options.projectOffset,
+    stepTimeoutMinutes: options.stepTimeoutMinutes,
+    maxStepAttempts: options.maxStepAttempts ?? 5,
+    summaryFirst: options.summaryFirst ?? false,
   };
+  validateWeeklyRefreshFlags(flags);
   if (flags.live && !flags.confirmFullLive) {
     throw new Error(
       [
@@ -107,6 +132,7 @@ export async function runWeeklyRefreshCommand(
     flags.signalMaxEventsPerSource ?? Math.min(config.phase5ExternalSignals?.syncLimits.maxEventsPerSource ?? 25, 5);
 
   const preflightSteps = await runWeeklyRefreshSteps(buildStepDefinitions(flags, false, externalSignalSourceLimit, externalSignalMaxEventsPerSource), {
+    maxStepAttempts: flags.maxStepAttempts,
     stopAfterControlTowerFailure: false,
   });
   const preflightSummary = summarizeStepResults(preflightSteps);
@@ -126,6 +152,7 @@ export async function runWeeklyRefreshCommand(
 
   if (flags.live && needsLiveWrite && preflightStatus !== "failed" && preflightStatus !== "partial") {
     const liveSteps = await runWeeklyRefreshSteps(buildStepDefinitions(flags, true, externalSignalSourceLimit, externalSignalMaxEventsPerSource), {
+      maxStepAttempts: flags.maxStepAttempts,
       stopAfterControlTowerFailure: true,
     });
     const liveSummary = summarizeStepResults(liveSteps);
@@ -154,6 +181,7 @@ export async function runWeeklyRefreshCommand(
       needsLiveWrite,
       preflightSummary,
       liveSummary: liveRun?.summary,
+      allowCommandCenterReplacement: !flags.only?.length && !flags.skip?.length,
     });
   }
 
@@ -180,6 +208,9 @@ export async function runWeeklyRefreshCommand(
       liveExecuted,
     },
   });
+  if (flags.summaryFirst) {
+    console.log(JSON.stringify(buildWeeklyRefreshQuickSummary(output), null, 2));
+  }
   console.log(JSON.stringify(output, null, 2));
 }
 
@@ -191,13 +222,18 @@ function buildStepDefinitions(
     owner: string;
     signalSourceLimit?: number;
     signalMaxEventsPerSource?: number;
+    only?: WeeklyStepKey[];
+    skip?: WeeklyStepKey[];
+    maxProjectPages?: number;
+    projectOffset?: number;
+    stepTimeoutMinutes?: number;
   },
   live: boolean,
   externalSignalSourceLimit: number,
   externalSignalMaxEventsPerSource: number,
 ): WeeklyRefreshStepDefinition[] {
   const sharedArgs = buildSharedArgs(flags, live);
-  return [
+  const steps: WeeklyRefreshStepDefinition[] = [
     {
       key: "support-maintenance",
       title: "GitHub Support Maintenance",
@@ -251,11 +287,26 @@ function buildStepDefinitions(
         String(externalSignalSourceLimit),
         "--max-events-per-source",
         String(externalSignalMaxEventsPerSource),
+        ...(flags.maxProjectPages === undefined && flags.projectOffset === undefined ? [] : ["--write-scope", "project-pages"]),
+        ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
+        ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
       ],
       timeoutMs: 20 * 60 * 1000,
       skipAfterControlTowerFailure: true,
     },
   ];
+  return applyStepFilters(
+    flags.stepTimeoutMinutes === undefined
+      ? steps
+      : steps.map((step) => ({
+          ...step,
+          timeoutMs: Math.max(1, flags.stepTimeoutMinutes!) * 60 * 1000,
+        })),
+    {
+      only: flags.only,
+      skip: flags.skip,
+    },
+  );
 }
 
 function buildSharedArgs(
@@ -272,6 +323,7 @@ function buildSharedArgs(
 async function runWeeklyRefreshSteps(
   steps: WeeklyRefreshStepDefinition[],
   options: {
+    maxStepAttempts: number;
     stopAfterControlTowerFailure: boolean;
   },
 ): Promise<WeeklyRefreshStepResult[]> {
@@ -286,7 +338,9 @@ async function runWeeklyRefreshSteps(
       continue;
     }
 
-    const result = await runStep(step);
+    const result = await runStep(step, {
+      maxStepAttempts: options.maxStepAttempts,
+    });
     results.push(result);
 
     if (options.stopAfterControlTowerFailure && step.key === "control-tower-sync" && result.status === "failed") {
@@ -297,11 +351,14 @@ async function runWeeklyRefreshSteps(
   return results;
 }
 
-async function runStep(step: WeeklyRefreshStepDefinition): Promise<WeeklyRefreshStepResult> {
+async function runStep(
+  step: WeeklyRefreshStepDefinition,
+  options: { maxStepAttempts: number },
+): Promise<WeeklyRefreshStepResult> {
   const startedAt = Date.now();
   let attempts = 0;
   let lastError: unknown;
-  const maxAttempts = 5;
+  const maxAttempts = options.maxStepAttempts;
   while (attempts < maxAttempts) {
     attempts += 1;
     try {
@@ -453,12 +510,124 @@ function aggregateOverallStatus(
   return steps.some((step) => step.status === "drift") ? "completed" : "clean";
 }
 
+export function normalizeStepSelection(values: string[] | undefined): WeeklyStepKey[] | undefined {
+  const selected = (values ?? [])
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (selected.length === 0) {
+    return undefined;
+  }
+  const invalid = selected.filter((value) => !isWeeklyStepKey(value));
+  if (invalid.length > 0) {
+    throw new Error(`Unknown weekly refresh step(s): ${invalid.join(", ")}. Valid steps: ${WEEKLY_STEP_KEYS.join(", ")}`);
+  }
+  return [...new Set(selected)] as WeeklyStepKey[];
+}
+
+export function applyStepFilters(
+  steps: WeeklyRefreshStepDefinition[],
+  filters: {
+    only?: WeeklyStepKey[];
+    skip?: WeeklyStepKey[];
+  },
+): WeeklyRefreshStepDefinition[] {
+  if (filters.only?.length && filters.skip?.length) {
+    throw new Error("--only and --skip cannot be used together");
+  }
+  if (filters.only?.length) {
+    return steps.filter((step) => filters.only!.includes(step.key as WeeklyStepKey));
+  }
+  if (filters.skip?.length) {
+    return steps.filter((step) => !filters.skip!.includes(step.key as WeeklyStepKey));
+  }
+  return steps;
+}
+
+function validateWeeklyRefreshFlags(flags: {
+  maxProjectPages?: number;
+  projectOffset?: number;
+  stepTimeoutMinutes?: number;
+  maxStepAttempts: number;
+  only?: WeeklyStepKey[];
+  skip?: WeeklyStepKey[];
+}): void {
+  if (flags.only?.length && flags.skip?.length) {
+    throw new Error("--only and --skip cannot be used together");
+  }
+  for (const [name, value] of [
+    ["--max-project-pages", flags.maxProjectPages],
+    ["--step-timeout-minutes", flags.stepTimeoutMinutes],
+    ["--max-step-attempts", flags.maxStepAttempts],
+  ] as const) {
+    if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+      throw new Error(`${name} must be a positive integer`);
+    }
+  }
+  if (flags.projectOffset !== undefined && (!Number.isInteger(flags.projectOffset) || flags.projectOffset < 0)) {
+    throw new Error("--project-offset must be a non-negative integer");
+  }
+}
+
+function isWeeklyStepKey(value: string): value is WeeklyStepKey {
+  return (WEEKLY_STEP_KEYS as readonly string[]).includes(value);
+}
+
+export function buildWeeklyRefreshQuickSummary(output: WeeklyRefreshOutput): Record<string, unknown> {
+  const summarySource = output.liveRun?.steps ?? output.preflight.steps;
+  const failedSteps = summarySource
+    .filter((step) => step.status === "failed")
+    .map((step) => step.key);
+  const partialSteps = summarySource
+    .filter((step) => step.status === "partial")
+    .map((step) => step.key);
+  const slowSteps = summarySource
+    .filter((step) => step.durationMs >= 5 * 60 * 1000)
+    .map((step) => ({
+      key: step.key,
+      durationMinutes: Math.round(step.durationMs / 60000),
+    }));
+  return {
+    ok: true,
+    summaryFirst: true,
+    status: output.status,
+    needsLiveWrite: output.needsLiveWrite,
+    liveExecuted: output.liveExecuted,
+    summary: output.liveRun?.summary ?? output.preflight.summary,
+    failedSteps,
+    partialSteps,
+    slowSteps,
+    recommendedNextCommands: deriveWeeklyRefreshNextCommands(output, failedSteps, partialSteps),
+  };
+}
+
+function deriveWeeklyRefreshNextCommands(
+  output: WeeklyRefreshOutput,
+  failedSteps: string[],
+  partialSteps: string[],
+): string[] {
+  const commands: string[] = [];
+  for (const step of [...failedSteps, ...partialSteps].slice(0, 3)) {
+    commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --step-timeout-minutes 5 --max-step-attempts 2`);
+  }
+  if (commands.length === 0 && output.needsLiveWrite) {
+    const stepKeys = output.preflight.steps.map((step) => step.key);
+    const onlyArgs =
+      stepKeys.length > 0 && stepKeys.length < WEEKLY_STEP_KEYS.length
+        ? ` --only ${stepKeys.join(",")}`
+        : "";
+    commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today}${onlyArgs} --live --confirm-full-live --summary-first`);
+  }
+  return commands;
+}
+
 async function persistWeeklyRefreshState(input: {
   configPath: string;
   today: string;
   status: WeeklyRefreshOverallStatus;
   liveExecuted: boolean;
   needsLiveWrite: boolean;
+  allowCommandCenterReplacement: boolean;
   preflightSummary: Record<string, number>;
   liveSummary?: Record<string, number>;
 }): Promise<Record<string, string | undefined>> {
@@ -504,6 +673,10 @@ async function persistWeeklyRefreshState(input: {
         if (!isMarkdownPatchTransportError(error)) {
           throw error;
         }
+        if (!input.allowCommandCenterReplacement) {
+          logHumanMessage("Command center freshness markdown patch did not complete during targeted refresh; leaving the existing page in place.");
+          return buildWeeklyRefreshFreshness(nextConfig);
+        }
         nextConfig = await replaceCommandCenterPageAfterPatchFailure({
           api,
           config: nextConfig,
@@ -515,13 +688,21 @@ async function persistWeeklyRefreshState(input: {
   }
 
   return {
-    supportMaintenanceLastSyncAt: nextConfig.weeklyMaintenance?.supportMaintenanceLastSyncAt,
-    weeklyRefreshLastRunAt: nextConfig.weeklyMaintenance?.weeklyRefreshLastRunAt,
-    weeklyReviewLastPublishedAt: nextConfig.weeklyMaintenance?.weeklyReviewLastPublishedAt,
-    controlTowerLastSyncAt: nextConfig.phaseState.lastSyncAt,
-    executionLastSyncAt: nextConfig.phase2Execution?.lastSyncAt,
-    intelligenceLastSyncAt: nextConfig.phase3Intelligence?.lastSyncAt,
-    externalSignalsLastSyncAt: nextConfig.phase5ExternalSignals?.lastSyncAt,
+    ...buildWeeklyRefreshFreshness(nextConfig),
+  };
+}
+
+function buildWeeklyRefreshFreshness(
+  config: Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>>,
+): Record<string, string | undefined> {
+  return {
+    supportMaintenanceLastSyncAt: config.weeklyMaintenance?.supportMaintenanceLastSyncAt,
+    weeklyRefreshLastRunAt: config.weeklyMaintenance?.weeklyRefreshLastRunAt,
+    weeklyReviewLastPublishedAt: config.weeklyMaintenance?.weeklyReviewLastPublishedAt,
+    controlTowerLastSyncAt: config.phaseState.lastSyncAt,
+    executionLastSyncAt: config.phase2Execution?.lastSyncAt,
+    intelligenceLastSyncAt: config.phase3Intelligence?.lastSyncAt,
+    externalSignalsLastSyncAt: config.phase5ExternalSignals?.lastSyncAt,
   };
 }
 

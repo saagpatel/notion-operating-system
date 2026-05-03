@@ -11,9 +11,11 @@ import {
 import { cliRegistry } from "./registry.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { logCommandCompleted, logCommandFailed, withCommandRunContext } from "./run-observability.js";
+import { hydrateProcessEnvFromRuntimeProfile } from "../config/runtime-config.js";
 
 export async function runCli(argv: string[], io: CliIo = defaultCliIo): Promise<void> {
   const previousProfile = process.env.NOTION_PROFILE;
+  const previousEnv = { ...process.env };
 
   try {
     const extracted = extractGlobalCliOptions(argv);
@@ -24,6 +26,10 @@ export async function runCli(argv: string[], io: CliIo = defaultCliIo): Promise<
     } else if (previousProfile === undefined) {
       delete process.env.NOTION_PROFILE;
     }
+
+    hydrateProcessEnvFromRuntimeProfile({
+      profile: extracted.options.profile,
+    });
 
     if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
       io.stdout(renderRootHelp(cliRegistry));
@@ -78,10 +84,24 @@ export async function runCli(argv: string[], io: CliIo = defaultCliIo): Promise<
     io.stderr(toErrorMessage(error));
     io.setExitCode(1);
   } finally {
-    if (previousProfile === undefined) {
-      delete process.env.NOTION_PROFILE;
-    } else {
+    restoreProcessEnv(previousEnv);
+    if (previousProfile !== undefined) {
       process.env.NOTION_PROFILE = previousProfile;
+    }
+  }
+}
+
+function restoreProcessEnv(previousEnv: NodeJS.ProcessEnv): void {
+  for (const key of Object.keys(process.env)) {
+    if (!(key in previousEnv)) {
+      delete process.env[key];
+    }
+  }
+  for (const [key, value] of Object.entries(previousEnv)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
     }
   }
 }

@@ -36,7 +36,11 @@ import { AppError, toErrorMessage } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
-import { isNotionPolicyBlockedError, syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import {
+  isNotionPolicyBlockedError,
+  isReadBackRecoverableMarkdownError,
+  syncManagedMarkdownSectionWithReadBack,
+} from "./managed-markdown-sync.js";
 
 const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
 const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
@@ -172,7 +176,7 @@ export async function runExecutionSyncCommand(
         logLoopProgress(live, "execution-sync", "Project brief", index + 1, projectBriefs.length);
         if (brief.changed) {
           try {
-            const mode = await syncManagedMarkdownSection({
+            const mode = await syncManagedMarkdownSectionWithReadBack({
               api,
               pageId: brief.projectId,
               previousMarkdown: brief.previousMarkdown,
@@ -186,7 +190,7 @@ export async function runExecutionSyncCommand(
               fallbackMarkdownProjects.push(projectTitle);
             }
           } catch (error) {
-            if (!isNotionPolicyBlockedError(error)) {
+            if (!isNotionPolicyBlockedError(error) && !isReadBackRecoverableMarkdownError(error)) {
               throw error;
             }
             const projectTitle = projects.find((project) => project.id === brief.projectId)?.title ?? brief.projectId;

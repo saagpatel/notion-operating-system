@@ -43,7 +43,7 @@ Live weekly refreshes are manual operator actions.
 Use this command only when the weekly digest recommends it:
 
 ```bash
-npm run maintenance:weekly-refresh -- --live --confirm-full-live
+npm run maintenance:weekly-refresh -- --live --confirm-full-live --summary-first
 ```
 
 Decision rules:
@@ -68,6 +68,8 @@ Use lane commands such as:
 - `npm run control-tower:sync`
 - `npm run execution:sync`
 - `npm run intelligence:sync`
+- `npm run maintenance:weekly-refresh -- --only execution-sync --step-timeout-minutes 5 --max-step-attempts 2 --summary-first`
+- `npm run maintenance:weekly-refresh -- --only external-signals --max-project-pages 10 --project-offset 0 --summary-first`
 - `npm run signals:sync`
 - `npm run control-tower:review-packet`
 

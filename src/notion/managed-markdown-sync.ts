@@ -10,6 +10,16 @@ import {
 import { DirectNotionClient } from "./direct-notion-client.js";
 
 const APPEND_TAIL_LENGTH_CANDIDATES = [1200, 900, 600, 400, 250] as const;
+const DEFAULT_READ_BACK_MAX_ATTEMPTS = 1;
+
+type ManagedMarkdownSyncMode =
+  | "replace_content"
+  | "update_content"
+  | "append_tail_update";
+
+export type ManagedMarkdownSyncWithReadBackMode =
+  | ManagedMarkdownSyncMode
+  | "read_back_converged";
 
 export async function syncManagedMarkdownSection(input: {
   api: DirectNotionClient;
@@ -18,7 +28,8 @@ export async function syncManagedMarkdownSection(input: {
   nextMarkdown: string;
   startMarker: string;
   endMarker: string;
-}): Promise<"replace_content" | "update_content" | "append_tail_update"> {
+  patchMaxAttempts?: number;
+}): Promise<ManagedMarkdownSyncMode> {
   if (normalizeMarkdown(input.previousMarkdown) === normalizeMarkdown(input.nextMarkdown)) {
     return "update_content";
   }
@@ -32,6 +43,7 @@ export async function syncManagedMarkdownSection(input: {
         pageId: input.pageId,
         command: "update_content",
         contentUpdates: [{ oldStr: previousSection, newStr: nextSection, replaceAllMatches: true }],
+        maxAttempts: input.patchMaxAttempts,
         recordClientErrorAsFailure: false,
       });
       return "update_content";
@@ -49,6 +61,7 @@ export async function syncManagedMarkdownSection(input: {
       pageId: input.pageId,
       command: "replace_content",
       newMarkdown: buildReplaceCommand(input.nextMarkdown),
+      maxAttempts: input.patchMaxAttempts,
       recordClientErrorAsFailure: false,
     });
     return "replace_content";
@@ -68,6 +81,7 @@ export async function syncManagedMarkdownSection(input: {
           pageId: input.pageId,
           command: "update_content",
           contentUpdates: [fallbackUpdate],
+          maxAttempts: input.patchMaxAttempts,
           recordClientErrorAsFailure: false,
         });
         return "append_tail_update";
@@ -83,6 +97,45 @@ export async function syncManagedMarkdownSection(input: {
   }
 }
 
+export async function syncManagedMarkdownSectionWithReadBack(input: {
+  api: DirectNotionClient;
+  pageId: string;
+  previousMarkdown: string;
+  nextMarkdown: string;
+  startMarker: string;
+  endMarker: string;
+  maxAttempts?: number;
+}): Promise<ManagedMarkdownSyncWithReadBackMode> {
+  let previousMarkdown = input.previousMarkdown;
+  const maxAttempts = input.maxAttempts ?? DEFAULT_READ_BACK_MAX_ATTEMPTS;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await syncManagedMarkdownSection({
+        ...input,
+        previousMarkdown,
+        patchMaxAttempts: 1,
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isReadBackRecoverableMarkdownError(error)) {
+        throw error;
+      }
+    }
+
+    const readBack = await input.api.readPageMarkdown(input.pageId);
+    if (normalizeMarkdown(readBack.markdown) === normalizeMarkdown(input.nextMarkdown)) {
+      return "read_back_converged";
+    }
+    previousMarkdown = readBack.markdown;
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new AppError("Managed markdown section did not converge after read-back attempts");
+}
+
 export function isNotionPolicyBlockedError(error: unknown): error is AppError {
   if (!(error instanceof AppError)) {
     return false;
@@ -91,6 +144,11 @@ export function isNotionPolicyBlockedError(error: unknown): error is AppError {
   const status = error.details?.status;
   const body = error.details?.body;
   return status === 403 && typeof body === "string" && /cloudflare|sorry,\s+you have been blocked/i.test(body);
+}
+
+export function isReadBackRecoverableMarkdownError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Notion request (transport error|timed out|returned retryable error responses).*PATCH \/pages\/.*\/markdown/i.test(message);
 }
 
 export function buildAppendSectionTailUpdate(
