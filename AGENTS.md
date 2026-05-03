@@ -13,6 +13,18 @@ This repo exists to make future Codex sessions short and safe when publishing lo
 5. Use markdown REST endpoints for create/read/update.
 6. Read back final markdown after a live publish and summarize what changed.
 
+## Targeted repair workflow
+
+- Do not use `npm run maintenance:weekly-refresh -- --live` as a targeted repair tool.
+- For one broken lane, run that lane's dry-run, then that lane's live command, then the same dry-run again.
+- Use the broad weekly live refresh only for full weekly maintenance, never as the default follow-up to a repair.
+- Broad weekly live refresh requires both explicit user approval and the CLI guard flag `--confirm-full-live`.
+- If the goal is Command Center repair, prefer:
+  - `npm run control-tower:sync -- --today <date>`
+  - `npm run control-tower:sync -- --today <date> --live`
+  - `npm run control-tower:sync -- --today <date>`
+- If a project-page markdown loop fails, stop after the failing lane and diagnose that lane directly instead of rerunning the full weekly sequence.
+
 ## Safety defaults
 
 - Never hardcode the Notion token.
@@ -27,6 +39,7 @@ This repo exists to make future Codex sessions short and safe when publishing lo
 - `npm run publish:notion -- --request <file>`
 - `npm run publish:notion -- --destination <alias> --file <path> --dry-run`
 - `npm run maintenance:weekly-refresh`
+- `npm run maintenance:weekly-refresh -- --live --confirm-full-live`
 - `npm run portfolio-audit:views-plan`
 - `npm run portfolio-audit:views-validate`
 - `npm run portfolio-audit:control-tower-sync`

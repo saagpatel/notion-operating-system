@@ -8,7 +8,33 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Review the latest `Dependency Hygiene` workflow run.
 - Triage any failed workflow, audit finding, install-smoke regression, or release-gate failure within the same week.
 - Review the weekly `weekly-notion-maintenance` inbox item as the default Notion maintenance signal.
-- Run `npm run maintenance:weekly-refresh -- --live` manually only when that weekly digest recommends a live refresh.
+- Run `npm run maintenance:weekly-refresh -- --live --confirm-full-live` manually only when that weekly digest recommends a full live refresh.
+
+## Fast Notion Repair Rule
+
+Use targeted lane repair for debugging and fixes:
+
+1. Run the lane dry-run.
+2. Run the same lane live only if the dry-run proves the exact needed write.
+3. Re-run the lane dry-run and stop when it is clean.
+
+Do not use broad weekly live refresh to repair a single lane. It runs support maintenance, Control Tower, execution, intelligence, review packet, and external-signal work together, so one project-page markdown failure can turn a targeted repair into a long multi-lane run.
+
+Examples:
+
+```bash
+npm run control-tower:sync -- --today 2026-05-03
+npm run control-tower:sync -- --today 2026-05-03 --live
+npm run control-tower:sync -- --today 2026-05-03
+```
+
+Run full weekly live only for full weekly maintenance:
+
+```bash
+npm run maintenance:weekly-refresh -- --today 2026-05-03 --signal-source-limit 5 --signal-max-events-per-source 5 --live --confirm-full-live
+```
+
+If the full weekly live command fails in `execution-sync`, `intelligence-sync`, or `external-signals`, continue with that lane's targeted command instead of rerunning the full weekly sequence.
 
 ## Monthly
 

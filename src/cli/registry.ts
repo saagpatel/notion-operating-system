@@ -1255,6 +1255,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 				commonOptions.today,
 				commonOptions.config,
 				{
+					name: "confirm-full-live",
+					description:
+						"Required with --live to confirm the full multi-lane weekly write sequence.",
+					type: "boolean",
+				},
+				{
 					name: "owner",
 					description: "GitHub owner used for support maintenance.",
 					type: "string",
@@ -1278,6 +1284,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 			({ parsed }) =>
 				runWeeklyRefreshCommand({
 					live: asBoolean(parsed.options.live),
+					confirmFullLive: asBoolean(parsed.options["confirm-full-live"]),
 					today: asString(parsed.options.today),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),

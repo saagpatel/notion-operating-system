@@ -1,7 +1,3 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-
 import { createNotionSdkClient } from "./notion-sdk.js";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
@@ -9,12 +5,13 @@ import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DestinationRegistry } from "../config/destination-registry.js";
 import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { RunLogger } from "../logging/run-logger.js";
-import { Publisher } from "../publishing/publisher.js";
 import { losAngelesToday } from "../utils/date.js";
+import { AppError } from "../utils/errors.js";
 import {
 	normalizeMarkdown,
 	preserveManagedSections,
 } from "../utils/markdown.js";
+import { extractNotionIdFromUrl } from "../utils/notion-id.js";
 import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
@@ -77,7 +74,6 @@ export async function runControlTowerSyncCommand(
 
 	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token, logger);
-	const publisher = new Publisher(api, logger);
 
 	if (live) {
 		await ensureLocalPortfolioControlTowerSchema(sdk, config);
@@ -158,18 +154,24 @@ export async function runControlTowerSyncCommand(
 				COMMAND_CENTER_MANAGED_SECTIONS,
 			)
 		: baseMarkdown;
+	const commandCenterMarkdown = stripLeadingMarkdownTitle(
+		markdown,
+		nextConfig.commandCenter.title,
+	);
 	const commandCenterWouldChange = previousCommandCenter
 		? normalizeMarkdown(markdown) !==
-			normalizeMarkdown(previousCommandCenter.markdown)
+			normalizeMarkdown(previousCommandCenter.markdown) &&
+			normalizeMarkdown(commandCenterMarkdown) !==
+				normalizeMarkdown(previousCommandCenter.markdown)
 		: true;
 
 	const commandCenterBootstrap = !nextConfig.commandCenter.pageId;
 	const commandCenterSummary = await publishCommandCenter({
-		registry,
-		publisher,
+		api,
 		config: nextConfig,
-		markdown,
+		markdown: commandCenterMarkdown,
 		live,
+		shouldPublish: commandCenterWouldChange || commandCenterBootstrap,
 	});
 
 	if (live) {
@@ -198,7 +200,8 @@ export async function runControlTowerSyncCommand(
 		await saveLocalPortfolioControlTowerConfig(finalConfig);
 
 		if (
-			commandCenterBootstrap &&
+			(commandCenterBootstrap ||
+				commandCenterSummary.pageId !== nextConfig.commandCenter.pageId) &&
 			commandCenterSummary.pageId &&
 			commandCenterSummary.pageUrl
 		) {
@@ -258,36 +261,40 @@ export async function runControlTowerSyncCommand(
 }
 
 async function publishCommandCenter(input: {
-	registry: DestinationRegistry;
-	publisher: Publisher;
+	api: DirectNotionClient;
 	config: Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>>;
 	markdown: string;
 	live: boolean;
+	shouldPublish: boolean;
 }): Promise<{ pageId?: string; pageUrl?: string }> {
-	const tempDir = await mkdtemp(
-		path.join(os.tmpdir(), "local-portfolio-command-center-"),
-	);
-	const filePath = path.join(tempDir, "command-center.md");
-	await writeFile(filePath, input.markdown, "utf8");
-
-	try {
-		const destination = input.registry.getDestination(
-			input.config.destinations.commandCenterAlias,
-		);
-		const summary = await input.publisher.publish(destination, {
-			destinationAlias: destination.alias,
-			inputFile: filePath,
-			dryRun: input.live ? false : true,
-			live: input.live,
-		});
-
+	if (!input.live || !input.shouldPublish) {
 		return {
-			pageId: summary.pageId,
-			pageUrl: summary.pageUrl,
+			pageId: input.config.commandCenter.pageId,
+			pageUrl: input.config.commandCenter.pageUrl,
 		};
-	} finally {
-		await rm(tempDir, { recursive: true, force: true });
 	}
+
+	const parentPageId = extractNotionIdFromUrl(input.config.commandCenter.parentPageUrl);
+	if (!parentPageId) {
+		throw new AppError("Control tower command center parentPageUrl is not a Notion page URL");
+	}
+
+	const created = await input.api.createPageWithMarkdown({
+		parent: { page_id: parentPageId },
+		properties: {
+			title: [
+				{
+					type: "text",
+					text: { content: input.config.commandCenter.title },
+				},
+			],
+		},
+		markdown: input.markdown,
+	});
+	return {
+		pageId: created.id,
+		pageUrl: created.url,
+	};
 }
 
 export function buildDerivedPropertyUpdates(
@@ -350,6 +357,15 @@ function diffDays(fromDate: string, toDate: string): number {
 	const from = new Date(`${fromDate}T00:00:00Z`);
 	const to = new Date(`${toDate}T00:00:00Z`);
 	return Math.floor((to.getTime() - from.getTime()) / 86_400_000);
+}
+
+function stripLeadingMarkdownTitle(markdown: string, title: string): string {
+	const lines = markdown.split("\n");
+	if (lines[0]?.trim() !== `# ${title}`) {
+		return markdown;
+	}
+	const [, maybeBlank, ...rest] = lines;
+	return (maybeBlank?.trim() === "" ? rest : [maybeBlank, ...rest]).join("\n").trim();
 }
 
 if (isDirectExecution(import.meta.url)) {

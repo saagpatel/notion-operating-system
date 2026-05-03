@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-326c21f1caf0810c8467c8c46678deaa",
-    "pageId": "326c21f1-caf0-810c-8467-c8c46678deaa"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-355c21f1caf0813c926eea65db646daf",
+    "pageId": "355c21f1-caf0-813c-926e-ea65db646daf"
   },
   "fieldOwnership": {
     "manual": [
@@ -769,9 +769,9 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-04-14",
+    "lastSyncAt": "2026-05-03",
     "lastSyncMetrics": {
-      "totalProjects": 114,
+      "totalProjects": 117,
       "queueCounts": {
         "Shipped": 6,
         "Needs Review": 88,
@@ -779,13 +779,13 @@
         "Worth Finishing": 8,
         "Resume Now": 6,
         "Cold Storage": 2,
-        "Watch": 3
+        "Watch": 6
       },
-      "overdueReviews": 73,
+      "overdueReviews": 90,
       "missingNextMove": 1,
-      "missingLastActive": 1,
-      "staleActiveProjects": 0,
-      "orphanedProjects": 5,
+      "missingLastActive": 4,
+      "staleActiveProjects": 1,
+      "orphanedProjects": 6,
       "recentBuildSessions": 0
     },
     "lastClosedPhase": 9
@@ -798,20 +798,20 @@
       "needsLiveWrite": "yes",
       "liveExecuted": "yes",
       "preflightTotalSteps": 6,
-      "preflightCleanSteps": 1,
-      "preflightDriftSteps": 5,
+      "preflightCleanSteps": 2,
+      "preflightDriftSteps": 4,
       "preflightCompletedSteps": 0,
       "preflightPartialSteps": 0,
       "preflightFailedSteps": 0,
       "preflightSkippedSteps": 0,
       "liveTotalSteps": 6,
-      "liveCleanSteps": 1,
+      "liveCleanSteps": 2,
       "liveDriftSteps": 0,
-      "liveCompletedSteps": 0,
+      "liveCompletedSteps": 1,
       "livePartialSteps": 0,
-      "liveFailedSteps": 1,
-      "liveSkippedSteps": 4
+      "liveFailedSteps": 3,
+      "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-04-14"
+    "weeklyReviewLastPublishedAt": "2026-05-03"
   }
 }

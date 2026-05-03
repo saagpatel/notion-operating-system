@@ -19,6 +19,11 @@ import {
 	renderWeeklyReviewMarkdown,
 } from "../src/notion/local-portfolio-control-tower.js";
 import {
+	ACTUATION_COMMAND_CENTER_SECTION,
+	COMMAND_CENTER_MANAGED_SECTIONS,
+	GOVERNANCE_COMMAND_CENTER_SECTION,
+} from "../src/notion/managed-markdown-sections.js";
+import {
 	buildRoadmapPhases,
 	renderLocalPortfolioAdrMarkdown,
 	renderNotionRoadmapMarkdown,
@@ -210,6 +215,15 @@ describe("local portfolio control tower rules", () => {
 		expect(buildDerivedPropertyUpdates(previous, next)).toEqual({
 			"Next Review Date": { date: { start: "2026-03-27" } },
 		});
+	});
+
+	test("preserves governance and actuation command center sections", () => {
+		expect(COMMAND_CENTER_MANAGED_SECTIONS).toEqual(
+			expect.arrayContaining([
+				GOVERNANCE_COMMAND_CENTER_SECTION,
+				ACTUATION_COMMAND_CENTER_SECTION,
+			]),
+		);
 	});
 
 	test("emits no live updates when derived fields are unchanged", () => {

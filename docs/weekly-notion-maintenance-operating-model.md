@@ -43,7 +43,7 @@ Live weekly refreshes are manual operator actions.
 Use this command only when the weekly digest recommends it:
 
 ```bash
-npm run maintenance:weekly-refresh -- --live
+npm run maintenance:weekly-refresh -- --live --confirm-full-live
 ```
 
 Decision rules:
@@ -51,6 +51,27 @@ Decision rules:
 - If both dry runs are clean and `needsLiveWrite=false`, no live run is needed.
 - If weekly refresh drifts but has no failed or partial steps, a manual live run is the normal follow-up.
 - If any weekly-refresh step is failed or partial, do not run live; diagnose with targeted dry-run commands first.
+- If the task is a repair to one lane, do not run full weekly live. Use that lane's dry-run/live/dry-run loop and stop when it is clean.
+
+## Targeted Repair Mode
+
+For repairs, the expected sequence is:
+
+```bash
+npm run <lane-command> -- --today <date>
+npm run <lane-command> -- --today <date> --live
+npm run <lane-command> -- --today <date>
+```
+
+Use lane commands such as:
+
+- `npm run control-tower:sync`
+- `npm run execution:sync`
+- `npm run intelligence:sync`
+- `npm run signals:sync`
+- `npm run control-tower:review-packet`
+
+The broad weekly live command is intentionally guarded because it can spend a long time in project-page markdown write loops. Treat it as a full maintenance action, not a repair shortcut.
 
 ## External Signal Refresh Recovery
 

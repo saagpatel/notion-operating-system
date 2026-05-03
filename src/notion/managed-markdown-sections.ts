@@ -38,6 +38,22 @@ export const EXTERNAL_SIGNAL_COMMAND_CENTER_SECTION: ManagedMarkdownSection = {
   fallbackBody: "- Not refreshed yet.",
 };
 
+export const GOVERNANCE_COMMAND_CENTER_SECTION: ManagedMarkdownSection = {
+  key: "governanceCommandCenter",
+  startMarker: "<!-- codex:notion-governance-command-center:start -->",
+  endMarker: "<!-- codex:notion-governance-command-center:end -->",
+  fallbackHeading: "## Phase 6 Governance",
+  fallbackBody: "- Not refreshed yet.",
+};
+
+export const ACTUATION_COMMAND_CENTER_SECTION: ManagedMarkdownSection = {
+  key: "actuationCommandCenter",
+  startMarker: "<!-- codex:notion-actuation-command-center:start -->",
+  endMarker: "<!-- codex:notion-actuation-command-center:end -->",
+  fallbackHeading: "## External Actuation Lane",
+  fallbackBody: "- Not refreshed yet.",
+};
+
 export const WEEKLY_EXTERNAL_SIGNALS_SECTION: ManagedMarkdownSection = {
   key: "weeklyExternalSignals",
   startMarker: "<!-- codex:notion-weekly-external-signals:start -->",
@@ -50,6 +66,8 @@ export const COMMAND_CENTER_MANAGED_SECTIONS: ManagedMarkdownSection[] = [
   EXECUTION_COMMAND_CENTER_SECTION,
   INTELLIGENCE_COMMAND_CENTER_SECTION,
   EXTERNAL_SIGNAL_COMMAND_CENTER_SECTION,
+  GOVERNANCE_COMMAND_CENTER_SECTION,
+  ACTUATION_COMMAND_CENTER_SECTION,
 ];
 
 export function renderManagedSectionPlaceholder(section: ManagedMarkdownSection): string {

@@ -4,6 +4,8 @@ import path from "node:path";
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
+import { DestinationRegistry } from "../config/destination-registry.js";
+import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -12,8 +14,10 @@ import {
   saveLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import { FRESHNESS_COMMAND_CENTER_SECTION } from "./managed-markdown-sections.js";
-import { mergeManagedSection, normalizeMarkdown, buildReplaceCommand, assertSafeReplacement } from "../utils/markdown.js";
+import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import { mergeManagedSection, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
+import { extractNotionIdFromUrl } from "../utils/notion-id.js";
 import {
   buildWeeklyStepContract,
   mapWeeklyStepStatusToCommandStatus,
@@ -25,6 +29,7 @@ type WeeklyRefreshOverallStatus = "clean" | "completed" | "partial" | "failed";
 
 interface WeeklyRefreshCommandOptions {
   live?: boolean;
+  confirmFullLive?: boolean;
   today?: string;
   config?: string;
   owner?: string;
@@ -79,12 +84,22 @@ export async function runWeeklyRefreshCommand(
 
   const flags = {
     live: options.live ?? false,
+    confirmFullLive: options.confirmFullLive ?? false,
     today: options.today ?? losAngelesToday(),
     config: options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
     owner: options.owner ?? DEFAULT_OWNER,
     signalSourceLimit: options.signalSourceLimit,
     signalMaxEventsPerSource: options.signalMaxEventsPerSource,
   };
+  if (flags.live && !flags.confirmFullLive) {
+    throw new Error(
+      [
+        "Full weekly live refresh is guarded because it can run long multi-lane Notion write loops.",
+        "For targeted repair, use the specific lane command and verify it with dry-run/live/dry-run.",
+        "To run the full weekly live sequence anyway, pass --confirm-full-live.",
+      ].join(" "),
+    );
+  }
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
   const externalSignalSourceLimit =
     flags.signalSourceLimit ?? config.phase5ExternalSignals?.syncLimits.maxProjectsInFirstWave ?? 15;
@@ -454,7 +469,7 @@ async function persistWeeklyRefreshState(input: {
     ...prefixCounts("preflight", input.preflightSummary),
     ...prefixCounts("live", input.liveSummary),
   };
-  const nextConfig = {
+  let nextConfig: Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>> = {
     ...config,
     weeklyMaintenance: {
       ...config.weeklyMaintenance,
@@ -476,12 +491,26 @@ async function persistWeeklyRefreshState(input: {
       FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
     );
     if (normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown)) {
-      assertSafeReplacement(previous.markdown, nextMarkdown);
-      await api.patchPageMarkdown({
-        pageId: nextConfig.commandCenter.pageId,
-        command: "replace_content",
-        newMarkdown: buildReplaceCommand(nextMarkdown),
-      });
+      try {
+        await syncManagedMarkdownSection({
+          api,
+          pageId: nextConfig.commandCenter.pageId,
+          previousMarkdown: previous.markdown,
+          nextMarkdown,
+          startMarker: FRESHNESS_COMMAND_CENTER_SECTION.startMarker,
+          endMarker: FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
+        });
+      } catch (error) {
+        if (!isMarkdownPatchTransportError(error)) {
+          throw error;
+        }
+        nextConfig = await replaceCommandCenterPageAfterPatchFailure({
+          api,
+          config: nextConfig,
+          configPath: input.configPath,
+          markdown: nextMarkdown,
+        });
+      }
     }
   }
 
@@ -494,6 +523,61 @@ async function persistWeeklyRefreshState(input: {
     intelligenceLastSyncAt: nextConfig.phase3Intelligence?.lastSyncAt,
     externalSignalsLastSyncAt: nextConfig.phase5ExternalSignals?.lastSyncAt,
   };
+}
+
+async function replaceCommandCenterPageAfterPatchFailure(input: {
+  api: DirectNotionClient;
+  config: Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>>;
+  configPath: string;
+  markdown: string;
+}): Promise<Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>>> {
+  const parentPageId = extractNotionIdFromUrl(input.config.commandCenter.parentPageUrl);
+  if (!parentPageId) {
+    throw new Error("Control tower command center parentPageUrl is not a Notion page URL");
+  }
+
+  const created = await input.api.createPageWithMarkdown({
+    parent: { page_id: parentPageId },
+    properties: {
+      title: [
+        {
+          type: "text",
+          text: { content: input.config.commandCenter.title },
+        },
+      ],
+    },
+    markdown: stripLeadingMarkdownTitle(input.markdown, input.config.commandCenter.title),
+  });
+  const nextConfig = {
+    ...input.config,
+    commandCenter: {
+      ...input.config.commandCenter,
+      pageId: created.id,
+      pageUrl: created.url,
+    },
+  };
+  await saveLocalPortfolioControlTowerConfig(nextConfig, input.configPath);
+  const registry = await DestinationRegistry.load(loadRuntimeConfig().paths.destinationsPath);
+  await registry.patchDestination(nextConfig.destinations.commandCenterAlias, {
+    sourceUrl: created.url,
+    resolvedId: created.id,
+    mode: "replace_full_content",
+  });
+  return nextConfig;
+}
+
+function isMarkdownPatchTransportError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Notion request transport error.*PATCH \/pages\/.*\/markdown/i.test(message);
+}
+
+function stripLeadingMarkdownTitle(markdown: string, title: string): string {
+  const lines = markdown.split("\n");
+  if (lines[0]?.trim() !== `# ${title}`) {
+    return markdown;
+  }
+  const [, maybeBlank, ...rest] = lines;
+  return (maybeBlank?.trim() === "" ? rest : [maybeBlank, ...rest]).join("\n").trim();
 }
 
 function prefixCounts(
