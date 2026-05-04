@@ -18,7 +18,14 @@ npm run maintenance:weekly-refresh -- --fast
 - skips project pages already listed in the blocked markdown registry
 - streams child-command progress so a stuck lane is visible quickly
 - lowers the transient retry budget from 5 attempts to 2
-- prints the compact summary first
+- prints the compact summary first, including per-lane timing and slow-lane callouts
+
+The compact summary includes:
+
+- `timing.totalDurationSeconds`: total child-lane runtime
+- `timing.longestStep`: the lane that consumed the most time
+- `timing.stepTimings`: every lane sorted from slowest to fastest
+- `slowSteps`: lanes over the 30-second operator visibility threshold
 
 ## Clearing drift
 

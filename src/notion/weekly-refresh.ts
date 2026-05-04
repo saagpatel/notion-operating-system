@@ -99,6 +99,7 @@ const WEEKLY_STEP_KEYS = [
 type WeeklyStepKey = (typeof WEEKLY_STEP_KEYS)[number];
 
 const POST_LIVE_FRESHNESS_TIMEOUT_MS = 20_000;
+const SLOW_STEP_THRESHOLD_MS = 30_000;
 
 export async function runWeeklyRefreshCommand(
   options: WeeklyRefreshCommandOptions = {},
@@ -655,11 +656,13 @@ export function buildWeeklyRefreshQuickSummary(output: WeeklyRefreshOutput): Rec
     .filter((step) => step.status === "partial")
     .map((step) => step.key);
   const slowSteps = summarySource
-    .filter((step) => step.durationMs >= 5 * 60 * 1000)
+    .filter((step) => step.durationMs >= SLOW_STEP_THRESHOLD_MS)
     .map((step) => ({
       key: step.key,
-      durationMinutes: Math.round(step.durationMs / 60000),
+      durationSeconds: Math.round(step.durationMs / 1000),
+      thresholdSeconds: SLOW_STEP_THRESHOLD_MS / 1000,
     }));
+  const timing = buildWeeklyRefreshTimingSummary(summarySource);
   return {
     ok: true,
     summaryFirst: true,
@@ -668,11 +671,50 @@ export function buildWeeklyRefreshQuickSummary(output: WeeklyRefreshOutput): Rec
     needsLiveWrite: output.needsLiveWrite,
     liveExecuted: output.liveExecuted,
     summary: output.liveRun?.summary ?? output.preflight.summary,
+    timing,
     failedSteps,
     partialSteps,
     slowSteps,
     recommendedNextCommands: deriveWeeklyRefreshNextCommands(output, failedSteps, partialSteps),
   };
+}
+
+export function buildWeeklyRefreshTimingSummary(
+  steps: Pick<WeeklyRefreshStepResult, "key" | "title" | "status" | "durationMs">[],
+): Record<string, unknown> {
+  const totalDurationMs = steps.reduce((sum, step) => sum + step.durationMs, 0);
+  const stepTimings = steps
+    .map((step) => ({
+      key: step.key,
+      title: step.title,
+      status: step.status,
+      durationSeconds: Math.round(step.durationMs / 1000),
+      durationMinutes: roundOneDecimal(step.durationMs / 60000),
+      percentOfRun:
+        totalDurationMs > 0
+          ? Math.round((step.durationMs / totalDurationMs) * 100)
+          : 0,
+    }))
+    .sort((left, right) => right.durationSeconds - left.durationSeconds);
+  const longestStep = stepTimings[0]
+    ? {
+        key: stepTimings[0].key,
+        title: stepTimings[0].title,
+        durationSeconds: stepTimings[0].durationSeconds,
+      }
+    : undefined;
+
+  return {
+    totalDurationSeconds: Math.round(totalDurationMs / 1000),
+    totalDurationMinutes: roundOneDecimal(totalDurationMs / 60000),
+    slowStepThresholdSeconds: SLOW_STEP_THRESHOLD_MS / 1000,
+    longestStep,
+    stepTimings,
+  };
+}
+
+function roundOneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function deriveWeeklyRefreshNextCommands(
