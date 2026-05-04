@@ -56,11 +56,12 @@
     {
       "title": "How Money Moves",
       "lanes": [
-        "execution"
+        "execution",
+        "intelligence"
       ],
       "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
-      "lastSeen": "2026-05-03"
+      "lastSeen": "2026-05-04"
     },
     {
       "title": "Browser History Visualizer",
@@ -74,29 +75,32 @@
     {
       "title": "Life Cadence Ledger",
       "lanes": [
-        "execution"
+        "execution",
+        "intelligence"
       ],
       "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
-      "lastSeen": "2026-05-03"
+      "lastSeen": "2026-05-04"
     },
     {
       "title": "ink",
       "lanes": [
-        "execution"
+        "execution",
+        "intelligence"
       ],
       "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
-      "lastSeen": "2026-05-03"
+      "lastSeen": "2026-05-04"
     },
     {
       "title": "Pulse Orbit",
       "lanes": [
-        "execution"
+        "execution",
+        "intelligence"
       ],
       "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
-      "lastSeen": "2026-05-03"
+      "lastSeen": "2026-05-04"
     },
     {
       "title": "JSM Ticket Analytics Export",
