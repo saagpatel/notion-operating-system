@@ -23,10 +23,20 @@ import { getCurrentCommandLogger } from "../cli/run-observability.js";
 export class DirectNotionClient implements NotionApi {
   private readonly http: NotionHttp;
 
-  public constructor(token: string, logger?: RunLogger) {
+  public constructor(
+    token: string,
+    logger?: RunLogger,
+    options: { maxAttempts?: number; timeoutMs?: number } = {},
+  ) {
     const runtimeConfig = loadRuntimeConfig();
     const resolvedLogger = logger ?? getCurrentCommandLogger();
-    this.http = new NotionHttp({ token, notionVersion: runtimeConfig.notion.version, logger: resolvedLogger });
+    this.http = new NotionHttp({
+      token,
+      notionVersion: runtimeConfig.notion.version,
+      logger: resolvedLogger,
+      maxAttempts: options.maxAttempts,
+      timeoutMs: options.timeoutMs,
+    });
   }
 
   public async verifyAccess(): Promise<{ id: string; name: string; type: string }> {

@@ -97,6 +97,8 @@ const WEEKLY_STEP_KEYS = [
 
 type WeeklyStepKey = (typeof WEEKLY_STEP_KEYS)[number];
 
+const POST_LIVE_FRESHNESS_TIMEOUT_MS = 20_000;
+
 export async function runWeeklyRefreshCommand(
   options: WeeklyRefreshCommandOptions = {},
 ): Promise<void> {
@@ -714,39 +716,50 @@ async function persistWeeklyRefreshState(input: {
 
   if (nextConfig.commandCenter.pageId) {
     const token = resolveRequiredNotionToken("NOTION_TOKEN is required to refresh the command center freshness section");
-    const api = new DirectNotionClient(token);
-    const previous = await api.readPageMarkdown(nextConfig.commandCenter.pageId);
-    const nextMarkdown = mergeManagedSection(
-      previous.markdown,
-      renderFreshnessByLayerSection(nextConfig),
-      FRESHNESS_COMMAND_CENTER_SECTION.startMarker,
-      FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
-    );
-    if (normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown)) {
-      try {
-        await syncManagedMarkdownSection({
-          api,
-          pageId: nextConfig.commandCenter.pageId,
-          previousMarkdown: previous.markdown,
-          nextMarkdown,
-          startMarker: FRESHNESS_COMMAND_CENTER_SECTION.startMarker,
-          endMarker: FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
-        });
-      } catch (error) {
-        if (!isMarkdownPatchTransportError(error)) {
-          throw error;
+    const api = new DirectNotionClient(token, undefined, {
+      maxAttempts: 1,
+      timeoutMs: POST_LIVE_FRESHNESS_TIMEOUT_MS,
+    });
+    try {
+      const previous = await api.readPageMarkdown(nextConfig.commandCenter.pageId);
+      const nextMarkdown = mergeManagedSection(
+        previous.markdown,
+        renderFreshnessByLayerSection(nextConfig),
+        FRESHNESS_COMMAND_CENTER_SECTION.startMarker,
+        FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
+      );
+      if (normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown)) {
+        try {
+          await syncManagedMarkdownSection({
+            api,
+            pageId: nextConfig.commandCenter.pageId,
+            previousMarkdown: previous.markdown,
+            nextMarkdown,
+            startMarker: FRESHNESS_COMMAND_CENTER_SECTION.startMarker,
+            endMarker: FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
+          });
+        } catch (error) {
+          if (!isMarkdownPatchTransportError(error)) {
+            throw error;
+          }
+          if (!input.allowCommandCenterReplacement) {
+            logHumanMessage("Command center freshness markdown patch did not complete during targeted refresh; leaving the existing page in place.");
+            return buildWeeklyRefreshFreshness(nextConfig);
+          }
+          nextConfig = await replaceCommandCenterPageAfterPatchFailure({
+            api,
+            config: nextConfig,
+            configPath: input.configPath,
+            markdown: nextMarkdown,
+          });
         }
-        if (!input.allowCommandCenterReplacement) {
-          logHumanMessage("Command center freshness markdown patch did not complete during targeted refresh; leaving the existing page in place.");
-          return buildWeeklyRefreshFreshness(nextConfig);
-        }
-        nextConfig = await replaceCommandCenterPageAfterPatchFailure({
-          api,
-          config: nextConfig,
-          configPath: input.configPath,
-          markdown: nextMarkdown,
-        });
       }
+    } catch (error) {
+      if (input.allowCommandCenterReplacement || !isPostLiveFreshnessTransportError(error)) {
+        throw error;
+      }
+      logHumanMessage("Command center freshness refresh timed out during targeted refresh; weekly state was saved and the existing page is unchanged.");
+      return buildWeeklyRefreshFreshness(nextConfig);
     }
   }
 
@@ -813,6 +826,11 @@ async function replaceCommandCenterPageAfterPatchFailure(input: {
 function isMarkdownPatchTransportError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /Notion request transport error.*PATCH \/pages\/.*\/markdown/i.test(message);
+}
+
+function isPostLiveFreshnessTransportError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Notion request (transport error|timed out|returned retryable error responses).*(GET|PATCH) \/pages\/.*\/markdown/i.test(message);
 }
 
 function stripLeadingMarkdownTitle(markdown: string, title: string): string {
