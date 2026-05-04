@@ -86,8 +86,8 @@ import {
 	isKnownBlockedProjectMarkdown,
 	loadProjectMarkdownBlocklist,
 } from "./project-markdown-blocklist.js";
+import { buildProjectMarkdownRefreshContract } from "./project-markdown-refresh-contract.js";
 import {
-	buildWeeklyStepContract,
 	mapWeeklyStepStatusToCommandStatus,
 } from "./weekly-refresh-contract.js";
 
@@ -658,10 +658,25 @@ export async function runExternalSignalSyncCommand(
 	const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown
 		? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
 		: undefined;
+	const knownBlockedProjectBriefs = knownBlockedMarkdownBlocklist
+		? projectBriefs.filter(
+				(projectBrief) =>
+					projectBrief.changed &&
+					isKnownBlockedProjectMarkdown(
+						knownBlockedMarkdownBlocklist,
+						projectBrief,
+						"external-signals",
+					),
+			)
+		: [];
+	const writableProjectExternalSignalBriefsWouldChange =
+		projectExternalSignalBriefsWouldChange - knownBlockedProjectBriefs.length;
 
 	let changedProjectPages = 0;
 	const blockedMarkdownProjects: string[] = [];
-	const knownBlockedMarkdownProjects: string[] = [];
+	const knownBlockedMarkdownProjects = knownBlockedProjectBriefs.map(
+		(projectBrief) => projectBrief.projectTitle,
+	);
 	if (live && shouldEvaluateProjectPages) {
 		logLiveStage(live, "Refreshing project signal briefs", {
 			writeScope,
@@ -710,7 +725,6 @@ export async function runExternalSignalSyncCommand(
 						"external-signals",
 					)
 				) {
-					knownBlockedMarkdownProjects.push(projectBrief.projectTitle);
 					logLiveStage(live, "Skipping known blocked project markdown patch", {
 						projectId: project.id,
 						projectTitle: project.title,
@@ -845,19 +859,19 @@ export async function runExternalSignalSyncCommand(
 		(result) => result.status === "Partial",
 	);
 	const markdownPartial = blockedMarkdownProjects.length > 0;
-	const knownBlockedPartial = knownBlockedMarkdownProjects.length > 0;
-	const contract = buildWeeklyStepContract({
+	const contract = buildProjectMarkdownRefreshContract({
 		live,
 		status: providerFailed
 			? "failed"
-			: providerPartial || markdownPartial || knownBlockedPartial
+			: providerPartial || markdownPartial
 				? "partial"
 				: undefined,
-		wouldChange:
-			createdEventCount > 0 ||
-			createdSyncRunCount > 0 ||
-			projectExternalSignalBriefsWouldChange > 0 ||
-			knownBlockedPartial ||
+		blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+		writableMarkdownProjectPagesWouldChange:
+			createdEventCount +
+			createdSyncRunCount +
+			writableProjectExternalSignalBriefsWouldChange,
+		portfolioSectionWouldChange:
 			intelligenceCommandCenterSectionWouldChange ||
 			externalSignalsCommandCenterSectionWouldChange ||
 			weeklyExternalSignalsSectionWouldChange,

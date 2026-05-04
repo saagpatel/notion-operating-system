@@ -47,7 +47,7 @@ import { validateLocalPortfolioIntelligenceViewPlanAgainstSchemas } from "./loca
 import { AppError } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
-import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
+import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 import {
   isNotionPolicyBlockedError,
   isReadBackRecoverableMarkdownError,
@@ -57,6 +57,7 @@ import {
   loadProjectMarkdownBlocklist,
   partitionKnownBlockedProjectMarkdown,
 } from "./project-markdown-blocklist.js";
+import { buildProjectMarkdownRefreshContract } from "./project-markdown-refresh-contract.js";
 
 const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
@@ -420,14 +421,11 @@ export async function runIntelligenceSyncCommand(
       ...summarizeProjectWarnings("Recommendation brief markdown remained blocked for", blockedMarkdownProjects),
       ...summarizeProjectWarnings("Recommendation brief markdown skipped as known blocked for", knownBlockedMarkdownProjects),
     ];
-    const contract = buildWeeklyStepContract({
+    const contract = buildProjectMarkdownRefreshContract({
       live,
-      status: blockedMarkdownProjects.length > 0 || knownBlockedMarkdownProjects.length > 0 ? "partial" : undefined,
-      wouldChange:
-        blockedMarkdownProjects.length > 0 ||
-        knownBlockedMarkdownProjects.length > 0 ||
-        projectRecommendationBriefsWouldChange > 0 ||
-        intelligenceCommandCenterSectionWouldChange,
+      blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+      writableMarkdownProjectPagesWouldChange: targetRecommendationBriefs.length,
+      portfolioSectionWouldChange: intelligenceCommandCenterSectionWouldChange,
       summaryCounts: {
         projectRecommendationBriefsWouldChange,
         intelligenceCommandCenterSectionWouldChange: intelligenceCommandCenterSectionWouldChange ? 1 : 0,

@@ -35,7 +35,7 @@ import {
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
-import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
+import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 import {
   isNotionPolicyBlockedError,
   isReadBackRecoverableMarkdownError,
@@ -45,6 +45,7 @@ import {
   loadProjectMarkdownBlocklist,
   partitionKnownBlockedProjectMarkdown,
 } from "./project-markdown-blocklist.js";
+import { buildProjectMarkdownRefreshContract } from "./project-markdown-refresh-contract.js";
 
 const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
 const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
@@ -295,14 +296,11 @@ export async function runExecutionSyncCommand(
       ...summarizeProjectWarnings("Execution brief markdown remained blocked for", blockedMarkdownProjects),
       ...summarizeProjectWarnings("Execution brief markdown skipped as known blocked for", knownBlockedMarkdownProjects),
     ];
-    const contract = buildWeeklyStepContract({
+    const contract = buildProjectMarkdownRefreshContract({
       live,
-      status: blockedMarkdownProjects.length > 0 || knownBlockedMarkdownProjects.length > 0 ? "partial" : undefined,
-      wouldChange:
-        blockedMarkdownProjects.length > 0 ||
-        knownBlockedMarkdownProjects.length > 0 ||
-        projectExecutionBriefsWouldChange > 0 ||
-        executionCommandCenterSectionWouldChange,
+      blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+      writableMarkdownProjectPagesWouldChange: targetProjectBriefs.length,
+      portfolioSectionWouldChange: executionCommandCenterSectionWouldChange,
       summaryCounts: {
         projectExecutionBriefsWouldChange,
         executionCommandCenterSectionWouldChange: executionCommandCenterSectionWouldChange ? 1 : 0,
