@@ -174,6 +174,11 @@ describe("local portfolio execution system", () => {
 		expect(brief).toContain("## Execution Brief");
 		expect(merged).toContain("codex:notion-execution-brief:start");
 		expect(commandCenter).toContain("## Phase 2 Execution System");
+		expect(commandCenter).toContain("### Operator Focus");
+		expect(commandCenter).toContain("**Now** - [Now packet]");
+		expect(commandCenter).toContain("next: Boot the local environment");
+		expect(commandCenter).toContain("**Standby** - no active Standby packet selected.");
+		expect(commandCenter).toContain("### Execution Metrics");
 		expect(weekly).toContain("### Next Phase");
 	});
 });

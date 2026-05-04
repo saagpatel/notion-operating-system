@@ -494,6 +494,15 @@ export function renderExecutionCommandCenterSection(input: {
 		"<!-- codex:notion-execution-command-center:start -->",
 		"## Phase 2 Execution System",
 		"",
+		"### Operator Focus",
+		...formatOperatorFocusBullets({
+			nowPacket: nowPackets[0],
+			standbyPacket: standbyPackets[0],
+			tasks: input.tasks,
+			projects: input.projects,
+		}),
+		"",
+		"### Execution Metrics",
 		`- Open decisions: ${input.metrics.openDecisions}`,
 		`- Now packets: ${input.metrics.nowPackets}`,
 		`- Standby packets: ${input.metrics.standbyPackets}`,
@@ -868,6 +877,65 @@ function resolveProjectTitle(
 		projects.find((project) => project.id === projectId)?.title ??
 		"Unknown project"
 	);
+}
+
+function formatOperatorFocusBullets(input: {
+	nowPacket?: WorkPacketRecord;
+	standbyPacket?: WorkPacketRecord;
+	tasks: ExecutionTaskRecord[];
+	projects: ControlTowerProjectRecord[];
+}): string[] {
+	return [
+		formatOperatorFocusBullet("Now", input.nowPacket, input.tasks, input.projects),
+		formatOperatorFocusBullet(
+			"Standby",
+			input.standbyPacket,
+			input.tasks,
+			input.projects,
+		),
+	];
+}
+
+function formatOperatorFocusBullet(
+	label: "Now" | "Standby",
+	packet: WorkPacketRecord | undefined,
+	tasks: ExecutionTaskRecord[],
+	projects: ControlTowerProjectRecord[],
+): string {
+	if (!packet) {
+		return `- **${label}** - no active ${label} packet selected.`;
+	}
+
+	const projectTitle =
+		packet.localProjectIds.length === 1
+			? resolveProjectTitle(projects, packet.localProjectIds[0] ?? "")
+			: `${packet.localProjectIds.length} linked projects`;
+	const nextTask = pickNextTaskForPacket(packet, tasks);
+	const action =
+		nextTask?.title ||
+		packet.goal ||
+		packet.whyNow ||
+		"Define the next concrete action.";
+	const target =
+		packet.targetFinish || packet.targetStart
+			? ` | target ${packet.targetFinish || packet.targetStart}`
+			: "";
+	return `- **${label}** - [${packet.title}](${packet.url}) | ${projectTitle} | status ${packet.status}${target} | next: ${action}`;
+}
+
+function pickNextTaskForPacket(
+	packet: WorkPacketRecord,
+	tasks: ExecutionTaskRecord[],
+): ExecutionTaskRecord | undefined {
+	return tasks
+		.filter(
+			(task) =>
+				task.workPacketIds.includes(packet.id) &&
+				!isExecutionTaskClosed(task.status),
+		)
+		.sort((left, right) =>
+			compareIsoDate(left.dueDate || "9999-12-31", right.dueDate || "9999-12-31"),
+		)[0];
 }
 
 function formatPacketBullets(
