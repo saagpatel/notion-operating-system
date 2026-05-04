@@ -192,6 +192,46 @@
       "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
       "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Network Decoder",
+      "pageId": "332c21f1-caf0-8106-8472-fee62ba2c979",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "MCP Audit",
+      "pageId": "332c21f1-caf0-8150-a80f-d23b2b9e601d",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "MCP Forge",
+      "pageId": "332c21f1-caf0-8157-9988-f34fdbb527a5",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "GitHub Repo Auditor",
+      "pageId": "332c21f1-caf0-8125-b553-f75377da8fed",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
     }
   ]
 }
