@@ -424,6 +424,77 @@
       "sourceUrl": "https://github.com/saagpatel/GPT_RAG"
     },
     {
+      "title": "DesktopPEt-ready - GitHub Repo",
+      "localProjectId": "326c21f1-caf0-81ee-a169-c116c5648386",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Poll",
+      "identifier": "saagpatel/DesktopPEt",
+      "sourceUrl": "https://github.com/saagpatel/DesktopPEt"
+    },
+    {
+      "title": "EarthPulse-readiness - GitHub Repo",
+      "localProjectId": "326c21f1-caf0-81d9-aae2-e82bcae15d4b",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Poll",
+      "identifier": "saagpatel/EarthPulse",
+      "sourceUrl": "https://github.com/saagpatel/EarthPulse"
+    },
+    {
+      "title": "OrbitForge - GitHub Repo",
+      "localProjectId": "326c21f1-caf0-815a-b58e-d3c8934cf7e7",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Poll",
+      "identifier": "saagpatel/OrbitForge",
+      "sourceUrl": "https://github.com/saagpatel/OrbitForge"
+    },
+    {
+      "title": "PomGambler - GitHub Repo",
+      "localProjectId": "326c21f1-caf0-8196-9742-ce4c71f76c0e",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Active",
+      "environment": "N/A",
+      "syncStrategy": "Poll",
+      "identifier": "saagpatel/PomGambler-prod",
+      "sourceUrl": "https://github.com/saagpatel/PomGambler-prod"
+    },
+    {
+      "title": "RAG Knowledge Base - GitHub Repo",
+      "localProjectId": "326c21f1-caf0-8168-ba2c-c86eaf03aa57",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Needs Mapping",
+      "environment": "N/A",
+      "syncStrategy": "Poll"
+    },
+    {
+      "title": "TabTriage - GitHub Repo",
+      "localProjectId": "332c21f1-caf0-8128-98cb-cece77ff099e",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Needs Mapping",
+      "environment": "N/A",
+      "syncStrategy": "Poll"
+    },
+    {
+      "title": "da-scaffold - GitHub Repo",
+      "localProjectId": "332c21f1-caf0-8158-a687-e2c42cf47659",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Needs Mapping",
+      "environment": "N/A",
+      "syncStrategy": "Poll"
+    },
+    {
       "title": "JobCommandCenter - GitHub Repo",
       "localProjectId": "326c21f1-caf0-8174-b7e4-cd40d79db124",
       "provider": "GitHub",

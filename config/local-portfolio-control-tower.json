@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081b8beb1e72f50ef2a50",
-    "pageId": "356c21f1-caf0-81b8-beb1-e72f50ef2a50"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf08116ac88fce26bbacf36",
+    "pageId": "356c21f1-caf0-8116-ac88-fce26bbacf36"
   },
   "fieldOwnership": {
     "manual": [
@@ -497,15 +497,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-05-03",
+    "lastSyncAt": "2026-05-04",
     "lastSyncMetrics": {
-      "mappedProjects": 110,
-      "projectsNeedingMapping": 7,
-      "activeSources": 114,
+      "mappedProjects": 117,
+      "projectsNeedingMapping": 0,
+      "activeSources": 118,
       "riskEvents": 765,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 221,
-      "contradictionProjects": 4
+      "failedWorkflowRuns": 208,
+      "contradictionProjects": 3
     }
   },
   "phase6Governance": {

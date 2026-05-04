@@ -272,6 +272,6 @@ Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the 
 Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters; signal-quality cleanup is now mostly narrowed to operating data quality and operator-surface follow-through.
 Recommended next slice:
 - improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
-- clean up operating data surfaced by the clean refreshes: remaining unmapped external-signal projects
+- improve signal quality by resolving explicit `Needs Mapping` provider rows when real identifiers become available
 
 Phase 10C should now focus on the remaining gaps after adapter closure: signal-quality cleanup, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.
