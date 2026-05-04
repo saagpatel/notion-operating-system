@@ -18,10 +18,20 @@ import {
 	renderWeeklyExternalSignalsSection,
 	validateLocalPortfolioExternalSignalViewPlanAgainstSchemas,
 } from "../src/notion/local-portfolio-external-signals.js";
+import { buildExternalSignalBriefStorageTitle } from "../src/notion/external-signal-sync.js";
 import type { IntelligenceProjectRecord } from "../src/notion/local-portfolio-intelligence.js";
 import { renderNotionPhaseMemoryMarkdown } from "../src/notion/local-portfolio-roadmap.js";
 
 describe("local portfolio external signals", () => {
+	test("builds stable external signal brief storage titles", () => {
+		expect(
+			buildExternalSignalBriefStorageTitle({
+				projectTitle: "OrbitMechanic",
+				today: "2026-05-04",
+			}),
+		).toBe("OrbitMechanic - External Signal Brief - 2026-05-04");
+	});
+
 	test("parses the phase-5 source, provider, and view configs", async () => {
 		const [sourcesRaw, providersRaw, viewsRaw] = await Promise.all([
 			readConfig("../config/local-portfolio-external-signal-sources.json"),

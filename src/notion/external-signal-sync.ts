@@ -1,5 +1,6 @@
 import { createReadStream } from "node:fs";
 import { access, constants, readdir, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -29,11 +30,13 @@ import {
 	saveLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import {
+	datePropertyValue,
 	fetchAllPages,
 	relationIds,
 	relationValue,
 	richTextValue,
 	selectPropertyValue,
+	textValue,
 	titleValue,
 	toBuildSessionRecord,
 } from "./local-portfolio-control-tower-live.js";
@@ -117,6 +120,7 @@ const WEEKLY_EXTERNAL_SIGNALS_END =
 	"<!-- codex:notion-weekly-external-signals:end -->";
 const PROVIDER_SOURCE_CONCURRENCY = 6;
 const PROVIDER_FETCH_TIMEOUT_MS = 15_000;
+const EXTERNAL_SIGNAL_BRIEF_STORAGE_VERSION = "external-signal-brief-db-v1";
 
 interface NormalizedSignalEvent {
 	title: string;
@@ -183,7 +187,12 @@ interface ProjectBriefRefresh {
 	projectTitle: string;
 	previousMarkdown: string;
 	nextMarkdown: string;
+	summary?: ReturnType<typeof buildExternalSignalSummary>;
 	changed: boolean;
+	storageTitle?: string;
+	storagePageId?: string;
+	storagePageUrl?: string;
+	contentHash?: string;
 }
 
 export interface ExternalSignalSyncWritePlan {
@@ -222,6 +231,7 @@ export async function runExternalSignalSyncCommand(
 	if (live) {
 		logLiveStage(live, "Ensuring Phase 5 schema");
 		config = await ensurePhase5ExternalSignalSchema(sdk, config);
+		await saveLocalPortfolioControlTowerConfig(config, configPath);
 	}
 
 	const phase5 = requirePhase5ExternalSignals(config);
@@ -513,9 +523,19 @@ export async function runExternalSignalSyncCommand(
 		? targetProjects.length
 		: 0;
 
+	const usesExternalSignalBriefStorage = Boolean(phase5.externalSignalBriefs);
 	const projectBriefs: ProjectBriefRefresh[] = shouldEvaluateProjectPages
-		? await Promise.all(
-				targetProjects.map(async (project) => {
+		? usesExternalSignalBriefStorage && phase5.externalSignalBriefs
+			? await buildStoredExternalSignalBriefRefreshes({
+					api,
+					projects: targetProjects,
+					recommendations,
+					summaryMap,
+					dataSourceId: phase5.externalSignalBriefs.dataSourceId,
+					today,
+				})
+			: await Promise.all(
+					targetProjects.map(async (project) => {
 			const recommendation = recommendations.find(
 				(entry) => entry.projectId === project.id,
 			);
@@ -569,16 +589,17 @@ export async function runExternalSignalSyncCommand(
 			);
 
 			return {
-				projectId: project.id,
-				projectTitle: project.title,
-				previousMarkdown: previous.markdown,
-				nextMarkdown,
-				changed:
-					normalizeMarkdown(nextMarkdown) !==
-					normalizeMarkdown(previous.markdown),
+					projectId: project.id,
+					projectTitle: project.title,
+					previousMarkdown: previous.markdown,
+					nextMarkdown,
+					summary,
+					changed:
+						normalizeMarkdown(nextMarkdown) !==
+						normalizeMarkdown(previous.markdown),
 			};
-				}),
-			)
+					}),
+				)
 		: [];
 	const projectExternalSignalBriefsWouldChange = projectBriefs.filter(
 		(entry) => entry.changed,
@@ -659,7 +680,7 @@ export async function runExternalSignalSyncCommand(
 			? normalizeMarkdown(nextWeeklyReview) !==
 				normalizeMarkdown(previousWeeklyReview.markdown)
 			: false;
-	const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown
+	const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown && !usesExternalSignalBriefStorage
 		? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
 		: undefined;
 	const knownBlockedProjectBriefs = knownBlockedMarkdownBlocklist
@@ -678,6 +699,7 @@ export async function runExternalSignalSyncCommand(
 
 	let changedProjectPages = 0;
 	const blockedMarkdownProjects: string[] = [];
+	const skippedProjectPropertyUpdates: string[] = [];
 	const knownBlockedMarkdownProjects = knownBlockedProjectBriefs.map(
 		(projectBrief) => projectBrief.projectTitle,
 	);
@@ -714,13 +736,40 @@ export async function runExternalSignalSyncCommand(
 				today,
 			});
 			if (Object.keys(propertyUpdates).length > 0) {
-				await api.updatePageProperties({
-					pageId: project.id,
-					properties: propertyUpdates,
-				});
+				try {
+					await api.updatePageProperties({
+						pageId: project.id,
+						properties: propertyUpdates,
+					});
+				} catch (error) {
+					if (!usesExternalSignalBriefStorage) {
+						throw error;
+					}
+					skippedProjectPropertyUpdates.push(project.title);
+					logLiveStage(live, "Skipping blocked project property patch", {
+						projectId: project.id,
+						projectTitle: project.title,
+						error: toErrorMessage(error),
+					});
+				}
 			}
 			const projectBrief = projectBriefs[index];
 			if (projectBrief?.changed) {
+				if (phase5.externalSignalBriefs && projectBrief.storageTitle) {
+					await upsertExternalSignalBriefPage({
+						api,
+						dataSourceId: phase5.externalSignalBriefs.dataSourceId,
+						titlePropertyName: "Name",
+						title: projectBrief.storageTitle,
+						properties: buildExternalSignalBriefStorageProperties({
+							entry: projectBrief,
+							today,
+						}),
+						markdown: projectBrief.nextMarkdown,
+					});
+					changedProjectPages += 1;
+					continue;
+				}
 				if (
 					knownBlockedMarkdownBlocklist &&
 					isKnownBlockedProjectMarkdown(
@@ -849,6 +898,7 @@ export async function runExternalSignalSyncCommand(
 		projectExternalSignalBriefsWouldChange,
 		blockedMarkdownProjectPages: blockedMarkdownProjects.length,
 		knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
+		skippedProjectPropertyUpdatePages: skippedProjectPropertyUpdates.length,
 		blockedMarkdownProjects,
 		knownBlockedMarkdownProjects,
 		projectRefreshTotalCount,
@@ -900,6 +950,8 @@ export async function runExternalSignalSyncCommand(
 			projectExternalSignalBriefsWouldChange,
 			blockedMarkdownProjectPages: blockedMarkdownProjects.length,
 			knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
+			skippedProjectPropertyUpdatePages:
+				skippedProjectPropertyUpdates.length,
 			projectRefreshTotalCount,
 			projectRefreshBatchCount,
 			projectRefreshOffset: projectRefreshOffset ?? 0,
@@ -916,6 +968,7 @@ export async function runExternalSignalSyncCommand(
 		},
 		warnings: [
 			...providerWarnings,
+			...skippedProjectPropertyUpdates.map((projectTitle) => `Skipped blocked project property patch: ${projectTitle}`),
 			...blockedMarkdownProjects.map((projectTitle) => `Skipped blocked project markdown patch: ${projectTitle}`),
 			...knownBlockedMarkdownProjects.map((projectTitle) => `Skipped known blocked project markdown patch: ${projectTitle}`),
 		],
@@ -947,6 +1000,259 @@ export async function runExternalSignalSyncCommand(
 		body: `${live ? "Live" : "Dry-run"} [${provider}]: ${contract.summaryCounts.createdEventCount ?? 0} events, ${contract.summaryCounts.syncedSourceCount ?? 0} sources synced, ${contract.summaryCounts.targetProjectCount ?? 0} projects`,
 	});
 	console.log(JSON.stringify(output, null, 2));
+}
+
+async function buildStoredExternalSignalBriefRefreshes(input: {
+	api: DirectNotionClient;
+	projects: ReturnType<typeof toIntelligenceProjectRecord>[];
+	recommendations: Array<ReturnType<typeof buildRecommendation>>;
+	summaryMap: Map<string, ReturnType<typeof buildExternalSignalSummary>>;
+	dataSourceId: string;
+	today: string;
+}): Promise<ProjectBriefRefresh[]> {
+	const existingPages = await fetchAllPages(input.api, input.dataSourceId, "Name");
+	const existingByTitle = new Map(existingPages.map((page) => [page.title, page]));
+
+	return Promise.all(
+		input.projects.map(async (project) => {
+			const recommendation = input.recommendations.find(
+				(entry) => entry.projectId === project.id,
+			);
+			const summary = input.summaryMap.get(project.id);
+			if (!recommendation || !summary) {
+				return {
+					projectId: project.id,
+					projectTitle: project.title,
+					previousMarkdown: "",
+					nextMarkdown: "",
+					summary,
+					changed: false,
+				};
+			}
+
+			const storageTitle = buildExternalSignalBriefStorageTitle({
+				projectTitle: project.title,
+				today: input.today,
+			});
+			const existing = existingByTitle.get(storageTitle);
+			const nextMarkdown = renderExternalSignalBriefStorageMarkdown({
+				projectTitle: project.title,
+				summary,
+				today: input.today,
+			});
+			const contentHash = hashMarkdown(nextMarkdown);
+			const existingHash = existing
+				? textValue(existing.properties["Brief Hash"])
+				: "";
+			const previousMarkdown =
+				existing && !existingHash
+					? (await input.api.readPageMarkdown(existing.id)).markdown
+					: "";
+
+			return {
+				projectId: project.id,
+				projectTitle: project.title,
+				previousMarkdown,
+				nextMarkdown,
+				summary,
+				changed:
+					!existing ||
+					(existingHash
+						? existingHash !== contentHash
+						: normalizeMarkdown(nextMarkdown) !==
+							normalizeMarkdown(previousMarkdown)),
+				storageTitle,
+				storagePageId: existing?.id,
+				storagePageUrl: existing?.url,
+				contentHash,
+			};
+		}),
+	);
+}
+
+export function buildExternalSignalBriefStorageTitle(input: {
+	projectTitle: string;
+	today: string;
+}): string {
+	return `${input.projectTitle} - External Signal Brief - ${input.today}`;
+}
+
+function renderExternalSignalBriefStorageMarkdown(input: {
+	projectTitle: string;
+	summary: ReturnType<typeof buildExternalSignalSummary>;
+	today: string;
+}): string {
+	return [
+		`# ${buildExternalSignalBriefStorageTitle({
+			projectTitle: input.projectTitle,
+			today: input.today,
+		})}`,
+		"",
+		renderExternalSignalBriefSection({ summary: input.summary }),
+	].join("\n");
+}
+
+function buildExternalSignalBriefStorageProperties(input: {
+	entry: ProjectBriefRefresh;
+	today: string;
+}): Record<string, unknown> {
+	const summary = input.entry.summary;
+	return {
+		Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
+		"Local Project": relationValue([input.entry.projectId]),
+		"Brief Date": datePropertyValue(input.today),
+		"External Signal Coverage": selectPropertyValue(summary?.coverage),
+		"Latest External Activity": datePropertyValue(
+			summary?.latestExternalActivity,
+		),
+		"Latest Deployment Status": selectPropertyValue(
+			summary?.latestDeploymentStatus,
+		),
+		"Open PR Count": { number: summary?.openPrCount ?? 0 },
+		"Recent Failed Workflow Runs": {
+			number: summary?.recentFailedWorkflowRuns ?? 0,
+		},
+		"Mapped Sources": relationValue(
+			(summary?.mappedSources ?? []).map((source) => source.id),
+		),
+		"Recent Events": relationValue(
+			(summary?.recentEvents ?? []).slice(0, 25).map((event) => event.id),
+		),
+		Source: selectPropertyValue("external-signal-sync"),
+		"Storage Version": richTextValue(EXTERNAL_SIGNAL_BRIEF_STORAGE_VERSION),
+		"Brief Hash": richTextValue(input.entry.contentHash ?? ""),
+	};
+}
+
+function hashMarkdown(markdown: string): string {
+	return createHash("sha256").update(normalizeMarkdown(markdown)).digest("hex");
+}
+
+async function upsertExternalSignalBriefPage(input: {
+	api: DirectNotionClient;
+	dataSourceId: string;
+	titlePropertyName: string;
+	title: string;
+	properties: Record<string, unknown>;
+	markdown: string;
+}): Promise<void> {
+	const existing = await input.api.searchPage({
+		dataSourceId: input.dataSourceId,
+		exactTitle: input.title,
+		titleProperty: input.titlePropertyName,
+	});
+
+	if (!existing) {
+		await createExternalSignalBriefPage(input);
+		return;
+	}
+
+	try {
+		await input.api.updatePageProperties({
+			pageId: existing.id,
+			properties: input.properties,
+		});
+	} catch (error) {
+		logLiveStage(true, "Stored external signal brief property patch failed", {
+			pageId: existing.id,
+			title: input.title,
+			error: toErrorMessage(error),
+		});
+		await updateExternalSignalBriefHashProperties({
+			api: input.api,
+			pageId: existing.id,
+			title: input.title,
+			properties: input.properties,
+		});
+	}
+
+	try {
+		await input.api.patchPageMarkdown({
+			pageId: existing.id,
+			command: "replace_content",
+			newMarkdown: input.markdown,
+		});
+	} catch (error) {
+		logLiveStage(true, "Stored external signal brief markdown patch failed", {
+			pageId: existing.id,
+			title: input.title,
+			error: toErrorMessage(error),
+		});
+	}
+}
+
+async function createExternalSignalBriefPage(input: {
+	api: DirectNotionClient;
+	dataSourceId: string;
+	titlePropertyName: string;
+	title: string;
+	properties: Record<string, unknown>;
+	markdown: string;
+}): Promise<void> {
+	const titleProperty =
+		input.properties[input.titlePropertyName] ?? titleValue(input.title);
+	const created = await input.api.createPageWithMarkdown({
+		parent: {
+			data_source_id: input.dataSourceId,
+		},
+		properties: {
+			[input.titlePropertyName]: titleProperty,
+		},
+		markdown: input.markdown,
+	});
+	const nonTitleProperties = Object.fromEntries(
+		Object.entries(input.properties).filter(
+			([name]) => name !== input.titlePropertyName,
+		),
+	);
+	if (Object.keys(nonTitleProperties).length > 0) {
+		try {
+			await input.api.updatePageProperties({
+				pageId: created.id,
+				properties: nonTitleProperties,
+			});
+		} catch (error) {
+			logLiveStage(true, "Stored external signal brief property patch failed", {
+				pageId: created.id,
+				title: input.title,
+				error: toErrorMessage(error),
+			});
+			await updateExternalSignalBriefHashProperties({
+				api: input.api,
+				pageId: created.id,
+				title: input.title,
+				properties: input.properties,
+			});
+		}
+	}
+}
+
+async function updateExternalSignalBriefHashProperties(input: {
+	api: DirectNotionClient;
+	pageId: string;
+	title: string;
+	properties: Record<string, unknown>;
+}): Promise<void> {
+	const minimalProperties = Object.fromEntries(
+		["Storage Version", "Brief Hash"]
+			.map((name) => [name, input.properties[name]])
+			.filter((entry): entry is [string, unknown] => entry[1] !== undefined),
+	);
+	if (Object.keys(minimalProperties).length === 0) {
+		return;
+	}
+	try {
+		await input.api.updatePageProperties({
+			pageId: input.pageId,
+			properties: minimalProperties,
+		});
+	} catch (error) {
+		logLiveStage(true, "Stored external signal brief hash patch failed", {
+			pageId: input.pageId,
+			title: input.title,
+			error: toErrorMessage(error),
+		});
+	}
 }
 
 function logLiveStage(

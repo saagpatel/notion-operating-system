@@ -438,6 +438,13 @@
       "dataSourceId": "d9be5cd5-5a18-4a6d-adc3-5b73299d6376",
       "destinationAlias": "external_signal_sync_runs"
     },
+    "externalSignalBriefs": {
+      "name": "External Signal Briefs",
+      "databaseUrl": "https://www.notion.so/8b6a838cd1274132a942dc2deab1e19c",
+      "databaseId": "8b6a838c-d127-4132-a942-dc2deab1e19c",
+      "dataSourceId": "50768c5e-b560-4704-91e3-5f88248d95d1",
+      "destinationAlias": "external_signal_briefs"
+    },
     "providerEnablement": {
       "github": true,
       "vercel": true,

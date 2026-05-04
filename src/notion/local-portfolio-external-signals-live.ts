@@ -46,6 +46,14 @@ export async function ensurePhase5ExternalSignalSchema(
     titlePropertyName: "Name",
     destinationAlias: "external_signal_sync_runs",
   });
+  const externalSignalBriefs = await ensureDataSourceRef({
+    sdk,
+    existing: config.phase5ExternalSignals?.externalSignalBriefs,
+    parentPageUrl: config.commandCenter.parentPageUrl,
+    title: "External Signal Briefs",
+    titlePropertyName: "Name",
+    destinationAlias: "external_signal_briefs",
+  });
 
   const [projectSchema, sourcesSchema, eventsSchema, syncRunsSchema] = await Promise.all([
     sdk.request({
@@ -278,6 +286,47 @@ export async function ensurePhase5ExternalSignalSchema(
         },
       },
     }),
+    sdk.request({
+      path: `data_sources/${externalSignalBriefs.dataSourceId}`,
+      method: "patch",
+      body: {
+        properties: {
+          "Local Project": { relation: relationSchema(config.database.dataSourceId) },
+          "Brief Date": { date: {} },
+          "External Signal Coverage": {
+            select: {
+              options: [
+                ["None", "default"],
+                ["Repo Only", "blue"],
+                ["Repo + Deploy", "green"],
+                ["Calendar Only", "yellow"],
+                ["Mixed", "orange"],
+              ].map(([name, color]) => ({ name, color })),
+            },
+          },
+          "Latest External Activity": { date: {} },
+          "Latest Deployment Status": {
+            select: {
+              options: [
+                ["Success", "green"],
+                ["Failed", "red"],
+                ["Building", "blue"],
+                ["Canceled", "gray"],
+                ["Unknown", "default"],
+                ["Not Deployed", "brown"],
+              ].map(([name, color]) => ({ name, color })),
+            },
+          },
+          "Open PR Count": { number: { format: "number" } },
+          "Recent Failed Workflow Runs": { number: { format: "number" } },
+          "Mapped Sources": { relation: relationSchema(sources.dataSourceId) },
+          "Recent Events": { relation: relationSchema(events.dataSourceId) },
+          "Source": { select: { options: [{ name: "external-signal-sync", color: "blue" }] } },
+          "Storage Version": { rich_text: {} },
+          "Brief Hash": { rich_text: {} },
+        },
+      },
+    }),
   ]);
 
   const derived = new Set(config.fieldOwnership.derived);
@@ -298,6 +347,7 @@ export async function ensurePhase5ExternalSignalSchema(
       sources,
       events,
       syncRuns,
+      externalSignalBriefs,
       providerEnablement: config.phase5ExternalSignals?.providerEnablement ?? {
         github: true,
         vercel: true,

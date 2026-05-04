@@ -298,6 +298,13 @@ export interface LocalPortfolioControlTowerConfig {
 			dataSourceId: string;
 			destinationAlias: string;
 		};
+		externalSignalBriefs?: {
+			name: string;
+			databaseUrl: string;
+			databaseId: string;
+			dataSourceId: string;
+			destinationAlias: string;
+		};
 		providerEnablement: {
 			github: boolean;
 			vercel: boolean;
@@ -1724,6 +1731,12 @@ function parsePhase5ExternalSignals(
 			value.syncRuns,
 			"phase5ExternalSignals.syncRuns",
 		),
+		externalSignalBriefs: value.externalSignalBriefs
+			? parseExecutionDatabaseRef(
+					value.externalSignalBriefs,
+					"phase5ExternalSignals.externalSignalBriefs",
+				)
+			: undefined,
 		providerEnablement: parsePhase5ProviderEnablement(value.providerEnablement),
 		pollingCadenceMinutes: parsePhase5PollingCadence(
 			value.pollingCadenceMinutes,
