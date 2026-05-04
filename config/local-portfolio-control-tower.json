@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081d18ef4ed61ae7b3106",
-    "pageId": "356c21f1-caf0-81d1-8ef4-ed61ae7b3106"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081b8beb1e72f50ef2a50",
+    "pageId": "356c21f1-caf0-81b8-beb1-e72f50ef2a50"
   },
   "fieldOwnership": {
     "manual": [
@@ -217,8 +217,8 @@
     "lastSyncAt": "2026-05-04",
     "lastSyncMetrics": {
       "openDecisions": 0,
-      "nowPackets": 22,
-      "standbyPackets": 6,
+      "nowPackets": 1,
+      "standbyPackets": 1,
       "blockedPackets": 0,
       "blockedTasks": 1,
       "overdueTasks": 98,
@@ -226,10 +226,7 @@
       "packetsCompletedThisWeek": 0,
       "rolloverPackets": 1,
       "projectsWithExecutionDrift": 0,
-      "wipViolations": [
-        "WIP violation: 22 Now packets are active, but the limit is 1.",
-        "WIP violation: 6 Standby packets are active, but the limit is 1."
-      ]
+      "wipViolations": []
     }
   },
   "phase3Intelligence": {

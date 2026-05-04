@@ -205,7 +205,7 @@ Sandbox local reality from the 2026-04-17 confidence pass:
 - current follow-up work is operational maturity:
   - Phase 10 completion and signal-layer productization
   - watch the weekly timing summary for recurring slow lanes; as of the May 4 proof run, `external-signals` and `intelligence-sync` are the expected slow read-only lanes
-  - address current operating data quality issues surfaced by clean refreshes: Execution WIP violations and the remaining unmapped external-signal projects
+  - address current operating data quality issues surfaced by clean refreshes: the remaining unmapped external-signal projects
   - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
   - continued docs accuracy
   - sandbox smoke rehearsal discipline for risky advanced workflows
@@ -223,9 +223,9 @@ Start with one explicit Phase 10 product slice:
 1. productize the operator surface on top of the now-proven adapters:
    morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
 2. clean up operating data quality:
-   reduce Execution WIP violations and map the remaining external-signal projects
+   map the remaining external-signal projects
 
-The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`, and it is no longer managed-markdown convergence recovery. The best next move is operator-surface productization on top of the proven signal lanes, or a narrow operating-data cleanup pass for WIP violations and unmapped external-signal projects.
+The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`, and it is no longer managed-markdown convergence recovery. The best next move is operator-surface productization on top of the proven signal lanes, or a narrow operating-data cleanup pass for unmapped external-signal projects.
 
 ## Known assumptions
 
