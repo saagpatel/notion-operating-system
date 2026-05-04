@@ -214,7 +214,7 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-05-03",
+    "lastSyncAt": "2026-05-04",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 22,
@@ -228,8 +228,7 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": [
         "WIP violation: 22 Now packets are active, but the limit is 1.",
-        "WIP violation: 6 Standby packets are active, but the limit is 1.",
-        "Task \"Activate Relay GitHub source in Notion\" must belong to exactly one work packet."
+        "WIP violation: 6 Standby packets are active, but the limit is 1."
       ]
     }
   },
