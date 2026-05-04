@@ -55,6 +55,7 @@ import { validateLocalPortfolioIntelligenceViewPlanAgainstSchemas } from "./loca
 import { AppError } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 import {
   isNotionPolicyBlockedError,
@@ -96,6 +97,7 @@ export interface IntelligenceSyncCommandOptions {
   config?: string;
   projectLimit?: number;
   projectOffset?: number;
+  projectConcurrency?: number;
   skipKnownBlockedMarkdown?: boolean;
   blockedMarkdownConfig?: string;
 }
@@ -108,6 +110,7 @@ export async function runIntelligenceSyncCommand(
   const today = options.today ?? losAngelesToday();
   const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
   validateProjectBatchOptions(options);
+  const projectConcurrency = options.projectConcurrency ?? 1;
   const projectBatchEnabled = options.projectLimit !== undefined || options.projectOffset !== undefined;
   let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
@@ -316,13 +319,14 @@ export async function runIntelligenceSyncCommand(
         projectRefreshTotalCount: changedRecommendationBriefs.length,
         projectRefreshOffset: options.projectOffset ?? 0,
         projectRefreshLimit: options.projectLimit ?? 0,
+        projectConcurrency,
       });
-      for (const [index, entry] of targetRecommendationBriefs.entries()) {
+      await mapWithConcurrency(targetRecommendationBriefs, projectConcurrency, async (entry, index) => {
         logLoopProgress(live, "intelligence-sync", "Project brief", index + 1, targetRecommendationBriefs.length);
         const context = contexts.find((candidate) => candidate.project.id === entry.projectId);
         const recommendation = entry?.recommendation;
         if (!recommendation || !context) {
-          continue;
+          return;
         }
 
         await api.updatePageProperties({
@@ -349,7 +353,7 @@ export async function runIntelligenceSyncCommand(
               markdown: entry.nextMarkdown,
             });
             changedProjectPages += 1;
-            continue;
+            return;
           }
 
           try {
@@ -376,7 +380,7 @@ export async function runIntelligenceSyncCommand(
             });
           }
         }
-      }
+      });
 
       logLiveStage(live, "Refreshing intelligence command center");
       if (previousCommandCenter && nextCommandCenter && intelligenceCommandCenterSectionWouldChange) {
@@ -484,12 +488,15 @@ export async function runIntelligenceSyncCommand(
     console.log(JSON.stringify(output, null, 2));
 }
 
-function validateProjectBatchOptions(options: Pick<IntelligenceSyncCommandOptions, "projectLimit" | "projectOffset">): void {
+function validateProjectBatchOptions(options: Pick<IntelligenceSyncCommandOptions, "projectLimit" | "projectOffset" | "projectConcurrency">): void {
   if (options.projectLimit !== undefined && (!Number.isInteger(options.projectLimit) || options.projectLimit < 1)) {
     throw new AppError("--project-limit must be a positive integer");
   }
   if (options.projectOffset !== undefined && (!Number.isInteger(options.projectOffset) || options.projectOffset < 0)) {
     throw new AppError("--project-offset must be a non-negative integer");
+  }
+  if (options.projectConcurrency !== undefined && (!Number.isInteger(options.projectConcurrency) || options.projectConcurrency < 1)) {
+    throw new AppError("--project-concurrency must be a positive integer");
   }
 }
 

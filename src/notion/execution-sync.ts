@@ -44,6 +44,7 @@ import {
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 import {
   isNotionPolicyBlockedError,
@@ -85,6 +86,7 @@ export interface ExecutionSyncCommandOptions {
   config?: string;
   projectLimit?: number;
   projectOffset?: number;
+  projectConcurrency?: number;
   skipKnownBlockedMarkdown?: boolean;
   blockedMarkdownConfig?: string;
 }
@@ -97,6 +99,7 @@ export async function runExecutionSyncCommand(
   const today = options.today ?? losAngelesToday();
   const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
   validateProjectBatchOptions(options);
+  const projectConcurrency = options.projectConcurrency ?? 1;
   const projectBatchEnabled = options.projectLimit !== undefined || options.projectOffset !== undefined;
 
   let config = await loadLocalPortfolioControlTowerConfig(configPath);
@@ -244,8 +247,9 @@ export async function runExecutionSyncCommand(
         projectRefreshTotalCount: changedProjectBriefs.length,
         projectRefreshOffset: options.projectOffset ?? 0,
         projectRefreshLimit: options.projectLimit ?? 0,
+        projectConcurrency,
       });
-      for (const [index, brief] of targetProjectBriefs.entries()) {
+      await mapWithConcurrency(targetProjectBriefs, projectConcurrency, async (brief, index) => {
         logLoopProgress(live, "execution-sync", "Project brief", index + 1, targetProjectBriefs.length);
           if (phase2Execution.executionBriefs && brief.storageTitle) {
             await upsertPageByTitle({
@@ -260,7 +264,7 @@ export async function runExecutionSyncCommand(
               markdown: brief.nextMarkdown,
             });
             changedProjectPages += 1;
-            continue;
+            return;
           }
 
           try {
@@ -288,7 +292,7 @@ export async function runExecutionSyncCommand(
               projectTitle,
             });
           }
-      }
+      });
 
       logLiveStage(live, "Refreshing execution command center");
       if (previousCommandCenter && nextCommandCenter && executionCommandCenterSectionWouldChange) {
@@ -521,12 +525,15 @@ function hashMarkdown(markdown: string): string {
   return createHash("sha256").update(normalizeMarkdown(markdown)).digest("hex");
 }
 
-function validateProjectBatchOptions(options: Pick<ExecutionSyncCommandOptions, "projectLimit" | "projectOffset">): void {
+function validateProjectBatchOptions(options: Pick<ExecutionSyncCommandOptions, "projectLimit" | "projectOffset" | "projectConcurrency">): void {
   if (options.projectLimit !== undefined && (!Number.isInteger(options.projectLimit) || options.projectLimit < 1)) {
     throw new AppError("--project-limit must be a positive integer");
   }
   if (options.projectOffset !== undefined && (!Number.isInteger(options.projectOffset) || options.projectOffset < 0)) {
     throw new AppError("--project-offset must be a non-negative integer");
+  }
+  if (options.projectConcurrency !== undefined && (!Number.isInteger(options.projectConcurrency) || options.projectConcurrency < 1)) {
+    throw new AppError("--project-concurrency must be a positive integer");
   }
 }
 

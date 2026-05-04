@@ -147,6 +147,8 @@ npm run maintenance:weekly-refresh -- --today "$(date +%F)" --only intelligence-
 npm run maintenance:weekly-refresh -- --today "$(date +%F)" --only external-signals --max-project-pages 10 --project-offset 0 --summary-first
 ```
 
+`--fast` also applies a conservative `--project-concurrency 2` for project brief write loops. Lower it to `1` if Notion starts rate-limiting; raise batch size before raising concurrency.
+
 The older manual sequence remains useful when you need to run one command directly:
 
 ```bash

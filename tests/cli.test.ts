@@ -98,6 +98,7 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("full, providers, project-pages, portfolio-sections");
     expect(help.stdout).toContain("--project-limit <count>");
     expect(help.stdout).toContain("--project-offset <count>");
+    expect(help.stdout).toContain("--project-concurrency <count>");
 
     const invalidScope = await runCliForTest(["signals", "sync", "--write-scope", "nope"]);
     expect(invalidScope.exitCode).toBe(1);
@@ -120,6 +121,7 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--skip <step>");
     expect(help.stdout).toContain("--max-project-pages <count>");
     expect(help.stdout).toContain("--project-offset <count>");
+    expect(help.stdout).toContain("--project-concurrency <count>");
     expect(help.stdout).toContain("--step-timeout-minutes <minutes>");
     expect(help.stdout).toContain("--max-step-attempts <count>");
     expect(help.stdout).toContain("--fast");
@@ -135,10 +137,12 @@ describe("cli smoke tests", () => {
     expect(executionHelp.exitCode).toBe(0);
     expect(executionHelp.stdout).toContain("--project-limit <count>");
     expect(executionHelp.stdout).toContain("--project-offset <count>");
+    expect(executionHelp.stdout).toContain("--project-concurrency <count>");
     expect(executionHelp.stdout).toContain("--skip-known-blocked-markdown");
     expect(intelligenceHelp.exitCode).toBe(0);
     expect(intelligenceHelp.stdout).toContain("--project-limit <count>");
     expect(intelligenceHelp.stdout).toContain("--project-offset <count>");
+    expect(intelligenceHelp.stdout).toContain("--project-concurrency <count>");
     expect(intelligenceHelp.stdout).toContain("--skip-known-blocked-markdown");
   });
 

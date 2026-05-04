@@ -13,6 +13,7 @@ npm run maintenance:weekly-refresh -- --fast
 `--fast` bundles the speed defaults that are safe to apply together:
 
 - caps project-page batches at 10 unless a different `--max-project-pages` is passed
+- runs project brief writes with concurrency 2 unless a different `--project-concurrency` is passed
 - caps GitHub signal source reads at 5 and events per source at 5 unless overridden
 - skips project pages already listed in the blocked markdown registry
 - streams child-command progress so a stuck lane is visible quickly
@@ -30,11 +31,19 @@ npm run maintenance:weekly-refresh -- --today <date> --only <step> --fast
 
 Live lane repairs still require explicit operator approval before running the live command.
 
+For large known-safe database-backed brief batches, keep the lane scoped and raise the batch size before raising concurrency:
+
+```bash
+npm run maintenance:weekly-refresh -- --today <date> --only intelligence-sync --fast --max-project-pages 117 --project-concurrency 2 --live --confirm-full-live
+```
+
+Use `--project-concurrency 1` if Notion starts rate-limiting or returning retryable transport errors.
+
 Use the broad live command only when the operator explicitly wants a full weekly write sequence and accepts the runtime.
 
 ## Parallel work rules
 
-Parallelize analysis, not live writes.
+Parallelize analysis freely; parallelize live writes only through the bounded `--project-concurrency` flag.
 
 Good subagent or separate-chat work:
 
@@ -47,6 +56,7 @@ Good subagent or separate-chat work:
 Avoid:
 
 - multiple live Notion writers against the same integration
+- separate chats or subagents running live Notion writes at the same time
 - parallel Command Center writers
 - browser-driven bulk edits
 - broad live weekly refresh as a repair shortcut

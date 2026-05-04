@@ -584,6 +584,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 					valueName: "count",
 				},
 				{
+					name: "project-concurrency",
+					description: "Number of project brief writes to run in parallel.",
+					type: "number",
+					valueName: "count",
+				},
+				{
 					name: "skip-known-blocked-markdown",
 					description: "Skip project-page markdown writes listed in the blocked markdown registry.",
 					type: "boolean",
@@ -599,6 +605,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 					projectLimit: asNumber(parsed.options["project-limit"]),
 					projectOffset: asNumber(parsed.options["project-offset"]),
+					projectConcurrency: asNumber(parsed.options["project-concurrency"]),
 					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
 				}),
 		),
@@ -657,6 +664,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 						valueName: "count",
 					},
 					{
+						name: "project-concurrency",
+						description: "Number of project brief writes to run in parallel.",
+						type: "number",
+						valueName: "count",
+					},
+					{
 						name: "skip-known-blocked-markdown",
 						description: "Skip project-page markdown writes listed in the blocked markdown registry.",
 						type: "boolean",
@@ -672,6 +685,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						}),
 						projectLimit: asNumber(parsed.options["project-limit"]),
 						projectOffset: asNumber(parsed.options["project-offset"]),
+						projectConcurrency: asNumber(parsed.options["project-concurrency"]),
 						skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
 					}),
 			),
@@ -789,6 +803,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 					valueName: "count",
 				},
 				{
+					name: "project-concurrency",
+					description: "Number of project brief writes to run in parallel.",
+					type: "number",
+					valueName: "count",
+				},
+				{
 					name: "skip-known-blocked-markdown",
 					description: "Skip project-page markdown writes listed in the blocked markdown registry.",
 					type: "boolean",
@@ -817,6 +837,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 							| undefined) ?? "full",
 					projectLimit: asNumber(parsed.options["project-limit"]),
 					projectOffset: asNumber(parsed.options["project-offset"]),
+					projectConcurrency: asNumber(parsed.options["project-concurrency"]),
 					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
@@ -1369,6 +1390,13 @@ export const cliRegistry: CliCommandDefinition[] = [
 					valueName: "count",
 				},
 				{
+					name: "project-concurrency",
+					description:
+						"Number of project brief writes to run in parallel during project-refresh steps.",
+					type: "number",
+					valueName: "count",
+				},
+				{
 					name: "step-timeout-minutes",
 					description:
 						"Override the child-command timeout for each weekly step.",
@@ -1420,6 +1448,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 					skip: asStringArray(parsed.options.skip),
 					maxProjectPages: asNumber(parsed.options["max-project-pages"]),
 					projectOffset: asNumber(parsed.options["project-offset"]),
+					projectConcurrency: asNumber(parsed.options["project-concurrency"]),
 					stepTimeoutMinutes: asNumber(parsed.options["step-timeout-minutes"]),
 					maxStepAttempts: asNumber(parsed.options["max-step-attempts"]),
 					summaryFirst: asBoolean(parsed.options["summary-first"]),

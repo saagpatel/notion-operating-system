@@ -40,6 +40,7 @@ interface WeeklyRefreshCommandOptions {
   skip?: string[];
   maxProjectPages?: number;
   projectOffset?: number;
+  projectConcurrency?: number;
   stepTimeoutMinutes?: number;
   maxStepAttempts?: number;
   summaryFirst?: boolean;
@@ -117,6 +118,7 @@ export async function runWeeklyRefreshCommand(
     skip: normalizeStepSelection(options.skip),
     maxProjectPages: options.maxProjectPages ?? (options.fast ? 10 : undefined),
     projectOffset: options.projectOffset,
+    projectConcurrency: options.projectConcurrency ?? (options.fast ? 2 : 1),
     stepTimeoutMinutes: options.stepTimeoutMinutes,
     maxStepAttempts: options.maxStepAttempts ?? (options.fast ? 2 : 5),
     summaryFirst: applyFastBooleanDefault(options.summaryFirst, options.fast),
@@ -243,6 +245,7 @@ function buildStepDefinitions(
     skip?: WeeklyStepKey[];
     maxProjectPages?: number;
     projectOffset?: number;
+    projectConcurrency: number;
     stepTimeoutMinutes?: number;
     skipKnownBlockedMarkdown: boolean;
   },
@@ -277,6 +280,8 @@ function buildStepDefinitions(
         ...sharedArgs,
         ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
         ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
+        "--project-concurrency",
+        String(flags.projectConcurrency),
         ...(flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
       ],
       timeoutMs: 15 * 60 * 1000,
@@ -292,6 +297,8 @@ function buildStepDefinitions(
         ...sharedArgs,
         ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
         ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
+        "--project-concurrency",
+        String(flags.projectConcurrency),
         ...(flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
       ],
       timeoutMs: 15 * 60 * 1000,
@@ -322,6 +329,8 @@ function buildStepDefinitions(
         ...(flags.maxProjectPages === undefined && flags.projectOffset === undefined ? [] : ["--write-scope", "project-pages"]),
         ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
         ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
+        "--project-concurrency",
+        String(flags.projectConcurrency),
         ...(flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
       ],
       timeoutMs: 20 * 60 * 1000,
@@ -607,6 +616,7 @@ function validateWeeklyRefreshFlags(flags: {
   fast?: boolean;
   maxProjectPages?: number;
   projectOffset?: number;
+  projectConcurrency: number;
   stepTimeoutMinutes?: number;
   maxStepAttempts: number;
   only?: WeeklyStepKey[];
@@ -626,6 +636,9 @@ function validateWeeklyRefreshFlags(flags: {
   }
   if (flags.projectOffset !== undefined && (!Number.isInteger(flags.projectOffset) || flags.projectOffset < 0)) {
     throw new Error("--project-offset must be a non-negative integer");
+  }
+  if (!Number.isInteger(flags.projectConcurrency) || flags.projectConcurrency < 1) {
+    throw new Error("--project-concurrency must be a positive integer");
   }
 }
 

@@ -11,6 +11,7 @@ import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import {
 	assertSafeReplacement,
@@ -172,6 +173,7 @@ export interface ExternalSignalSyncCommandOptions {
 	writeScope?: ExternalSignalSyncWriteScope;
 	projectLimit?: number;
 	projectOffset?: number;
+	projectConcurrency?: number;
 	skipKnownBlockedMarkdown?: boolean;
 	blockedMarkdownConfig?: string;
 }
@@ -241,6 +243,7 @@ export async function runExternalSignalSyncCommand(
 		writeScope,
 		projectLimit: options.projectLimit,
 		projectOffset: options.projectOffset ?? 0,
+		projectConcurrency: options.projectConcurrency ?? 1,
 	});
 
 	logLiveStage(live, "Loading external signal schemas");
@@ -704,14 +707,16 @@ export async function runExternalSignalSyncCommand(
 		(projectBrief) => projectBrief.projectTitle,
 	);
 	if (live && shouldEvaluateProjectPages) {
+		const projectConcurrency = options.projectConcurrency ?? 1;
 		logLiveStage(live, "Refreshing project signal briefs", {
 			writeScope,
 			projectCount: targetProjects.length,
 			projectRefreshTotalCount,
 			projectRefreshOffset,
 			projectRefreshLimit,
+			projectConcurrency,
 		});
-		for (const [index, project] of targetProjects.entries()) {
+		await mapWithConcurrency(targetProjects, projectConcurrency, async (project, index) => {
 			logProjectRefreshProgress(live, {
 				index: index + 1,
 				total: targetProjects.length,
@@ -726,7 +731,7 @@ export async function runExternalSignalSyncCommand(
 			);
 			const summary = summaryMap.get(project.id);
 			if (!recommendation || !summary) {
-				continue;
+				return;
 			}
 
 			const propertyUpdates = buildExternalSignalProjectPropertyUpdates({
@@ -768,7 +773,7 @@ export async function runExternalSignalSyncCommand(
 						markdown: projectBrief.nextMarkdown,
 					});
 					changedProjectPages += 1;
-					continue;
+					return;
 				}
 				if (
 					knownBlockedMarkdownBlocklist &&
@@ -782,7 +787,7 @@ export async function runExternalSignalSyncCommand(
 						projectId: project.id,
 						projectTitle: project.title,
 					});
-					continue;
+					return;
 				}
 				try {
 					await syncExternalSignalProjectBrief({
@@ -807,7 +812,7 @@ export async function runExternalSignalSyncCommand(
 					});
 				}
 			}
-		}
+		});
 	}
 
 	if (live && shouldEvaluatePortfolioSections) {
@@ -1308,6 +1313,9 @@ export function validateExternalSignalSyncOptions(
 	}
 	if (options.projectOffset !== undefined) {
 		assertNonNegativeInteger(options.projectOffset, "--project-offset");
+	}
+	if (options.projectConcurrency !== undefined) {
+		assertPositiveInteger(options.projectConcurrency, "--project-concurrency");
 	}
 	if (
 		options.writeScope !== "project-pages" &&
@@ -2891,27 +2899,6 @@ async function fetchProviderJson(
 	throw new AppError(
 		`Provider request failed (${response.status}) for ${url}: ${body.slice(0, 300)}`,
 	);
-}
-
-async function mapWithConcurrency<T, TResult>(
-	items: T[],
-	concurrency: number,
-	worker: (item: T, index: number) => Promise<TResult>,
-): Promise<TResult[]> {
-	const results = new Array<TResult>(items.length);
-	let nextIndex = 0;
-
-	async function runWorker(): Promise<void> {
-		while (nextIndex < items.length) {
-			const index = nextIndex;
-			nextIndex += 1;
-			results[index] = await worker(items[index]!, index);
-		}
-	}
-
-	const workerCount = Math.max(1, Math.min(concurrency, items.length));
-	await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
-	return results;
 }
 
 function newestOccurredAt(events: NormalizedSignalEvent[]): string {
