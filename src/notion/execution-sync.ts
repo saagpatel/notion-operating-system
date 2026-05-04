@@ -1,5 +1,7 @@
 import { createNotionSdkClient } from "./notion-sdk.js";
 
+import { createHash } from "node:crypto";
+
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
@@ -28,9 +30,16 @@ import {
   validateLocalPortfolioExecutionViewPlanAgainstSchemas,
 } from "./local-portfolio-execution-views.js";
 import {
+  datePropertyValue,
   fetchAllPages,
+  relationValue,
+  richTextValue,
+  selectPropertyValue,
+  textValue,
+  titleValue,
   toBuildSessionRecord,
   toControlTowerProjectRecord,
+  upsertPageByTitle,
 } from "./local-portfolio-control-tower-live.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
 import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
@@ -55,6 +64,20 @@ const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
 const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
 const EXECUTION_COMMAND_CENTER_START = "<!-- codex:notion-execution-command-center:start -->";
 const EXECUTION_COMMAND_CENTER_END = "<!-- codex:notion-execution-command-center:end -->";
+const EXECUTION_BRIEF_STORAGE_VERSION = "execution-brief-db-v1";
+
+interface ExecutionBriefRefresh {
+  projectId: string;
+  projectTitle: string;
+  previousMarkdown: string;
+  nextMarkdown: string;
+  context: ReturnType<typeof buildProjectExecutionContext>;
+  changed: boolean;
+  storageTitle?: string;
+  storagePageId?: string;
+  storagePageUrl?: string;
+  contentHash?: string;
+}
 
 export interface ExecutionSyncCommandOptions {
   live?: boolean;
@@ -89,7 +112,18 @@ export async function runExecutionSyncCommand(
 
     if (live) {
       logLiveStage(live, "Ensuring Phase 2 schema");
-      await ensurePhase2ExecutionSchema(sdk, config);
+      config = await ensurePhase2ExecutionSchema(sdk, config, {
+        includeExecutionBriefs: true,
+      });
+      await saveLocalPortfolioControlTowerConfig(config, configPath);
+    }
+    const phase2Execution = config.phase2Execution;
+    if (!phase2Execution) {
+      throw new AppError("Control tower config is missing phase2Execution");
+    }
+    const commandCenterPageId = config.commandCenter.pageId;
+    if (!commandCenterPageId) {
+      throw new AppError("Control tower config is missing commandCenter.pageId");
     }
 
     logLiveStage(live, "Loading execution schemas");
@@ -99,11 +133,11 @@ export async function runExecutionSyncCommand(
       api.retrieveDataSource(config.relatedDataSources.buildLogId),
     ]);
     const [decisionsSchema, packetsSchema] = await Promise.all([
-      api.retrieveDataSource(config.phase2Execution.decisions.dataSourceId),
-      api.retrieveDataSource(config.phase2Execution.packets.dataSourceId),
+      api.retrieveDataSource(phase2Execution.decisions.dataSourceId),
+      api.retrieveDataSource(phase2Execution.packets.dataSourceId),
     ]);
     const [tasksSchema] = await Promise.all([
-      api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId),
+      api.retrieveDataSource(phase2Execution.tasks.dataSourceId),
     ]);
 
     validateLocalPortfolioExecutionViewPlanAgainstSchemas(viewPlan, {
@@ -118,11 +152,11 @@ export async function runExecutionSyncCommand(
       fetchAllPages(api, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
     ]);
     const [decisionPages, packetPages] = await Promise.all([
-      fetchAllPages(api, config.phase2Execution.decisions.dataSourceId, decisionsSchema.titlePropertyName),
-      fetchAllPages(api, config.phase2Execution.packets.dataSourceId, packetsSchema.titlePropertyName),
+      fetchAllPages(api, phase2Execution.decisions.dataSourceId, decisionsSchema.titlePropertyName),
+      fetchAllPages(api, phase2Execution.packets.dataSourceId, packetsSchema.titlePropertyName),
     ]);
     const [taskPages] = await Promise.all([
-      fetchAllPages(api, config.phase2Execution.tasks.dataSourceId, tasksSchema.titlePropertyName),
+      fetchAllPages(api, phase2Execution.tasks.dataSourceId, tasksSchema.titlePropertyName),
     ]);
 
     const projects = projectPages.map((page) => applyDerivedSignals(toControlTowerProjectRecord(page), config, today));
@@ -138,35 +172,31 @@ export async function runExecutionSyncCommand(
       config,
     });
 
-    const projectBriefs = await Promise.all(
-      projects.map(async (project) => {
-        const context = buildProjectExecutionContext({
-          project,
-          decisions,
-          packets,
-          tasks,
-          buildSessions,
-          today,
-        });
-        const previous = await api.readPageMarkdown(project.id);
-        const nextMarkdown = mergeManagedSection(
-          previous.markdown,
-          renderExecutionBriefSection(context),
-          EXECUTION_BRIEF_START,
-          EXECUTION_BRIEF_END,
-        );
-        return {
-          projectId: project.id,
-          projectTitle: project.title,
-          previousMarkdown: previous.markdown,
-          nextMarkdown,
-          changed: normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
-        };
+    const contexts = projects.map((project) =>
+      buildProjectExecutionContext({
+        project,
+        decisions,
+        packets,
+        tasks,
+        buildSessions,
+        today,
       }),
     );
+    const projectBriefs = phase2Execution.executionBriefs
+      ? await buildStoredExecutionBriefRefreshes({
+          api,
+          contexts,
+          dataSourceId: phase2Execution.executionBriefs.dataSourceId,
+          today,
+        })
+      : await buildProjectPageExecutionBriefRefreshes({
+          api,
+          contexts,
+        });
     const changedProjectBriefs = projectBriefs.filter((entry) => entry.changed);
     const targetProjectBriefsBeforeKnownBlocked = selectProjectBriefBatch(changedProjectBriefs, options);
-    const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown
+    const usesExecutionBriefStorage = Boolean(phase2Execution.executionBriefs);
+    const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown && !usesExecutionBriefStorage
       ? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
       : undefined;
     const knownBlockedPartition = knownBlockedMarkdownBlocklist
@@ -184,7 +214,7 @@ export async function runExecutionSyncCommand(
 
     const previousCommandCenter = projectBatchEnabled
       ? undefined
-      : await api.readPageMarkdown(config.commandCenter.pageId);
+      : await api.readPageMarkdown(commandCenterPageId);
     const nextCommandCenter = previousCommandCenter
       ? mergeManagedSection(
           previousCommandCenter.markdown,
@@ -217,6 +247,22 @@ export async function runExecutionSyncCommand(
       });
       for (const [index, brief] of targetProjectBriefs.entries()) {
         logLoopProgress(live, "execution-sync", "Project brief", index + 1, targetProjectBriefs.length);
+          if (phase2Execution.executionBriefs && brief.storageTitle) {
+            await upsertPageByTitle({
+              api,
+              dataSourceId: phase2Execution.executionBriefs.dataSourceId,
+              titlePropertyName: "Name",
+              title: brief.storageTitle,
+              properties: buildExecutionBriefStorageProperties({
+                entry: brief,
+                today,
+              }),
+              markdown: brief.nextMarkdown,
+            });
+            changedProjectPages += 1;
+            continue;
+          }
+
           try {
             const mode = await syncManagedMarkdownSectionWithReadBack({
               api,
@@ -249,7 +295,7 @@ export async function runExecutionSyncCommand(
         assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
         try {
           await api.patchPageMarkdown({
-            pageId: config.commandCenter.pageId,
+            pageId: commandCenterPageId,
             command: "replace_content",
             newMarkdown: buildReplaceCommand(nextCommandCenter),
           });
@@ -346,6 +392,133 @@ export async function runExecutionSyncCommand(
       status: mapWeeklyStepStatusToCommandStatus(contract.status),
     });
     console.log(JSON.stringify(output, null, 2));
+}
+
+async function buildProjectPageExecutionBriefRefreshes(input: {
+  api: DirectNotionClient;
+  contexts: ReturnType<typeof buildProjectExecutionContext>[];
+}): Promise<ExecutionBriefRefresh[]> {
+  return Promise.all(
+    input.contexts.map(async (context) => {
+      const previous = await input.api.readPageMarkdown(context.project.id);
+      const nextMarkdown = mergeManagedSection(
+        previous.markdown,
+        renderExecutionBriefSection(context),
+        EXECUTION_BRIEF_START,
+        EXECUTION_BRIEF_END,
+      );
+      return {
+        projectId: context.project.id,
+        projectTitle: context.project.title,
+        previousMarkdown: previous.markdown,
+        nextMarkdown,
+        context,
+        changed: normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
+      };
+    }),
+  );
+}
+
+async function buildStoredExecutionBriefRefreshes(input: {
+  api: DirectNotionClient;
+  contexts: ReturnType<typeof buildProjectExecutionContext>[];
+  dataSourceId: string;
+  today: string;
+}): Promise<ExecutionBriefRefresh[]> {
+  const existingPages = await fetchAllPages(input.api, input.dataSourceId, "Name");
+  const existingByTitle = new Map(existingPages.map((page) => [page.title, page]));
+
+  return Promise.all(
+    input.contexts.map(async (context) => {
+      const storageTitle = buildExecutionBriefStorageTitle({
+        projectTitle: context.project.title,
+        today: input.today,
+      });
+      const existing = existingByTitle.get(storageTitle);
+      const nextMarkdown = renderExecutionBriefStorageMarkdown({
+        context,
+        today: input.today,
+      });
+      const contentHash = hashMarkdown(nextMarkdown);
+      const existingHash = existing
+        ? textValue(existing.properties["Brief Hash"])
+        : "";
+      const previousMarkdown =
+        existing && !existingHash
+          ? (await input.api.readPageMarkdown(existing.id)).markdown
+          : "";
+      return {
+        projectId: context.project.id,
+        projectTitle: context.project.title,
+        previousMarkdown,
+        nextMarkdown,
+        context,
+        changed:
+          !existing ||
+          (existingHash
+            ? existingHash !== contentHash
+            : normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previousMarkdown)),
+        storageTitle,
+        storagePageId: existing?.id,
+        storagePageUrl: existing?.url,
+        contentHash,
+      };
+    }),
+  );
+}
+
+export function buildExecutionBriefStorageTitle(input: {
+  projectTitle: string;
+  today: string;
+}): string {
+  return `${input.projectTitle} - Execution Brief - ${input.today}`;
+}
+
+function renderExecutionBriefStorageMarkdown(input: {
+  context: ReturnType<typeof buildProjectExecutionContext>;
+  today: string;
+}): string {
+  return [
+    `# ${buildExecutionBriefStorageTitle({
+      projectTitle: input.context.project.title,
+      today: input.today,
+    })}`,
+    "",
+    renderExecutionBriefSection(input.context),
+  ].join("\n");
+}
+
+function buildExecutionBriefStorageProperties(input: {
+  entry: ExecutionBriefRefresh;
+  today: string;
+}): Record<string, unknown> {
+  return {
+    Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
+    "Local Project": relationValue([input.entry.projectId]),
+    "Brief Date": datePropertyValue(input.today),
+    "Active Packet": relationValue(
+      input.entry.context.activePacket ? [input.entry.context.activePacket.id] : [],
+    ),
+    "Standby Packet": relationValue(
+      input.entry.context.standbyPacket ? [input.entry.context.standbyPacket.id] : [],
+    ),
+    "Open Decisions": relationValue(
+      input.entry.context.openDecisions.map((decision) => decision.id),
+    ),
+    "Blocked Tasks": relationValue(
+      input.entry.context.blockedTasks.map((task) => task.id),
+    ),
+    "Due Tasks": relationValue(
+      input.entry.context.dueTasks.map((task) => task.id),
+    ),
+    Source: selectPropertyValue("execution-sync"),
+    "Storage Version": richTextValue(EXECUTION_BRIEF_STORAGE_VERSION),
+    "Brief Hash": richTextValue(input.entry.contentHash ?? ""),
+  };
+}
+
+function hashMarkdown(markdown: string): string {
+  return createHash("sha256").update(normalizeMarkdown(markdown)).digest("hex");
 }
 
 function validateProjectBatchOptions(options: Pick<ExecutionSyncCommandOptions, "projectLimit" | "projectOffset">): void {

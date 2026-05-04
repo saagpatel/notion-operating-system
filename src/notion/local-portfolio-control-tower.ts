@@ -100,6 +100,13 @@ export interface LocalPortfolioControlTowerConfig {
 			dataSourceId: string;
 			destinationAlias: string;
 		};
+		executionBriefs?: {
+			name: string;
+			databaseUrl: string;
+			databaseId: string;
+			dataSourceId: string;
+			destinationAlias: string;
+		};
 		wipRules: {
 			maxNowPackets: number;
 			maxStandbyPackets: number;
@@ -1402,6 +1409,12 @@ function parsePhase2Execution(
 			"phase2Execution.packets",
 		),
 		tasks: parseExecutionDatabaseRef(value.tasks, "phase2Execution.tasks"),
+		executionBriefs: value.executionBriefs
+			? parseExecutionDatabaseRef(
+					value.executionBriefs,
+					"phase2Execution.executionBriefs",
+				)
+			: undefined,
 		wipRules: parseWipRules(value.wipRules),
 		packetSizing: parsePacketSizing(value.packetSizing),
 		decisionMateriality: parseDecisionMateriality(value.decisionMateriality),

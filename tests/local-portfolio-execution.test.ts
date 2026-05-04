@@ -18,6 +18,7 @@ import {
 	validateExecutionWip,
 	type WorkPacketRecord,
 } from "../src/notion/local-portfolio-execution.js";
+import { buildExecutionBriefStorageTitle } from "../src/notion/execution-sync.js";
 
 const TODAY = "2026-03-17";
 
@@ -50,6 +51,15 @@ describe("local portfolio execution system", () => {
 		expect(config.phase2Execution?.phaseMemory.phase3Brief).toContain(
 			"recommend what to resume",
 		);
+	});
+
+	test("builds stable execution brief storage titles", () => {
+		expect(
+			buildExecutionBriefStorageTitle({
+				projectTitle: "OrbitMechanic",
+				today: "2026-05-04",
+			}),
+		).toBe("OrbitMechanic - Execution Brief - 2026-05-04");
 	});
 
 	test("calculates execution metrics and wip violations", async () => {

@@ -137,6 +137,13 @@
       "dataSourceId": "00dfe9ee-8a32-4b5e-9af5-ded9409df74b",
       "destinationAlias": "execution_tasks"
     },
+    "executionBriefs": {
+      "name": "Execution Briefs",
+      "databaseUrl": "https://www.notion.so/e8175331032643c8a9622ca59bbcdadc",
+      "databaseId": "e8175331-0326-43c8-a962-2ca59bbcdadc",
+      "dataSourceId": "f5029b55-2ed6-461e-9e45-dae5bd09108c",
+      "destinationAlias": "execution_briefs"
+    },
     "wipRules": {
       "maxNowPackets": 1,
       "maxStandbyPackets": 1

@@ -1,5 +1,10 @@
 import type { Client } from "@notionhq/client";
 
+import { AppError } from "../utils/errors.js";
+import {
+  extractNotionIdFromUrl,
+  normalizeNotionId,
+} from "../utils/notion-id.js";
 import type { LocalPortfolioControlTowerConfig } from "./local-portfolio-control-tower.js";
 import type {
   ExecutionTaskRecord,
@@ -18,11 +23,23 @@ import {
 export async function ensurePhase2ExecutionSchema(
   sdk: Client,
   config: LocalPortfolioControlTowerConfig,
-): Promise<void> {
+  options: { includeExecutionBriefs?: boolean } = {},
+): Promise<LocalPortfolioControlTowerConfig> {
   const execution = config.phase2Execution;
   if (!execution) {
-    return;
+    return config;
   }
+
+  const executionBriefs = options.includeExecutionBriefs
+    ? await ensureDataSourceRef({
+        sdk,
+        existing: execution.executionBriefs,
+        parentPageUrl: config.commandCenter.parentPageUrl,
+        title: "Execution Briefs",
+        titlePropertyName: "Name",
+        destinationAlias: "execution_briefs",
+      })
+    : execution.executionBriefs;
 
   await Promise.all([
     ensureStatusOptions(sdk, execution.packets.dataSourceId, [
@@ -78,7 +95,49 @@ export async function ensurePhase2ExecutionSchema(
       propertyName: "Tasks Completed",
       relatedDataSourceId: execution.tasks.dataSourceId,
     }),
+    ...(executionBriefs
+      ? [
+          sdk.request({
+            path: `data_sources/${executionBriefs.dataSourceId}`,
+            method: "patch",
+            body: {
+              properties: {
+                "Local Project": {
+                  relation: relationSchema(config.database.dataSourceId),
+                },
+                "Brief Date": { date: {} },
+                "Active Packet": {
+                  relation: relationSchema(execution.packets.dataSourceId),
+                },
+                "Standby Packet": {
+                  relation: relationSchema(execution.packets.dataSourceId),
+                },
+                "Open Decisions": {
+                  relation: relationSchema(execution.decisions.dataSourceId),
+                },
+                "Blocked Tasks": {
+                  relation: relationSchema(execution.tasks.dataSourceId),
+                },
+                "Due Tasks": {
+                  relation: relationSchema(execution.tasks.dataSourceId),
+                },
+                "Source": { select: { options: colorize([["execution-sync", "blue"]]) } },
+                "Storage Version": { rich_text: {} },
+                "Brief Hash": { rich_text: {} },
+              },
+            },
+          }),
+        ]
+      : []),
   ]);
+
+  return {
+    ...config,
+    phase2Execution: {
+      ...execution,
+      executionBriefs,
+    },
+  };
 }
 
 export function toProjectDecisionRecord(page: DataSourcePageRef): ProjectDecisionRecord {
@@ -232,4 +291,103 @@ async function ensureRelationProperty(input: {
       },
     },
   });
+}
+
+async function ensureDataSourceRef(input: {
+  sdk: Client;
+  existing:
+    | {
+        name: string;
+        databaseUrl: string;
+        databaseId: string;
+        dataSourceId: string;
+        destinationAlias: string;
+      }
+    | undefined;
+  parentPageUrl: string;
+  title: string;
+  titlePropertyName: string;
+  destinationAlias: string;
+}): Promise<{
+  name: string;
+  databaseUrl: string;
+  databaseId: string;
+  dataSourceId: string;
+  destinationAlias: string;
+}> {
+  if (input.existing) {
+    return input.existing;
+  }
+
+  const parentPageId = extractNotionIdFromUrl(input.parentPageUrl);
+  if (!parentPageId) {
+    throw new AppError(
+      `Could not resolve parent page id from "${input.parentPageUrl}"`,
+    );
+  }
+
+  const response = (await input.sdk.request({
+    path: "databases",
+    method: "post",
+    body: {
+      parent: {
+        type: "page_id",
+        page_id: parentPageId,
+      },
+      title: toRichText(input.title),
+      properties: {
+        [input.titlePropertyName]: {
+          title: {},
+        },
+      },
+    },
+  })) as {
+    id: string;
+    url: string;
+    data_sources?: Array<{ id: string }>;
+  };
+
+  const dataSourceId = response.data_sources?.[0]?.id;
+  if (!dataSourceId) {
+    throw new AppError(
+      `Notion did not return a data source for "${input.title}"`,
+    );
+  }
+
+  return {
+    name: input.title,
+    databaseUrl: response.url,
+    databaseId: normalizeNotionId(response.id),
+    dataSourceId: normalizeNotionId(dataSourceId),
+    destinationAlias: input.destinationAlias,
+  };
+}
+
+function relationSchema(dataSourceId: string): {
+  data_source_id: string;
+  single_property: Record<string, never>;
+} {
+  return {
+    data_source_id: dataSourceId,
+    single_property: {},
+  };
+}
+
+function toRichText(
+  value: string,
+): Array<{ type: "text"; text: { content: string } }> {
+  return [
+    {
+      type: "text",
+      text: {
+        content: value,
+      },
+    },
+  ];
+}
+
+function colorize(
+  options: Array<[string, string]>,
+): Array<{ name: string; color: string }> {
+  return options.map(([name, color]) => ({ name, color }));
 }
