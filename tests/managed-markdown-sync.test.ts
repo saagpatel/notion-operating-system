@@ -7,11 +7,18 @@ import {
   syncManagedMarkdownSection,
   syncManagedMarkdownSectionWithReadBack,
 } from "../src/notion/managed-markdown-sync.js";
-import { limitRelationIds } from "../src/notion/review-packet.js";
+import { limitRelationIds, stripLeadingMarkdownTitle } from "../src/notion/review-packet.js";
 import { extractManagedSection, mergeManagedSection, normalizeMarkdown } from "../src/utils/markdown.js";
 import { AppError } from "../src/utils/errors.js";
 
 describe("managed markdown sync", () => {
+  test("strips the database title heading from weekly review page bodies", () => {
+    const markdown = ["# Week of 2026-05-04", "", "Review window: Since 2026-04-27"].join("\n");
+
+    expect(stripLeadingMarkdownTitle(markdown, "Week of 2026-05-04")).toBe("Review window: Since 2026-04-27");
+    expect(stripLeadingMarkdownTitle(markdown, "Different title")).toBe(markdown);
+  });
+
   test("builds a unique tail update for first-time managed section inserts", () => {
     const previousMarkdown = [
       "# Project",

@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081a387e9de2b84d446dc",
-    "pageId": "356c21f1-caf0-81a3-87e9-de2b84d446dc"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081d18ef4ed61ae7b3106",
+    "pageId": "356c21f1-caf0-81d1-8ef4-ed61ae7b3106"
   },
   "fieldOwnership": {
     "manual": [
@@ -790,7 +790,7 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-05-03",
+    "lastSyncAt": "2026-05-04",
     "lastSyncMetrics": {
       "totalProjects": 117,
       "queueCounts": {
@@ -813,7 +813,7 @@
   },
   "weeklyMaintenance": {
     "supportMaintenanceLastSyncAt": "2026-05-03",
-    "weeklyRefreshLastRunAt": "2026-05-03",
+    "weeklyRefreshLastRunAt": "2026-05-04",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
@@ -833,6 +833,6 @@
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-05-03"
+    "weeklyReviewLastPublishedAt": "2026-05-04"
   }
 }

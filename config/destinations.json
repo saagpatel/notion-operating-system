@@ -177,8 +177,8 @@
       "alias": "local_portfolio_command_center",
       "description": "Bootstrap or refresh the Local Portfolio Command Center page.",
       "destinationType": "page",
-      "sourceUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081a387e9de2b84d446dc",
-      "resolvedId": "356c21f1-caf0-81a3-87e9-de2b84d446dc",
+      "sourceUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081d18ef4ed61ae7b3106",
+      "resolvedId": "356c21f1-caf0-81d1-8ef4-ed61ae7b3106",
       "templateMode": "none",
       "titleRule": {
         "source": "literal",

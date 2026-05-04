@@ -144,9 +144,15 @@ export async function runReviewPacketCommand(
 				WEEKLY_EXTERNAL_SIGNALS_SECTION,
 			])
 		: markdown;
+	const weeklyReviewPageMarkdown = stripLeadingMarkdownTitle(
+		finalMarkdown,
+		weekTitle,
+	);
 	const weeklyReviewWouldChange = previousWeeklyMarkdown
 		? normalizeMarkdown(finalMarkdown) !==
-			normalizeMarkdown(previousWeeklyMarkdown.markdown)
+				normalizeMarkdown(previousWeeklyMarkdown.markdown) &&
+			normalizeMarkdown(weeklyReviewPageMarkdown) !==
+				normalizeMarkdown(previousWeeklyMarkdown.markdown)
 		: true;
 	const weeklyReviewPageExists = Boolean(existingWeeklyPage);
 
@@ -194,7 +200,7 @@ export async function runReviewPacketCommand(
 			titlePropertyName: weeklySchema.titlePropertyName,
 			title: weekTitle,
 			properties,
-			markdown: finalMarkdown,
+			markdown: weeklyReviewPageMarkdown,
 		});
 		pageId = result.id;
 		pageUrl = result.url;
@@ -275,6 +281,17 @@ function addDays(date: string, amount: number): string {
 
 export function limitRelationIds(ids: string[], maxCount: number): string[] {
 	return ids.slice(0, maxCount);
+}
+
+export function stripLeadingMarkdownTitle(markdown: string, title: string): string {
+	const lines = markdown.split("\n");
+	if (lines[0]?.trim() !== `# ${title}`) {
+		return markdown;
+	}
+	const [, maybeBlank, ...rest] = lines;
+	return (maybeBlank?.trim() === "" ? rest : [maybeBlank, ...rest])
+		.join("\n")
+		.trim();
 }
 
 function buildRelationWarnings(
