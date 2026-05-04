@@ -1,5 +1,7 @@
 import { createNotionSdkClient } from "./notion-sdk.js";
 
+import { createHash } from "node:crypto";
+
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
@@ -30,10 +32,16 @@ import {
   toToolMatrixRecord,
 } from "./local-portfolio-intelligence-live.js";
 import {
+  datePropertyValue,
   fetchAllPages,
   relationIds,
   relationValue,
+  richTextValue,
+  selectPropertyValue,
+  textValue,
+  titleValue,
   toBuildSessionRecord,
+  upsertPageByTitle,
 } from "./local-portfolio-control-tower-live.js";
 import {
   toExecutionTaskRecord,
@@ -67,6 +75,20 @@ const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
 const INTELLIGENCE_COMMAND_CENTER_START = "<!-- codex:notion-intelligence-command-center:start -->";
 const INTELLIGENCE_COMMAND_CENTER_END = "<!-- codex:notion-intelligence-command-center:end -->";
+const RECOMMENDATION_BRIEF_STORAGE_VERSION = "recommendation-brief-db-v1";
+
+interface RecommendationBriefRefresh {
+  projectId: string;
+  projectTitle: string;
+  previousMarkdown: string;
+  nextMarkdown: string;
+  recommendation: ReturnType<typeof buildRecommendation> | undefined;
+  changed: boolean;
+  storageTitle?: string;
+  storagePageId?: string;
+  storagePageUrl?: string;
+  contentHash?: string;
+}
 
 export interface IntelligenceSyncCommandOptions {
   live?: boolean;
@@ -95,6 +117,7 @@ export async function runIntelligenceSyncCommand(
     if (live) {
       logLiveStage(live, "Ensuring Phase 3 schema");
       config = await ensurePhase3IntelligenceSchema(sdk, config);
+      await saveLocalPortfolioControlTowerConfig(config, configPath);
     }
 
     const phase3 = requirePhase3Intelligence(config);
@@ -207,52 +230,24 @@ export async function runIntelligenceSyncCommand(
       .filter((run) => run.runType === "Daily Focus")
       .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
 
-    const recommendationBriefs = await Promise.all(
-      contexts.map(async (context, index) => {
-        const recommendation = recommendations[index];
-        const previous = await api.readPageMarkdown(context.project.id);
-        if (!recommendation) {
-          return {
-            projectId: context.project.id,
-            projectTitle: context.project.title,
-            previousMarkdown: previous.markdown,
-            nextMarkdown: previous.markdown,
-            recommendation,
-            changed: false,
-          };
-        }
-        const nextMarkdown = mergeManagedSection(
-          previous.markdown,
-          renderRecommendationBriefSection({
-            context: {
-              ...context,
-              project: {
-                ...context.project,
-                recommendationLane: recommendation?.lane,
-                recommendationScore: recommendation?.score,
-                recommendationConfidence: recommendation?.confidence,
-                recommendationUpdated: today,
-              },
-            },
-            recommendation,
-          }),
-          RECOMMENDATION_BRIEF_START,
-          RECOMMENDATION_BRIEF_END,
-        );
-        return {
-          projectId: context.project.id,
-          projectTitle: context.project.title,
-          previousMarkdown: previous.markdown,
-          nextMarkdown,
-          recommendation,
-          changed: Boolean(recommendation) &&
-            normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
-        };
-      }),
-    );
+    const recommendationBriefs = phase3.recommendationBriefs
+      ? await buildStoredRecommendationBriefRefreshes({
+          api,
+          contexts,
+          recommendations,
+          dataSourceId: phase3.recommendationBriefs.dataSourceId,
+          today,
+        })
+      : await buildProjectPageRecommendationBriefRefreshes({
+          api,
+          contexts,
+          recommendations,
+          today,
+        });
     const changedRecommendationBriefs = recommendationBriefs.filter((entry) => entry.changed);
     const targetRecommendationBriefsBeforeKnownBlocked = selectProjectBriefBatch(changedRecommendationBriefs, options);
-    const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown
+    const usesRecommendationBriefStorage = Boolean(phase3.recommendationBriefs);
+    const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown && !usesRecommendationBriefStorage
       ? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
       : undefined;
     const knownBlockedPartition = knownBlockedMarkdownBlocklist
@@ -341,6 +336,22 @@ export async function runIntelligenceSyncCommand(
         });
 
         if (entry.changed) {
+          if (phase3.recommendationBriefs && entry.storageTitle) {
+            await upsertPageByTitle({
+              api,
+              dataSourceId: phase3.recommendationBriefs.dataSourceId,
+              titlePropertyName: "Name",
+              title: entry.storageTitle,
+              properties: buildRecommendationBriefStorageProperties({
+                entry,
+                today,
+              }),
+              markdown: entry.nextMarkdown,
+            });
+            changedProjectPages += 1;
+            continue;
+          }
+
           try {
             const mode = await syncManagedMarkdownSectionWithReadBack({
               api,
@@ -480,6 +491,184 @@ function validateProjectBatchOptions(options: Pick<IntelligenceSyncCommandOption
   if (options.projectOffset !== undefined && (!Number.isInteger(options.projectOffset) || options.projectOffset < 0)) {
     throw new AppError("--project-offset must be a non-negative integer");
   }
+}
+
+async function buildProjectPageRecommendationBriefRefreshes(input: {
+  api: DirectNotionClient;
+  contexts: ReturnType<typeof buildProjectIntelligenceContext>[];
+  recommendations: Array<ReturnType<typeof buildRecommendation> | undefined>;
+  today: string;
+}): Promise<RecommendationBriefRefresh[]> {
+  return Promise.all(
+    input.contexts.map(async (context, index) => {
+      const recommendation = input.recommendations[index];
+      const previous = await input.api.readPageMarkdown(context.project.id);
+      if (!recommendation) {
+        return {
+          projectId: context.project.id,
+          projectTitle: context.project.title,
+          previousMarkdown: previous.markdown,
+          nextMarkdown: previous.markdown,
+          recommendation,
+          changed: false,
+        };
+      }
+      const nextMarkdown = mergeManagedSection(
+        previous.markdown,
+        renderRecommendationBriefSection({
+          context: withRecommendationFields(context, recommendation, input.today),
+          recommendation,
+        }),
+        RECOMMENDATION_BRIEF_START,
+        RECOMMENDATION_BRIEF_END,
+      );
+      return {
+        projectId: context.project.id,
+        projectTitle: context.project.title,
+        previousMarkdown: previous.markdown,
+        nextMarkdown,
+        recommendation,
+        changed:
+          normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
+      };
+    }),
+  );
+}
+
+async function buildStoredRecommendationBriefRefreshes(input: {
+  api: DirectNotionClient;
+  contexts: ReturnType<typeof buildProjectIntelligenceContext>[];
+  recommendations: Array<ReturnType<typeof buildRecommendation> | undefined>;
+  dataSourceId: string;
+  today: string;
+}): Promise<RecommendationBriefRefresh[]> {
+  const existingPages = await fetchAllPages(input.api, input.dataSourceId, "Name");
+  const existingByTitle = new Map(existingPages.map((page) => [page.title, page]));
+
+  return Promise.all(
+    input.contexts.map(async (context, index) => {
+      const recommendation = input.recommendations[index];
+      if (!recommendation) {
+        return {
+          projectId: context.project.id,
+          projectTitle: context.project.title,
+          previousMarkdown: "",
+          nextMarkdown: "",
+          recommendation,
+          changed: false,
+        };
+      }
+
+      const storageTitle = buildRecommendationBriefStorageTitle({
+        projectTitle: context.project.title,
+        today: input.today,
+      });
+      const existing = existingByTitle.get(storageTitle);
+      const nextMarkdown = renderRecommendationBriefStorageMarkdown({
+        context,
+        recommendation,
+        today: input.today,
+      });
+      const contentHash = hashMarkdown(nextMarkdown);
+      const existingHash = existing
+        ? textValue(existing.properties["Brief Hash"])
+        : "";
+      const previousMarkdown =
+        existing && !existingHash
+          ? (await input.api.readPageMarkdown(existing.id)).markdown
+          : "";
+      return {
+        projectId: context.project.id,
+        projectTitle: context.project.title,
+        previousMarkdown,
+        nextMarkdown,
+        recommendation,
+        changed:
+          !existing ||
+          (existingHash
+            ? existingHash !== contentHash
+            : normalizeMarkdown(nextMarkdown) !==
+              normalizeMarkdown(previousMarkdown)),
+        storageTitle,
+        storagePageId: existing?.id,
+        storagePageUrl: existing?.url,
+        contentHash,
+      };
+    }),
+  );
+}
+
+export function buildRecommendationBriefStorageTitle(input: {
+  projectTitle: string;
+  today: string;
+}): string {
+  return `${input.projectTitle} - Recommendation Brief - ${input.today}`;
+}
+
+function renderRecommendationBriefStorageMarkdown(input: {
+  context: ReturnType<typeof buildProjectIntelligenceContext>;
+  recommendation: ReturnType<typeof buildRecommendation>;
+  today: string;
+}): string {
+  return [
+    `# ${buildRecommendationBriefStorageTitle({
+      projectTitle: input.context.project.title,
+      today: input.today,
+    })}`,
+    "",
+    renderRecommendationBriefSection({
+      context: withRecommendationFields(
+        input.context,
+        input.recommendation,
+        input.today,
+      ),
+      recommendation: input.recommendation,
+    }),
+  ].join("\n");
+}
+
+function withRecommendationFields(
+  context: ReturnType<typeof buildProjectIntelligenceContext>,
+  recommendation: ReturnType<typeof buildRecommendation>,
+  today: string,
+): ReturnType<typeof buildProjectIntelligenceContext> {
+  return {
+    ...context,
+    project: {
+      ...context.project,
+      recommendationLane: recommendation.lane,
+      recommendationScore: recommendation.score,
+      recommendationConfidence: recommendation.confidence,
+      recommendationUpdated: today,
+    },
+  };
+}
+
+function buildRecommendationBriefStorageProperties(input: {
+  entry: RecommendationBriefRefresh;
+  today: string;
+}): Record<string, unknown> {
+  const recommendation = input.entry.recommendation;
+  if (!recommendation) {
+    return {
+      Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
+    };
+  }
+  return {
+    Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
+    "Local Project": relationValue([input.entry.projectId]),
+    "Brief Date": datePropertyValue(input.today),
+    "Recommendation Lane": selectPropertyValue(recommendation.lane),
+    "Recommendation Score": { number: recommendation.score },
+    "Recommendation Confidence": selectPropertyValue(recommendation.confidence),
+    Source: selectPropertyValue("intelligence-sync"),
+    "Storage Version": richTextValue(RECOMMENDATION_BRIEF_STORAGE_VERSION),
+    "Brief Hash": richTextValue(input.entry.contentHash ?? ""),
+  };
+}
+
+function hashMarkdown(markdown: string): string {
+  return createHash("sha256").update(normalizeMarkdown(markdown)).digest("hex");
 }
 
 function selectProjectBriefBatch<T>(

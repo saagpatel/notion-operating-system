@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf0816ca0f4fe2c591caccb",
-    "pageId": "356c21f1-caf0-816c-a0f4-fe2c591caccb"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081a387e9de2b84d446dc",
+    "pageId": "356c21f1-caf0-81a3-87e9-de2b84d446dc"
   },
   "fieldOwnership": {
     "manual": [
@@ -240,6 +240,13 @@
       "databaseId": "a14f6e54-6773-430a-a35e-9f4ae1d3eb88",
       "dataSourceId": "453cda16-4274-4ed6-8327-4dcffaaa1bdb",
       "destinationAlias": "link_suggestions"
+    },
+    "recommendationBriefs": {
+      "name": "Recommendation Briefs",
+      "databaseUrl": "https://www.notion.so/c6708ab81648459490a9d3d5c87b0d09",
+      "databaseId": "c6708ab8-1648-4594-90a9-d3d5c87b0d09",
+      "dataSourceId": "4cdfab30-b412-4bd7-a4fa-844f5ae1cb44",
+      "destinationAlias": "recommendation_briefs"
     },
     "scoringModelVersion": "balanced-hybrid-v2",
     "cadence": {
@@ -793,7 +800,7 @@
   "weeklyMaintenance": {
     "supportMaintenanceLastSyncAt": "2026-05-03",
     "weeklyRefreshLastRunAt": "2026-05-03",
-    "weeklyRefreshLastStatus": "partial",
+    "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
       "liveExecuted": "yes",
@@ -807,8 +814,8 @@
       "liveTotalSteps": 1,
       "liveCleanSteps": 0,
       "liveDriftSteps": 0,
-      "liveCompletedSteps": 0,
-      "livePartialSteps": 1,
+      "liveCompletedSteps": 1,
+      "livePartialSteps": 0,
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },

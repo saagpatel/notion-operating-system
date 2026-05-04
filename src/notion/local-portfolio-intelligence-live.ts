@@ -47,6 +47,14 @@ export async function ensurePhase3IntelligenceSchema(
 		titlePropertyName: "Name",
 		destinationAlias: "link_suggestions",
 	});
+	const recommendationBriefs = await ensureDataSourceRef({
+		sdk,
+		existing: config.phase3Intelligence?.recommendationBriefs,
+		parentPageUrl: config.commandCenter.parentPageUrl,
+		title: "Recommendation Briefs",
+		titlePropertyName: "Name",
+		destinationAlias: "recommendation_briefs",
+	});
 
 	await Promise.all([
 		sdk.request({
@@ -185,6 +193,42 @@ export async function ensurePhase3IntelligenceSchema(
 				},
 			},
 		}),
+		sdk.request({
+			path: `data_sources/${recommendationBriefs.dataSourceId}`,
+			method: "patch",
+			body: {
+				properties: {
+					"Local Project": {
+						relation: relationSchema(config.database.dataSourceId),
+					},
+					"Brief Date": { date: {} },
+					"Recommendation Lane": {
+						select: {
+							options: colorize([
+								["Resume", "green"],
+								["Finish", "blue"],
+								["Investigate", "orange"],
+								["Defer", "gray"],
+								["Monitor", "default"],
+							]),
+						},
+					},
+					"Recommendation Score": { number: { format: "number" } },
+					"Recommendation Confidence": {
+						select: {
+							options: colorize([
+								["High", "green"],
+								["Medium", "orange"],
+								["Low", "red"],
+							]),
+						},
+					},
+					"Source": { select: { options: colorize([["intelligence-sync", "blue"]]) } },
+					"Storage Version": { rich_text: {} },
+					"Brief Hash": { rich_text: {} },
+				},
+			},
+		}),
 	]);
 
 	const derived = new Set(config.fieldOwnership.derived);
@@ -202,6 +246,7 @@ export async function ensurePhase3IntelligenceSchema(
 		phase3Intelligence: {
 			recommendationRuns,
 			linkSuggestions,
+			recommendationBriefs,
 			scoringModelVersion:
 				config.phase3Intelligence?.scoringModelVersion ?? "balanced-hybrid-v1",
 			cadence: config.phase3Intelligence?.cadence ?? {

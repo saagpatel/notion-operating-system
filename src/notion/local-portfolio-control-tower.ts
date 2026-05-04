@@ -144,6 +144,13 @@ export interface LocalPortfolioControlTowerConfig {
 			dataSourceId: string;
 			destinationAlias: string;
 		};
+		recommendationBriefs?: {
+			name: string;
+			databaseUrl: string;
+			databaseId: string;
+			dataSourceId: string;
+			destinationAlias: string;
+		};
 		scoringModelVersion: string;
 		cadence: {
 			weeklyCanonical: boolean;
@@ -2709,6 +2716,12 @@ function parsePhase3Intelligence(
 			value.linkSuggestions,
 			"phase3Intelligence.linkSuggestions",
 		),
+		recommendationBriefs: value.recommendationBriefs
+			? parseExecutionDatabaseRef(
+					value.recommendationBriefs,
+					"phase3Intelligence.recommendationBriefs",
+				)
+			: undefined,
 		scoringModelVersion: requiredString(
 			value.scoringModelVersion,
 			"phase3Intelligence.scoringModelVersion",

@@ -17,6 +17,7 @@ import {
 	type SkillLibraryRecord,
 	type ToolMatrixRecord,
 } from "../src/notion/local-portfolio-intelligence.js";
+import { buildRecommendationBriefStorageTitle } from "../src/notion/intelligence-sync.js";
 import { renderNotionPhaseMemoryMarkdown } from "../src/notion/local-portfolio-roadmap.js";
 
 const TODAY = "2026-03-17";
@@ -56,6 +57,15 @@ describe("local portfolio intelligence", () => {
 
 		expect(plan.collections).toHaveLength(1);
 		expect(plan.collections[0]?.views[0]?.name).toBe("Recommended Resume");
+	});
+
+	test("builds stable recommendation brief storage titles", () => {
+		expect(
+			buildRecommendationBriefStorageTitle({
+				projectTitle: "OrbitMechanic",
+				today: "2026-05-03",
+			}),
+		).toBe("OrbitMechanic - Recommendation Brief - 2026-05-03");
 	});
 
 	test("builds a strong resume recommendation from structured support and execution context", () => {
