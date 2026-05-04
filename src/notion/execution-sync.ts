@@ -46,6 +46,10 @@ import {
   partitionKnownBlockedProjectMarkdown,
 } from "./project-markdown-blocklist.js";
 import { buildProjectMarkdownRefreshContract } from "./project-markdown-refresh-contract.js";
+import {
+  isMarkdownPatchTransportError,
+  replaceCommandCenterPageAfterPatchFailure,
+} from "./command-center-replacement.js";
 
 const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
 const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
@@ -72,7 +76,7 @@ export async function runExecutionSyncCommand(
   validateProjectBatchOptions(options);
   const projectBatchEnabled = options.projectLimit !== undefined || options.projectOffset !== undefined;
 
-  const config = await loadLocalPortfolioControlTowerConfig(configPath);
+  let config = await loadLocalPortfolioControlTowerConfig(configPath);
     if (!config.phase2Execution) {
       throw new AppError("Control tower config is missing phase2Execution");
     }
@@ -243,15 +247,31 @@ export async function runExecutionSyncCommand(
       logLiveStage(live, "Refreshing execution command center");
       if (previousCommandCenter && nextCommandCenter && executionCommandCenterSectionWouldChange) {
         assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
-        await api.patchPageMarkdown({
-          pageId: config.commandCenter.pageId,
-          command: "replace_content",
-          newMarkdown: buildReplaceCommand(nextCommandCenter),
-        });
+        try {
+          await api.patchPageMarkdown({
+            pageId: config.commandCenter.pageId,
+            command: "replace_content",
+            newMarkdown: buildReplaceCommand(nextCommandCenter),
+          });
+        } catch (error) {
+          if (!isMarkdownPatchTransportError(error)) {
+            throw error;
+          }
+          config = await replaceCommandCenterPageAfterPatchFailure({
+            api,
+            config,
+            configPath,
+            markdown: nextCommandCenter,
+          });
+        }
       }
 
       if (!projectBatchEnabled) {
         logLiveStage(live, "Persisting execution sync metrics");
+        const phase2Execution = config.phase2Execution;
+        if (!phase2Execution) {
+          throw new AppError("Control tower config is missing phase2Execution");
+        }
         await saveLocalPortfolioControlTowerConfig(
           {
             ...config,
@@ -259,9 +279,9 @@ export async function runExecutionSyncCommand(
               ...config.phaseState,
             },
             phase2Execution: {
-              ...config.phase2Execution,
-              baselineCapturedAt: config.phase2Execution.baselineCapturedAt ?? today,
-              baselineMetrics: config.phase2Execution.baselineMetrics ?? serializeExecutionMetrics(metrics),
+              ...phase2Execution,
+              baselineCapturedAt: phase2Execution.baselineCapturedAt ?? today,
+              baselineMetrics: phase2Execution.baselineMetrics ?? serializeExecutionMetrics(metrics),
               lastSyncAt: today,
               lastSyncMetrics: serializeExecutionMetrics(metrics),
             },

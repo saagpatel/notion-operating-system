@@ -19,6 +19,10 @@ import {
 import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
+	isMarkdownPatchTransportError,
+	replaceCommandCenterPageAfterPatchFailure,
+} from "./command-center-replacement.js";
+import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
 	diffDays,
 	loadLocalPortfolioControlTowerConfig,
@@ -773,6 +777,16 @@ export async function runExternalSignalSyncCommand(
 				pageId: config.commandCenter.pageId!,
 				command: "replace_content",
 				newMarkdown: buildReplaceCommand(withExternalSignals),
+			}).catch(async (error) => {
+				if (!isMarkdownPatchTransportError(error)) {
+					throw error;
+				}
+				config = await replaceCommandCenterPageAfterPatchFailure({
+					api,
+					config,
+					configPath,
+					markdown: withExternalSignals,
+				});
 			});
 		}
 

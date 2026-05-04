@@ -66,11 +66,12 @@
     {
       "title": "Browser History Visualizer",
       "lanes": [
-        "intelligence"
+        "intelligence",
+        "external-signals"
       ],
       "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
-      "lastSeen": "2026-05-03"
+      "lastSeen": "2026-05-04"
     },
     {
       "title": "Life Cadence Ledger",
@@ -306,6 +307,350 @@
         "intelligence"
       ],
       "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "SignalFlow",
+      "pageId": "326c21f1-caf0-8119-b675-e2025efc4c6b",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "ScreenshotAnnotate",
+      "pageId": "326c21f1-caf0-8154-8bf8-e05ee94ab4da",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "prompt-englab",
+      "pageId": "326c21f1-caf0-81fb-af8d-cf19399d016a",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "PersonalKBDrafter",
+      "pageId": "326c21f1-caf0-8111-bcd8-c1260a973ff8",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "OrbitForge (staging)",
+      "pageId": "326c21f1-caf0-81e5-801d-e192312939fc",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "OPscinema",
+      "pageId": "326c21f1-caf0-81cd-94bf-e038328b6cc0",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "knowledgecore",
+      "pageId": "326c21f1-caf0-81e1-8203-edfbc26deeba",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "KBFreshnessDetector",
+      "pageId": "326c21f1-caf0-8113-b458-d5ce59dc36de",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "IncidentReview",
+      "pageId": "326c21f1-caf0-8109-bd99-ecf24381ac46",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Echolocate",
+      "pageId": "326c21f1-caf0-81a8-ab1a-cd5ca37aafe2",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "DesktopPEt-ready",
+      "pageId": "326c21f1-caf0-81ee-a169-c116c5648386",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "DesktopPEt",
+      "pageId": "326c21f1-caf0-81b4-ab36-d48baa0b88fa",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "DeepTank",
+      "pageId": "326c21f1-caf0-812d-a6bb-e1bbc7dfde4e",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "DatabaseSchema",
+      "pageId": "326c21f1-caf0-8165-980e-f0842f871b2b",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Construction",
+      "pageId": "326c21f1-caf0-8199-be5f-f43dfdc02cdb",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Conductor",
+      "pageId": "326c21f1-caf0-81f7-8923-c3649066647c",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Chronomap",
+      "pageId": "326c21f1-caf0-813b-bc3b-c87985287073",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "BattleGrid",
+      "pageId": "326c21f1-caf0-81fe-8969-e83166e7ef76",
+      "lanes": [
+        "execution",
+        "external-signals"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "AuraForge",
+      "pageId": "326c21f1-caf0-8195-a9d3-e9347ccfd184",
+      "lanes": [
+        "execution",
+        "external-signals"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "app",
+      "pageId": "326c21f1-caf0-81b2-bd12-f75f33e4b0eb",
+      "lanes": [
+        "execution",
+        "external-signals"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Codec",
+      "pageId": "32dc21f1-caf0-81d1-8b7e-dc52ade68948",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Cartograph",
+      "pageId": "32dc21f1-caf0-8143-a6a3-dce735d49e46",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Calibrate",
+      "pageId": "32dc21f1-caf0-81a8-a7d4-c0ab0d8e6282",
+      "lanes": [
+        "intelligence",
+        "external-signals"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Sovereign",
+      "pageId": "32bc21f1-caf0-81e7-a07f-c4bec70be5a2",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "ConvictionMapper",
+      "pageId": "32bc21f1-caf0-8181-a787-f52e25e39d2a",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Chromafield",
+      "pageId": "32bc21f1-caf0-8165-9cd6-d9667b903c94",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "TideEngine",
+      "pageId": "32bc21f1-caf0-8131-ac66-f5ddcf429f21",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "RoomTone",
+      "pageId": "32bc21f1-caf0-8161-b84c-c2e07651bd28",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Afterimage",
+      "pageId": "32dc21f1-caf0-8177-b955-f811ddb75a80",
+      "lanes": [
+        "external-signals"
+      ],
+      "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "AIGCCore",
+      "pageId": "326c21f1-caf0-811e-a039-ee13ff4dfdde",
+      "lanes": [
+        "external-signals"
+      ],
+      "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "AIWorkFlow",
+      "pageId": "326c21f1-caf0-8124-9f11-c6ae66612ff2",
+      "lanes": [
+        "external-signals"
+      ],
+      "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "ApplyKit",
+      "pageId": "326c21f1-caf0-8137-b7d7-d869de031f23",
+      "lanes": [
+        "external-signals"
+      ],
+      "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "ArguMap",
+      "pageId": "32bc21f1-caf0-8104-845c-c8243713a1f9",
+      "lanes": [
+        "external-signals"
+      ],
+      "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "AssistSupport",
+      "pageId": "326c21f1-caf0-818e-82c7-d36f8fc501a1",
+      "lanes": [
+        "external-signals"
+      ],
+      "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-04",
       "lastSeen": "2026-05-04"
     }

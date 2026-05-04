@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-355c21f1caf081b483b7fda95dafd27c",
-    "pageId": "355c21f1-caf0-81b4-83b7-fda95dafd27c"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-356c21f1caf081d39827ffd8beb5aec9",
+    "pageId": "356c21f1-caf0-81d3-9827-ffd8beb5aec9"
   },
   "fieldOwnership": {
     "manual": [
@@ -207,14 +207,14 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-04-07",
+    "lastSyncAt": "2026-05-03",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 22,
       "standbyPackets": 6,
       "blockedPackets": 0,
       "blockedTasks": 1,
-      "overdueTasks": 96,
+      "overdueTasks": 98,
       "tasksCompletedThisWeek": 0,
       "packetsCompletedThisWeek": 0,
       "rolloverPackets": 1,
@@ -480,15 +480,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-04-14",
+    "lastSyncAt": "2026-05-03",
     "lastSyncMetrics": {
-      "mappedProjects": 107,
+      "mappedProjects": 110,
       "projectsNeedingMapping": 7,
-      "activeSources": 111,
-      "riskEvents": 827,
+      "activeSources": 114,
+      "riskEvents": 765,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 754,
-      "contradictionProjects": 17
+      "failedWorkflowRuns": 221,
+      "contradictionProjects": 4
     }
   },
   "phase6Governance": {

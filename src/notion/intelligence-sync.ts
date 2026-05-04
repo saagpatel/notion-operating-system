@@ -58,6 +58,10 @@ import {
   partitionKnownBlockedProjectMarkdown,
 } from "./project-markdown-blocklist.js";
 import { buildProjectMarkdownRefreshContract } from "./project-markdown-refresh-contract.js";
+import {
+  isMarkdownPatchTransportError,
+  replaceCommandCenterPageAfterPatchFailure,
+} from "./command-center-replacement.js";
 
 const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
@@ -366,11 +370,23 @@ export async function runIntelligenceSyncCommand(
       logLiveStage(live, "Refreshing intelligence command center");
       if (previousCommandCenter && nextCommandCenter && intelligenceCommandCenterSectionWouldChange) {
         assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
-        await api.patchPageMarkdown({
-          pageId: config.commandCenter.pageId!,
-          command: "replace_content",
-          newMarkdown: buildReplaceCommand(nextCommandCenter),
-        });
+        try {
+          await api.patchPageMarkdown({
+            pageId: config.commandCenter.pageId!,
+            command: "replace_content",
+            newMarkdown: buildReplaceCommand(nextCommandCenter),
+          });
+        } catch (error) {
+          if (!isMarkdownPatchTransportError(error)) {
+            throw error;
+          }
+          config = await replaceCommandCenterPageAfterPatchFailure({
+            api,
+            config,
+            configPath,
+            markdown: nextCommandCenter,
+          });
+        }
       }
 
       if (!projectBatchEnabled) {
