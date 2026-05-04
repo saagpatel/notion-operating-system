@@ -385,6 +385,7 @@ export async function runExecutionSyncCommand(
         projectsWithExecutionDrift: metrics.projectsWithExecutionDrift,
         blockedTasks: metrics.blockedTasks,
         overdueTasks: metrics.overdueTasks,
+        backlogOverdueTasks: metrics.backlogOverdueTasks,
       },
       warnings,
     });
@@ -582,6 +583,7 @@ function serializeExecutionMetrics(metrics: ReturnType<typeof calculateExecution
     blockedPackets: metrics.blockedPackets,
     blockedTasks: metrics.blockedTasks,
     overdueTasks: metrics.overdueTasks,
+    backlogOverdueTasks: metrics.backlogOverdueTasks,
     tasksCompletedThisWeek: metrics.tasksCompletedThisWeek,
     packetsCompletedThisWeek: metrics.packetsCompletedThisWeek,
     rolloverPackets: metrics.rolloverPackets,

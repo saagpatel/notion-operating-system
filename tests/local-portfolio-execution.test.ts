@@ -106,6 +106,7 @@ describe("local portfolio execution system", () => {
 		expect(metrics.standbyPackets).toBe(1);
 		expect(metrics.blockedTasks).toBe(1);
 		expect(metrics.overdueTasks).toBe(1);
+		expect(metrics.backlogOverdueTasks).toBe(0);
 		expect(
 			validateExecutionWip({
 				packets,
@@ -142,6 +143,7 @@ describe("local portfolio execution system", () => {
 				blockedPackets: 0,
 				blockedTasks: 1,
 				overdueTasks: 0,
+				backlogOverdueTasks: 0,
 				tasksCompletedThisWeek: 0,
 				packetsCompletedThisWeek: 0,
 				rolloverPackets: 0,

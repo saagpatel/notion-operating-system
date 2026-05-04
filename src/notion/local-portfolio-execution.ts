@@ -30,6 +30,7 @@ export interface ExecutionMetrics {
 	blockedPackets: number;
 	blockedTasks: number;
 	overdueTasks: number;
+	backlogOverdueTasks: number;
 	tasksCompletedThisWeek: number;
 	packetsCompletedThisWeek: number;
 	rolloverPackets: number;
@@ -190,11 +191,17 @@ export function calculateExecutionMetrics(input: {
 		(packet) => packet.status === "Blocked",
 	);
 	const blockedTasks = input.tasks.filter((task) => task.status === "Blocked");
+	const packetById = new Map(input.packets.map((packet) => [packet.id, packet]));
 	const overdueTasks = input.tasks.filter(
 		(task) =>
 			task.dueDate &&
 			task.dueDate < input.today &&
 			!isExecutionTaskClosed(task.status),
+	);
+	const actionableOverdueTasks = overdueTasks.filter((task) =>
+		task.workPacketIds.some(
+			(packetId) => packetById.get(packetId)?.status === "In Progress",
+		),
 	);
 	const tasksCompletedThisWeek = input.tasks.filter(
 		(task) => task.completedOn && diffDays(task.completedOn, input.today) <= 7,
@@ -233,7 +240,8 @@ export function calculateExecutionMetrics(input: {
 		standbyPackets: standbyPackets.length,
 		blockedPackets: blockedPackets.length,
 		blockedTasks: blockedTasks.length,
-		overdueTasks: overdueTasks.length,
+		overdueTasks: actionableOverdueTasks.length,
+		backlogOverdueTasks: overdueTasks.length - actionableOverdueTasks.length,
 		tasksCompletedThisWeek,
 		packetsCompletedThisWeek,
 		rolloverPackets,
@@ -480,6 +488,13 @@ export function renderExecutionCommandCenterSection(input: {
 				task.dueDate < input.today &&
 				!isExecutionTaskClosed(task.status),
 		)
+		.filter((task) =>
+			task.workPacketIds.some(
+				(packetId) =>
+					input.packets.find((packet) => packet.id === packetId)?.status ===
+					"In Progress",
+			),
+		)
 		.sort((left, right) => compareIsoDate(left.dueDate, right.dueDate))
 		.slice(0, 8);
 	const rolloverRisk = input.packets
@@ -508,7 +523,8 @@ export function renderExecutionCommandCenterSection(input: {
 		`- Standby packets: ${input.metrics.standbyPackets}`,
 		`- Blocked packets: ${input.metrics.blockedPackets}`,
 		`- Blocked tasks: ${input.metrics.blockedTasks}`,
-		`- Overdue tasks: ${input.metrics.overdueTasks}`,
+		`- Actionable overdue tasks: ${input.metrics.overdueTasks}`,
+		`- Backlog overdue tasks: ${input.metrics.backlogOverdueTasks}`,
 		`- Tasks completed this week: ${input.metrics.tasksCompletedThisWeek}`,
 		`- Packets completed this week: ${input.metrics.packetsCompletedThisWeek}`,
 		`- Rollover packets: ${input.metrics.rolloverPackets}`,
