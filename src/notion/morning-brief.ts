@@ -9,6 +9,16 @@ import {
 } from "./local-portfolio-control-tower.js";
 import { fetchAllPages } from "./local-portfolio-control-tower-live.js";
 import {
+	isExecutionTaskClosed,
+	isWorkPacketClosed,
+	type ExecutionTaskRecord,
+	type WorkPacketRecord,
+} from "./local-portfolio-execution.js";
+import {
+	toExecutionTaskRecord,
+	toWorkPacketRecord,
+} from "./local-portfolio-execution-live.js";
+import {
 	type ExternalSignalEventRecord,
 	type ExternalSignalSeverity,
 	requirePhase5ExternalSignals,
@@ -57,6 +67,22 @@ export interface SynthesisResult {
 	projectName: string;
 	synthesis: string | undefined;
 	error?: string;
+}
+
+export interface MorningBriefPacketFocus {
+	title: string;
+	status: string;
+	projectName: string;
+	goal: string;
+	whyNow: string;
+	targetStart: string;
+	targetFinish: string;
+	nextTask: string;
+}
+
+export interface MorningBriefOperatorFocus {
+	nowPacket?: MorningBriefPacketFocus;
+	standbyPacket?: MorningBriefPacketFocus;
 }
 
 /** Returns number of whole days between two YYYY-MM-DD strings (non-negative). */
@@ -170,15 +196,35 @@ export function renderMorningBriefSection(
 		activeProjectIds: ReadonlySet<string>;
 		/** Projects that had at least one event in the last COVERAGE_GAP_DAYS */
 		coveredProjectIds: ReadonlySet<string>;
+		operatorFocus?: MorningBriefOperatorFocus;
 	},
 	synthesisMap: Map<string, string> = new Map(),
 ): string {
-	const { events, projectIndex, today, activeProjectIds, coveredProjectIds } =
-		input;
+	const {
+		events,
+		projectIndex,
+		today,
+		activeProjectIds,
+		coveredProjectIds,
+		operatorFocus,
+	} = input;
 
 	const byGroup = groupBySeverity(events);
 
 	const lines: string[] = [`## Morning Brief — ${today}`, ""];
+
+	lines.push("### Operator Focus", "");
+	if (operatorFocus?.nowPacket) {
+		lines.push(...formatFocusPacket("Now", operatorFocus.nowPacket));
+	} else {
+		lines.push("- **Now** — no active Now packet selected.");
+	}
+	if (operatorFocus?.standbyPacket) {
+		lines.push(...formatFocusPacket("Standby", operatorFocus.standbyPacket));
+	} else {
+		lines.push("- **Standby** — no Standby packet selected.");
+	}
+	lines.push("");
 
 	for (const severity of SEVERITY_ORDER) {
 		const group = byGroup[severity];
@@ -256,6 +302,25 @@ export function renderMorningBriefSection(
 	lines.push("");
 
 	return lines.join("\n");
+}
+
+function formatFocusPacket(
+	label: "Now" | "Standby",
+	packet: MorningBriefPacketFocus,
+): string[] {
+	const details = [
+		packet.projectName,
+		packet.status ? `status ${packet.status}` : "",
+		packet.targetFinish
+			? `target finish ${packet.targetFinish}`
+			: packet.targetStart
+				? `target start ${packet.targetStart}`
+				: "",
+	]
+		.filter(Boolean)
+		.join("; ");
+	const action = packet.nextTask || packet.goal || packet.whyNow || "Define the next concrete action.";
+	return [`- **${label}** — ${packet.title}${details ? ` (${details})` : ""}. Next: ${action}`];
 }
 
 function groupBySeverity(
@@ -369,8 +434,15 @@ export async function runMorningBriefCommand(
 		api.retrieveDataSource(config.relatedDataSources.weeklyReviewsId),
 		api.retrieveDataSource(phase5.events.dataSourceId),
 	]);
+	const [packetSchema, taskSchema] = config.phase2Execution
+		? await Promise.all([
+				api.retrieveDataSource(config.phase2Execution.packets.dataSourceId),
+				api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId),
+			])
+		: [undefined, undefined];
 
-	const [projectPages, weeklyPages, eventPages] = await Promise.all([
+	const [projectPages, weeklyPages, eventPages, packetPages, taskPages] =
+		await Promise.all([
 		fetchAllPages(
 			sdk,
 			config.database.dataSourceId,
@@ -386,6 +458,20 @@ export async function runMorningBriefCommand(
 			phase5.events.dataSourceId,
 			eventSchema.titlePropertyName,
 		),
+		config.phase2Execution && packetSchema
+			? fetchAllPages(
+					sdk,
+					config.phase2Execution.packets.dataSourceId,
+					packetSchema.titlePropertyName,
+				)
+			: Promise.resolve([]),
+		config.phase2Execution && taskSchema
+			? fetchAllPages(
+					sdk,
+					config.phase2Execution.tasks.dataSourceId,
+					taskSchema.titlePropertyName,
+				)
+			: Promise.resolve([]),
 	]);
 
 	const projects = projectPages.map((page) =>
@@ -400,6 +486,11 @@ export async function runMorningBriefCommand(
 
 	// Build project title index
 	const projectIndex = buildProjectTitleIndex(projects);
+	const operatorFocus = buildOperatorFocus({
+		packets: packetPages.map((page) => toWorkPacketRecord(page)),
+		tasks: taskPages.map((page) => toExecutionTaskRecord(page)),
+		projectIndex,
+	});
 
 	// Derive active project ids (not Cold Storage / Parked)
 	const activeProjectIds = new Set(
@@ -451,6 +542,7 @@ export async function runMorningBriefCommand(
 			lookbackDays,
 			activeProjectIds,
 			coveredProjectIds,
+			operatorFocus,
 		},
 		synthesisMap,
 	);
@@ -496,6 +588,61 @@ export async function runMorningBriefCommand(
 	}
 
 	console.log(JSON.stringify(output, null, 2));
+}
+
+function buildOperatorFocus(input: {
+	packets: WorkPacketRecord[];
+	tasks: ExecutionTaskRecord[];
+	projectIndex: Map<string, string>;
+}): MorningBriefOperatorFocus {
+	const activePackets = input.packets.filter(
+		(packet) => !isWorkPacketClosed(packet.status),
+	);
+	const nowPacket = activePackets.find((packet) => packet.priority === "Now");
+	const standbyPacket = activePackets.find(
+		(packet) => packet.priority === "Standby",
+	);
+	return {
+		nowPacket: nowPacket
+			? toPacketFocus(nowPacket, input.tasks, input.projectIndex)
+			: undefined,
+		standbyPacket: standbyPacket
+			? toPacketFocus(standbyPacket, input.tasks, input.projectIndex)
+			: undefined,
+	};
+}
+
+function toPacketFocus(
+	packet: WorkPacketRecord,
+	tasks: ExecutionTaskRecord[],
+	projectIndex: Map<string, string>,
+): MorningBriefPacketFocus {
+	const nextTask =
+		tasks
+			.filter(
+				(task) =>
+					task.workPacketIds.includes(packet.id) &&
+					!isExecutionTaskClosed(task.status),
+			)
+			.sort((left, right) =>
+				(left.dueDate || "9999-12-31").localeCompare(
+					right.dueDate || "9999-12-31",
+				),
+			)[0]?.title ?? "";
+	const projectName =
+		packet.localProjectIds.length === 1
+			? projectIndex.get(packet.localProjectIds[0] ?? "") ?? "unknown project"
+			: `${packet.localProjectIds.length} linked projects`;
+	return {
+		title: packet.title || "Untitled packet",
+		status: packet.status,
+		projectName,
+		goal: packet.goal,
+		whyNow: packet.whyNow,
+		targetStart: packet.targetStart,
+		targetFinish: packet.targetFinish,
+		nextTask,
+	};
 }
 
 /**

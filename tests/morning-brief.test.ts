@@ -55,6 +55,41 @@ function baseInput(
 // ---------------------------------------------------------------------------
 
 describe("renderMorningBriefSection — zero events", () => {
+	test("Operator Focus shows Now and Standby packets when provided", () => {
+		const section = renderMorningBriefSection(
+			baseInput({
+				events: [],
+				operatorFocus: {
+					nowPacket: {
+						title: "IncidentReview UI completion",
+						status: "In Progress",
+						projectName: "IncidentReview",
+						goal: "Finish the report output slice.",
+						whyNow: "It is the active work lane.",
+						targetStart: "2026-05-04",
+						targetFinish: "2026-05-05",
+						nextTask: "Verify PDF output.",
+					},
+					standbyPacket: {
+						title: "SmartClipboard baseline restore",
+						status: "Ready",
+						projectName: "SmartClipboard",
+						goal: "Restore the npm baseline.",
+						whyNow: "It is the backup lane.",
+						targetStart: "2026-05-06",
+						targetFinish: "",
+						nextTask: "",
+					},
+				},
+			}),
+		);
+		expect(section).toContain("### Operator Focus");
+		expect(section).toContain("**Now** — IncidentReview UI completion");
+		expect(section).toContain("Next: Verify PDF output.");
+		expect(section).toContain("**Standby** — SmartClipboard baseline restore");
+		expect(section).toContain("Next: Restore the npm baseline.");
+	});
+
 	test("Risk section shows 'No risk events' message when there are no events", () => {
 		const section = renderMorningBriefSection(baseInput({ events: [] }));
 		expect(section).toMatch(/no risk events/i);
