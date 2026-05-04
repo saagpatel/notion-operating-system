@@ -638,9 +638,10 @@
       "title": "ArguMap",
       "pageId": "32bc21f1-caf0-8104-845c-c8243713a1f9",
       "lanes": [
-        "external-signals"
+        "external-signals",
+        "intelligence"
       ],
-      "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "reason": "Live external-signal and intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-04",
       "lastSeen": "2026-05-04"
     },
@@ -651,6 +652,76 @@
         "external-signals"
       ],
       "reason": "Live external-signal managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "OrbitMechanic",
+      "pageId": "32bc21f1-caf0-8157-b7ab-f993670fc6e9",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "GlassLayer",
+      "pageId": "32bc21f1-caf0-81f6-96b1-d810cd365e1c",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "TradeOffAtlas",
+      "pageId": "32bc21f1-caf0-817b-a417-fbfabfd75cd7",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "thought-trails",
+      "pageId": "32bc21f1-caf0-8131-b546-c7a176696c95",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "ReturnRadar",
+      "pageId": "32bc21f1-caf0-818f-9286-e183f3e1cf76",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Interruption Resume Studio",
+      "pageId": "32bc21f1-caf0-819a-8043-d0d4bd8a0f5a",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "WorkdayDebrief",
+      "pageId": "326c21f1-caf0-818a-b131-c9868164ab9c",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-04",
       "lastSeen": "2026-05-04"
     }

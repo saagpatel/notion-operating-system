@@ -1,8 +1,18 @@
 import { describe, expect, test } from "vitest";
 
-import { buildWeeklyRefreshQuickSummary } from "../src/notion/weekly-refresh.js";
+import {
+	applyFastBooleanDefault,
+	buildWeeklyRefreshQuickSummary,
+} from "../src/notion/weekly-refresh.js";
 
 describe("weekly refresh fast workflow guidance", () => {
+	test("lets fast mode enable boolean defaults when the CLI passes false for absent flags", () => {
+		expect(applyFastBooleanDefault(false, true)).toBe(true);
+		expect(applyFastBooleanDefault(undefined, true)).toBe(true);
+		expect(applyFastBooleanDefault(true, false)).toBe(true);
+		expect(applyFastBooleanDefault(false, false)).toBe(false);
+	});
+
 	test("recommends targeted fast live commands for drifting lanes", () => {
 		const summary = buildWeeklyRefreshQuickSummary({
 			ok: true,

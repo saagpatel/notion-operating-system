@@ -117,9 +117,15 @@ export async function runWeeklyRefreshCommand(
     projectOffset: options.projectOffset,
     stepTimeoutMinutes: options.stepTimeoutMinutes,
     maxStepAttempts: options.maxStepAttempts ?? (options.fast ? 2 : 5),
-    summaryFirst: options.summaryFirst ?? options.fast ?? false,
-    skipKnownBlockedMarkdown: options.skipKnownBlockedMarkdown ?? options.fast ?? false,
-    streamChildOutput: options.streamChildOutput ?? options.fast ?? false,
+    summaryFirst: applyFastBooleanDefault(options.summaryFirst, options.fast),
+    skipKnownBlockedMarkdown: applyFastBooleanDefault(
+      options.skipKnownBlockedMarkdown,
+      options.fast,
+    ),
+    streamChildOutput: applyFastBooleanDefault(
+      options.streamChildOutput,
+      options.fast,
+    ),
   };
   validateWeeklyRefreshFlags(flags);
   if (flags.live && !flags.confirmFullLive) {
@@ -586,6 +592,13 @@ export function applyStepFilters(
     return steps.filter((step) => !filters.skip!.includes(step.key as WeeklyStepKey));
   }
   return steps;
+}
+
+export function applyFastBooleanDefault(
+  explicitValue: boolean | undefined,
+  fast: boolean | undefined,
+): boolean {
+  return (explicitValue ?? false) || (fast ?? false);
 }
 
 function validateWeeklyRefreshFlags(flags: {
