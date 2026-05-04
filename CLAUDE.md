@@ -222,6 +222,20 @@ npm run portfolio-audit:operational-rollout -- --live
 
 The single most important sequencing gotcha: **create or refresh the current weekly review before running lanes that patch "latest weekly" managed sections.** `external-signal-sync`, `recommendation-run`, and `action-request-sync` patch the latest weekly page. If the current week's page does not exist yet, those sections land on the wrong weekly page or fail to represent the intended week.
 
+### Fast weekly triage
+
+Use the weekly fast profile before broad live maintenance when the goal is to find and clear current drift quickly:
+
+```bash
+npm run maintenance:weekly-refresh -- --fast
+```
+
+The fast profile scopes project-page batches, skips pages listed in the known blocked markdown registry, streams child-command progress, and uses a lower retry budget. If it reports drift, follow the recommended `--only <step> --fast --live --confirm-full-live` command for the specific lane, then repeat that lane's `--only <step> --fast` dry-run. Do not launch multiple live Notion writers in parallel; use separate agents or chats for read-only classification, log review, migration design, and test review.
+
+Use the signed-in Notion browser only for visual confirmation of the current page, Command Center replacements, or ambiguous UI state. Bulk repair should stay in the API-backed scripts. The durable performance direction is to move generated project briefs away from direct project-page markdown patches and into child/linked records or structured properties.
+
+Detailed speed runbook: `docs/notion-api-speed-workflow.md`.
+
 **Correct weekly live order:**
 
 ```bash
@@ -255,6 +269,7 @@ npm run portfolio-audit:action-request-sync -- --live
 | `npm run portfolio-audit:review-packet -- --live` | Publish weekly review packet (live) |
 | `npm run portfolio-audit:external-signal-sync` | Recompute signals from existing data (dry-run, no GitHub fetch) |
 | `npm run portfolio-audit:external-signal-sync -- --provider github --live` | Fetch fresh GitHub data and sync (live) |
+| `npm run maintenance:weekly-refresh -- --fast` | Fast scoped weekly triage with known-blocked markdown skipped |
 | `npm run portfolio-audit:recommendation-run -- --type weekly` | Weekly recommendation run (dry-run) |
 | `npm run portfolio-audit:recommendation-run -- --type weekly --live` | Weekly recommendation run (live) |
 | `npm run portfolio-audit:action-dry-run -- --request <id>` | Dry-run a governed GitHub action |

@@ -122,6 +122,7 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--project-offset <count>");
     expect(help.stdout).toContain("--step-timeout-minutes <minutes>");
     expect(help.stdout).toContain("--max-step-attempts <count>");
+    expect(help.stdout).toContain("--fast");
     expect(help.stdout).toContain("--summary-first");
     expect(help.stdout).toContain("--skip-known-blocked-markdown");
     expect(help.stdout).toContain("--stream-child-output");

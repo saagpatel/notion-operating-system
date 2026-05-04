@@ -28,6 +28,7 @@ import {
 type WeeklyRefreshOverallStatus = "clean" | "completed" | "partial" | "failed";
 
 interface WeeklyRefreshCommandOptions {
+  fast?: boolean;
   live?: boolean;
   confirmFullLive?: boolean;
   today?: string;
@@ -102,22 +103,23 @@ export async function runWeeklyRefreshCommand(
   resolveRequiredNotionToken("NOTION_TOKEN is required for the weekly refresh orchestrator");
 
   const flags = {
+    fast: options.fast ?? false,
     live: options.live ?? false,
     confirmFullLive: options.confirmFullLive ?? false,
     today: options.today ?? losAngelesToday(),
     config: options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
     owner: options.owner ?? DEFAULT_OWNER,
-    signalSourceLimit: options.signalSourceLimit,
-    signalMaxEventsPerSource: options.signalMaxEventsPerSource,
+    signalSourceLimit: options.signalSourceLimit ?? (options.fast ? 5 : undefined),
+    signalMaxEventsPerSource: options.signalMaxEventsPerSource ?? (options.fast ? 5 : undefined),
     only: normalizeStepSelection(options.only),
     skip: normalizeStepSelection(options.skip),
-    maxProjectPages: options.maxProjectPages,
+    maxProjectPages: options.maxProjectPages ?? (options.fast ? 10 : undefined),
     projectOffset: options.projectOffset,
     stepTimeoutMinutes: options.stepTimeoutMinutes,
-    maxStepAttempts: options.maxStepAttempts ?? 5,
-    summaryFirst: options.summaryFirst ?? false,
-    skipKnownBlockedMarkdown: options.skipKnownBlockedMarkdown ?? false,
-    streamChildOutput: options.streamChildOutput ?? false,
+    maxStepAttempts: options.maxStepAttempts ?? (options.fast ? 2 : 5),
+    summaryFirst: options.summaryFirst ?? options.fast ?? false,
+    skipKnownBlockedMarkdown: options.skipKnownBlockedMarkdown ?? options.fast ?? false,
+    streamChildOutput: options.streamChildOutput ?? options.fast ?? false,
   };
   validateWeeklyRefreshFlags(flags);
   if (flags.live && !flags.confirmFullLive) {
@@ -210,6 +212,7 @@ export async function runWeeklyRefreshCommand(
   recordCommandOutputSummary(output as unknown as Record<string, unknown>, {
     status: mapWeeklyStepStatusToCommandStatus(overallStatus),
     metadata: {
+      fast: flags.fast,
       needsLiveWrite,
       liveExecuted,
     },
@@ -586,6 +589,7 @@ export function applyStepFilters(
 }
 
 function validateWeeklyRefreshFlags(flags: {
+  fast?: boolean;
   maxProjectPages?: number;
   projectOffset?: number;
   stepTimeoutMinutes?: number;
@@ -631,6 +635,7 @@ export function buildWeeklyRefreshQuickSummary(output: WeeklyRefreshOutput): Rec
   return {
     ok: true,
     summaryFirst: true,
+    fastWorkflowHint: "Use --fast for scoped triage, known-blocked markdown skipping, streamed progress, and lower retry budget.",
     status: output.status,
     needsLiveWrite: output.needsLiveWrite,
     liveExecuted: output.liveExecuted,
@@ -649,15 +654,19 @@ function deriveWeeklyRefreshNextCommands(
 ): string[] {
   const commands: string[] = [];
   for (const step of [...failedSteps, ...partialSteps].slice(0, 3)) {
-    commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --step-timeout-minutes 5 --max-step-attempts 2`);
+    commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --fast --step-timeout-minutes 5`);
   }
   if (commands.length === 0 && output.needsLiveWrite) {
-    const stepKeys = output.preflight.steps.map((step) => step.key);
-    const onlyArgs =
-      stepKeys.length > 0 && stepKeys.length < WEEKLY_STEP_KEYS.length
-        ? ` --only ${stepKeys.join(",")}`
-        : "";
-    commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today}${onlyArgs} --live --confirm-full-live --summary-first`);
+    const driftSteps = output.preflight.steps
+      .filter((step) => step.status === "drift" || step.wouldChange)
+      .map((step) => step.key)
+      .slice(0, 3);
+    for (const step of driftSteps) {
+      commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --fast --live --confirm-full-live`);
+    }
+    if (commands.length === 0) {
+      commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --fast`);
+    }
   }
   return commands;
 }

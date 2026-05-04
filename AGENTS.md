@@ -17,13 +17,19 @@ This repo exists to make future Codex sessions short and safe when publishing lo
 
 - Do not use `npm run maintenance:weekly-refresh -- --live` as a targeted repair tool.
 - For one broken lane, run that lane's dry-run, then that lane's live command, then the same dry-run again.
+- Prefer `npm run maintenance:weekly-refresh -- --fast` for first-pass triage. It keeps project-page batches scoped, skips pages already known to be markdown-blocked, streams child-command progress, and uses a lower retry budget.
 - Use the broad weekly live refresh only for full weekly maintenance, never as the default follow-up to a repair.
 - Broad weekly live refresh requires both explicit user approval and the CLI guard flag `--confirm-full-live`.
+- If a fast dry-run reports drift, run only the drifting lane with `--only <step> --fast --live --confirm-full-live`, then repeat the same `--only <step> --fast` dry-run.
 - If the goal is Command Center repair, prefer:
   - `npm run control-tower:sync -- --today <date>`
   - `npm run control-tower:sync -- --today <date> --live`
   - `npm run control-tower:sync -- --today <date>`
 - If a project-page markdown loop fails, stop after the failing lane and diagnose that lane directly instead of rerunning the full weekly sequence.
+- Use subagents or separate chats for read-only work only: blocker classification, log review, migration planning, and test review. Do not run multiple live Notion writers in parallel against the same integration.
+- Use the signed-in browser as a visual confirmation surface for current pages and Command Center replacements, not for bulk edits.
+- Durable speed target: move generated project briefs toward child/linked records or structured properties so the workflow stops depending on direct project-page markdown patches.
+- Detailed speed runbook: `docs/notion-api-speed-workflow.md`.
 
 ## Safety defaults
 
@@ -39,6 +45,7 @@ This repo exists to make future Codex sessions short and safe when publishing lo
 - `npm run publish:notion -- --request <file>`
 - `npm run publish:notion -- --destination <alias> --file <path> --dry-run`
 - `npm run maintenance:weekly-refresh`
+- `npm run maintenance:weekly-refresh -- --fast`
 - `npm run maintenance:weekly-refresh -- --live --confirm-full-live`
 - `npm run portfolio-audit:views-plan`
 - `npm run portfolio-audit:views-validate`

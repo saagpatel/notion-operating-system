@@ -1309,6 +1309,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 				commonOptions.today,
 				commonOptions.config,
 				{
+					name: "fast",
+					description:
+						"Use the fast weekly triage profile: scoped project batches, known-blocked markdown skipping, streamed child progress, and lower retry budget.",
+					type: "boolean",
+				},
+				{
 					name: "confirm-full-live",
 					description:
 						"Required with --live to confirm the full multi-lane weekly write sequence.",
@@ -1397,6 +1403,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 			],
 			({ parsed }) =>
 				runWeeklyRefreshCommand({
+					fast: asBoolean(parsed.options.fast),
 					live: asBoolean(parsed.options.live),
 					confirmFullLive: asBoolean(parsed.options["confirm-full-live"]),
 					today: asString(parsed.options.today),
