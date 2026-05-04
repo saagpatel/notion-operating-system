@@ -63,6 +63,8 @@ export interface IntelligenceSyncCommandOptions {
   live?: boolean;
   today?: string;
   config?: string;
+  projectLimit?: number;
+  projectOffset?: number;
 }
 
 export async function runIntelligenceSyncCommand(
@@ -72,6 +74,8 @@ export async function runIntelligenceSyncCommand(
   const live = options.live ?? false;
   const today = options.today ?? losAngelesToday();
   const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  validateProjectBatchOptions(options);
+  const projectBatchEnabled = options.projectLimit !== undefined || options.projectOffset !== undefined;
   let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
     const sdk = createNotionSdkClient(token);
@@ -199,6 +203,7 @@ export async function runIntelligenceSyncCommand(
         if (!recommendation) {
           return {
             projectId: context.project.id,
+            projectTitle: context.project.title,
             previousMarkdown: previous.markdown,
             nextMarkdown: previous.markdown,
             recommendation,
@@ -225,6 +230,7 @@ export async function runIntelligenceSyncCommand(
         );
         return {
           projectId: context.project.id,
+          projectTitle: context.project.title,
           previousMarkdown: previous.markdown,
           nextMarkdown,
           recommendation,
@@ -233,52 +239,69 @@ export async function runIntelligenceSyncCommand(
         };
       }),
     );
-    const projectRecommendationBriefsWouldChange = recommendationBriefs.filter((entry) => entry.changed).length;
+    const changedRecommendationBriefs = recommendationBriefs.filter((entry) => entry.changed);
+    const targetRecommendationBriefs = selectProjectBriefBatch(changedRecommendationBriefs, options);
+    const projectRecommendationBriefsWouldChange = projectBatchEnabled
+      ? targetRecommendationBriefs.length
+      : changedRecommendationBriefs.length;
 
-    const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId!);
-    const nextCommandCenter = mergeManagedSection(
-      previousCommandCenter.markdown,
-      renderIntelligenceCommandCenterSection({
-        recommendations,
-        projects: projects.map((project) => ({
-          ...project,
-          recommendationLane: recommendations.find((entry) => entry.projectId === project.id)?.lane,
-        })),
-        latestWeeklyRun,
-        latestDailyRun,
-        linkSuggestionQueue: suggestions,
-      }),
-      INTELLIGENCE_COMMAND_CENTER_START,
-      INTELLIGENCE_COMMAND_CENTER_END,
-    );
+    const previousCommandCenter = projectBatchEnabled
+      ? undefined
+      : await api.readPageMarkdown(config.commandCenter.pageId!);
+    const nextCommandCenter = previousCommandCenter
+      ? mergeManagedSection(
+          previousCommandCenter.markdown,
+          renderIntelligenceCommandCenterSection({
+            recommendations,
+            projects: projects.map((project) => ({
+              ...project,
+              recommendationLane: recommendations.find((entry) => entry.projectId === project.id)?.lane,
+            })),
+            latestWeeklyRun,
+            latestDailyRun,
+            linkSuggestionQueue: suggestions,
+          }),
+          INTELLIGENCE_COMMAND_CENTER_START,
+          INTELLIGENCE_COMMAND_CENTER_END,
+        )
+      : undefined;
     const intelligenceCommandCenterSectionWouldChange =
-      normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown);
+      previousCommandCenter && nextCommandCenter
+        ? normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown)
+        : false;
 
     let changedProjectPages = 0;
     const blockedMarkdownProjects: string[] = [];
     const fallbackMarkdownProjects: string[] = [];
     if (live) {
-      logLiveStage(live, "Applying accepted link suggestions", {
-        suggestionCount: suggestions.filter((entry) => entry.status === "Accepted").length,
-      });
-      const projectPageMap = new Map(projectPages.map((page) => [page.id, page]));
-      const researchPageMap = new Map(researchPages.map((page) => [page.id, page]));
-      const skillPageMap = new Map(skillPages.map((page) => [page.id, page]));
-      const toolPageMap = new Map(toolPages.map((page) => [page.id, page]));
+      if (!projectBatchEnabled) {
+        logLiveStage(live, "Applying accepted link suggestions", {
+          suggestionCount: suggestions.filter((entry) => entry.status === "Accepted").length,
+        });
+        const projectPageMap = new Map(projectPages.map((page) => [page.id, page]));
+        const researchPageMap = new Map(researchPages.map((page) => [page.id, page]));
+        const skillPageMap = new Map(skillPages.map((page) => [page.id, page]));
+        const toolPageMap = new Map(toolPages.map((page) => [page.id, page]));
 
-      await applyAcceptedLinkSuggestions({
-        api,
-        suggestions,
-        projectPages: projectPageMap,
-        researchPages: researchPageMap,
+        await applyAcceptedLinkSuggestions({
+          api,
+          suggestions,
+          projectPages: projectPageMap,
+          researchPages: researchPageMap,
           skillPages: skillPageMap,
           toolPages: toolPageMap,
         });
+      }
 
-      logLiveStage(live, "Refreshing recommendation briefs", { projectCount: contexts.length });
-      for (const [index, entry] of recommendationBriefs.entries()) {
-        logLoopProgress(live, "intelligence-sync", "Project brief", index + 1, recommendationBriefs.length);
-        const context = contexts[index];
+      logLiveStage(live, "Refreshing recommendation briefs", {
+        projectCount: targetRecommendationBriefs.length,
+        projectRefreshTotalCount: changedRecommendationBriefs.length,
+        projectRefreshOffset: options.projectOffset ?? 0,
+        projectRefreshLimit: options.projectLimit ?? 0,
+      });
+      for (const [index, entry] of targetRecommendationBriefs.entries()) {
+        logLoopProgress(live, "intelligence-sync", "Project brief", index + 1, targetRecommendationBriefs.length);
+        const context = contexts.find((candidate) => candidate.project.id === entry.projectId);
         const recommendation = entry?.recommendation;
         if (!recommendation || !context) {
           continue;
@@ -306,23 +329,23 @@ export async function runIntelligenceSyncCommand(
             });
             changedProjectPages += 1;
             if (mode === "append_tail_update") {
-              fallbackMarkdownProjects.push(context.project.title);
+              fallbackMarkdownProjects.push(entry.projectTitle);
             }
           } catch (error) {
             if (!isNotionPolicyBlockedError(error) && !isReadBackRecoverableMarkdownError(error)) {
               throw error;
             }
-            blockedMarkdownProjects.push(context.project.title);
+            blockedMarkdownProjects.push(entry.projectTitle);
             logLiveStage(live, "Skipping blocked project markdown patch", {
               projectId: context.project.id,
-              projectTitle: context.project.title,
+              projectTitle: entry.projectTitle,
             });
           }
         }
       }
 
       logLiveStage(live, "Refreshing intelligence command center");
-      if (intelligenceCommandCenterSectionWouldChange) {
+      if (previousCommandCenter && nextCommandCenter && intelligenceCommandCenterSectionWouldChange) {
         assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
         await api.patchPageMarkdown({
           pageId: config.commandCenter.pageId!,
@@ -331,23 +354,25 @@ export async function runIntelligenceSyncCommand(
         });
       }
 
-      logLiveStage(live, "Persisting intelligence sync metrics");
-      const nextConfig = {
-        ...config,
-        phaseState: {
-          ...config.phaseState,
-          currentPhaseStatus: "In Progress",
-        },
-        phase3Intelligence: {
-          ...phase3,
-          baselineCapturedAt: phase3.baselineCapturedAt ?? today,
-          baselineMetrics: phase3.baselineMetrics ?? serializeMetrics(metrics),
-          lastSyncAt: today,
-          lastSyncMetrics: serializeMetrics(metrics),
-        },
-      };
-      await saveLocalPortfolioControlTowerConfig(nextConfig, configPath);
-      config = nextConfig;
+      if (!projectBatchEnabled) {
+        logLiveStage(live, "Persisting intelligence sync metrics");
+        const nextConfig = {
+          ...config,
+          phaseState: {
+            ...config.phaseState,
+            currentPhaseStatus: "In Progress",
+          },
+          phase3Intelligence: {
+            ...phase3,
+            baselineCapturedAt: phase3.baselineCapturedAt ?? today,
+            baselineMetrics: phase3.baselineMetrics ?? serializeMetrics(metrics),
+            lastSyncAt: today,
+            lastSyncMetrics: serializeMetrics(metrics),
+          },
+        };
+        await saveLocalPortfolioControlTowerConfig(nextConfig, configPath);
+        config = nextConfig;
+      }
     }
 
     const output = {
@@ -362,6 +387,10 @@ export async function runIntelligenceSyncCommand(
       intelligenceCommandCenterSectionWouldChange,
       blockedMarkdownProjectPages: blockedMarkdownProjects.length,
       markdownFallbackProjectPages: fallbackMarkdownProjects.length,
+      projectRefreshTotalCount: changedRecommendationBriefs.length,
+      projectRefreshBatchCount: targetRecommendationBriefs.length,
+      projectRefreshOffset: options.projectOffset ?? 0,
+      projectRefreshLimit: options.projectLimit ?? 0,
       metrics,
       latestWeeklyRunId: latestWeeklyRun?.id,
       latestDailyRunId: latestDailyRun?.id,
@@ -382,6 +411,10 @@ export async function runIntelligenceSyncCommand(
         intelligenceCommandCenterSectionWouldChange: intelligenceCommandCenterSectionWouldChange ? 1 : 0,
         blockedMarkdownProjectPages: blockedMarkdownProjects.length,
         markdownFallbackProjectPages: fallbackMarkdownProjects.length,
+        projectRefreshTotalCount: changedRecommendationBriefs.length,
+        projectRefreshBatchCount: targetRecommendationBriefs.length,
+        projectRefreshOffset: options.projectOffset ?? 0,
+        projectRefreshLimit: options.projectLimit ?? 0,
         totalProjects: metrics.totalProjects,
         resumeCandidates: metrics.resumeCandidates,
         proposedLinkSuggestions: metrics.proposedLinkSuggestions,
@@ -400,6 +433,24 @@ export async function runIntelligenceSyncCommand(
       },
     });
     console.log(JSON.stringify(output, null, 2));
+}
+
+function validateProjectBatchOptions(options: Pick<IntelligenceSyncCommandOptions, "projectLimit" | "projectOffset">): void {
+  if (options.projectLimit !== undefined && (!Number.isInteger(options.projectLimit) || options.projectLimit < 1)) {
+    throw new AppError("--project-limit must be a positive integer");
+  }
+  if (options.projectOffset !== undefined && (!Number.isInteger(options.projectOffset) || options.projectOffset < 0)) {
+    throw new AppError("--project-offset must be a non-negative integer");
+  }
+}
+
+function selectProjectBriefBatch<T>(
+  briefs: T[],
+  options: Pick<IntelligenceSyncCommandOptions, "projectLimit" | "projectOffset">,
+): T[] {
+  const offset = options.projectOffset ?? 0;
+  const limit = options.projectLimit ?? briefs.length;
+  return briefs.slice(offset, offset + limit);
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {

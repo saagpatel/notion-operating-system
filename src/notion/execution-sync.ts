@@ -51,6 +51,8 @@ export interface ExecutionSyncCommandOptions {
   live?: boolean;
   today?: string;
   config?: string;
+  projectLimit?: number;
+  projectOffset?: number;
 }
 
 export async function runExecutionSyncCommand(
@@ -60,6 +62,8 @@ export async function runExecutionSyncCommand(
   const live = options.live ?? false;
   const today = options.today ?? losAngelesToday();
   const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  validateProjectBatchOptions(options);
+  const projectBatchEnabled = options.projectLimit !== undefined || options.projectOffset !== undefined;
 
   const config = await loadLocalPortfolioControlTowerConfig(configPath);
     if (!config.phase2Execution) {
@@ -142,39 +146,54 @@ export async function runExecutionSyncCommand(
         );
         return {
           projectId: project.id,
+          projectTitle: project.title,
           previousMarkdown: previous.markdown,
           nextMarkdown,
           changed: normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
         };
       }),
     );
-    const projectExecutionBriefsWouldChange = projectBriefs.filter((entry) => entry.changed).length;
+    const changedProjectBriefs = projectBriefs.filter((entry) => entry.changed);
+    const targetProjectBriefs = selectProjectBriefBatch(changedProjectBriefs, options);
+    const projectExecutionBriefsWouldChange = projectBatchEnabled
+      ? targetProjectBriefs.length
+      : changedProjectBriefs.length;
 
-    const previousCommandCenter = await api.readPageMarkdown(config.commandCenter.pageId);
-    const nextCommandCenter = mergeManagedSection(
-      previousCommandCenter.markdown,
-      renderExecutionCommandCenterSection({
-        metrics,
-        decisions,
-        packets,
-        tasks,
-        projects,
-        today,
-      }),
-      EXECUTION_COMMAND_CENTER_START,
-      EXECUTION_COMMAND_CENTER_END,
-    );
+    const previousCommandCenter = projectBatchEnabled
+      ? undefined
+      : await api.readPageMarkdown(config.commandCenter.pageId);
+    const nextCommandCenter = previousCommandCenter
+      ? mergeManagedSection(
+          previousCommandCenter.markdown,
+          renderExecutionCommandCenterSection({
+            metrics,
+            decisions,
+            packets,
+            tasks,
+            projects,
+            today,
+          }),
+          EXECUTION_COMMAND_CENTER_START,
+          EXECUTION_COMMAND_CENTER_END,
+        )
+      : undefined;
     const executionCommandCenterSectionWouldChange =
-      normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown);
+      previousCommandCenter && nextCommandCenter
+        ? normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown)
+        : false;
 
     let changedProjectPages = 0;
     const blockedMarkdownProjects: string[] = [];
     const fallbackMarkdownProjects: string[] = [];
     if (live) {
-      logLiveStage(live, "Refreshing project execution briefs", { projectCount: projects.length });
-      for (const [index, brief] of projectBriefs.entries()) {
-        logLoopProgress(live, "execution-sync", "Project brief", index + 1, projectBriefs.length);
-        if (brief.changed) {
+      logLiveStage(live, "Refreshing project execution briefs", {
+        projectCount: targetProjectBriefs.length,
+        projectRefreshTotalCount: changedProjectBriefs.length,
+        projectRefreshOffset: options.projectOffset ?? 0,
+        projectRefreshLimit: options.projectLimit ?? 0,
+      });
+      for (const [index, brief] of targetProjectBriefs.entries()) {
+        logLoopProgress(live, "execution-sync", "Project brief", index + 1, targetProjectBriefs.length);
           try {
             const mode = await syncManagedMarkdownSectionWithReadBack({
               api,
@@ -185,7 +204,7 @@ export async function runExecutionSyncCommand(
               endMarker: EXECUTION_BRIEF_END,
             });
             changedProjectPages += 1;
-            const projectTitle = projects.find((project) => project.id === brief.projectId)?.title ?? brief.projectId;
+            const projectTitle = brief.projectTitle;
             if (mode === "append_tail_update") {
               fallbackMarkdownProjects.push(projectTitle);
             }
@@ -193,18 +212,17 @@ export async function runExecutionSyncCommand(
             if (!isNotionPolicyBlockedError(error) && !isReadBackRecoverableMarkdownError(error)) {
               throw error;
             }
-            const projectTitle = projects.find((project) => project.id === brief.projectId)?.title ?? brief.projectId;
+            const projectTitle = brief.projectTitle;
             blockedMarkdownProjects.push(projectTitle);
             logLiveStage(live, "Skipping blocked project markdown patch", {
               projectId: brief.projectId,
               projectTitle,
             });
           }
-        }
       }
 
       logLiveStage(live, "Refreshing execution command center");
-      if (executionCommandCenterSectionWouldChange) {
+      if (previousCommandCenter && nextCommandCenter && executionCommandCenterSectionWouldChange) {
         assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
         await api.patchPageMarkdown({
           pageId: config.commandCenter.pageId,
@@ -213,23 +231,25 @@ export async function runExecutionSyncCommand(
         });
       }
 
-      logLiveStage(live, "Persisting execution sync metrics");
-      await saveLocalPortfolioControlTowerConfig(
-        {
-          ...config,
-          phaseState: {
-            ...config.phaseState,
+      if (!projectBatchEnabled) {
+        logLiveStage(live, "Persisting execution sync metrics");
+        await saveLocalPortfolioControlTowerConfig(
+          {
+            ...config,
+            phaseState: {
+              ...config.phaseState,
+            },
+            phase2Execution: {
+              ...config.phase2Execution,
+              baselineCapturedAt: config.phase2Execution.baselineCapturedAt ?? today,
+              baselineMetrics: config.phase2Execution.baselineMetrics ?? serializeExecutionMetrics(metrics),
+              lastSyncAt: today,
+              lastSyncMetrics: serializeExecutionMetrics(metrics),
+            },
           },
-          phase2Execution: {
-            ...config.phase2Execution,
-            baselineCapturedAt: config.phase2Execution.baselineCapturedAt ?? today,
-            baselineMetrics: config.phase2Execution.baselineMetrics ?? serializeExecutionMetrics(metrics),
-            lastSyncAt: today,
-            lastSyncMetrics: serializeExecutionMetrics(metrics),
-          },
-        },
-        configPath,
-      );
+          configPath,
+        );
+      }
     }
 
     const output = {
@@ -244,6 +264,10 @@ export async function runExecutionSyncCommand(
       executionCommandCenterSectionWouldChange,
       blockedMarkdownProjectPages: blockedMarkdownProjects.length,
       markdownFallbackProjectPages: fallbackMarkdownProjects.length,
+      projectRefreshTotalCount: changedProjectBriefs.length,
+      projectRefreshBatchCount: targetProjectBriefs.length,
+      projectRefreshOffset: options.projectOffset ?? 0,
+      projectRefreshLimit: options.projectLimit ?? 0,
       metrics,
     };
     const warnings = [
@@ -262,6 +286,10 @@ export async function runExecutionSyncCommand(
         executionCommandCenterSectionWouldChange: executionCommandCenterSectionWouldChange ? 1 : 0,
         blockedMarkdownProjectPages: blockedMarkdownProjects.length,
         markdownFallbackProjectPages: fallbackMarkdownProjects.length,
+        projectRefreshTotalCount: changedProjectBriefs.length,
+        projectRefreshBatchCount: targetProjectBriefs.length,
+        projectRefreshOffset: options.projectOffset ?? 0,
+        projectRefreshLimit: options.projectLimit ?? 0,
         projectsWithExecutionDrift: metrics.projectsWithExecutionDrift,
         blockedTasks: metrics.blockedTasks,
         overdueTasks: metrics.overdueTasks,
@@ -276,6 +304,24 @@ export async function runExecutionSyncCommand(
       status: mapWeeklyStepStatusToCommandStatus(contract.status),
     });
     console.log(JSON.stringify(output, null, 2));
+}
+
+function validateProjectBatchOptions(options: Pick<ExecutionSyncCommandOptions, "projectLimit" | "projectOffset">): void {
+  if (options.projectLimit !== undefined && (!Number.isInteger(options.projectLimit) || options.projectLimit < 1)) {
+    throw new AppError("--project-limit must be a positive integer");
+  }
+  if (options.projectOffset !== undefined && (!Number.isInteger(options.projectOffset) || options.projectOffset < 0)) {
+    throw new AppError("--project-offset must be a non-negative integer");
+  }
+}
+
+function selectProjectBriefBatch<T>(
+  briefs: T[],
+  options: Pick<ExecutionSyncCommandOptions, "projectLimit" | "projectOffset">,
+): T[] {
+  const offset = options.projectOffset ?? 0;
+  const limit = options.projectLimit ?? briefs.length;
+  return briefs.slice(offset, offset + limit);
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {

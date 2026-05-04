@@ -567,7 +567,23 @@ export const cliRegistry: CliCommandDefinition[] = [
 		buildConfigCommand(
 			"sync",
 			"Refresh execution briefs, metrics, and command center content.",
-			[commonOptions.live, commonOptions.today, commonOptions.config],
+			[
+				commonOptions.live,
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "project-limit",
+					description: "Limit project-page brief writes for a scoped execution repair batch.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "project-offset",
+					description: "Offset project-page brief writes for a scoped execution repair batch.",
+					type: "number",
+					valueName: "count",
+				},
+			],
 			({ parsed }) =>
 				runExecutionSyncCommand({
 					live: asBoolean(parsed.options.live),
@@ -576,6 +592,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+					projectLimit: asNumber(parsed.options["project-limit"]),
+					projectOffset: asNumber(parsed.options["project-offset"]),
 				}),
 		),
 		{
@@ -616,7 +634,23 @@ export const cliRegistry: CliCommandDefinition[] = [
 			buildConfigCommand(
 				"sync",
 				"Refresh recommendation briefs and intelligence command center content.",
-				[commonOptions.live, commonOptions.today, commonOptions.config],
+				[
+					commonOptions.live,
+					commonOptions.today,
+					commonOptions.config,
+					{
+						name: "project-limit",
+						description: "Limit project-page brief writes for a scoped intelligence repair batch.",
+						type: "number",
+						valueName: "count",
+					},
+					{
+						name: "project-offset",
+						description: "Offset project-page brief writes for a scoped intelligence repair batch.",
+						type: "number",
+						valueName: "count",
+					},
+				],
 				({ parsed }) =>
 					runIntelligenceSyncCommand({
 						live: asBoolean(parsed.options.live),
@@ -625,6 +659,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 							config: asString(parsed.options.config),
 							positionals: parsed.positionals,
 						}),
+						projectLimit: asNumber(parsed.options["project-limit"]),
+						projectOffset: asNumber(parsed.options["project-offset"]),
 					}),
 			),
 			buildConfigCommand(

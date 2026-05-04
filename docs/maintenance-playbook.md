@@ -36,6 +36,13 @@ npm run maintenance:weekly-refresh -- --today 2026-05-03 --only execution-sync -
 npm run maintenance:weekly-refresh -- --today 2026-05-03 --only external-signals --max-project-pages 10 --project-offset 0 --summary-first
 ```
 
+Execution and intelligence project-page repairs also support direct batching:
+
+```bash
+npm run execution:sync -- --today 2026-05-03 --project-limit 1 --project-offset 0
+npm run intelligence:sync -- --today 2026-05-03 --project-limit 1 --project-offset 0
+```
+
 Run full weekly live only for full weekly maintenance:
 
 ```bash

@@ -125,6 +125,18 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--summary-first");
   });
 
+  test("execution and intelligence sync expose project-page batch controls", async () => {
+    const executionHelp = await runCliForTest(["execution", "sync", "--help"]);
+    const intelligenceHelp = await runCliForTest(["intelligence", "sync", "--help"]);
+
+    expect(executionHelp.exitCode).toBe(0);
+    expect(executionHelp.stdout).toContain("--project-limit <count>");
+    expect(executionHelp.stdout).toContain("--project-offset <count>");
+    expect(intelligenceHelp.exitCode).toBe(0);
+    expect(intelligenceHelp.stdout).toContain("--project-limit <count>");
+    expect(intelligenceHelp.stdout).toContain("--project-offset <count>");
+  });
+
   test("runs doctor json output safely on a fresh machine", async () => {
     const tempDir = await createTempWorkspace();
 
