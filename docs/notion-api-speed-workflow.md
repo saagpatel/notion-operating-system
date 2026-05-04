@@ -2,6 +2,8 @@
 
 This workflow exists to keep portfolio maintenance from turning into a long broad Notion pass.
 
+Current checkpoint: the 2026-05-04 proof run was clean across all six weekly lanes. The compact timing summary reported 144 seconds total, with `external-signals` and `intelligence-sync` as the slow read-only lanes.
+
 ## Default fast path
 
 Start with scoped triage:

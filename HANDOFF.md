@@ -17,6 +17,7 @@
   - the 2026-04-23 remediation pass repaired the `--dry-run` CLI alias, bridge-db MCP structured-result parsing, bridge-db `--db-path` forwarding, and the two primary-profile local-provider source rows; that work is merged on `main`
   - the 2026-04-23 dependency cleanup merged the GitHub Actions, production dependency, TypeScript/Node types, and Vitest updates; `dotenv` 17 output is silenced through the repo loader so JSON CLI output stays parseable
   - the 2026-04-23 branch cleanup deleted fully merged stale remote refs and local feature refs; only `origin/main` remains as a remote branch after pruning
+  - the 2026-05-04 Notion maintenance pass is complete: generated Intelligence, Execution, and External Signal project briefs now store in dedicated Notion databases with hash-based convergence; the May 4 weekly refresh is clean across all six lanes; weekly review title/body convergence is fixed; `--fast` now has bounded project-write concurrency and compact per-lane timing summaries
 
 ## Structural work completed
 
@@ -72,6 +73,9 @@ Current confidence state:
 - the 2026-04-23 remediation pass verified `npm run typecheck`, `npm test` with 44 passing files and 299 passing tests, `npm run build`, `npm run dry-run:example`, `npm run bridge-db:status`, `npm run bridge-db:sync`, `npm run signals:seed-mappings -- --live --limit 2`, and both provider-specific signal sync dry-runs
 - the 2026-04-23 dependency cleanup verified `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke:built-cli`, `npm run smoke:packed-install`, `npm run smoke:git-install`, `npm run dry-run:example`, `npm run bridge-db:status`, `npm run bridge-db:sync`, both provider-specific signal sync dry-runs, and `npm audit --json`
 - the 2026-04-23 post-merge confidence pass verified a fresh clone from GitHub with `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke:built-cli`, `npm run smoke:packed-install`, and `npm run smoke:git-install`
+- the 2026-05-04 Notion maintenance closeout verified the full fast weekly dry-run with `clean=6`, `drift=0`, `failed=0`, targeted and full test suites, typecheck, and remote sync
+- the 2026-05-04 speed pass added bounded project brief write concurrency through `--project-concurrency`; weekly `--fast` defaults to concurrency `2` while direct lane commands can dial it back to `1`
+- the 2026-05-04 observability pass added compact timing output to weekly `--fast` summaries, including total runtime, longest lane, sorted lane timings, and slow-lane callouts
 - hosted Dependabot checks ran successfully on the final merged dependency heads; Dependabot's `uuid` advisory workflow still fails as expected because of the accepted `exceljs -> uuid` exception
 - a 2026-04-17 confidence pass also verified:
   - `npm run control-tower:trend-analysis` returns a clean dry-run report
@@ -98,9 +102,8 @@ Current confidence state:
   - the 2026-04-24 broad live `signals:sync -- --live` attempt reconciled new signal events and sync runs, then stalled on Notion transport before refreshing project briefs and command-center sections
   - the 2026-04-25 scoped recovery added 23 notification-hub events and one provider sync-run through `--write-scope providers`
   - project-page live batches reduced `projectExternalSignalBriefsWouldChange` from 117 to 38 before the new convergence guard stopped on project brief read-back drift for `Phantom Frequencies` and `Recall`
-  - the latest follow-up dry-run reports no remaining new event/sync-run creations, 38 project brief changes, and command-center section drift still pending
+  - the 2026-05-04 database-backed External Signal Briefs migration superseded the old non-converging project-page markdown recovery path; the full weekly fast dry-run now reports External Signals clean
   - `signals:sync` now supports resumable write scopes for recovery: `--write-scope providers`, `--write-scope project-pages`, and `--write-scope portfolio-sections`
-  - use `npm run signals:sync -- --live --write-scope project-pages --project-limit 10 --project-offset <N>` to continue deterministic project batches after resolving the non-converging pages, then run `npm run signals:sync -- --live --write-scope portfolio-sections` last
 - `npm audit --json` currently reports the accepted moderate `exceljs -> uuid` exception; do not downgrade `exceljs` for that advisory
 - `governance:orphan-classify --live --create-packets` now builds structured `work_packets` records with execution fields and `Local Project` relations instead of generic markdown-only packet publishes
 - `governance:orphan-classify` now also supports an approval-backed orphan flow via `--request-approval`, optional `--approve`, and `--create-approved-packets`
@@ -155,6 +158,8 @@ notion-os logs recent
 npm run control-tower:sync
 npm run governance:audit
 npm run signals:sync
+npm run maintenance:weekly-refresh -- --fast
+npm run maintenance:weekly-refresh -- --today "$(date +%F)" --only intelligence-sync --fast --max-project-pages 117 --project-concurrency 2 --live --confirm-full-live
 npm run rollout:vercel-readiness
 npm run verify
 npm run release:prepare
@@ -199,7 +204,8 @@ Sandbox local reality from the 2026-04-17 confidence pass:
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
   - Phase 10 completion and signal-layer productization
-  - resolve the non-converging `Phantom Frequencies` and `Recall` managed project briefs, then use the scoped signal refresh path to clear the remaining 38 project external-signal briefs and command-center sections after the 2026-04-24 Notion transport stall
+  - watch the weekly timing summary for recurring slow lanes; as of the May 4 proof run, `external-signals` and `intelligence-sync` are the expected slow read-only lanes
+  - address current operating data quality issues surfaced by clean refreshes: Execution WIP violations, one execution task without exactly one work packet, and the remaining unmapped external-signal projects
   - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
   - continued docs accuracy
   - sandbox smoke rehearsal discipline for risky advanced workflows
@@ -214,12 +220,12 @@ If resuming from here, do not start with another repo cleanup pass.
 
 Start with one explicit Phase 10 product slice:
 
-1. run scoped signal refresh batches:
-   inspect the non-converging `Phantom Frequencies` and `Recall` brief sections first, then continue `npm run signals:sync -- --live --write-scope project-pages --project-limit 10 --project-offset <N>`, verify with `npm run signals:sync` after each batch, and run `npm run signals:sync -- --live --write-scope portfolio-sections` only after project-page drift clears
-2. productize the operator surface on top of the now-proven adapters:
+1. productize the operator surface on top of the now-proven adapters:
    morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
+2. clean up operating data quality:
+   reduce Execution WIP violations, fix the task without exactly one work packet, and map the remaining external-signal projects
 
-The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`. The best next move is resolving the managed-markdown convergence blockers, finishing the scoped live-refresh recovery path, then operator-surface productization on top of the proven signal lanes.
+The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`, and it is no longer managed-markdown convergence recovery. The best next move is operator-surface productization on top of the proven signal lanes, or a narrow operating-data cleanup pass for WIP violations and unmapped external-signal projects.
 
 ## Known assumptions
 

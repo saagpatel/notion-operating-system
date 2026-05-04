@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-04-23
+Updated: 2026-05-04
 
 ## Current Phase
 - Phase: 10 - Signal Wiring and Intelligence Layer
@@ -9,6 +9,9 @@ Updated: 2026-04-23
 
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
+- The May 4 Notion maintenance work is complete: Intelligence, Execution, and External Signal generated briefs now converge through dedicated Notion databases instead of project-page markdown writes.
+- The weekly refresh fast path is now clean across all six lanes and includes compact per-lane timing output.
+- Weekly `--fast` uses bounded project brief write concurrency and can be tuned with `--project-concurrency`.
 - That cleanup and hardening work is now merged reality, not an in-progress branch posture.
 - The shared CLI plus modern npm aliases are now the intended public operator surface.
 - Legacy `portfolio-audit:*` aliases remain only where compatibility is still useful, and they now route either through the CLI or through clearly internal maintenance utilities.
@@ -17,6 +20,11 @@ Updated: 2026-04-23
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run maintenance:weekly-refresh -- --fast --today 2026-05-04` passed on 2026-05-04 with 6 clean lanes, 0 drift, 0 failed steps, and timing output. The proof run took 144 seconds; `external-signals` was the longest lane at 63 seconds, followed by `intelligence-sync` at 50 seconds.
+- `npm test` passed on 2026-05-04 with 48 files and 329 tests.
+- `npm run typecheck` passed on 2026-05-04.
+- `git diff --check` passed on 2026-05-04.
+- The May 4 closeout commits shipped the brief database migrations, weekly review convergence fix, bounded project-write concurrency, and compact weekly timing summary.
 - `npm run typecheck` passed on 2026-04-23.
 - `npm test` passed on 2026-04-23 with 44 files and 299 tests.
 - `npm run build` passed on 2026-04-23.
@@ -62,12 +70,12 @@ Updated: 2026-04-23
 - Recent build sessions: 5
 
 ## Latest Metrics
-- Total projects: 114
-- Overdue reviews: 73
+- Total projects: 117
+- Overdue reviews: 90
 - Missing next moves: 1
-- Missing last active: 1
-- Stale active projects: 0
-- Orphaned projects: 5
+- Missing last active: 4
+- Stale active projects: 1
+- Orphaned projects: 6
 - Recent build sessions: 0
 
 ## Phase Transition Memory
@@ -251,7 +259,7 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
     - `repo-auditor` resolves through active GitHub source identifiers first, then project-title fallback
     - sandbox live proof wrote real `External Signal Events` and `External Signal Sync Runs` rows for both providers
     - primary-profile source rows now exist for `Notification Hub - Event Log` and `GithubRepoAuditor - Audit Reports`
-    - known provider mapping misses are resolved; remaining broad live-sync recovery should use scoped page and section refreshes after the 2026-04-24 Notion transport stall
+    - the May 4 database-backed brief migrations resolved the old project-page markdown recovery path; broad weekly fast refresh is now clean
   - as of 2026-04-17, the orphan-classification live packet lane writes structured `work_packets` entries with execution metadata and project relations
   - as of 2026-04-17, orphan follow-through also has an approval-backed path: `--request-approval` creates or refreshes governance requests and `--create-approved-packets` materializes only approved kickoff packets
   - as of 2026-04-17, the sandbox GitHub lane has enough live evidence to stop proving it further unless a new action family is needed; the next work should be productization, not more sandbox mutation depth
@@ -261,9 +269,9 @@ Phase 10 - Signal Wiring and Intelligence Layer
 
 Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
 
-Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters; signal-quality cleanup is now mostly narrowed to managed-markdown convergence repair, scoped live recovery, and operator-surface follow-through.
+Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters; signal-quality cleanup is now mostly narrowed to operating data quality and operator-surface follow-through.
 Recommended next slice:
-- resolve the non-converging `Phantom Frequencies` and `Recall` project brief writes, then continue the scoped signal refresh recovery path (`--write-scope project-pages` batches, then `--write-scope portfolio-sections`) until the remaining 38 project brief and command-center drift clears
 - improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
+- clean up operating data surfaced by the clean refreshes: Execution WIP violations, one task without exactly one work packet, and remaining unmapped external-signal projects
 
 Phase 10C should now focus on the remaining gaps after adapter closure: signal-quality cleanup, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.

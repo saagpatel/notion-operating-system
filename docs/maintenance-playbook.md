@@ -8,8 +8,9 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Review the latest `Dependency Hygiene` workflow run.
 - Triage any failed workflow, audit finding, install-smoke regression, or release-gate failure within the same week.
 - Review the weekly `weekly-notion-maintenance` inbox item as the default Notion maintenance signal.
-- Run `npm run maintenance:weekly-refresh -- --summary-first` first when you need a compact weekly preflight.
-- Run `npm run maintenance:weekly-refresh -- --live --confirm-full-live --summary-first` manually only when that weekly digest recommends a full live refresh.
+- Run `npm run maintenance:weekly-refresh -- --fast` first when you need a compact weekly preflight.
+- Read the compact timing summary before taking action. It reports total runtime, longest lane, slow lanes, and every lane sorted from slowest to fastest.
+- Run `npm run maintenance:weekly-refresh -- --fast --live --confirm-full-live` manually only when that weekly digest recommends a full live refresh.
 
 ## Fast Notion Repair Rule
 
@@ -24,29 +25,31 @@ Do not use broad weekly live refresh to repair a single lane. It runs support ma
 Examples:
 
 ```bash
-npm run control-tower:sync -- --today 2026-05-03
-npm run control-tower:sync -- --today 2026-05-03 --live
-npm run control-tower:sync -- --today 2026-05-03
+npm run control-tower:sync -- --today 2026-05-04
+npm run control-tower:sync -- --today 2026-05-04 --live
+npm run control-tower:sync -- --today 2026-05-04
 ```
 
 The weekly orchestrator can also run a bounded single-step preflight when you need quick triage:
 
 ```bash
-npm run maintenance:weekly-refresh -- --today 2026-05-03 --only execution-sync --step-timeout-minutes 5 --max-step-attempts 2 --summary-first
-npm run maintenance:weekly-refresh -- --today 2026-05-03 --only external-signals --max-project-pages 10 --project-offset 0 --summary-first
+npm run maintenance:weekly-refresh -- --today 2026-05-04 --only execution-sync --fast
+npm run maintenance:weekly-refresh -- --today 2026-05-04 --only external-signals --fast --max-project-pages 10 --project-offset 0
 ```
 
-Execution and intelligence project-page repairs also support direct batching:
+Execution, intelligence, and external-signal project brief repairs support bounded concurrency through the weekly orchestrator:
 
 ```bash
-npm run execution:sync -- --today 2026-05-03 --project-limit 1 --project-offset 0
-npm run intelligence:sync -- --today 2026-05-03 --project-limit 1 --project-offset 0
+npm run maintenance:weekly-refresh -- --today 2026-05-04 --only intelligence-sync --fast --max-project-pages 117 --project-concurrency 2 --live --confirm-full-live
+npm run maintenance:weekly-refresh -- --today 2026-05-04 --only intelligence-sync --fast --max-project-pages 117
 ```
+
+Lower `--project-concurrency` to `1` if Notion starts returning rate limits or retryable transport errors.
 
 Run full weekly live only for full weekly maintenance:
 
 ```bash
-npm run maintenance:weekly-refresh -- --today 2026-05-03 --signal-source-limit 5 --signal-max-events-per-source 5 --live --confirm-full-live --summary-first
+npm run maintenance:weekly-refresh -- --today 2026-05-04 --fast --live --confirm-full-live
 ```
 
 If the full weekly live command fails in `execution-sync`, `intelligence-sync`, or `external-signals`, continue with that lane's targeted command instead of rerunning the full weekly sequence.
