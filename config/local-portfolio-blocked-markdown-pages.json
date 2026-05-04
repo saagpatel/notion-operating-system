@@ -105,20 +105,22 @@
     {
       "title": "JSM Ticket Analytics Export",
       "lanes": [
-        "execution"
+        "execution",
+        "intelligence"
       ],
       "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
-      "lastSeen": "2026-05-03"
+      "lastSeen": "2026-05-04"
     },
     {
       "title": "Liminal",
       "lanes": [
-        "execution"
+        "execution",
+        "intelligence"
       ],
       "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
       "firstSeen": "2026-05-03",
-      "lastSeen": "2026-05-03"
+      "lastSeen": "2026-05-04"
     },
     {
       "title": "Reddit Sentiment Analyzer",
@@ -230,6 +232,76 @@
     {
       "title": "GitHub Repo Auditor",
       "pageId": "332c21f1-caf0-8125-b553-f75377da8fed",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Signal & Noise",
+      "pageId": "32dc21f1-caf0-81c0-bd6f-f4c243fd8485",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Wavelength",
+      "pageId": "32dc21f1-caf0-8102-848d-d66d3f1a3523",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Terroir",
+      "pageId": "32dc21f1-caf0-812b-bb2a-c2bbbe5a3cd1",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Seismoscope",
+      "pageId": "32dc21f1-caf0-812e-8cbf-e3ebbd146bb3",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Redact",
+      "pageId": "32dc21f1-caf0-8132-8d73-e6d0d47cb926",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Premise",
+      "pageId": "32dc21f1-caf0-819d-9d50-fd3c4530292f",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live intelligence managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-04",
+      "lastSeen": "2026-05-04"
+    },
+    {
+      "title": "Nocturne",
+      "pageId": "32dc21f1-caf0-8183-ac36-ca3ba710f8ce",
       "lanes": [
         "intelligence"
       ],
