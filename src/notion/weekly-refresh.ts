@@ -42,6 +42,8 @@ interface WeeklyRefreshCommandOptions {
   stepTimeoutMinutes?: number;
   maxStepAttempts?: number;
   summaryFirst?: boolean;
+  skipKnownBlockedMarkdown?: boolean;
+  streamChildOutput?: boolean;
 }
 
 interface WeeklyRefreshStepDefinition {
@@ -114,6 +116,8 @@ export async function runWeeklyRefreshCommand(
     stepTimeoutMinutes: options.stepTimeoutMinutes,
     maxStepAttempts: options.maxStepAttempts ?? 5,
     summaryFirst: options.summaryFirst ?? false,
+    skipKnownBlockedMarkdown: options.skipKnownBlockedMarkdown ?? false,
+    streamChildOutput: options.streamChildOutput ?? false,
   };
   validateWeeklyRefreshFlags(flags);
   if (flags.live && !flags.confirmFullLive) {
@@ -134,6 +138,7 @@ export async function runWeeklyRefreshCommand(
   const preflightSteps = await runWeeklyRefreshSteps(buildStepDefinitions(flags, false, externalSignalSourceLimit, externalSignalMaxEventsPerSource), {
     maxStepAttempts: flags.maxStepAttempts,
     stopAfterControlTowerFailure: false,
+    streamChildOutput: flags.streamChildOutput,
   });
   const preflightSummary = summarizeStepResults(preflightSteps);
   const needsLiveWrite = preflightSteps.some((step) => step.wouldChange);
@@ -154,6 +159,7 @@ export async function runWeeklyRefreshCommand(
     const liveSteps = await runWeeklyRefreshSteps(buildStepDefinitions(flags, true, externalSignalSourceLimit, externalSignalMaxEventsPerSource), {
       maxStepAttempts: flags.maxStepAttempts,
       stopAfterControlTowerFailure: true,
+      streamChildOutput: flags.streamChildOutput,
     });
     const liveSummary = summarizeStepResults(liveSteps);
     liveRun = {
@@ -227,6 +233,7 @@ function buildStepDefinitions(
     maxProjectPages?: number;
     projectOffset?: number;
     stepTimeoutMinutes?: number;
+    skipKnownBlockedMarkdown: boolean;
   },
   live: boolean,
   externalSignalSourceLimit: number,
@@ -259,6 +266,7 @@ function buildStepDefinitions(
         ...sharedArgs,
         ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
         ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
+        ...(flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
       ],
       timeoutMs: 15 * 60 * 1000,
       skipAfterControlTowerFailure: true,
@@ -273,6 +281,7 @@ function buildStepDefinitions(
         ...sharedArgs,
         ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
         ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
+        ...(flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
       ],
       timeoutMs: 15 * 60 * 1000,
       skipAfterControlTowerFailure: true,
@@ -302,6 +311,7 @@ function buildStepDefinitions(
         ...(flags.maxProjectPages === undefined && flags.projectOffset === undefined ? [] : ["--write-scope", "project-pages"]),
         ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
         ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
+        ...(flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
       ],
       timeoutMs: 20 * 60 * 1000,
       skipAfterControlTowerFailure: true,
@@ -337,6 +347,7 @@ async function runWeeklyRefreshSteps(
   options: {
     maxStepAttempts: number;
     stopAfterControlTowerFailure: boolean;
+    streamChildOutput: boolean;
   },
 ): Promise<WeeklyRefreshStepResult[]> {
   const results: WeeklyRefreshStepResult[] = [];
@@ -352,6 +363,7 @@ async function runWeeklyRefreshSteps(
 
     const result = await runStep(step, {
       maxStepAttempts: options.maxStepAttempts,
+      streamChildOutput: options.streamChildOutput,
     });
     results.push(result);
 
@@ -365,7 +377,7 @@ async function runWeeklyRefreshSteps(
 
 async function runStep(
   step: WeeklyRefreshStepDefinition,
-  options: { maxStepAttempts: number },
+  options: { maxStepAttempts: number; streamChildOutput: boolean },
 ): Promise<WeeklyRefreshStepResult> {
   const startedAt = Date.now();
   let attempts = 0;
@@ -374,7 +386,9 @@ async function runStep(
   while (attempts < maxAttempts) {
     attempts += 1;
     try {
-      const output = await runJsonCommand(step);
+      const output = await runJsonCommand(step, {
+        streamChildOutput: options.streamChildOutput,
+      });
       const contract = toStepContract(output, step.args.includes("--live"));
       return {
         key: step.key,
@@ -433,7 +447,10 @@ function toStepContract(
   });
 }
 
-async function runJsonCommand(step: WeeklyRefreshStepDefinition): Promise<Record<string, unknown>> {
+async function runJsonCommand(
+  step: WeeklyRefreshStepDefinition,
+  options: { streamChildOutput: boolean },
+): Promise<Record<string, unknown>> {
   const commandPath =
     step.kind === "cli"
       ? ["src/cli.ts", ...step.args]
@@ -451,7 +468,11 @@ async function runJsonCommand(step: WeeklyRefreshStepDefinition): Promise<Record
     stdout += String(chunk);
   });
   child.stderr.on("data", (chunk) => {
-    stderr += String(chunk);
+    const text = String(chunk);
+    stderr += text;
+    if (options.streamChildOutput) {
+      process.stderr.write(prefixChildStderr(step.title, text));
+    }
   });
 
   const exitCode = await new Promise<number>((resolve, reject) => {
@@ -475,6 +496,14 @@ async function runJsonCommand(step: WeeklyRefreshStepDefinition): Promise<Record
     throw new Error(`${step.title} did not return JSON output.`);
   }
   return parseLastJsonObject(trimmed, step.title);
+}
+
+function prefixChildStderr(stepTitle: string, text: string): string {
+  return text
+    .split(/(?<=\n)/)
+    .filter((line) => line.length > 0)
+    .map((line) => `[weekly-refresh:${stepTitle}] ${line}`)
+    .join("");
 }
 
 function buildSkippedStep(

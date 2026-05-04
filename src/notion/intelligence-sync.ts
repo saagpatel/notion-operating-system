@@ -53,6 +53,10 @@ import {
   isReadBackRecoverableMarkdownError,
   syncManagedMarkdownSectionWithReadBack,
 } from "./managed-markdown-sync.js";
+import {
+  loadProjectMarkdownBlocklist,
+  partitionKnownBlockedProjectMarkdown,
+} from "./project-markdown-blocklist.js";
 
 const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
 const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
@@ -65,6 +69,8 @@ export interface IntelligenceSyncCommandOptions {
   config?: string;
   projectLimit?: number;
   projectOffset?: number;
+  skipKnownBlockedMarkdown?: boolean;
+  blockedMarkdownConfig?: string;
 }
 
 export async function runIntelligenceSyncCommand(
@@ -240,9 +246,21 @@ export async function runIntelligenceSyncCommand(
       }),
     );
     const changedRecommendationBriefs = recommendationBriefs.filter((entry) => entry.changed);
-    const targetRecommendationBriefs = selectProjectBriefBatch(changedRecommendationBriefs, options);
+    const targetRecommendationBriefsBeforeKnownBlocked = selectProjectBriefBatch(changedRecommendationBriefs, options);
+    const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown
+      ? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
+      : undefined;
+    const knownBlockedPartition = knownBlockedMarkdownBlocklist
+      ? partitionKnownBlockedProjectMarkdown(
+          targetRecommendationBriefsBeforeKnownBlocked,
+          knownBlockedMarkdownBlocklist,
+          "intelligence",
+        )
+      : { writable: targetRecommendationBriefsBeforeKnownBlocked, skipped: [] };
+    const targetRecommendationBriefs = knownBlockedPartition.writable;
+    const knownBlockedMarkdownProjects = knownBlockedPartition.skipped.map((entry) => entry.projectTitle);
     const projectRecommendationBriefsWouldChange = projectBatchEnabled
-      ? targetRecommendationBriefs.length
+      ? targetRecommendationBriefsBeforeKnownBlocked.length
       : changedRecommendationBriefs.length;
 
     const previousCommandCenter = projectBatchEnabled
@@ -386,9 +404,11 @@ export async function runIntelligenceSyncCommand(
       projectRecommendationBriefsWouldChange,
       intelligenceCommandCenterSectionWouldChange,
       blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+      knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
       markdownFallbackProjectPages: fallbackMarkdownProjects.length,
       projectRefreshTotalCount: changedRecommendationBriefs.length,
-      projectRefreshBatchCount: targetRecommendationBriefs.length,
+      projectRefreshBatchCount: targetRecommendationBriefsBeforeKnownBlocked.length,
+      projectRefreshWritableBatchCount: targetRecommendationBriefs.length,
       projectRefreshOffset: options.projectOffset ?? 0,
       projectRefreshLimit: options.projectLimit ?? 0,
       metrics,
@@ -398,21 +418,25 @@ export async function runIntelligenceSyncCommand(
     const warnings = [
       ...summarizeProjectWarnings("Recommendation brief markdown used a fallback write for", fallbackMarkdownProjects),
       ...summarizeProjectWarnings("Recommendation brief markdown remained blocked for", blockedMarkdownProjects),
+      ...summarizeProjectWarnings("Recommendation brief markdown skipped as known blocked for", knownBlockedMarkdownProjects),
     ];
     const contract = buildWeeklyStepContract({
       live,
-      status: blockedMarkdownProjects.length > 0 ? "partial" : undefined,
+      status: blockedMarkdownProjects.length > 0 || knownBlockedMarkdownProjects.length > 0 ? "partial" : undefined,
       wouldChange:
         blockedMarkdownProjects.length > 0 ||
+        knownBlockedMarkdownProjects.length > 0 ||
         projectRecommendationBriefsWouldChange > 0 ||
         intelligenceCommandCenterSectionWouldChange,
       summaryCounts: {
         projectRecommendationBriefsWouldChange,
         intelligenceCommandCenterSectionWouldChange: intelligenceCommandCenterSectionWouldChange ? 1 : 0,
         blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+        knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
         markdownFallbackProjectPages: fallbackMarkdownProjects.length,
         projectRefreshTotalCount: changedRecommendationBriefs.length,
-        projectRefreshBatchCount: targetRecommendationBriefs.length,
+        projectRefreshBatchCount: targetRecommendationBriefsBeforeKnownBlocked.length,
+        projectRefreshWritableBatchCount: targetRecommendationBriefs.length,
         projectRefreshOffset: options.projectOffset ?? 0,
         projectRefreshLimit: options.projectLimit ?? 0,
         totalProjects: metrics.totalProjects,

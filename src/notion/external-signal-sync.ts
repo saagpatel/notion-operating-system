@@ -83,6 +83,10 @@ import {
 	syncManagedMarkdownSectionWithReadBack,
 } from "./managed-markdown-sync.js";
 import {
+	isKnownBlockedProjectMarkdown,
+	loadProjectMarkdownBlocklist,
+} from "./project-markdown-blocklist.js";
+import {
 	buildWeeklyStepContract,
 	mapWeeklyStepStatusToCommandStatus,
 } from "./weekly-refresh-contract.js";
@@ -160,6 +164,8 @@ export interface ExternalSignalSyncCommandOptions {
 	writeScope?: ExternalSignalSyncWriteScope;
 	projectLimit?: number;
 	projectOffset?: number;
+	skipKnownBlockedMarkdown?: boolean;
+	blockedMarkdownConfig?: string;
 }
 
 export type ExternalSignalSyncWriteScope =
@@ -649,9 +655,13 @@ export async function runExternalSignalSyncCommand(
 			? normalizeMarkdown(nextWeeklyReview) !==
 				normalizeMarkdown(previousWeeklyReview.markdown)
 			: false;
+	const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown
+		? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
+		: undefined;
 
 	let changedProjectPages = 0;
 	const blockedMarkdownProjects: string[] = [];
+	const knownBlockedMarkdownProjects: string[] = [];
 	if (live && shouldEvaluateProjectPages) {
 		logLiveStage(live, "Refreshing project signal briefs", {
 			writeScope,
@@ -692,6 +702,21 @@ export async function runExternalSignalSyncCommand(
 			}
 			const projectBrief = projectBriefs[index];
 			if (projectBrief?.changed) {
+				if (
+					knownBlockedMarkdownBlocklist &&
+					isKnownBlockedProjectMarkdown(
+						knownBlockedMarkdownBlocklist,
+						projectBrief,
+						"external-signals",
+					)
+				) {
+					knownBlockedMarkdownProjects.push(projectBrief.projectTitle);
+					logLiveStage(live, "Skipping known blocked project markdown patch", {
+						projectId: project.id,
+						projectTitle: project.title,
+					});
+					continue;
+				}
 				try {
 					await syncExternalSignalProjectBrief({
 						api,
@@ -795,7 +820,9 @@ export async function runExternalSignalSyncCommand(
 		changedProjectPages,
 		projectExternalSignalBriefsWouldChange,
 		blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+		knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
 		blockedMarkdownProjects,
+		knownBlockedMarkdownProjects,
 		projectRefreshTotalCount,
 		projectRefreshBatchCount,
 		projectRefreshOffset,
@@ -818,13 +845,19 @@ export async function runExternalSignalSyncCommand(
 		(result) => result.status === "Partial",
 	);
 	const markdownPartial = blockedMarkdownProjects.length > 0;
+	const knownBlockedPartial = knownBlockedMarkdownProjects.length > 0;
 	const contract = buildWeeklyStepContract({
 		live,
-		status: providerFailed ? "failed" : providerPartial || markdownPartial ? "partial" : undefined,
+		status: providerFailed
+			? "failed"
+			: providerPartial || markdownPartial || knownBlockedPartial
+				? "partial"
+				: undefined,
 		wouldChange:
 			createdEventCount > 0 ||
 			createdSyncRunCount > 0 ||
 			projectExternalSignalBriefsWouldChange > 0 ||
+			knownBlockedPartial ||
 			intelligenceCommandCenterSectionWouldChange ||
 			externalSignalsCommandCenterSectionWouldChange ||
 			weeklyExternalSignalsSectionWouldChange,
@@ -838,6 +871,7 @@ export async function runExternalSignalSyncCommand(
 			),
 			projectExternalSignalBriefsWouldChange,
 			blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+			knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
 			projectRefreshTotalCount,
 			projectRefreshBatchCount,
 			projectRefreshOffset: projectRefreshOffset ?? 0,
@@ -855,6 +889,7 @@ export async function runExternalSignalSyncCommand(
 		warnings: [
 			...providerWarnings,
 			...blockedMarkdownProjects.map((projectTitle) => `Skipped blocked project markdown patch: ${projectTitle}`),
+			...knownBlockedMarkdownProjects.map((projectTitle) => `Skipped known blocked project markdown patch: ${projectTitle}`),
 		],
 	});
 	output.status = contract.status;

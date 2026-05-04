@@ -583,6 +583,11 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "number",
 					valueName: "count",
 				},
+				{
+					name: "skip-known-blocked-markdown",
+					description: "Skip project-page markdown writes listed in the blocked markdown registry.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runExecutionSyncCommand({
@@ -594,6 +599,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 					projectLimit: asNumber(parsed.options["project-limit"]),
 					projectOffset: asNumber(parsed.options["project-offset"]),
+					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
 				}),
 		),
 		{
@@ -650,6 +656,11 @@ export const cliRegistry: CliCommandDefinition[] = [
 						type: "number",
 						valueName: "count",
 					},
+					{
+						name: "skip-known-blocked-markdown",
+						description: "Skip project-page markdown writes listed in the blocked markdown registry.",
+						type: "boolean",
+					},
 				],
 				({ parsed }) =>
 					runIntelligenceSyncCommand({
@@ -661,6 +672,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						}),
 						projectLimit: asNumber(parsed.options["project-limit"]),
 						projectOffset: asNumber(parsed.options["project-offset"]),
+						skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
 					}),
 			),
 			buildConfigCommand(
@@ -776,6 +788,11 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "number",
 					valueName: "count",
 				},
+				{
+					name: "skip-known-blocked-markdown",
+					description: "Skip project-page markdown writes listed in the blocked markdown registry.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runExternalSignalSyncCommand({
@@ -800,6 +817,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 							| undefined) ?? "full",
 					projectLimit: asNumber(parsed.options["project-limit"]),
 					projectOffset: asNumber(parsed.options["project-offset"]),
+					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
@@ -1364,6 +1382,18 @@ export const cliRegistry: CliCommandDefinition[] = [
 						"Print a compact troubleshooting summary before the full JSON output.",
 					type: "boolean",
 				},
+				{
+					name: "skip-known-blocked-markdown",
+					description:
+						"Skip project-page markdown writes listed in the blocked markdown registry.",
+					type: "boolean",
+				},
+				{
+					name: "stream-child-output",
+					description:
+						"Stream weekly child-command progress logs to stderr while preserving JSON stdout.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runWeeklyRefreshCommand({
@@ -1386,6 +1416,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 					stepTimeoutMinutes: asNumber(parsed.options["step-timeout-minutes"]),
 					maxStepAttempts: asNumber(parsed.options["max-step-attempts"]),
 					summaryFirst: asBoolean(parsed.options["summary-first"]),
+					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
+					streamChildOutput: asBoolean(parsed.options["stream-child-output"]),
 				}),
 		),
 	]),

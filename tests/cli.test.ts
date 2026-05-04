@@ -123,6 +123,8 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--step-timeout-minutes <minutes>");
     expect(help.stdout).toContain("--max-step-attempts <count>");
     expect(help.stdout).toContain("--summary-first");
+    expect(help.stdout).toContain("--skip-known-blocked-markdown");
+    expect(help.stdout).toContain("--stream-child-output");
   });
 
   test("execution and intelligence sync expose project-page batch controls", async () => {
@@ -132,9 +134,11 @@ describe("cli smoke tests", () => {
     expect(executionHelp.exitCode).toBe(0);
     expect(executionHelp.stdout).toContain("--project-limit <count>");
     expect(executionHelp.stdout).toContain("--project-offset <count>");
+    expect(executionHelp.stdout).toContain("--skip-known-blocked-markdown");
     expect(intelligenceHelp.exitCode).toBe(0);
     expect(intelligenceHelp.stdout).toContain("--project-limit <count>");
     expect(intelligenceHelp.stdout).toContain("--project-offset <count>");
+    expect(intelligenceHelp.stdout).toContain("--skip-known-blocked-markdown");
   });
 
   test("runs doctor json output safely on a fresh machine", async () => {

@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "description": "Project pages whose managed markdown PATCHes repeatedly fail live. Live maintenance can skip these pages quickly while keeping the drift visible.",
+  "entries": [
+    {
+      "title": "Screenshot to Data Select",
+      "lanes": [
+        "execution",
+        "intelligence",
+        "external-signals"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "API Reverse",
+      "lanes": [
+        "execution",
+        "intelligence",
+        "external-signals"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Devils Advocate",
+      "lanes": [
+        "execution",
+        "intelligence"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Job Market Heatmap",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Network Mapper",
+      "lanes": [
+        "execution",
+        "intelligence"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "How Money Moves",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Browser History Visualizer",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Life Cadence Ledger",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "ink",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Pulse Orbit",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "JSM Ticket Analytics Export",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Liminal",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Reddit Sentiment Analyzer",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Notion Operating System",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "Neural Network",
+      "lanes": [
+        "intelligence"
+      ],
+      "reason": "Live managed markdown PATCH repeatedly returned Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "TicketDashboard",
+      "pageId": "326c21f1-caf0-811c-8921-d8560e683aa0",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "TerraSynth",
+      "pageId": "326c21f1-caf0-81c4-b7cf-d8b7d597e476",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "SpecCompanion",
+      "pageId": "326c21f1-caf0-815f-8785-ed28789a34a2",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "SnippetLibrary",
+      "pageId": "326c21f1-caf0-8160-a302-d364d6a4f990",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    },
+    {
+      "title": "SmartClipboard",
+      "pageId": "326c21f1-caf0-81e4-8a25-e43d6ac1114a",
+      "lanes": [
+        "execution"
+      ],
+      "reason": "Live execution managed markdown PATCH returned a Notion/Cloudflare block or recoverable transport failure.",
+      "firstSeen": "2026-05-03",
+      "lastSeen": "2026-05-03"
+    }
+  ]
+}

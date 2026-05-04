@@ -41,6 +41,10 @@ import {
   isReadBackRecoverableMarkdownError,
   syncManagedMarkdownSectionWithReadBack,
 } from "./managed-markdown-sync.js";
+import {
+  loadProjectMarkdownBlocklist,
+  partitionKnownBlockedProjectMarkdown,
+} from "./project-markdown-blocklist.js";
 
 const EXECUTION_BRIEF_START = "<!-- codex:notion-execution-brief:start -->";
 const EXECUTION_BRIEF_END = "<!-- codex:notion-execution-brief:end -->";
@@ -53,6 +57,8 @@ export interface ExecutionSyncCommandOptions {
   config?: string;
   projectLimit?: number;
   projectOffset?: number;
+  skipKnownBlockedMarkdown?: boolean;
+  blockedMarkdownConfig?: string;
 }
 
 export async function runExecutionSyncCommand(
@@ -154,9 +160,21 @@ export async function runExecutionSyncCommand(
       }),
     );
     const changedProjectBriefs = projectBriefs.filter((entry) => entry.changed);
-    const targetProjectBriefs = selectProjectBriefBatch(changedProjectBriefs, options);
+    const targetProjectBriefsBeforeKnownBlocked = selectProjectBriefBatch(changedProjectBriefs, options);
+    const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown
+      ? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
+      : undefined;
+    const knownBlockedPartition = knownBlockedMarkdownBlocklist
+      ? partitionKnownBlockedProjectMarkdown(
+          targetProjectBriefsBeforeKnownBlocked,
+          knownBlockedMarkdownBlocklist,
+          "execution",
+        )
+      : { writable: targetProjectBriefsBeforeKnownBlocked, skipped: [] };
+    const targetProjectBriefs = knownBlockedPartition.writable;
+    const knownBlockedMarkdownProjects = knownBlockedPartition.skipped.map((entry) => entry.projectTitle);
     const projectExecutionBriefsWouldChange = projectBatchEnabled
-      ? targetProjectBriefs.length
+      ? targetProjectBriefsBeforeKnownBlocked.length
       : changedProjectBriefs.length;
 
     const previousCommandCenter = projectBatchEnabled
@@ -263,9 +281,11 @@ export async function runExecutionSyncCommand(
       projectExecutionBriefsWouldChange,
       executionCommandCenterSectionWouldChange,
       blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+      knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
       markdownFallbackProjectPages: fallbackMarkdownProjects.length,
       projectRefreshTotalCount: changedProjectBriefs.length,
-      projectRefreshBatchCount: targetProjectBriefs.length,
+      projectRefreshBatchCount: targetProjectBriefsBeforeKnownBlocked.length,
+      projectRefreshWritableBatchCount: targetProjectBriefs.length,
       projectRefreshOffset: options.projectOffset ?? 0,
       projectRefreshLimit: options.projectLimit ?? 0,
       metrics,
@@ -273,21 +293,25 @@ export async function runExecutionSyncCommand(
     const warnings = [
       ...summarizeProjectWarnings("Execution brief markdown used a fallback write for", fallbackMarkdownProjects),
       ...summarizeProjectWarnings("Execution brief markdown remained blocked for", blockedMarkdownProjects),
+      ...summarizeProjectWarnings("Execution brief markdown skipped as known blocked for", knownBlockedMarkdownProjects),
     ];
     const contract = buildWeeklyStepContract({
       live,
-      status: blockedMarkdownProjects.length > 0 ? "partial" : undefined,
+      status: blockedMarkdownProjects.length > 0 || knownBlockedMarkdownProjects.length > 0 ? "partial" : undefined,
       wouldChange:
         blockedMarkdownProjects.length > 0 ||
+        knownBlockedMarkdownProjects.length > 0 ||
         projectExecutionBriefsWouldChange > 0 ||
         executionCommandCenterSectionWouldChange,
       summaryCounts: {
         projectExecutionBriefsWouldChange,
         executionCommandCenterSectionWouldChange: executionCommandCenterSectionWouldChange ? 1 : 0,
         blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+        knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
         markdownFallbackProjectPages: fallbackMarkdownProjects.length,
         projectRefreshTotalCount: changedProjectBriefs.length,
-        projectRefreshBatchCount: targetProjectBriefs.length,
+        projectRefreshBatchCount: targetProjectBriefsBeforeKnownBlocked.length,
+        projectRefreshWritableBatchCount: targetProjectBriefs.length,
         projectRefreshOffset: options.projectOffset ?? 0,
         projectRefreshLimit: options.projectLimit ?? 0,
         projectsWithExecutionDrift: metrics.projectsWithExecutionDrift,
