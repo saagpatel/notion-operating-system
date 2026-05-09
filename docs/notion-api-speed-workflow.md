@@ -2,7 +2,7 @@
 
 This workflow exists to keep portfolio maintenance from turning into a long broad Notion pass.
 
-Current checkpoint: the 2026-05-04 proof run was clean across all six weekly lanes. The compact timing summary reported 144 seconds total, with `external-signals` and `intelligence-sync` as the slow read-only lanes.
+Current checkpoint: the 2026-05-09 proof run was clean across all six weekly lanes after targeted full-batch repairs. The final compact summary reported `needsLiveWrite=false`; `external-signals` and `intelligence-sync` remain the expected slow read-only lanes.
 
 ## Default fast path
 
@@ -28,6 +28,7 @@ The compact summary includes:
 - `timing.longestStep`: the lane that consumed the most time
 - `timing.stepTimings`: every lane sorted from slowest to fastest
 - `slowSteps`: lanes over the 30-second operator visibility threshold
+- `recoveryPlan`: lane-specific recovery guidance with the next safest command
 
 ## Clearing drift
 
@@ -39,6 +40,8 @@ npm run maintenance:weekly-refresh -- --today <date> --only <step> --fast
 ```
 
 Live lane repairs still require explicit operator approval before running the live command.
+
+When the summary includes `recoveryPlan`, prefer that plan over improvising. Failed or partial lanes should be rerun alone with `--stream-child-output` before any live repair. Drifting lanes should follow the dry-run/live/dry-run pattern for the named lane.
 
 For large known-safe database-backed brief batches, keep the lane scoped and raise the batch size before raising concurrency:
 

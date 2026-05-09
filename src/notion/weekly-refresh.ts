@@ -675,6 +675,7 @@ export function buildWeeklyRefreshQuickSummary(output: WeeklyRefreshOutput): Rec
     failedSteps,
     partialSteps,
     slowSteps,
+    recoveryPlan: buildWeeklyRefreshRecoveryPlan(output, failedSteps, partialSteps),
     recommendedNextCommands: deriveWeeklyRefreshNextCommands(output, failedSteps, partialSteps),
   };
 }
@@ -739,6 +740,37 @@ function deriveWeeklyRefreshNextCommands(
     }
   }
   return commands;
+}
+
+export function buildWeeklyRefreshRecoveryPlan(
+  output: WeeklyRefreshOutput,
+  failedSteps: string[],
+  partialSteps: string[],
+): Array<{ step: string; reason: string; command: string }> {
+  const plan: Array<{ step: string; reason: string; command: string }> = [];
+  for (const step of [...failedSteps, ...partialSteps].slice(0, 3)) {
+    plan.push({
+      step,
+      reason: failedSteps.includes(step)
+        ? "Step failed or exhausted retries; rerun the lane alone with a short timeout to inspect the real blocker."
+        : "Step returned partial output; rerun the lane alone before attempting live repair.",
+      command: `npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --fast --step-timeout-minutes 5 --stream-child-output`,
+    });
+  }
+  if (plan.length === 0 && output.needsLiveWrite) {
+    const driftSteps = output.preflight.steps
+      .filter((step) => step.status === "drift" || step.wouldChange)
+      .map((step) => step.key)
+      .slice(0, 3);
+    for (const step of driftSteps) {
+      plan.push({
+        step,
+        reason: "Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
+        command: `npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --fast --live --confirm-full-live`,
+      });
+    }
+  }
+  return plan;
 }
 
 async function persistWeeklyRefreshState(input: {

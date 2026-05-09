@@ -69,9 +69,9 @@ Three projects on this machine already produce the data the Notion OS needs. Non
 ### bridge-db (`/Users/d/Projects/bridge-db`)
 
 - **What it is:** SQLite-backed MCP server (WAL mode). Shared state bus between Claude.ai, Claude Code, and Codex. 16 typed MCP tools across 6 modules.
-- **Tools:** `activity` (log_activity, get_recent_activity, get_shipped_events, mark_shipped_processed), `handoffs` (create_handoff, get_pending_handoffs, pick_up_handoff, clear_handoff), `context` (update_section, get_section, get_all_sections), `snapshots` (save_snapshot, get_latest_snapshot), `cost` (record_cost, get_cost_history), `export` (export_bridge_markdown → `~/.claude/projects/-Users-d/memory/claude_ai_context.md`).
+- **Tools:** `activity` (log_activity, get_recent_activity, get_shipped_events, confirm_shipped_sync, mark_shipped_processed), `handoffs` (create_handoff, get_pending_handoffs, pick_up_handoff, clear_handoff), `context` (update_section, get_section, get_all_sections), `snapshots` (save_snapshot, get_latest_snapshot), `cost` (record_cost, get_cost_history), `export` (export_bridge_markdown → `~/.claude/projects/-Users-d/memory/claude_ai_context.md`).
 - **Data it owns:** SQLite at `~/.local/share/bridge-db/bridge.db` — activity log, handoffs queue, context sections, snapshots, cost history.
-- **The gap:** `get_shipped_events` + `mark_shipped_processed` is a natural polling target. Anything an agent marks "shipped" should propagate to `build_log`. Pending handoffs could become `work_packets` rows. Cost history is a signal row. No Notion writer exists yet.
+- **The gap:** `get_shipped_events` + `confirm_shipped_sync` is a natural polling target. Anything an agent marks "shipped" should propagate to `build_log` with a durable Notion receipt. Pending handoffs could become `work_packets` rows. Cost history is a signal row. No Notion writer exists yet.
 
 ---
 
@@ -115,7 +115,7 @@ This single adapter gives Notion a live cross-agent activity stream spanning eve
 ### Initiative 2 — bridge-db Shipped Events → build_log
 **Priority: High. Closes the AI agent activity loop.**
 
-Add a polling adapter that calls bridge-db's `get_shipped_events`, writes each to `build_log` in Notion, then calls `mark_shipped_processed` to advance the watermark. Run as part of the weekly sequence or on demand.
+Add a polling adapter that calls bridge-db's `get_shipped_events`, writes each to `build_log` in Notion, then calls `confirm_shipped_sync` with the created Notion page id to advance the watermark with proof. Run as part of the weekly sequence or on demand.
 
 Each shipped event maps to:
 - title → build log entry title
@@ -305,7 +305,7 @@ All Phase 10B deliverables are on `feat/phase10b`:
 
 | Fix | Description | File |
 |---|---|---|
-| A1 CRITICAL | `markRowProcessed` failure now propagates — rowsWritten decremented, failures incremented | `bridge-db-sync.ts` |
+| A1 CRITICAL | Shipped-row `confirm_shipped_sync` failure now propagates — rowsWritten decremented, failures incremented | `bridge-db-sync.ts` |
 | A2 MAJOR | `normalizeProviderKey` handles "Notification Hub" and "Repo Auditor" | `local-portfolio-external-signals.ts` |
 | A3 MAJOR | `readNotificationHubJsonl` uses rolling `windowSize` — no full-file load | `external-signal-sync.ts` |
 | A4 MAJOR | Empty `fullName` in repo auditor skips with malformed counter instead of key collision | `external-signal-sync.ts` |

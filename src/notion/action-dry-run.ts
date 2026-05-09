@@ -224,6 +224,51 @@ export function evaluateActionDryRunReadiness(input: {
   };
 }
 
+export function buildActionDryRunOperatorSummary(input: {
+  request: ActionRequestRecord;
+  actionKey: ActuationActionKey;
+  preparation: ActionDryRunPreparation;
+  validationNotes: string[];
+  readyForLive: boolean;
+}): {
+  status: "ready_for_live" | "needs_operator_action" | "blocked";
+  target: string;
+  nextStep: string;
+  safetyNotes: string[];
+} {
+  const target = input.preparation.target
+    ? `${input.preparation.target.source.provider}: ${input.preparation.target.source.title}`
+    : "unresolved target";
+  if (input.validationNotes.length > 0) {
+    return {
+      status: input.preparation.preparationError ? "blocked" : "needs_operator_action",
+      target,
+      nextStep: input.preparation.preparationError
+        ? "Fix the target/preflight blocker, then rerun the dry-run."
+        : "Resolve the validation notes before approving live execution.",
+      safetyNotes: input.validationNotes,
+    };
+  }
+  if (!input.readyForLive) {
+    return {
+      status: "needs_operator_action",
+      target,
+      nextStep: "Dry-run passed, but live approval requirements are not satisfied yet.",
+      safetyNotes: [
+        "Keep the request in dry-run state until approval, freshness, and policy requirements are all satisfied.",
+      ],
+    };
+  }
+  return {
+    status: "ready_for_live",
+    target,
+    nextStep: `Request is ready for governed live execution with action ${input.actionKey}.`,
+    safetyNotes: [
+      "Execute through governance action-runner only; do not mutate the provider manually.",
+    ],
+  };
+}
+
 export interface ActionDryRunCommandOptions {
   request?: string;
   config?: string;
@@ -314,6 +359,13 @@ export async function runActionDryRunCommand(
           : payload?.provider === "Vercel" && actionKey === "vercel.promote"
             ? describeVercelPromotePreflight(preflight as VercelPromotePreflight | undefined)
           : [];
+    const operatorSummary = buildActionDryRunOperatorSummary({
+      request,
+      actionKey,
+      preparation,
+      validationNotes,
+      readyForLive: readiness.readyForLive,
+    });
     const executionTitle = `Dry run - ${request.title} - ${now.slice(0, 19)}`;
     const markdown = [
       `# ${executionTitle}`,
@@ -323,6 +375,14 @@ export async function runActionDryRunCommand(
       `- Mode: Dry Run`,
       `- Status: ${validationNotes.length > 0 ? "Failed" : "Succeeded"}`,
       `- Executed at: ${now}`,
+      "",
+      "## Operator Summary",
+      `- Status: ${operatorSummary.status}`,
+      `- Target: ${operatorSummary.target}`,
+      `- Next step: ${operatorSummary.nextStep}`,
+      ...(operatorSummary.safetyNotes.length > 0
+        ? operatorSummary.safetyNotes.map((note) => `- Safety: ${note}`)
+        : []),
       "",
       "## Validation Notes",
       ...(validationNotes.length > 0 ? validationNotes.map((note) => `- ${note}`) : ["- Dry run succeeded."]),
@@ -486,6 +546,7 @@ export async function runActionDryRunCommand(
       executionId: created.id,
       executionUrl: created.url,
       readyForLive: readiness.readyForLive,
+      operatorSummary,
       validationNotes,
     };
     recordCommandOutputSummary(output, {

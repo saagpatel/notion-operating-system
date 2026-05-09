@@ -84,7 +84,15 @@ npm run publish:notion -- --destination weekly_reviews --file path/to/review.md
 npm run publish:notion -- --destination weekly_reviews --file path/to/review.md --live
 ```
 
-### 3. Generate the weekly review packet
+### 3. Review stale active projects
+
+```bash
+npm run control-tower:stale-active-rescue
+```
+
+This is read-only. It groups stale `Active Build` projects by the most useful first repair reason and returns the next operator move before anyone changes project status.
+
+### 4. Generate the weekly review packet
 
 ```bash
 npm run portfolio-audit:review-packet -- --live
@@ -92,7 +100,7 @@ npm run portfolio-audit:review-packet -- --live
 
 Run this **before** any command that patches the "latest weekly" managed section (signals, recommendations, action-request sync). If the current week's page does not exist yet, those commands land on the wrong weekly page.
 
-### 4. Sync GitHub signals
+### 5. Sync GitHub signals
 
 ```bash
 # Recompute from existing Notion rows (no GitHub fetch)
@@ -102,7 +110,7 @@ npm run portfolio-audit:external-signal-sync
 npm run portfolio-audit:external-signal-sync -- --provider github --live
 ```
 
-### 5. Governed GitHub actions (dry-run → approval → live)
+### 6. Governed GitHub actions (dry-run → approval → live)
 
 GitHub mutations follow a strict three-step pipeline. Never skip steps.
 
@@ -125,13 +133,13 @@ npm run portfolio-audit:action-request-sync -- --live
 
 Supported actions: `github.create_issue`, `github.update_issue`, `github.set_issue_labels`, `github.set_issue_assignees`, `github.add_issue_comment`, `github.comment_pull_request`.
 
-### 6. Governed Vercel actions
+### 7. Governed Vercel actions
 
 Same three-step pipeline as GitHub. Supported actions: `vercel.redeploy`, `vercel.rollback`, `vercel.promote`.
 
 Requires `VERCEL_TOKEN` in your `.env`. The live gate also requires a successful dry run within the last 24 hours.
 
-### 7. Weekly live sequence (correct order)
+### 8. Weekly live sequence (correct order)
 
 Use the guarded orchestrator for a full weekly pass:
 
@@ -168,6 +176,7 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `npm run destinations:check` | List configured Notion destination aliases |
 | `npm run destinations:resolve` | Resolve and persist Notion IDs for all destinations |
 | `npm run portfolio-audit:control-tower-sync` | Refresh derived PM signals (dry-run) |
+| `npm run control-tower:stale-active-rescue` | Read-only stale Active Build project rescue report |
 | `npm run control-tower:schema-report` | Analyze property usage before schema cleanup or deletion |
 | `npm run portfolio-audit:review-packet` | Generate weekly review packet (dry-run) |
 | `npm run portfolio-audit:external-signal-sync -- --provider github --live` | Sync GitHub signals (live) |
