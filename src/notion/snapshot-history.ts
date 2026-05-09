@@ -150,13 +150,24 @@ export function renderTrendReport(
 		}
 	}
 	for (const [, group] of byProject) {
-		group.sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+		const latestByDate = new Map<string, ProjectSnapshot>();
+		for (const snapshot of group) {
+			latestByDate.set(snapshot.snapshotDate, snapshot);
+		}
+		group.splice(
+			0,
+			group.length,
+			...[...latestByDate.values()].sort((a, b) =>
+				a.snapshotDate.localeCompare(b.snapshotDate),
+			),
+		);
 	}
 
 	const allDates = snapshots.map((s) => s.snapshotDate).sort();
 	const firstSnapshot = allDates[0] ?? today;
 	const totalProjects = byProject.size;
 	const totalSnapshots = snapshots.length;
+	const movement = buildPortfolioMovement(snapshots);
 
 	// Find queue changes in last 2 snapshots
 	const queueChanges: Array<{
@@ -221,6 +232,29 @@ export function renderTrendReport(
 		"",
 	];
 
+	if (movement) {
+		lines.push("### Portfolio Movement");
+		lines.push(
+			`Comparing ${movement.previous.date} to ${movement.latest.date}.`,
+			"",
+		);
+		lines.push("| Metric | Previous | Latest | Delta |");
+		lines.push("|---|---:|---:|---:|");
+		lines.push(
+			`| Projects tracked | ${movement.previous.projectsTracked} | ${movement.latest.projectsTracked} | ${formatDelta(movement.latest.projectsTracked - movement.previous.projectsTracked)} |`,
+		);
+		lines.push(
+			`| Stale evidence | ${movement.previous.staleEvidence} | ${movement.latest.staleEvidence} | ${formatDelta(movement.latest.staleEvidence - movement.previous.staleEvidence)} |`,
+		);
+		lines.push(
+			`| Open PRs | ${movement.previous.openPrs} | ${movement.latest.openPrs} | ${formatDelta(movement.latest.openPrs - movement.previous.openPrs)} |`,
+		);
+		lines.push(
+			`| Average recommendation score | ${movement.previous.averageRecommendationScore.toFixed(1)} | ${movement.latest.averageRecommendationScore.toFixed(1)} | ${formatDelta(movement.latest.averageRecommendationScore - movement.previous.averageRecommendationScore, 1)} |`,
+		);
+		lines.push("");
+	}
+
 	if (queueChanges.length > 0) {
 		lines.push("### Queue Changes (last 2 snapshots)");
 		lines.push("| Project | Previous Queue | Current Queue | Changed At |");
@@ -249,6 +283,68 @@ export function renderTrendReport(
 	}
 
 	return lines.join("\n");
+}
+
+interface SnapshotDateSummary {
+	date: string;
+	projectsTracked: number;
+	staleEvidence: number;
+	openPrs: number;
+	averageRecommendationScore: number;
+}
+
+interface PortfolioMovementSummary {
+	previous: SnapshotDateSummary;
+	latest: SnapshotDateSummary;
+}
+
+function buildPortfolioMovement(
+	snapshots: ProjectSnapshot[],
+): PortfolioMovementSummary | undefined {
+	const distinctDates = [...new Set(snapshots.map((s) => s.snapshotDate))].sort();
+	if (distinctDates.length < 2) return undefined;
+	const latestDate = distinctDates[distinctDates.length - 1];
+	const previousDate = distinctDates[distinctDates.length - 2];
+	if (!latestDate || !previousDate) return undefined;
+	return {
+		previous: summarizeSnapshotDate(snapshots, previousDate),
+		latest: summarizeSnapshotDate(snapshots, latestDate),
+	};
+}
+
+function summarizeSnapshotDate(
+	snapshots: ProjectSnapshot[],
+	date: string,
+): SnapshotDateSummary {
+	const latestByProject = new Map<string, ProjectSnapshot>();
+	for (const snapshot of snapshots) {
+		if (snapshot.snapshotDate !== date) continue;
+		latestByProject.set(snapshot.projectId, snapshot);
+	}
+	const dateSnapshots = [...latestByProject.values()];
+	const recommendationTotal = dateSnapshots.reduce(
+		(total, snapshot) => total + snapshot.recommendationScore,
+		0,
+	);
+	return {
+		date,
+		projectsTracked: dateSnapshots.length,
+		staleEvidence: dateSnapshots.filter((s) => s.evidenceFreshness === "Stale")
+			.length,
+		openPrs: dateSnapshots.reduce(
+			(total, snapshot) => total + snapshot.openPrCount,
+			0,
+		),
+		averageRecommendationScore:
+			dateSnapshots.length > 0 ? recommendationTotal / dateSnapshots.length : 0,
+	};
+}
+
+function formatDelta(value: number, precision = 0): string {
+	if (value === 0) return "0";
+	const formatted =
+		precision > 0 ? value.toFixed(precision) : Math.round(value).toString();
+	return value > 0 ? `+${formatted}` : formatted;
 }
 
 export interface TrendAnalysisCommandOptions {

@@ -37,6 +37,12 @@ const INACTIVE_STATES: ReadonlySet<string> = new Set([
 ]);
 const SEVERITY_ORDER: ExternalSignalSeverity[] = ["Risk", "Watch", "Info"];
 const MAX_LINES_PER_GROUP = 10;
+const MAX_PRIORITY_PROJECTS = 5;
+const SEVERITY_WEIGHTS: Record<ExternalSignalSeverity, number> = {
+	Risk: 15,
+	Watch: 8,
+	Info: 2,
+};
 
 export interface MorningBriefCommandOptions {
 	live?: boolean;
@@ -83,6 +89,19 @@ export interface MorningBriefPacketFocus {
 export interface MorningBriefOperatorFocus {
 	nowPacket?: MorningBriefPacketFocus;
 	standbyPacket?: MorningBriefPacketFocus;
+}
+
+export interface MorningBriefPriorityProject {
+	projectId: string;
+	projectName: string;
+	score: number;
+	riskEvents: number;
+	watchEvents: number;
+	infoEvents: number;
+	coverageGap: boolean;
+	latestSignalDate: string;
+	reasons: string[];
+	nextAction: string;
 }
 
 /** Returns number of whole days between two YYYY-MM-DD strings (non-negative). */
@@ -197,6 +216,7 @@ export function renderMorningBriefSection(
 		/** Projects that had at least one event in the last COVERAGE_GAP_DAYS */
 		coveredProjectIds: ReadonlySet<string>;
 		operatorFocus?: MorningBriefOperatorFocus;
+		priorityProjects?: MorningBriefPriorityProject[];
 	},
 	synthesisMap: Map<string, string> = new Map(),
 ): string {
@@ -207,9 +227,18 @@ export function renderMorningBriefSection(
 		activeProjectIds,
 		coveredProjectIds,
 		operatorFocus,
+		priorityProjects,
 	} = input;
 
 	const byGroup = groupBySeverity(events);
+	const priority =
+		priorityProjects ??
+		buildMorningBriefPriorityProjects({
+			events,
+			projectIndex,
+			activeProjectIds,
+			coveredProjectIds,
+		});
 
 	const lines: string[] = [`## Morning Brief — ${today}`, ""];
 
@@ -223,6 +252,27 @@ export function renderMorningBriefSection(
 		lines.push(...formatFocusPacket("Standby", operatorFocus.standbyPacket));
 	} else {
 		lines.push("- **Standby** — no Standby packet selected.");
+	}
+	lines.push("");
+
+	lines.push("### Priority Projects", "");
+	if (priority.length === 0) {
+		lines.push("- No priority project signals in the lookback window.");
+	} else {
+		for (const project of priority) {
+			const mix = [
+				project.riskEvents ? `${project.riskEvents} risk` : "",
+				project.watchEvents ? `${project.watchEvents} watch` : "",
+				project.infoEvents ? `${project.infoEvents} info` : "",
+				project.coverageGap ? "coverage gap" : "",
+			]
+				.filter(Boolean)
+				.join(", ");
+			const reasons = project.reasons.slice(0, 2).join("; ");
+			lines.push(
+				`- ${project.projectName} — score ${project.score}; ${mix || "no recent signals"}. ${reasons}. Next: ${project.nextAction}`,
+			);
+		}
 	}
 	lines.push("");
 
@@ -302,6 +352,111 @@ export function renderMorningBriefSection(
 	lines.push("");
 
 	return lines.join("\n");
+}
+
+export function buildMorningBriefPriorityProjects(input: {
+	events: ExternalSignalEventRecord[];
+	projectIndex: Map<string, string>;
+	activeProjectIds: ReadonlySet<string>;
+	coveredProjectIds: ReadonlySet<string>;
+}): MorningBriefPriorityProject[] {
+	type Draft = MorningBriefPriorityProject & {
+		reasonSet: Set<string>;
+	};
+	const drafts = new Map<string, Draft>();
+
+	function ensureDraft(projectId: string): Draft {
+		const existing = drafts.get(projectId);
+		if (existing) return existing;
+		const draft: Draft = {
+			projectId,
+			projectName: input.projectIndex.get(projectId) ?? projectId,
+			score: 0,
+			riskEvents: 0,
+			watchEvents: 0,
+			infoEvents: 0,
+			coverageGap: false,
+			latestSignalDate: "",
+			reasons: [],
+			reasonSet: new Set<string>(),
+			nextAction: "Review the project and update the next concrete move.",
+		};
+		drafts.set(projectId, draft);
+		return draft;
+	}
+
+	for (const event of input.events) {
+		for (const projectId of event.localProjectIds) {
+			if (!projectId) continue;
+			const draft = ensureDraft(projectId);
+			draft.score += SEVERITY_WEIGHTS[event.severity];
+			if (event.status.toLowerCase().includes("fail")) {
+				draft.score += 5;
+				draft.reasonSet.add("failed external status");
+			}
+			if (event.severity === "Risk") {
+				draft.riskEvents += 1;
+				draft.reasonSet.add("risk signal present");
+			} else if (event.severity === "Watch") {
+				draft.watchEvents += 1;
+				draft.reasonSet.add("watch signal present");
+			} else {
+				draft.infoEvents += 1;
+				draft.reasonSet.add("recent info signal");
+			}
+			if (
+				!draft.latestSignalDate ||
+				event.occurredAt.localeCompare(draft.latestSignalDate) > 0
+			) {
+				draft.latestSignalDate = event.occurredAt;
+			}
+		}
+	}
+
+	for (const projectId of input.activeProjectIds) {
+		if (input.coveredProjectIds.has(projectId)) continue;
+		const draft = drafts.get(projectId);
+		if (!draft) continue;
+		draft.coverageGap = true;
+		draft.score += 4;
+		draft.reasonSet.add(`no signal coverage in ${COVERAGE_GAP_DAYS} days`);
+	}
+
+	for (const draft of drafts.values()) {
+		draft.reasons = [...draft.reasonSet];
+		if (draft.riskEvents > 0) {
+			draft.nextAction =
+				"Investigate the top risk signal and decide whether it needs a repair packet.";
+		} else if (draft.watchEvents > 0) {
+			draft.nextAction =
+				"Review the watch signal and update the project next move if priority changed.";
+		} else if (draft.coverageGap) {
+			draft.nextAction =
+				"Add fresh evidence or explicitly park/defer the project.";
+		}
+	}
+
+	return [...drafts.values()]
+		.filter((draft) => draft.score > 0)
+		.sort((a, b) => {
+			if (b.score !== a.score) return b.score - a.score;
+			const dateCompare = b.latestSignalDate.localeCompare(a.latestSignalDate);
+			if (dateCompare !== 0) return dateCompare;
+			return a.projectName.localeCompare(b.projectName);
+		})
+		.slice(0, MAX_PRIORITY_PROJECTS)
+		.map((draft) => ({
+			projectId: draft.projectId,
+			projectName: draft.projectName,
+			score: draft.score,
+			riskEvents: draft.riskEvents,
+			watchEvents: draft.watchEvents,
+			infoEvents: draft.infoEvents,
+			coverageGap: draft.coverageGap,
+			latestSignalDate: draft.latestSignalDate,
+			reasons: draft.reasons,
+			nextAction: draft.nextAction,
+		}));
 }
 
 function formatFocusPacket(

@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 import type { ExternalSignalEventRecord } from "../src/notion/local-portfolio-external-signals.js";
-import { renderMorningBriefSection } from "../src/notion/morning-brief.js";
+import {
+	buildMorningBriefPriorityProjects,
+	renderMorningBriefSection,
+} from "../src/notion/morning-brief.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,6 +95,8 @@ describe("renderMorningBriefSection — zero events", () => {
 
 	test("Risk section shows 'No risk events' message when there are no events", () => {
 		const section = renderMorningBriefSection(baseInput({ events: [] }));
+		expect(section).toContain("### Priority Projects");
+		expect(section).toContain("No priority project signals");
 		expect(section).toMatch(/no risk events/i);
 	});
 
@@ -104,6 +109,37 @@ describe("renderMorningBriefSection — zero events", () => {
 			}),
 		);
 		expect(section).toContain("All active projects have signal activity");
+	});
+});
+
+describe("buildMorningBriefPriorityProjects", () => {
+	test("ranks failed risk signals ahead of watch signals and coverage gaps", () => {
+		const priorities = buildMorningBriefPriorityProjects(
+			baseInput({
+				events: [
+					makeEvent({
+						localProjectIds: ["proj-2"],
+						severity: "Watch",
+						status: "slow",
+						title: "Slow deployment",
+					}),
+					makeEvent({
+						localProjectIds: ["proj-1"],
+						severity: "Risk",
+						status: "failed",
+						title: "Build failed",
+					}),
+				],
+				coveredProjectIds: new Set(["proj-1"]),
+			}),
+		);
+
+		expect(priorities[0]?.projectName).toBe("Alpha");
+		expect(priorities[0]?.score).toBeGreaterThan(
+			priorities[1]?.score ?? 0,
+		);
+		expect(priorities[0]?.reasons).toContain("failed external status");
+		expect(priorities.some((p) => p.projectName === "Beta")).toBe(true);
 	});
 });
 

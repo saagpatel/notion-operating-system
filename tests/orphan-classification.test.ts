@@ -4,6 +4,7 @@ import {
 	buildKickoffApprovalRequestDraft,
 	buildKickoffPacketDraft,
 	classifyOrphan,
+	getGovernedOrphanAction,
 } from "../src/notion/orphan-classification.js";
 
 // ---------------------------------------------------------------------------
@@ -139,6 +140,29 @@ describe("classifyOrphan — result fields", () => {
 		expect(result.category).toBe("Tool");
 		expect(result.portfolioCall).toBe("Worth Finishing");
 		expect(result.currentState).toBe("Active");
+	});
+});
+
+describe("getGovernedOrphanAction", () => {
+	test("returns the approval-backed next step for viable orphan projects", () => {
+		const result = classifyOrphan(baseProject({ category: "Feature" }), TODAY);
+		expect(getGovernedOrphanAction(result)).toBe(
+			"Request approval for a kickoff packet",
+		);
+	});
+
+	test("returns a status-change approval warning for archive candidates", () => {
+		const result = classifyOrphan(
+			baseProject({
+				category: "Experiment",
+				lastActive: "",
+				lastBuildSessionDate: "",
+			}),
+			TODAY,
+		);
+		expect(getGovernedOrphanAction(result)).toBe(
+			"Request archive/defer approval before status changes",
+		);
 	});
 });
 

@@ -118,6 +118,7 @@ describe("renderTrendReport", () => {
 			}),
 		];
 		const report = renderTrendReport(snaps, TODAY);
+		expect(report).toContain("Portfolio Movement");
 		expect(report).toContain("No anomalies detected.");
 		expect(report).not.toContain("Queue Changes");
 	});
@@ -132,9 +133,43 @@ describe("renderTrendReport", () => {
 		];
 		const report = renderTrendReport(snaps, TODAY);
 		expect(report).toContain("Queue Changes");
+		expect(report).toContain("Portfolio Movement");
 		expect(report).toContain("Worth Finishing");
 		expect(report).toContain("Resume Now");
 		expect(report).not.toContain("No anomalies detected.");
+	});
+
+	test("latest two snapshot dates → portfolio movement table shows metric deltas", () => {
+		const snaps = [
+			makeSnap({
+				projectId: "proj-1",
+				snapshotDate: "2026-04-09",
+				evidenceFreshness: "Fresh",
+				recommendationScore: 2,
+				openPrCount: 0,
+			}),
+			makeSnap({
+				projectId: "proj-1",
+				snapshotDate: "2026-04-10",
+				evidenceFreshness: "Stale",
+				recommendationScore: 4,
+				openPrCount: 1,
+			}),
+			makeSnap({
+				projectId: "proj-2",
+				projectTitle: "Second Project",
+				snapshotDate: "2026-04-10",
+				evidenceFreshness: "Fresh",
+				recommendationScore: 6,
+				openPrCount: 0,
+			}),
+		];
+		const report = renderTrendReport(snaps, TODAY);
+		expect(report).toContain("Comparing 2026-04-09 to 2026-04-10");
+		expect(report).toContain("| Projects tracked | 1 | 2 | +1 |");
+		expect(report).toContain("| Stale evidence | 0 | 1 | +1 |");
+		expect(report).toContain("| Open PRs | 0 | 1 | +1 |");
+		expect(report).toContain("| Average recommendation score | 2.0 | 5.0 | +3.0 |");
 	});
 
 	test("3 consecutive stale entries → sustained stale section appears", () => {
@@ -152,6 +187,18 @@ describe("renderTrendReport", () => {
 	test("2 consecutive stale entries → sustained stale section does NOT appear", () => {
 		const snaps = [
 			makeSnap({ snapshotDate: "2026-04-09", evidenceFreshness: "Stale" }),
+			makeSnap({ snapshotDate: "2026-04-10", evidenceFreshness: "Stale" }),
+		];
+		const report = renderTrendReport(snaps, TODAY);
+		expect(report).not.toContain("Sustained Stale Evidence");
+		expect(report).toContain("No anomalies detected.");
+	});
+
+	test("same-day duplicate stale snapshots count as one trend observation", () => {
+		const snaps = [
+			makeSnap({ snapshotDate: "2026-04-09", evidenceFreshness: "Fresh" }),
+			makeSnap({ snapshotDate: "2026-04-10", evidenceFreshness: "Stale" }),
+			makeSnap({ snapshotDate: "2026-04-10", evidenceFreshness: "Stale" }),
 			makeSnap({ snapshotDate: "2026-04-10", evidenceFreshness: "Stale" }),
 		];
 		const report = renderTrendReport(snaps, TODAY);

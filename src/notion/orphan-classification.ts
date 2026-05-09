@@ -153,6 +153,18 @@ export function classifyOrphan(
 	};
 }
 
+export function getGovernedOrphanAction(
+	result: OrphanClassificationResult,
+): string {
+	if (result.disposition === "already_parked") {
+		return "No action";
+	}
+	if (result.disposition === "archive_candidate") {
+		return "Request archive/defer approval before status changes";
+	}
+	return "Request approval for a kickoff packet";
+}
+
 function renderMarkdownTable(
 	results: OrphanClassificationResult[],
 	today: string,
@@ -162,8 +174,8 @@ function renderMarkdownTable(
 	const lines: string[] = [
 		`## Orphan Classification — ${today}`,
 		"",
-		"| Project | Category | Portfolio Call | Last Active | Disposition | Reason |",
-		"|---|---|---|---|---|---|",
+		"| Project | Category | Portfolio Call | Last Active | Disposition | Reason | Governed Action |",
+		"|---|---|---|---|---|---|---|",
 	];
 
 	for (const r of visible) {
@@ -173,13 +185,21 @@ function renderMarkdownTable(
 				? "Archive Candidate"
 				: "Viable — Needs Kickoff";
 		lines.push(
-			`| ${r.projectTitle} | ${r.category} | ${r.portfolioCall} | ${lastActive} | ${disposition} | ${r.reason} |`,
+			`| ${r.projectTitle} | ${r.category} | ${r.portfolioCall} | ${lastActive} | ${disposition} | ${r.reason} | ${getGovernedOrphanAction(r)} |`,
 		);
 	}
 
 	if (visible.length === 0) {
-		lines.push("| — | — | — | — | — | No orphan projects requiring action. |");
+		lines.push("| — | — | — | — | — | No orphan projects requiring action. | — |");
 	}
+
+	lines.push(
+		"",
+		"### Governed Next Commands",
+		"",
+		"- Request approvals: `npm run governance:orphan-classify -- --live --request-approval`",
+		"- Create approved kickoff packets: `npm run governance:orphan-classify -- --live --create-approved-packets`",
+	);
 
 	return lines.join("\n");
 }

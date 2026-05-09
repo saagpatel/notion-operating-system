@@ -9,7 +9,8 @@ Updated: 2026-05-09
 
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
-- The May 9 Notion maintenance work is complete: Dependabot updates are merged, the full fast weekly refresh converged cleanly, and the Command Center destination now points at the current live page.
+- The May 9 Notion maintenance work is complete: Dependabot updates are merged, the targeted cleanup lanes are clean, and the Command Center destination now points at the current live page. Earlier in the day the full fast weekly refresh converged cleanly; after the Phase 10C live writes, execution and intelligence were repaired back to clean while Command Center and weekly review packet still show content-only drift after successful writes.
+- The May 9 Phase 10C operator-surface pass is complete: morning brief priority ranking, governed orphan actions, deduped trend movement, live weekly sections, approved orphan kickoff packets, and a Command Center refresh are now in place.
 - The May 4 Notion maintenance work is complete: Intelligence, Execution, and External Signal generated briefs now converge through dedicated Notion databases instead of project-page markdown writes.
 - The weekly refresh fast path is now clean across all six lanes and includes compact per-lane timing output.
 - The next Notion-only product focus is stale-active rescue, Command Center readability, weekly recovery guidance, and governed-action operator clarity.
@@ -22,7 +23,14 @@ Updated: 2026-05-09
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
-- `npm run maintenance:weekly-refresh -- --fast --summary-first --today 2026-05-09` passed on 2026-05-09 with 6 clean lanes, 0 drift, 0 failed steps, and `needsLiveWrite=false`.
+- `npm run maintenance:weekly-refresh -- --fast --summary-first --today 2026-05-09` passed earlier on 2026-05-09 with 6 clean lanes, 0 drift, 0 failed steps, and `needsLiveWrite=false`; a later post-Phase-10C dry run found 4 drift lanes, with no failed steps.
+- `npm run signals:morning-brief -- --today 2026-05-09 --lookback-days 7 --live` patched the weekly review on 2026-05-09 with a ranked Priority Projects section. Current top risk projects were ApplyKit and AuraForge.
+- `npm run governance:orphan-classify -- --today 2026-05-09 --live --request-approval --approve --create-approved-packets` created or refreshed 5 approved orphan kickoff requests and 5 work packets on 2026-05-09.
+- `npm run control-tower:trend-analysis -- --today 2026-05-09 --live` patched the weekly review on 2026-05-09 with portfolio movement, queue changes, and deduped sustained-stale evidence.
+- `npm run execution:sync -- --today 2026-05-09 --project-limit 50 --project-concurrency 2 --live` refreshed 43 execution briefs, and the follow-up dry run returned clean.
+- `npm run intelligence:sync -- --today 2026-05-09 --project-limit 60 --project-concurrency 2 --live` refreshed 48 recommendation briefs, and the follow-up dry run returned clean.
+- `npm run control-tower:review-packet -- --today 2026-05-09 --live` refreshed the weekly review packet successfully; the immediate dry-run still reported weekly-review content drift, so the Phase 10 morning brief and trend sections were reapplied live afterward.
+- `npm run control-tower:sync -- --today 2026-05-09 --live` refreshed the Command Center after the Phase 10C live writes. A follow-up dry run had 0 derived-row changes and only Command Center content drift remaining.
 - `npm run control-tower:repo-mapping-audit -- --limit 50 --include-all-gaps --live-normalize-local-paths` and the follow-on decision pass completed on 2026-05-09; the current queue is 0 decision rows, 0 local mapping gaps, 0 GitHub mapping gaps, and 0 attention rows.
 - `npm run control-tower:stale-active-rescue -- --limit 10` returned clean on 2026-05-09 after the decision closeout pass refreshed active review evidence.
 - `npm run control-tower:sync -- --today 2026-05-09 --live` refreshed the Command Center after the closeout pass; a follow-up dry run had 0 derived-row changes and only Command Center content drift remaining.
