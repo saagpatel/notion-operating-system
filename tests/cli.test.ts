@@ -130,6 +130,14 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--stream-child-output");
   });
 
+  test("control tower exposes stale active rescue reporting", async () => {
+    const help = await runCliForTest(["control-tower", "stale-active-rescue", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("stale-active-rescue");
+    expect(help.stdout).toContain("--limit <count>");
+  });
+
   test("execution and intelligence sync expose project-page batch controls", async () => {
     const executionHelp = await runCliForTest(["execution", "sync", "--help"]);
     const intelligenceHelp = await runCliForTest(["intelligence", "sync", "--help"]);

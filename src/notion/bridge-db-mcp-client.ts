@@ -33,6 +33,12 @@ export interface BridgeDbStatus {
 	unprocessed_shipped_count: number;
 }
 
+export interface ConfirmShippedSyncOptions {
+	activityId: number;
+	downstreamRef: string;
+	notes?: string;
+}
+
 export interface BridgeDbMcpSessionOptions {
 	dbPath?: string;
 }
@@ -44,6 +50,12 @@ export function buildBridgeDbMcpEnvironment(
 	const dbPath = options.dbPath?.trim();
 	if (dbPath) {
 		env["BRIDGE_DB_PATH"] = dbPath;
+	}
+	for (const key of ["BRIDGE_FILE_PATH", "BRIDGE_DB_AUDIT_LOG_PATH"] as const) {
+		const value = process.env[key]?.trim();
+		if (value) {
+			env[key] = value;
+		}
 	}
 	return env;
 }
@@ -135,6 +147,19 @@ export class BridgeDbMcpSession {
 		await this.client.callTool({
 			name: "mark_shipped_processed",
 			arguments: { activity_ids: [id] },
+		});
+	}
+
+	async confirmShippedSync(options: ConfirmShippedSyncOptions): Promise<void> {
+		await this.client.callTool({
+			name: "confirm_shipped_sync",
+			arguments: {
+				caller: "notion_os",
+				activity_id: options.activityId,
+				downstream_system: "notion",
+				downstream_ref: options.downstreamRef,
+				notes: options.notes ?? null,
+			},
 		});
 	}
 

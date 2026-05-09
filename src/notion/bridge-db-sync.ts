@@ -154,13 +154,17 @@ export async function runBridgeDbSyncCommand(
 				},
 			});
 			try {
-				await markRowProcessed(dbPath, row.id);
+				await confirmShippedRowSynced(dbPath, {
+					rowId: row.id,
+					downstreamRef: created.id,
+					notes: `Created Build Log page "${title}" with Session Date ${sessionDate}`,
+				});
 				result.rowsWritten += 1;
 				console.log(`[bridge-db-sync] Written: "${title}" (${created.id})`);
 			} catch (markError) {
 				result.failures += 1;
 				result.notes.push(
-					`Failed to mark row ${row.id} as PROCESSED in bridge-db — it will be re-processed on next run: ${toErrorMessage(markError)}`,
+					`Failed to confirm shipped row ${row.id} in bridge-db — it will be re-processed on next run: ${toErrorMessage(markError)}`,
 				);
 			}
 		} catch (error) {
@@ -353,6 +357,34 @@ export async function markRowProcessed(
 	const session = await BridgeDbMcpSession.open({ dbPath });
 	try {
 		await session.markProcessed(rowId);
+	} finally {
+		await session.close();
+	}
+}
+
+export interface ConfirmShippedRowSyncedOptions {
+	rowId: number;
+	downstreamRef: string;
+	notes?: string;
+}
+
+/**
+ * Record downstream Notion proof for a SHIPPED row and mark it PROCESSED.
+ * Throws on failure so callers can catch and retry the row later.
+ * @param dbPath - bridge.db path forwarded to the MCP subprocess
+ * @param options - activity row and durable downstream Notion proof
+ */
+export async function confirmShippedRowSynced(
+	dbPath: string,
+	options: ConfirmShippedRowSyncedOptions,
+): Promise<void> {
+	const session = await BridgeDbMcpSession.open({ dbPath });
+	try {
+		await session.confirmShippedSync({
+			activityId: options.rowId,
+			downstreamRef: options.downstreamRef,
+			...(options.notes ? { notes: options.notes } : {}),
+		});
 	} finally {
 		await session.close();
 	}

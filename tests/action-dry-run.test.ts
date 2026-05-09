@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, test } from "vitest";
 
 import {
+  buildActionDryRunOperatorSummary,
   evaluateActionDryRunReadiness,
   prepareActionDryRun,
 } from "../src/notion/action-dry-run.js";
@@ -91,6 +92,27 @@ describe("action dry run hardening", () => {
     expect(readiness.validationNotes).toContain("Request is not approved.");
     expect(readiness.validationNotes).toContain("Payload body is missing.");
     expect(readiness.validationNotes).toContain("Target GitHub source is not resolved.");
+  });
+
+  test("summarizes the operator next step for blocked dry runs", async () => {
+    const request = baseRequest({ status: "Draft", payloadBody: "" });
+    const summary = buildActionDryRunOperatorSummary({
+      request,
+      actionKey: "github.create_issue",
+      preparation: {
+        target: null,
+        payload: null,
+        idempotencyKey: "",
+        preparationError: "Permission Failure: forbidden",
+      },
+      validationNotes: ["Request is not approved."],
+      readyForLive: false,
+    });
+
+    expect(summary.status).toBe("blocked");
+    expect(summary.target).toBe("unresolved target");
+    expect(summary.nextStep).toContain("preflight blocker");
+    expect(summary.safetyNotes).toContain("Request is not approved.");
   });
 
   test("moves to ready-for-live when the dry run is valid and credentials exist", async () => {

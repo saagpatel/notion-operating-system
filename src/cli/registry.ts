@@ -26,6 +26,7 @@ import { runProviderExpansionAuditCommand } from "../notion/provider-expansion-a
 import { runRecommendationRunCommand } from "../notion/recommendation-run.js";
 import { runReviewPacketCommand } from "../notion/review-packet.js";
 import { runSchemaReportCommand } from "../notion/schema-report.js";
+import { runStaleActiveRescueCommand } from "../notion/stale-active-rescue.js";
 import { runTrendAnalysisCommand } from "../notion/snapshot-history.js";
 import { runVercelRolloutReadinessCommand } from "../notion/vercel-rollout-readiness.js";
 import { runExecutionViewsValidateCommand } from "../notion/validate-local-portfolio-execution-views.js";
@@ -560,6 +561,29 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+				}),
+		),
+		buildConfigCommand(
+			"stale-active-rescue",
+			"Report stale Active Build projects with reasons and next actions.",
+			[
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "limit",
+					description: "Maximum number of stale active projects to include in the detailed list.",
+					type: "number",
+					valueName: "count",
+				},
+			],
+			({ parsed }) =>
+				runStaleActiveRescueCommand({
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					limit: asNumber(parsed.options.limit),
 				}),
 		),
 	]),

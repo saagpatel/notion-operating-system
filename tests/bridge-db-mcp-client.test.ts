@@ -18,6 +18,7 @@ import {
 	parseBridgeDbToolResult,
 } from "../src/notion/bridge-db-mcp-client.js";
 import {
+	confirmShippedRowSynced,
 	markRowProcessed,
 	readShippedRows,
 } from "../src/notion/bridge-db-sync.js";
@@ -48,7 +49,18 @@ function makeSession() {
 		getShippedEvents: vi
 			.fn<() => Promise<ShippedEvent[]>>()
 			.mockResolvedValue([]),
-		markProcessed: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+		markProcessed: vi
+			.fn<(id: number) => Promise<void>>()
+			.mockResolvedValue(undefined),
+		confirmShippedSync: vi
+			.fn<
+				(options: {
+					activityId: number;
+					downstreamRef: string;
+					notes?: string;
+				}) => Promise<void>
+			>()
+			.mockResolvedValue(undefined),
 		getStatus: vi
 			.fn<() => Promise<BridgeDbStatus>>()
 			.mockResolvedValue(makeStatus()),
@@ -197,6 +209,61 @@ describe("markRowProcessed", () => {
 });
 
 // ---------------------------------------------------------------------------
+// confirmShippedRowSynced
+// ---------------------------------------------------------------------------
+
+describe("confirmShippedRowSynced", () => {
+	let session: ReturnType<typeof makeSession>;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		session = makeSession();
+		vi.mocked(BridgeDbMcpSession.open).mockResolvedValue(
+			session as unknown as BridgeDbMcpSession,
+		);
+	});
+
+	test("opens a session, records downstream proof, and closes", async () => {
+		await confirmShippedRowSynced("/custom/bridge.db", {
+			rowId: 123,
+			downstreamRef: "notion-page-123",
+			notes: "Created Build Log page",
+		});
+
+		expect(BridgeDbMcpSession.open).toHaveBeenCalledWith({
+			dbPath: "/custom/bridge.db",
+		});
+		expect(session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 123,
+			downstreamRef: "notion-page-123",
+			notes: "Created Build Log page",
+		});
+		expect(session.close).toHaveBeenCalledOnce();
+	});
+
+	test("closes session even when confirmShippedSync throws", async () => {
+		session.confirmShippedSync.mockRejectedValue(new Error("receipt failed"));
+
+		await expect(
+			confirmShippedRowSynced("/ignored/path", {
+				rowId: 99,
+				downstreamRef: "page-99",
+			}),
+		).rejects.toThrow("receipt failed");
+		expect(session.close).toHaveBeenCalledOnce();
+	});
+
+	test("resolves without error on success", async () => {
+		await expect(
+			confirmShippedRowSynced("/ignored/path", {
+				rowId: 1,
+				downstreamRef: "page-1",
+			}),
+		).resolves.toBeUndefined();
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Tool result parsing helpers
 // ---------------------------------------------------------------------------
 
@@ -247,6 +314,20 @@ describe("bridge-db MCP result parsing", () => {
 
 		expect(env["BRIDGE_DB_PATH"]).toBe("/custom/bridge.db");
 	});
+
+	test("threads bridge export and audit path overrides into the MCP subprocess", () => {
+		vi.stubEnv("BRIDGE_FILE_PATH", " /tmp/proof-bridge.md ");
+		vi.stubEnv("BRIDGE_DB_AUDIT_LOG_PATH", " /tmp/proof-audit.jsonl ");
+
+		try {
+			const env = buildBridgeDbMcpEnvironment();
+
+			expect(env["BRIDGE_FILE_PATH"]).toBe("/tmp/proof-bridge.md");
+			expect(env["BRIDGE_DB_AUDIT_LOG_PATH"]).toBe("/tmp/proof-audit.jsonl");
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -264,6 +345,7 @@ describe("BridgeDbMcpSession interface", () => {
 		expect(s).toBeDefined();
 		expect(typeof s.getShippedEvents).toBe("function");
 		expect(typeof s.markProcessed).toBe("function");
+		expect(typeof s.confirmShippedSync).toBe("function");
 		expect(typeof s.getStatus).toBe("function");
 		expect(typeof s.logActivity).toBe("function");
 		expect(typeof s.close).toBe("function");

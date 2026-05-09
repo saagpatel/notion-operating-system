@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-05-04
+Updated: 2026-05-09
 
 ## Current Phase
 - Phase: 10 - Signal Wiring and Intelligence Layer
@@ -9,8 +9,10 @@ Updated: 2026-05-04
 
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
+- The May 9 Notion maintenance work is complete: Dependabot updates are merged, the full fast weekly refresh converged cleanly, and the Command Center destination now points at the current live page.
 - The May 4 Notion maintenance work is complete: Intelligence, Execution, and External Signal generated briefs now converge through dedicated Notion databases instead of project-page markdown writes.
 - The weekly refresh fast path is now clean across all six lanes and includes compact per-lane timing output.
+- The next Notion-only product focus is stale-active rescue, Command Center readability, weekly recovery guidance, and governed-action operator clarity.
 - Weekly `--fast` uses bounded project brief write concurrency and can be tuned with `--project-concurrency`.
 - That cleanup and hardening work is now merged reality, not an in-progress branch posture.
 - The shared CLI plus modern npm aliases are now the intended public operator surface.
@@ -20,6 +22,10 @@ Updated: 2026-05-04
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run maintenance:weekly-refresh -- --fast --summary-first --today 2026-05-09` passed on 2026-05-09 with 6 clean lanes, 0 drift, 0 failed steps, and `needsLiveWrite=false`.
+- `npm audit --json` passed on 2026-05-09 with 0 vulnerabilities after the dependency PR merge sequence.
+- `npm run typecheck`, `npm test`, and `npm run build` passed on 2026-05-09 after dependency cleanup and before the May 9 maintenance config PR was merged.
+- The May 9 productization pass added a read-only stale-active rescue report, clearer Command Center attention/stale-active summaries, weekly recovery-plan hints, and action dry-run operator summaries.
 - `npm run maintenance:weekly-refresh -- --fast --today 2026-05-04` passed on 2026-05-04 with 6 clean lanes, 0 drift, 0 failed steps, and timing output. The proof run took 144 seconds; `external-signals` was the longest lane at 63 seconds, followed by `intelligence-sync` at 50 seconds.
 - `npm test` passed on 2026-05-04 with 48 files and 329 tests.
 - `npm run typecheck` passed on 2026-05-04.
@@ -74,7 +80,7 @@ Updated: 2026-05-04
 - Overdue reviews: 90
 - Missing next moves: 1
 - Missing last active: 4
-- Stale active projects: 1
+- Stale active projects: 44
 - Orphaned projects: 6
 - Recent build sessions: 0
 
@@ -114,6 +120,7 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
 - Avoid adding a second overlapping status system beyond the manual fields and the three derived PM signals.
 - Keep command-center pages light and linked-view oriented instead of embedding many full databases.
 - Keep the repo as the canonical memory so phase transitions do not depend on chat history.
+- Treat stale-active rescue as an operator triage lane, not as automatic project-status mutation.
 
 ## Phase Roadmap
 ### Phase 1: Project Control Tower
@@ -242,7 +249,7 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - Morning brief command: daily signal digest patched onto the weekly review page
   - Orphan classification command: deterministic rule-based bucketing of projects with no linked records
   - Historical trending via JSONL snapshots: queue-change and stale-evidence detection
-  - Phase 10A audit fixes: markRowProcessed propagation, normalizeProviderKey coverage, JSONL windowing, empty full_name guard
+  - Phase 10A audit fixes: receipt-backed bridge-db shipped-row confirmation, normalizeProviderKey coverage, JSONL windowing, empty full_name guard
 - Exit criteria:
   - All three local adapters emit events that appear in the External Signal Events database
   - Morning brief dry-run produces a valid severity-grouped markdown section

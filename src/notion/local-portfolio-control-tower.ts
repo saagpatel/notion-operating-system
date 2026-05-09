@@ -613,6 +613,23 @@ export interface ControlTowerBuildSessionRecord {
 	localProjectIds: string[];
 }
 
+export type StaleActiveRescueReason =
+	| "missing-next-move"
+	| "missing-last-active"
+	| "overdue-review"
+	| "no-build-evidence"
+	| "thin-support"
+	| "low-confidence"
+	| "stale-evidence";
+
+export interface StaleActiveRescueItem {
+	project: ControlTowerProjectRecord;
+	reason: StaleActiveRescueReason;
+	priority: "high" | "medium" | "low";
+	nextAction: string;
+	evidence: string[];
+}
+
 export interface ReviewPacketContext {
 	weekTitle: string;
 	compareStartDate: string;
@@ -904,6 +921,163 @@ export function sortProjectsForResumeNow(
 	});
 }
 
+export function isStaleActiveProject(
+	project: ControlTowerProjectRecord,
+): boolean {
+	return (
+		project.currentState === "Active Build" &&
+		(project.evidenceFreshness ?? "Stale") === "Stale"
+	);
+}
+
+export function buildStaleActiveRescueItems(
+	projects: ControlTowerProjectRecord[],
+	today: string,
+): StaleActiveRescueItem[] {
+	return sortProjectsByRecent(projects.filter(isStaleActiveProject)).map(
+		(project) => buildStaleActiveRescueItem(project, today),
+	);
+}
+
+export function buildStaleActiveRescueItem(
+	project: ControlTowerProjectRecord,
+	today: string,
+): StaleActiveRescueItem {
+	const reason = classifyStaleActiveReason(project, today);
+	const priority = rankStaleActivePriority(reason);
+	return {
+		project,
+		reason,
+		priority,
+		nextAction: recommendStaleActiveAction(reason, project),
+		evidence: buildStaleActiveEvidence(project, today),
+	};
+}
+
+export function summarizeStaleActiveRescue(
+	items: StaleActiveRescueItem[],
+): Record<StaleActiveRescueReason, number> {
+	const counts: Record<StaleActiveRescueReason, number> = {
+		"missing-next-move": 0,
+		"missing-last-active": 0,
+		"overdue-review": 0,
+		"no-build-evidence": 0,
+		"thin-support": 0,
+		"low-confidence": 0,
+		"stale-evidence": 0,
+	};
+	for (const item of items) {
+		counts[item.reason] += 1;
+	}
+	return counts;
+}
+
+function classifyStaleActiveReason(
+	project: ControlTowerProjectRecord,
+	today: string,
+): StaleActiveRescueReason {
+	if (!project.nextMove.trim()) {
+		return "missing-next-move";
+	}
+	if (!project.lastActive.trim()) {
+		return "missing-last-active";
+	}
+	if (project.nextReviewDate && compareIsoDate(project.nextReviewDate, today) <= 0) {
+		return "overdue-review";
+	}
+	if (project.buildSessionCount === 0) {
+		return "no-build-evidence";
+	}
+	if (
+		project.relatedResearchCount === 0 &&
+		project.supportingSkillsCount === 0 &&
+		project.linkedToolCount === 0
+	) {
+		return "thin-support";
+	}
+	if (project.evidenceConfidence && project.evidenceConfidence !== "High") {
+		return "low-confidence";
+	}
+	return "stale-evidence";
+}
+
+function rankStaleActivePriority(
+	reason: StaleActiveRescueReason,
+): StaleActiveRescueItem["priority"] {
+	switch (reason) {
+		case "missing-next-move":
+		case "missing-last-active":
+		case "overdue-review":
+			return "high";
+		case "no-build-evidence":
+		case "thin-support":
+		case "low-confidence":
+			return "medium";
+		case "stale-evidence":
+			return "low";
+	}
+}
+
+function recommendStaleActiveAction(
+	reason: StaleActiveRescueReason,
+	project: ControlTowerProjectRecord,
+): string {
+	switch (reason) {
+		case "missing-next-move":
+			return "Add one concrete Next Move before changing status.";
+		case "missing-last-active":
+			return "Verify recent evidence and set Last Active or downgrade the active status.";
+		case "overdue-review":
+			return "Run an operator review and decide resume, defer, or archive.";
+		case "no-build-evidence":
+			return "Add a build-log entry or move this to planning/cold storage.";
+		case "thin-support":
+			return "Link supporting research, skill, or tool evidence before keeping it active.";
+		case "low-confidence":
+			return `Refresh evidence confidence${project.evidenceConfidence ? ` from ${project.evidenceConfidence}` : ""}.`;
+		case "stale-evidence":
+			return "Refresh activity evidence or move it out of Active Build.";
+	}
+}
+
+function buildStaleActiveEvidence(
+	project: ControlTowerProjectRecord,
+	today: string,
+): string[] {
+	const evidence: string[] = [];
+	evidence.push(`freshness=${project.evidenceFreshness ?? "Stale"}`);
+	evidence.push(project.lastActive ? `lastActive=${project.lastActive}` : "lastActive=missing");
+	evidence.push(project.nextReviewDate ? `nextReviewDate=${project.nextReviewDate}` : "nextReviewDate=missing");
+	if (project.nextReviewDate && compareIsoDate(project.nextReviewDate, today) <= 0) {
+		evidence.push("review=overdue");
+	}
+	evidence.push(`buildSessions=${project.buildSessionCount}`);
+	evidence.push(`supportLinks=${project.relatedResearchCount + project.supportingSkillsCount + project.linkedToolCount}`);
+	if (project.evidenceConfidence) {
+		evidence.push(`confidence=${project.evidenceConfidence}`);
+	}
+	return evidence;
+}
+
+function formatStaleReason(reason: StaleActiveRescueReason): string {
+	switch (reason) {
+		case "missing-next-move":
+			return "missing next move";
+		case "missing-last-active":
+			return "missing last active";
+		case "overdue-review":
+			return "overdue review";
+		case "no-build-evidence":
+			return "no build evidence";
+		case "thin-support":
+			return "thin support";
+		case "low-confidence":
+			return "low confidence";
+		case "stale-evidence":
+			return "stale evidence";
+	}
+}
+
 export function renderCommandCenterMarkdown(input: {
 	generatedAt: string;
 	metrics: ControlTowerMetrics;
@@ -933,11 +1107,10 @@ export function renderCommandCenterMarkdown(input: {
 	).slice(0, 8);
 	const staleActive = sortProjectsByRecent(
 		input.projects.filter(
-			(project) =>
-				project.currentState === "Active Build" &&
-				project.evidenceFreshness === "Stale",
+			(project) => isStaleActiveProject(project),
 		),
 	).slice(0, 8);
+	const staleRescueItems = buildStaleActiveRescueItems(input.projects, input.today);
 	const orphaned = sortProjectsByRecent(
 		input.projects.filter(
 			(project) =>
@@ -954,6 +1127,9 @@ export function renderCommandCenterMarkdown(input: {
 		`Updated: ${input.generatedAt}`,
 		"",
 		renderFreshnessByLayerSection(input.config),
+		"",
+		"## Today's Attention",
+		...renderCommandCenterAttention(input.metrics),
 		"",
 		"## Baseline Health Snapshot",
 		`- Total projects: ${input.metrics.totalProjects}`,
@@ -1026,12 +1202,8 @@ export function renderCommandCenterMarkdown(input: {
 		]),
 		"",
 		"## Stale Active Projects",
-		...formatProjectBullets(staleActive, (project) => [
-			project.nextMove || "Next move missing",
-			project.lastActive
-				? `last active ${project.lastActive}`
-				: "last active missing",
-		]),
+		...renderStaleActiveRescueSummary(staleRescueItems),
+		...formatStaleActiveRescueBullets(staleActive, input.today),
 		"",
 		"## Orphaned Projects",
 		...formatProjectBullets(orphaned, () => [
@@ -1171,6 +1343,70 @@ function freshnessLine(label: string, date?: string, suffix?: string): string {
 	const state = date ? date : "Never";
 	const statusSuffix = suffix ? ` (${suffix})` : "";
 	return `- ${label}: ${state}${statusSuffix}`;
+}
+
+function renderCommandCenterAttention(metrics: ControlTowerMetrics): string[] {
+	const attention: string[] = [];
+	if (metrics.staleActiveProjects > 0) {
+		attention.push(
+			`- Stale active rescue is the first portfolio hygiene lane: ${metrics.staleActiveProjects} active projects need evidence, next-move, or status cleanup.`,
+		);
+	}
+	if (metrics.overdueReviews > 0) {
+		attention.push(
+			`- Review pressure is active: ${metrics.overdueReviews} projects are at or past their next review date.`,
+		);
+	}
+	if (metrics.missingNextMove > 0) {
+		attention.push(
+			`- Next-move cleanup is needed: ${metrics.missingNextMove} projects have no operator-actionable next move.`,
+		);
+	}
+	if (metrics.missingLastActive > 0) {
+		attention.push(
+			`- Evidence cleanup is needed: ${metrics.missingLastActive} projects have no Last Active date.`,
+		);
+	}
+	if (attention.length === 0) {
+		attention.push(
+			"- Portfolio hygiene is quiet; use Resume Now and Worth Finishing for the next execution decision.",
+		);
+	}
+	return attention;
+}
+
+function renderStaleActiveRescueSummary(
+	items: StaleActiveRescueItem[],
+): string[] {
+	if (items.length === 0) {
+		return ["- None right now."];
+	}
+	const counts = summarizeStaleActiveRescue(items);
+	const activeCounts = Object.entries(counts)
+		.filter(([, count]) => count > 0)
+		.map(([reason, count]) => `${formatStaleReason(reason as StaleActiveRescueReason)} ${count}`);
+	return [
+		`- Rescue queue: ${items.length} active projects with stale evidence.`,
+		`- Main reasons: ${activeCounts.join("; ")}.`,
+		"- Default move: verify evidence first, then update Next Move or move the project out of Active Build.",
+	];
+}
+
+function formatStaleActiveRescueBullets(
+	projects: ControlTowerProjectRecord[],
+	today: string,
+): string[] {
+	if (projects.length === 0) {
+		return [];
+	}
+	return formatProjectBullets(projects, (project) => {
+		const item = buildStaleActiveRescueItem(project, today);
+		return [
+			`${item.priority} priority`,
+			formatStaleReason(item.reason),
+			item.nextAction,
+		];
+	});
 }
 
 export function buildTopPriorities(

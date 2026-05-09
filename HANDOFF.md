@@ -18,6 +18,7 @@
   - the 2026-04-23 dependency cleanup merged the GitHub Actions, production dependency, TypeScript/Node types, and Vitest updates; `dotenv` 17 output is silenced through the repo loader so JSON CLI output stays parseable
   - the 2026-04-23 branch cleanup deleted fully merged stale remote refs and local feature refs; only `origin/main` remains as a remote branch after pruning
   - the 2026-05-04 Notion maintenance pass is complete: generated Intelligence, Execution, and External Signal project briefs now store in dedicated Notion databases with hash-based convergence; the May 4 weekly refresh is clean across all six lanes; weekly review title/body convergence is fixed; `--fast` now has bounded project-write concurrency and compact per-lane timing summaries
+  - the 2026-05-09 maintenance pass is complete: dependency PRs were merged, the final fast weekly refresh reported `clean=6` and `needsLiveWrite=false`, and the active product follow-up is now stale-active rescue plus operator-surface polish
 
 ## Structural work completed
 
@@ -76,6 +77,7 @@ Current confidence state:
 - the 2026-05-04 Notion maintenance closeout verified the full fast weekly dry-run with `clean=6`, `drift=0`, `failed=0`, targeted and full test suites, typecheck, and remote sync
 - the 2026-05-04 speed pass added bounded project brief write concurrency through `--project-concurrency`; weekly `--fast` defaults to concurrency `2` while direct lane commands can dial it back to `1`
 - the 2026-05-04 observability pass added compact timing output to weekly `--fast` summaries, including total runtime, longest lane, sorted lane timings, and slow-lane callouts
+- the 2026-05-09 productization pass added `control-tower stale-active-rescue`, richer Command Center attention and stale-active rescue summaries, recovery-plan hints in weekly refresh summaries, and operator summaries in governed action dry-runs
 - hosted Dependabot checks ran successfully on the final merged dependency heads; Dependabot's `uuid` advisory workflow still fails as expected because of the accepted `exceljs -> uuid` exception
 - a 2026-04-17 confidence pass also verified:
   - `npm run control-tower:trend-analysis` returns a clean dry-run report
@@ -156,6 +158,7 @@ notion-os --profile sandbox doctor
 npm run sandbox:smoke
 notion-os logs recent
 npm run control-tower:sync
+npm run control-tower:stale-active-rescue
 npm run governance:audit
 npm run signals:sync
 npm run maintenance:weekly-refresh -- --fast
@@ -203,7 +206,7 @@ Sandbox local reality from the 2026-04-17 confidence pass:
 
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
-  - Phase 10 completion and signal-layer productization
+  - stale-active rescue and operator-surface productization
   - watch the weekly timing summary for recurring slow lanes; as of the May 4 proof run, `external-signals` and `intelligence-sync` are the expected slow read-only lanes
   - continue signal-quality follow-through now that execution WIP and project-level external-source coverage are clean
   - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
@@ -220,12 +223,13 @@ If resuming from here, do not start with another repo cleanup pass.
 
 Start with one explicit Phase 10 product slice:
 
-1. productize the operator surface on top of the now-proven adapters:
+1. use `npm run control-tower:stale-active-rescue` to classify stale active projects before changing portfolio status
+2. productize the operator surface on top of the now-proven adapters:
    morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
-2. improve signal quality:
+3. improve signal quality:
    resolve explicit `Needs Mapping` source rows where real provider identifiers become available
 
-The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`, and it is no longer managed-markdown convergence recovery. The best next move is operator-surface productization on top of the proven signal lanes, or a narrow signal-quality pass for explicit `Needs Mapping` provider rows.
+The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`, and it is no longer managed-markdown convergence recovery. The best next move is stale-active rescue or another operator-surface product slice on top of the proven lanes.
 
 ## Known assumptions
 
@@ -250,6 +254,7 @@ The correct current posture is:
 - the repo is structurally healthy
 - the cleanup and command-surface simplification pass is complete
 - several Phase 10 dry-run lanes are already usable (`trend-analysis`, `orphan-classify`, `bridge-db status`, `morning-brief`, `signals sync --provider notification_hub`, `signals sync --provider repo_auditor`)
+- `control-tower stale-active-rescue` is the read-only first stop for the current stale active project backlog
 - the sandbox proving lane is healthy again and `npm run sandbox:smoke` passes
 - the `notification-hub` and `repo-auditor` adapters are proven in sandbox live mode and now exercise primary-profile source rows in dry-run mode
 - the next meaningful work should start from one explicit Phase 10 productization slice rather than another broad cleanup sweep
