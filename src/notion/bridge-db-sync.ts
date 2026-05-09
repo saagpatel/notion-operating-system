@@ -29,6 +29,10 @@ export interface BridgeDbSyncOptions {
 	dbPath?: string;
 	/** Maximum rows to process in one run */
 	limit?: number;
+	/** Process only SHIPPED rows and skip personal-ops events. */
+	shippedOnly?: boolean;
+	/** Process only personal-ops events and skip SHIPPED rows. */
+	opsOnly?: boolean;
 }
 
 export interface BridgeDbSyncResult {
@@ -62,6 +66,11 @@ export async function runBridgeDbSyncCommand(
 	const dbPath =
 		options.dbPath ?? process.env["BRIDGE_DB_PATH"] ?? BRIDGE_DB_DEFAULT_PATH;
 	const limit = options.limit ?? 50;
+	if (options.shippedOnly && options.opsOnly) {
+		throw new Error("--shipped-only and --ops-only cannot be used together.");
+	}
+	const processShipped = !options.opsOnly;
+	const processOps = !options.shippedOnly;
 
 	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
@@ -88,14 +97,16 @@ export async function runBridgeDbSyncCommand(
 	);
 
 	// Read unprocessed SHIPPED rows from bridge-db via MCP
-	let entries: ShippedEvent[];
-	try {
-		entries = await readShippedRows(dbPath, limit);
-	} catch (error) {
-		console.error(
-			`[bridge-db-sync] Failed to read bridge.db at ${dbPath}: ${toErrorMessage(error)}`,
-		);
-		return;
+	let entries: ShippedEvent[] = [];
+	if (processShipped) {
+		try {
+			entries = await readShippedRows(dbPath, limit);
+		} catch (error) {
+			console.error(
+				`[bridge-db-sync] Failed to read bridge.db at ${dbPath}: ${toErrorMessage(error)}`,
+			);
+			return;
+		}
 	}
 
 	const result: BridgeDbSyncResult = {
@@ -109,9 +120,13 @@ export async function runBridgeDbSyncCommand(
 		notes: [],
 	};
 
-	console.log(
-		`[bridge-db-sync] Found ${result.rowsFound} unprocessed SHIPPED rows. live=${live}`,
-	);
+	if (processShipped) {
+		console.log(
+			`[bridge-db-sync] Found ${result.rowsFound} unprocessed SHIPPED rows. live=${live}`,
+		);
+	} else {
+		console.log("[bridge-db-sync] Skipping SHIPPED rows (--ops-only).");
+	}
 
 	for (const row of entries) {
 		const localProjectId = resolveProjectId(row.project_name, projectIndex);
@@ -178,77 +193,83 @@ export async function runBridgeDbSyncCommand(
 	// ---------------------------------------------------------------------------
 	// Process personal-ops event rows (TASK_DONE, APPROVAL_SENT, etc.)
 	// ---------------------------------------------------------------------------
-	let opsSession: BridgeDbMcpSession | null = null;
-	try {
-		opsSession = await BridgeDbMcpSession.open({ dbPath });
-		const opsEntries = await opsSession.getPersonalOpsEvents(limit);
-		result.opsRowsFound = opsEntries.length;
-		if (opsEntries.length > 0) {
-			console.log(
-				`[bridge-db-sync] Found ${opsEntries.length} personal-ops event rows. live=${live}`,
-			);
-		}
-		for (const row of opsEntries) {
-			const localProjectId = resolveProjectId(row.project_name, projectIndex);
-			const sessionDate = row.timestamp?.slice(0, 10) ?? today;
-			const title = buildBuildLogTitle(row);
-
-			if (!live) {
+	if (processOps) {
+		let opsSession: BridgeDbMcpSession | null = null;
+		try {
+			opsSession = await BridgeDbMcpSession.open({ dbPath });
+			const opsEntries = await opsSession.getPersonalOpsEvents(limit);
+			result.opsRowsFound = opsEntries.length;
+			if (opsEntries.length > 0) {
 				console.log(
-					`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${localProjectId ? ` → project ${localProjectId}` : " (no project match)"}`,
+					`[bridge-db-sync] Found ${opsEntries.length} personal-ops event rows. live=${live}`,
 				);
-				result.opsRowsWritten += 1;
-				continue;
 			}
+			for (const row of opsEntries) {
+				const localProjectId = resolveProjectId(row.project_name, projectIndex);
+				const sessionDate = row.timestamp?.slice(0, 10) ?? today;
+				const title = buildBuildLogTitle(row);
 
-			try {
-				const created = await api.createPageWithMarkdown({
-					parent: { data_source_id: config.relatedDataSources.buildLogId },
-					properties: {
-						[buildSchema.titlePropertyName]: {
-							title: [{ text: { content: title } }],
-						},
-					},
-					markdown: buildMarkdownBody(row),
-				});
-				const updateProps: Record<string, unknown> = {
-					"Session Date": { date: { start: sessionDate } },
-					Tags: buildTagProperty(row),
-				};
-				if (localProjectId) {
-					updateProps["Local Project"] = relationValue([localProjectId]);
-				}
-				await api.updatePageProperties({
-					pageId: created.id,
-					properties: updateProps,
-				});
-				try {
-					await markRowProcessed(dbPath, row.id);
-					result.opsRowsWritten += 1;
+				if (!live) {
 					console.log(
-						`[bridge-db-sync] Written ops event: "${title}" (${created.id})`,
+						`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${localProjectId ? ` → project ${localProjectId}` : " (no project match)"}`,
 					);
-				} catch (markError) {
+					result.opsRowsWritten += 1;
+					continue;
+				}
+
+				try {
+					const created = await api.createPageWithMarkdown({
+						parent: { data_source_id: config.relatedDataSources.buildLogId },
+						properties: {
+							[buildSchema.titlePropertyName]: {
+								title: [{ text: { content: title } }],
+							},
+						},
+						markdown: buildMarkdownBody(row),
+					});
+					const updateProps: Record<string, unknown> = {
+						"Session Date": { date: { start: sessionDate } },
+						Tags: buildTagProperty(row),
+					};
+					if (localProjectId) {
+						updateProps["Local Project"] = relationValue([localProjectId]);
+					}
+					await api.updatePageProperties({
+						pageId: created.id,
+						properties: updateProps,
+					});
+					try {
+						await markRowProcessed(dbPath, row.id);
+						result.opsRowsWritten += 1;
+						console.log(
+							`[bridge-db-sync] Written ops event: "${title}" (${created.id})`,
+						);
+					} catch (markError) {
+						result.failures += 1;
+						result.notes.push(
+							`Failed to mark ops row ${row.id} as PROCESSED: ${toErrorMessage(markError)}`,
+						);
+					}
+				} catch (error) {
 					result.failures += 1;
 					result.notes.push(
-						`Failed to mark ops row ${row.id} as PROCESSED: ${toErrorMessage(markError)}`,
+						`Failed to write ops row ${row.id} ("${row.project_name}"): ${toErrorMessage(error)}`,
 					);
 				}
-			} catch (error) {
-				result.failures += 1;
-				result.notes.push(
-					`Failed to write ops row ${row.id} ("${row.project_name}"): ${toErrorMessage(error)}`,
-				);
+			}
+		} catch (error) {
+			console.error(
+				`[bridge-db-sync] Failed to read personal-ops events: ${toErrorMessage(error)}`,
+			);
+		} finally {
+			if (opsSession) {
+				await opsSession.close();
 			}
 		}
-	} catch (error) {
-		console.error(
-			`[bridge-db-sync] Failed to read personal-ops events: ${toErrorMessage(error)}`,
+	} else {
+		console.log(
+			"[bridge-db-sync] Skipping personal-ops event rows (--shipped-only).",
 		);
-	} finally {
-		if (opsSession) {
-			await opsSession.close();
-		}
 	}
 
 	// Log activity to bridge-db (best-effort, errors are swallowed in logActivity)
