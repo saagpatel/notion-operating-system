@@ -190,6 +190,57 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledOnce();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
 	});
+
+	test("shippedOnly processes shipped rows without reading personal-ops events", async () => {
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+			shippedOnly: true,
+		});
+
+		expect(bridgeSyncMocks.session.getShippedEvents).toHaveBeenCalledOnce();
+		expect(bridgeSyncMocks.session.getPersonalOpsEvents).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith(
+			expect.objectContaining({ activityId: 123 }),
+		);
+	});
+
+	test("opsOnly processes personal-ops events without reading shipped rows", async () => {
+		bridgeSyncMocks.session.getPersonalOpsEvents.mockResolvedValue([
+			baseRow({
+				id: 456,
+				project_name: "Ghost Routes",
+				summary: "Personal ops task completed.",
+				source: "personal_ops",
+				tags: '["TASK_DONE"]',
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+			opsOnly: true,
+		});
+
+		expect(bridgeSyncMocks.session.getShippedEvents).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.getPersonalOpsEvents).toHaveBeenCalledOnce();
+		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.markProcessed).toHaveBeenCalledWith(456);
+	});
+
+	test("rejects conflicting queue filters", async () => {
+		await expect(
+			runBridgeDbSyncCommand({
+				dbPath: "/tmp/test-bridge.db",
+				shippedOnly: true,
+				opsOnly: true,
+			}),
+		).rejects.toThrow("--shipped-only and --ops-only cannot be used together.");
+	});
 });
 
 // ---------------------------------------------------------------------------

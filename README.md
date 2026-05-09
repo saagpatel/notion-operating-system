@@ -97,7 +97,17 @@ into a decision posture.
 
 This is read-only. It groups stale `Active Build` projects by the most useful first repair reason and returns the next operator move before anyone changes project status.
 
-### 4. Generate the weekly review packet
+### 4. Review the decision queue and repo mappings
+
+```bash
+npm run control-tower:repo-mapping-audit
+```
+
+The repo-mapping audit is read-only. It joins `Needs Decision` rows, local
+repo path evidence under `/Users/d/Projects`, and GitHub external-source
+coverage so mapping cleanup does not depend on stale chat memory.
+
+### 5. Generate the weekly review packet
 
 ```bash
 npm run portfolio-audit:review-packet -- --live
@@ -105,7 +115,7 @@ npm run portfolio-audit:review-packet -- --live
 
 Run this **before** any command that patches the "latest weekly" managed section (signals, recommendations, action-request sync). If the current week's page does not exist yet, those commands land on the wrong weekly page.
 
-### 5. Sync GitHub signals
+### 6. Sync GitHub signals
 
 ```bash
 # Recompute from existing Notion rows (no GitHub fetch)
@@ -182,6 +192,8 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `npm run destinations:resolve` | Resolve and persist Notion IDs for all destinations |
 | `npm run portfolio-audit:control-tower-sync` | Refresh derived PM signals (dry-run) |
 | `npm run control-tower:stale-active-rescue` | Stale Active Build project rescue report and scoped updater; dry-run by default, live only with `--live` |
+| `npm run control-tower:repo-mapping-audit` | Read-only decision queue and repo/source mapping cleanup packet |
+| `npm run bridge-db:sync -- --shipped-only` | Sync only bridge-db `SHIPPED` rows into Build Log; omit the filter to process both queues |
 | `npm run control-tower:schema-report` | Analyze property usage before schema cleanup or deletion |
 | `npm run portfolio-audit:review-packet` | Generate weekly review packet (dry-run) |
 | `npm run portfolio-audit:external-signal-sync -- --provider github --live` | Sync GitHub signals (live) |

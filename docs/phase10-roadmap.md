@@ -125,7 +125,7 @@ Each shipped event maps to:
 
 Bridge-db handoffs → `work_packets` is Phase 2 of this initiative. Lower urgency than the shipped events feed since handoffs are transient.
 
-**Implementation path:** TypeScript adapter `src/notion/bridge-db-sync.ts` reads bridge-db through the MCP server. The default DB path is `~/.local/share/bridge-db/bridge.db`, and `notion-os bridge-db sync --db-path <path>` forwards that override to the subprocess as `BRIDGE_DB_PATH`.
+**Implementation path:** TypeScript adapter `src/notion/bridge-db-sync.ts` reads bridge-db through the MCP server. The default DB path is `~/.local/share/bridge-db/bridge.db`, and `notion-os bridge-db sync --db-path <path>` forwards that override to the subprocess as `BRIDGE_DB_PATH`. Manual proof runs can use `--shipped-only` to avoid processing personal-ops rows, or `--ops-only` for the inverse queue.
 
 ---
 

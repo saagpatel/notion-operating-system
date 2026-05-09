@@ -1,4 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import { describe, expect, test } from "vitest";
 import {
@@ -20,6 +23,9 @@ import {
 	renderWeeklyReviewMarkdown,
 } from "../src/notion/local-portfolio-control-tower.js";
 import { buildStaleActiveRescueUpdatePlan } from "../src/notion/stale-active-rescue.js";
+import { buildRepoMappingAudit } from "../src/notion/repo-mapping-audit.js";
+import type { DataSourcePageRef } from "../src/notion/local-portfolio-control-tower-live.js";
+import type { ExternalSignalSourceRecord } from "../src/notion/local-portfolio-external-signals.js";
 import {
 	ACTUATION_COMMAND_CENTER_SECTION,
 	COMMAND_CENTER_MANAGED_SECTIONS,
@@ -229,6 +235,64 @@ describe("local portfolio control tower rules", () => {
 		expect(plan.properties["Current State"]).toEqual({
 			select: { name: "Needs Decision" },
 		});
+	});
+
+	test("builds the decision queue and repo mapping audit packet", () => {
+		const projectsRoot = mkdtempSync(join(tmpdir(), "notion-repo-audit-"));
+		try {
+			mkdirSync(join(projectsRoot, "MappedProject", ".git"), { recursive: true });
+			mkdirSync(join(projectsRoot, "ScreenshottoDataSelect", ".git"), { recursive: true });
+
+			const result = buildRepoMappingAudit({
+				today: TODAY,
+				projectsRoot,
+				projectPages: [
+					projectPage({
+						id: "needs-decision",
+						title: "MappedProject",
+						currentState: "Needs Decision",
+						localPath: "MappedProject",
+					}),
+					projectPage({
+						id: "missing-repo",
+						title: "Missing Local Repo",
+						currentState: "Active Build",
+						operatingQueue: "Resume Now",
+					}),
+					projectPage({
+						id: "screenshot-annotate",
+						title: "ScreenshotAnnotate",
+						currentState: "Needs Decision",
+					}),
+				],
+				sources: [
+					githubSource({
+						localProjectIds: ["needs-decision"],
+						status: "Active",
+						identifier: "saagpatel/MappedProject",
+						sourceUrl: "https://github.com/saagpatel/MappedProject",
+					}),
+					githubSource({
+						localProjectIds: ["screenshot-annotate"],
+						status: "Needs Mapping",
+					}),
+				],
+			});
+
+			expect(result.decisionQueueCount).toBe(2);
+			expect(result.localMappingGapCount).toBe(2);
+			expect(result.githubMappingGapCount).toBe(2);
+			expect(result.projects.map((project) => project.title)).toEqual([
+				"ScreenshotAnnotate",
+				"MappedProject",
+				"Missing Local Repo",
+			]);
+			expect(result.projects[0]?.localMappingStatus).toBe("ambiguous");
+			expect(result.projects[0]?.repoCandidates[0]).toContain("ScreenshottoDataSelect");
+			expect(result.markdown).toContain("Decision Queue and Repo Mapping Audit");
+		} finally {
+			rmSync(projectsRoot, { recursive: true, force: true });
+		}
 	});
 
 	test("counts only the rows whose derived properties actually changed", async () => {
@@ -530,5 +594,56 @@ function baseProject(
 		operatingQueue: overrides.operatingQueue,
 		nextReviewDate: overrides.nextReviewDate,
 		evidenceFreshness: overrides.evidenceFreshness,
+	};
+}
+
+function projectPage(overrides: {
+	id: string;
+	title: string;
+	currentState: string;
+	operatingQueue?: string;
+	localPath?: string;
+}): DataSourcePageRef {
+	return {
+		id: overrides.id,
+		url: `https://notion.so/${overrides.id}`,
+		title: overrides.title,
+		properties: {
+			"Current State": { type: "select", select: { name: overrides.currentState } },
+			"Operating Queue": {
+				type: "select",
+				select: overrides.operatingQueue ? { name: overrides.operatingQueue } : null,
+			},
+			"Portfolio Call": { type: "select", select: { name: "Finish" } },
+			"Next Move": {
+				type: "rich_text",
+				rich_text: [{ plain_text: "Review the next move" }],
+			},
+			"Local Path": {
+				type: "rich_text",
+				rich_text: overrides.localPath ? [{ plain_text: overrides.localPath }] : [],
+			},
+			"Last Active": { type: "date", date: { start: "2026-03-12" } },
+			"Evidence Freshness": { type: "select", select: { name: "Fresh" } },
+		},
+	};
+}
+
+function githubSource(
+	overrides: Partial<ExternalSignalSourceRecord> = {},
+): ExternalSignalSourceRecord {
+	return {
+		id: overrides.id ?? "source-1",
+		url: overrides.url ?? "https://notion.so/source-1",
+		title: overrides.title ?? "MappedProject - GitHub Repo",
+		localProjectIds: overrides.localProjectIds ?? [],
+		provider: overrides.provider ?? "GitHub",
+		sourceType: overrides.sourceType ?? "Repo",
+		identifier: overrides.identifier ?? "",
+		sourceUrl: overrides.sourceUrl ?? "",
+		status: overrides.status ?? "Needs Mapping",
+		environment: overrides.environment ?? "N/A",
+		syncStrategy: overrides.syncStrategy ?? "Poll",
+		lastSyncedAt: overrides.lastSyncedAt ?? "",
 	};
 }

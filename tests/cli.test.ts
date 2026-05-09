@@ -140,6 +140,23 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--missing-repos-only");
   });
 
+  test("control tower exposes repo mapping audit reporting", async () => {
+    const help = await runCliForTest(["control-tower", "repo-mapping-audit", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("repo-mapping-audit");
+    expect(help.stdout).toContain("--projects-root <path>");
+    expect(help.stdout).toContain("--include-all-gaps");
+  });
+
+  test("bridge-db sync exposes queue filters", async () => {
+    const help = await runCliForTest(["bridge-db", "sync", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("--shipped-only");
+    expect(help.stdout).toContain("--ops-only");
+  });
+
   test("execution and intelligence sync expose project-page batch controls", async () => {
     const executionHelp = await runCliForTest(["execution", "sync", "--help"]);
     const intelligenceHelp = await runCliForTest(["intelligence", "sync", "--help"]);

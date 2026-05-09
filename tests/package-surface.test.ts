@@ -40,6 +40,9 @@ describe("package surface", () => {
       "tsx src/cli.ts control-tower export-project-snapshot",
     );
     expect(packageJson.scripts["control-tower:schema-report"]).toBe("tsx src/cli.ts control-tower schema-report");
+    expect(packageJson.scripts["control-tower:repo-mapping-audit"]).toBe(
+      "tsx src/cli.ts control-tower repo-mapping-audit",
+    );
     expect(packageJson.scripts["governance:audit"]).toBe("tsx src/cli.ts governance audit");
     expect(packageJson.scripts["signals:sync"]).toBe("tsx src/cli.ts signals sync");
     expect(packageJson.scripts["rollout:operational"]).toBe("tsx src/cli.ts rollout operational");
