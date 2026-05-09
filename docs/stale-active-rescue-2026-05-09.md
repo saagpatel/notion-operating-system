@@ -105,6 +105,8 @@ The Command Center was refreshed live after the rescue updates. Post-refresh ver
 
 ## Follow-Up Checks
 
-- Run the rescue command again after the next live update batch; success means the stale count continues dropping and the remaining list becomes mostly true defers or mapping repairs.
+- Final live rescue pass updated the remaining 20 stale active rows.
+- Final Command Center refresh completed with stale active projects at 0.
+- Final rescue verification returned `status=clean` and `totalStaleActiveProjects=0`.
 - Keep this separate from Coordination Snapshot until Personal Ops owns that contract.
 - Do not run the full weekly live refresh as the first repair action; this is a targeted rescue lane.
