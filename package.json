@@ -84,6 +84,7 @@
 		"signals:activity-refresh": "tsx src/cli.ts signals activity-refresh",
 		"signals:views-validate": "tsx src/cli.ts signals views-validate",
 		"signals:provider-expansion-audit": "tsx src/cli.ts signals provider-expansion-audit",
+		"signals:coordination-snapshot": "tsx src/cli.ts signals coordination-snapshot",
 		"governance:audit": "tsx src/cli.ts governance audit",
 		"governance:health-report": "tsx src/cli.ts governance health-report",
 		"governance:views-validate": "tsx src/cli.ts governance views-validate",

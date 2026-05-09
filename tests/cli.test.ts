@@ -135,7 +135,9 @@ describe("cli smoke tests", () => {
 
     expect(help.exitCode).toBe(0);
     expect(help.stdout).toContain("stale-active-rescue");
+    expect(help.stdout).toContain("--live");
     expect(help.stdout).toContain("--limit <count>");
+    expect(help.stdout).toContain("--missing-repos-only");
   });
 
   test("execution and intelligence sync expose project-page batch controls", async () => {

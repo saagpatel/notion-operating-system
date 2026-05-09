@@ -90,6 +90,11 @@ npm run publish:notion -- --destination weekly_reviews --file path/to/review.md 
 npm run control-tower:stale-active-rescue
 ```
 
+The stale-active rescue command is safe by default. Use `--limit <count>` to
+scope a dry run, add `--live` to apply the planned row updates, and add
+`--missing-repos-only` when you only want to move missing local-repo mappings
+into a decision posture.
+
 This is read-only. It groups stale `Active Build` projects by the most useful first repair reason and returns the next operator move before anyone changes project status.
 
 ### 4. Generate the weekly review packet
@@ -176,7 +181,7 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `npm run destinations:check` | List configured Notion destination aliases |
 | `npm run destinations:resolve` | Resolve and persist Notion IDs for all destinations |
 | `npm run portfolio-audit:control-tower-sync` | Refresh derived PM signals (dry-run) |
-| `npm run control-tower:stale-active-rescue` | Read-only stale Active Build project rescue report |
+| `npm run control-tower:stale-active-rescue` | Stale Active Build project rescue report and scoped updater; dry-run by default, live only with `--live` |
 | `npm run control-tower:schema-report` | Analyze property usage before schema cleanup or deletion |
 | `npm run portfolio-audit:review-packet` | Generate weekly review packet (dry-run) |
 | `npm run portfolio-audit:external-signal-sync -- --provider github --live` | Sync GitHub signals (live) |

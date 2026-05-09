@@ -9,6 +9,7 @@ import {
 } from "../notion/bridge-db-sync.js";
 import { runCohortRolloutCommand } from "../notion/cohort-rollout.js";
 import { runControlTowerSyncCommand } from "../notion/control-tower-sync.js";
+import { runCoordinationSnapshotIngestionPlanCommand } from "../notion/coordination-snapshot-ingest.js";
 import { runExecutionSyncCommand } from "../notion/execution-sync.js";
 import { runExportProjectSnapshotCommand } from "../notion/export-project-snapshot.js";
 import { runExternalSignalSeedMappingsCommand } from "../notion/external-signal-seed-mappings.js";
@@ -567,23 +568,32 @@ export const cliRegistry: CliCommandDefinition[] = [
 			"stale-active-rescue",
 			"Report stale Active Build projects with reasons and next actions.",
 			[
+				commonOptions.live,
 				commonOptions.today,
 				commonOptions.config,
 				{
 					name: "limit",
-					description: "Maximum number of stale active projects to include in the detailed list.",
+					description: "Maximum number of stale active projects to include and update.",
 					type: "number",
 					valueName: "count",
+				},
+				{
+					name: "missing-repos-only",
+					description:
+						"Only plan or apply updates for stale active projects without a matching local repo.",
+					type: "boolean",
 				},
 			],
 			({ parsed }) =>
 				runStaleActiveRescueCommand({
+					live: asBoolean(parsed.options.live),
 					today: asString(parsed.options.today),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
 					limit: asNumber(parsed.options.limit),
+					missingReposOnly: asBoolean(parsed.options["missing-repos-only"]),
 				}),
 		),
 	]),
@@ -939,6 +949,29 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+				}),
+		),
+		buildConfigCommand(
+			"coordination-snapshot",
+			"Dry-run ingestion of a Personal Ops coordination snapshot export.",
+			[
+				{
+					name: "input",
+					description: "Path to personal-ops coordination export JSON.",
+					type: "string",
+					valueName: "path",
+					required: true,
+				},
+				{
+					name: "json",
+					description: "Emit the ingestion plan as JSON.",
+					type: "boolean",
+				},
+			],
+			({ parsed }) =>
+				runCoordinationSnapshotIngestionPlanCommand({
+					input: asString(parsed.options.input),
+					json: asBoolean(parsed.options.json),
 				}),
 		),
 		buildConfigCommand(

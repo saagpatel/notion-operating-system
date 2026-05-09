@@ -19,6 +19,7 @@ import {
 	renderCommandCenterMarkdown,
 	renderWeeklyReviewMarkdown,
 } from "../src/notion/local-portfolio-control-tower.js";
+import { buildStaleActiveRescueUpdatePlan } from "../src/notion/stale-active-rescue.js";
 import {
 	ACTUATION_COMMAND_CENTER_SECTION,
 	COMMAND_CENTER_MANAGED_SECTIONS,
@@ -195,6 +196,39 @@ describe("local portfolio control tower rules", () => {
 			"missing-next-move",
 		]);
 		expect(items[1]?.nextAction).toContain("Next Move");
+	});
+
+	test("plans missing local repo rows as mapping decisions", async () => {
+		const config = await loadConfig();
+		const [item] = buildStaleActiveRescueItems(
+			[
+				applyDerivedSignals(
+					baseProject({
+						title: "Missing Local Repo",
+						currentState: "Active Build",
+						lastActive: "2026-01-01",
+						lastBuildSessionDate: "2026-01-01",
+					}),
+					config,
+					TODAY,
+				),
+			],
+			TODAY,
+		);
+
+		const plan = buildStaleActiveRescueUpdatePlan({
+			item: item!,
+			today: TODAY,
+			reviewCadenceDays: config.reviewCadenceDays,
+			projectsRoot: "/tmp/notion-os-no-such-projects-root",
+		});
+
+		expect(plan.action).toBe("repair-mapping-decision");
+		expect(plan.summary.currentState).toBe("Needs Decision");
+		expect(plan.summary.nextMove).toContain("Repair project mapping");
+		expect(plan.properties["Current State"]).toEqual({
+			select: { name: "Needs Decision" },
+		});
 	});
 
 	test("counts only the rows whose derived properties actually changed", async () => {
