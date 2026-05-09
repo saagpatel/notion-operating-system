@@ -25,6 +25,7 @@ import { runPhaseCloseoutCommand } from "../notion/phase-closeout.js";
 import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfolio-views.js";
 import { runProviderExpansionAuditCommand } from "../notion/provider-expansion-audit.js";
 import { runRecommendationRunCommand } from "../notion/recommendation-run.js";
+import { runRepoMappingAuditCommand } from "../notion/repo-mapping-audit.js";
 import { runReviewPacketCommand } from "../notion/review-packet.js";
 import { runSchemaReportCommand } from "../notion/schema-report.js";
 import { runStaleActiveRescueCommand } from "../notion/stale-active-rescue.js";
@@ -594,6 +595,43 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 					limit: asNumber(parsed.options.limit),
 					missingReposOnly: asBoolean(parsed.options["missing-repos-only"]),
+				}),
+		),
+		buildConfigCommand(
+			"repo-mapping-audit",
+			"Report decision queue and repo mapping cleanup rows.",
+			[
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "projects-root",
+					description: "Local projects root to compare against Notion mappings.",
+					type: "string",
+					valueName: "path",
+				},
+				{
+					name: "limit",
+					description: "Maximum number of attention rows to include.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "include-all-gaps",
+					description:
+						"Include mapping gaps outside the active decision queues.",
+					type: "boolean",
+				},
+			],
+			({ parsed }) =>
+				runRepoMappingAuditCommand({
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					projectsRoot: asString(parsed.options["projects-root"]),
+					limit: asNumber(parsed.options.limit),
+					includeAllGaps: asBoolean(parsed.options["include-all-gaps"]),
 				}),
 		),
 	]),
@@ -1345,6 +1383,18 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "string",
 					valueName: "path",
 				},
+				{
+					name: "shipped-only",
+					description:
+						"Process only SHIPPED rows and skip personal-ops event rows.",
+					type: "boolean",
+				},
+				{
+					name: "ops-only",
+					description:
+						"Process only personal-ops event rows and skip SHIPPED rows.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runBridgeDbSyncCommand({
@@ -1356,6 +1406,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 					limit: asNumber(parsed.options.limit),
 					dbPath: asString(parsed.options["db-path"]),
+					shippedOnly: asBoolean(parsed.options["shipped-only"]),
+					opsOnly: asBoolean(parsed.options["ops-only"]),
 				}),
 		),
 		buildConfigCommand(

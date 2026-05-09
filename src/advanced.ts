@@ -8,3 +8,4 @@ export * from "./notion/local-portfolio-external-signals.js";
 export * from "./notion/local-portfolio-governance.js";
 export * from "./notion/local-portfolio-actuation.js";
 export * from "./notion/local-portfolio-native.js";
+export * from "./notion/repo-mapping-audit.js";

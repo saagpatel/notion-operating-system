@@ -72,6 +72,7 @@
 		"control-tower:export-project-snapshot": "tsx src/cli.ts control-tower export-project-snapshot",
 		"control-tower:schema-report": "tsx src/cli.ts control-tower schema-report",
 		"control-tower:stale-active-rescue": "tsx src/cli.ts control-tower stale-active-rescue",
+		"control-tower:repo-mapping-audit": "tsx src/cli.ts control-tower repo-mapping-audit",
 		"execution:sync": "tsx src/cli.ts execution sync",
 		"execution:weekly-plan": "tsx src/cli.ts execution weekly-plan",
 		"execution:views-validate": "tsx src/cli.ts execution views-validate",
