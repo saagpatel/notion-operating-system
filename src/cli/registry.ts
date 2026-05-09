@@ -9,6 +9,7 @@ import {
 } from "../notion/bridge-db-sync.js";
 import { runCohortRolloutCommand } from "../notion/cohort-rollout.js";
 import { runControlTowerSyncCommand } from "../notion/control-tower-sync.js";
+import { runCoordinationSnapshotIngestionPlanCommand } from "../notion/coordination-snapshot-ingest.js";
 import { runExecutionSyncCommand } from "../notion/execution-sync.js";
 import { runExportProjectSnapshotCommand } from "../notion/export-project-snapshot.js";
 import { runExternalSignalSeedMappingsCommand } from "../notion/external-signal-seed-mappings.js";
@@ -939,6 +940,29 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+				}),
+		),
+		buildConfigCommand(
+			"coordination-snapshot",
+			"Dry-run ingestion of a Personal Ops coordination snapshot export.",
+			[
+				{
+					name: "input",
+					description: "Path to personal-ops coordination export JSON.",
+					type: "string",
+					valueName: "path",
+					required: true,
+				},
+				{
+					name: "json",
+					description: "Emit the ingestion plan as JSON.",
+					type: "boolean",
+				},
+			],
+			({ parsed }) =>
+				runCoordinationSnapshotIngestionPlanCommand({
+					input: asString(parsed.options.input),
+					json: asBoolean(parsed.options.json),
 				}),
 		),
 		buildConfigCommand(
