@@ -251,7 +251,7 @@ describe("local portfolio control tower rules", () => {
 						id: "needs-decision",
 						title: "MappedProject",
 						currentState: "Needs Decision",
-						localPath: "MappedProject",
+						localPath: "MappedProject.",
 					}),
 					projectPage({
 						id: "missing-repo",
@@ -280,7 +280,7 @@ describe("local portfolio control tower rules", () => {
 			});
 
 			expect(result.decisionQueueCount).toBe(2);
-			expect(result.localMappingGapCount).toBe(2);
+			expect(result.localMappingGapCount).toBe(3);
 			expect(result.githubMappingGapCount).toBe(2);
 			expect(result.projects.map((project) => project.title)).toEqual([
 				"ScreenshotAnnotate",
@@ -289,6 +289,8 @@ describe("local portfolio control tower rules", () => {
 			]);
 			expect(result.projects[0]?.localMappingStatus).toBe("ambiguous");
 			expect(result.projects[0]?.repoCandidates[0]).toContain("ScreenshottoDataSelect");
+			expect(result.projects[1]?.localMappingStatus).toBe("needs-normalization");
+			expect(result.projects[1]?.recommendedLocalPath).toBe("MappedProject");
 			expect(result.markdown).toContain("Decision Queue and Repo Mapping Audit");
 		} finally {
 			rmSync(projectsRoot, { recursive: true, force: true });

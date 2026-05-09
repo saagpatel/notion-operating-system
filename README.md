@@ -103,9 +103,11 @@ This is read-only. It groups stale `Active Build` projects by the most useful fi
 npm run control-tower:repo-mapping-audit
 ```
 
-The repo-mapping audit is read-only. It joins `Needs Decision` rows, local
-repo path evidence under `/Users/d/Projects`, and GitHub external-source
-coverage so mapping cleanup does not depend on stale chat memory.
+The repo-mapping audit is read-only by default. It joins `Needs Decision`
+rows, local repo path evidence under `/Users/d/Projects`, and GitHub
+external-source coverage so mapping cleanup does not depend on stale chat
+memory. Add `--live-normalize-local-paths` only after the dry run shows
+deterministic Local Path fixes.
 
 ### 5. Generate the weekly review packet
 

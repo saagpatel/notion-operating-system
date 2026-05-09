@@ -147,6 +147,7 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("repo-mapping-audit");
     expect(help.stdout).toContain("--projects-root <path>");
     expect(help.stdout).toContain("--include-all-gaps");
+    expect(help.stdout).toContain("--live-normalize-local-paths");
   });
 
   test("bridge-db sync exposes queue filters", async () => {

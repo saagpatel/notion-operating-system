@@ -23,6 +23,7 @@ Updated: 2026-05-09
 
 ## Fresh Verification Snapshot
 - `npm run maintenance:weekly-refresh -- --fast --summary-first --today 2026-05-09` passed on 2026-05-09 with 6 clean lanes, 0 drift, 0 failed steps, and `needsLiveWrite=false`.
+- `npm run control-tower:repo-mapping-audit -- --limit 50 --live-normalize-local-paths` applied 8 safe Local Path fixes on 2026-05-09; the remaining queue is 9 decision rows, 5 local mapping gaps, 4 GitHub mapping gaps, and 13 attention rows.
 - `npm audit --json` passed on 2026-05-09 with 0 vulnerabilities after the dependency PR merge sequence.
 - `npm run typecheck`, `npm test`, and `npm run build` passed on 2026-05-09 after dependency cleanup and before the May 9 maintenance config PR was merged.
 - The May 9 productization pass added a read-only stale-active rescue report, clearer Command Center attention/stale-active summaries, weekly recovery-plan hints, and action dry-run operator summaries.
