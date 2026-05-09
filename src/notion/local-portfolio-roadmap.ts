@@ -282,7 +282,7 @@ export function buildRoadmapPhases(
 				"Morning brief command: daily signal digest patched onto the weekly review page",
 				"Orphan classification command: deterministic rule-based bucketing of projects with no linked records",
 				"Historical trending via JSONL snapshots: queue-change and stale-evidence detection",
-				"Phase 10A audit fixes: markRowProcessed propagation, normalizeProviderKey coverage, JSONL windowing, empty full_name guard",
+				"Phase 10A audit fixes: receipt-backed bridge-db shipped-row confirmation, normalizeProviderKey coverage, JSONL windowing, empty full_name guard",
 			],
 			exitCriteria: [
 				"All three local adapters emit events that appear in the External Signal Events database",

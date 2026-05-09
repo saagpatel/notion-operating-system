@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
 	applyFastBooleanDefault,
 	buildWeeklyRefreshQuickSummary,
+	buildWeeklyRefreshRecoveryPlan,
 	buildWeeklyRefreshTimingSummary,
 } from "../src/notion/weekly-refresh.js";
 
@@ -99,6 +100,53 @@ describe("weekly refresh fast workflow guidance", () => {
 
 		expect(summary.recommendedNextCommands).toEqual([
 			"npm run maintenance:weekly-refresh -- --today 2026-05-03 --only intelligence-sync --fast --step-timeout-minutes 5",
+		]);
+		expect(summary.recoveryPlan).toEqual([
+			expect.objectContaining({
+				step: "intelligence-sync",
+				command:
+					"npm run maintenance:weekly-refresh -- --today 2026-05-03 --only intelligence-sync --fast --step-timeout-minutes 5 --stream-child-output",
+			}),
+		]);
+	});
+
+	test("builds live repair plans for drift without replacing existing command hints", () => {
+		const plan = buildWeeklyRefreshRecoveryPlan(
+			{
+				ok: true,
+				liveRequested: false,
+				liveExecuted: false,
+				needsLiveWrite: true,
+				status: "completed",
+				today: "2026-05-03",
+				config: "config/local-portfolio-control-tower.json",
+				preflight: {
+					summary: {},
+					steps: [
+						{
+							key: "execution-sync",
+							title: "Execution Sync",
+							durationMs: 1000,
+							live: false,
+							wouldChange: true,
+							status: "drift",
+							summaryCounts: {},
+							warnings: [],
+						},
+					],
+				},
+			},
+			[],
+			[],
+		);
+
+		expect(plan).toEqual([
+			{
+				step: "execution-sync",
+				reason: "Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
+				command:
+					"npm run maintenance:weekly-refresh -- --today 2026-05-03 --only execution-sync --fast --live --confirm-full-live",
+			},
 		]);
 	});
 

@@ -8,6 +8,7 @@ import {
 } from "../src/notion/control-tower-sync.js";
 import {
 	applyDerivedSignals,
+	buildStaleActiveRescueItems,
 	type ControlTowerBuildSessionRecord,
 	type ControlTowerProjectRecord,
 	calculateControlTowerMetrics,
@@ -156,6 +157,44 @@ describe("local portfolio control tower rules", () => {
 		expect(metrics.missingNextMove).toBe(1);
 		expect(metrics.missingLastActive).toBe(1);
 		expect(metrics.orphanedProjects).toBe(1);
+	});
+
+	test("classifies stale active projects into operator rescue reasons", async () => {
+		const config = await loadConfig();
+		const projects = [
+			applyDerivedSignals(
+				baseProject({
+					title: "Needs Next Move",
+					currentState: "Active Build",
+					nextMove: "",
+					lastActive: "2026-01-01",
+					lastBuildSessionDate: "2026-01-01",
+				}),
+				config,
+				TODAY,
+			),
+			applyDerivedSignals(
+				baseProject({
+					title: "Thin Support",
+					currentState: "Active Build",
+					lastActive: "2026-01-02",
+					lastBuildSessionDate: "2026-01-02",
+					relatedResearchCount: 0,
+					supportingSkillsCount: 0,
+					linkedToolCount: 0,
+				}),
+				config,
+				TODAY,
+			),
+		];
+
+		const items = buildStaleActiveRescueItems(projects, TODAY);
+
+		expect(items.map((item) => item.reason)).toEqual([
+			"overdue-review",
+			"missing-next-move",
+		]);
+		expect(items[1]?.nextAction).toContain("Next Move");
 	});
 
 	test("counts only the rows whose derived properties actually changed", async () => {
@@ -378,6 +417,8 @@ describe("local portfolio control tower rules", () => {
 		const adr = renderLocalPortfolioAdrMarkdown();
 
 		expect(commandCenter).toContain("Local Portfolio Command Center");
+		expect(commandCenter).toContain("Today's Attention");
+		expect(commandCenter).toContain("Stale Active Projects");
 		expect(commandCenter).toContain("Saved Views");
 		expect(commandCenter).toContain(
 			"codex:notion-freshness-command-center:start",
