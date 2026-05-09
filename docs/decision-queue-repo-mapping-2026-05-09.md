@@ -11,6 +11,8 @@ the stale-active rescue and repo-mapping cleanup pass.
 - `npm run control-tower:repo-mapping-audit -- --limit 50 --include-all-gaps --live-normalize-local-paths` applied 3 additional deterministic Local Path fixes.
 - A live decision pass resolved the remaining decision rows, repaired the nested/absolute local paths for DesktopTerrarium and the sandbox row, paused local-only GitHub placeholders, and created the missing EvolutionSandbox GitHub source.
 - Final live audit state: 0 decision queue rows, 0 local mapping gaps, 0 GitHub source mapping gaps, and 0 attention rows.
+- `npm run control-tower:stale-active-rescue -- --limit 10` returned clean after the active-row evidence refresh: 0 stale active projects.
+- `npm run control-tower:sync -- --today 2026-05-09 --live` refreshed the Command Center; the follow-up dry run showed 0 derived-row changes.
 
 ## Live Local Path Fixes Applied
 

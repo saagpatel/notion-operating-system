@@ -24,6 +24,8 @@ Updated: 2026-05-09
 ## Fresh Verification Snapshot
 - `npm run maintenance:weekly-refresh -- --fast --summary-first --today 2026-05-09` passed on 2026-05-09 with 6 clean lanes, 0 drift, 0 failed steps, and `needsLiveWrite=false`.
 - `npm run control-tower:repo-mapping-audit -- --limit 50 --include-all-gaps --live-normalize-local-paths` and the follow-on decision pass completed on 2026-05-09; the current queue is 0 decision rows, 0 local mapping gaps, 0 GitHub mapping gaps, and 0 attention rows.
+- `npm run control-tower:stale-active-rescue -- --limit 10` returned clean on 2026-05-09 after the decision closeout pass refreshed active review evidence.
+- `npm run control-tower:sync -- --today 2026-05-09 --live` refreshed the Command Center after the closeout pass; a follow-up dry run had 0 derived-row changes and only Command Center content drift remaining.
 - `npm audit --json` passed on 2026-05-09 with 0 vulnerabilities after the dependency PR merge sequence.
 - `npm run typecheck`, `npm test`, and `npm run build` passed on 2026-05-09 after dependency cleanup and before the May 9 maintenance config PR was merged.
 - The May 9 productization pass added a read-only stale-active rescue report, clearer Command Center attention/stale-active summaries, weekly recovery-plan hints, and action dry-run operator summaries.
@@ -78,12 +80,12 @@ Updated: 2026-05-09
 
 ## Latest Metrics
 - Total projects: 117
-- Overdue reviews: 90
+- Overdue reviews: 81
 - Missing next moves: 1
 - Missing last active: 4
-- Stale active projects: 44
+- Stale active projects: 0
 - Orphaned projects: 6
-- Recent build sessions: 0
+- Recent build sessions: 2
 
 ## Phase Transition Memory
 - Transition: Phase 9 closed into Phase 10
