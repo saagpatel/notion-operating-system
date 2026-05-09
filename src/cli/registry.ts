@@ -621,6 +621,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 						"Include mapping gaps outside the active decision queues.",
 					type: "boolean",
 				},
+				{
+					name: "live-normalize-local-paths",
+					description:
+						"Apply safe Local Path normalizations found by the audit.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runRepoMappingAuditCommand({
@@ -632,6 +638,9 @@ export const cliRegistry: CliCommandDefinition[] = [
 					projectsRoot: asString(parsed.options["projects-root"]),
 					limit: asNumber(parsed.options.limit),
 					includeAllGaps: asBoolean(parsed.options["include-all-gaps"]),
+					liveNormalizeLocalPaths: asBoolean(
+						parsed.options["live-normalize-local-paths"],
+					),
 				}),
 		),
 	]),
