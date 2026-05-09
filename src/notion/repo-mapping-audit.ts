@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
@@ -13,6 +15,7 @@ import {
 import {
 	dateValue,
 	fetchAllPages,
+	richTextValue,
 	selectValue,
 	textValue,
 	type DataSourcePageRef,
@@ -30,11 +33,13 @@ export interface RepoMappingAuditCommandOptions {
 	projectsRoot?: string;
 	limit?: number;
 	includeAllGaps?: boolean;
+	liveNormalizeLocalPaths?: boolean;
 }
 
 export type LocalRepoMappingStatus =
 	| "mapped"
 	| "inferred"
+	| "needs-normalization"
 	| "path-missing"
 	| "ambiguous"
 	| "missing";
@@ -60,6 +65,7 @@ export interface RepoMappingAuditProject {
 	localPath: string;
 	localMappingStatus: LocalRepoMappingStatus;
 	resolvedRepoPath: string;
+	recommendedLocalPath: string;
 	repoCandidates: string[];
 	githubSourceStatus: GithubSourceMappingStatus;
 	githubSources: Array<{
@@ -102,7 +108,7 @@ export async function runRepoMappingAuditCommand(
 		? await fetchExternalSignalSourcePages(api, config)
 		: [];
 	const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
-	const result = buildRepoMappingAudit({
+	const initialResult = buildRepoMappingAudit({
 		today,
 		projectPages,
 		sources,
@@ -111,6 +117,36 @@ export async function runRepoMappingAuditCommand(
 		includeAllGaps: options.includeAllGaps ?? false,
 		externalSignalsConfigured: Boolean(config.phase5ExternalSignals?.sources),
 	});
+	const normalizationPlans = initialResult.projects.filter(
+		(project) =>
+			project.localMappingStatus === "needs-normalization" &&
+			project.recommendedLocalPath.trim(),
+	);
+	if (options.liveNormalizeLocalPaths) {
+		for (const project of normalizationPlans) {
+			await api.updatePageProperties({
+				pageId: project.projectId,
+				properties: {
+					"Local Path": richTextValue(project.recommendedLocalPath),
+				},
+			});
+		}
+	}
+	const result = options.liveNormalizeLocalPaths
+		? buildRepoMappingAudit({
+				today,
+				projectPages: await fetchAllPages(
+					api,
+					config.database.dataSourceId,
+					projectSchema.titlePropertyName,
+				),
+				sources,
+				projectsRoot: options.projectsRoot ?? "/Users/d/Projects",
+				limit: options.limit ?? 50,
+				includeAllGaps: options.includeAllGaps ?? false,
+				externalSignalsConfigured: Boolean(config.phase5ExternalSignals?.sources),
+			})
+		: initialResult;
 	recordCommandOutputSummary({ ...result }, {
 		status: result.attentionCount > 0 ? "warning" : "completed",
 		warningCategories: result.attentionCount > 0 ? ["stale_data"] : undefined,
@@ -119,9 +155,23 @@ export async function runRepoMappingAuditCommand(
 			localMappingGapCount: result.localMappingGapCount,
 			githubMappingGapCount: result.githubMappingGapCount,
 			attentionCount: result.attentionCount,
+			plannedNormalizations: normalizationPlans.length,
+			appliedNormalizations: options.liveNormalizeLocalPaths ? normalizationPlans.length : 0,
 		},
 	});
-	console.log(JSON.stringify({ ok: true, status: result.attentionCount > 0 ? "attention_needed" : "clean", ...result }, null, 2));
+	console.log(JSON.stringify({
+		ok: true,
+		status: result.attentionCount > 0 ? "attention_needed" : "clean",
+		liveNormalizeLocalPaths: options.liveNormalizeLocalPaths ?? false,
+		plannedNormalizations: normalizationPlans.map((project) => ({
+			projectId: project.projectId,
+			title: project.title,
+			from: project.localPath,
+			to: project.recommendedLocalPath,
+		})),
+		appliedNormalizations: options.liveNormalizeLocalPaths ? normalizationPlans.length : 0,
+		...result,
+	}, null, 2));
 }
 
 export function buildRepoMappingAudit(input: {
@@ -177,18 +227,19 @@ function buildRepoMappingAuditProject(input: {
 	externalSignalsConfigured: boolean;
 }): RepoMappingAuditProject {
 	const localPath = textValue(input.page.properties["Local Path"]);
-	const localMapping = resolveLocalRepoMapping({
-		title: input.page.title,
-		localPath,
-		projectsRoot: input.projectsRoot,
-		repoIndex: input.repoIndex,
-	});
 	const githubSources = input.sources.filter(
 		(source) =>
 			source.provider === "GitHub" &&
 			source.sourceType === "Repo" &&
 			source.localProjectIds.includes(input.page.id),
 	);
+	const localMapping = resolveLocalRepoMapping({
+		title: input.page.title,
+		localPath,
+		projectsRoot: input.projectsRoot,
+		repoIndex: input.repoIndex,
+		githubSources,
+	});
 	const githubSourceStatus = classifyGithubSourceStatus(
 		githubSources,
 		input.externalSignalsConfigured,
@@ -206,6 +257,7 @@ function buildRepoMappingAuditProject(input: {
 		localPath,
 		localMappingStatus: localMapping.status,
 		resolvedRepoPath: localMapping.resolvedRepoPath,
+		recommendedLocalPath: localMapping.recommendedLocalPath,
 		repoCandidates: localMapping.candidates,
 		githubSourceStatus,
 		githubSources: githubSources.map((source) => ({
@@ -231,18 +283,35 @@ function buildLocalRepoIndex(projectsRoot: string): LocalRepoIndex {
 	if (!existsSync(projectsRoot)) {
 		return { byKey: new Map(), repoPaths: [] };
 	}
-	const repoPaths = readdirSync(projectsRoot, { withFileTypes: true })
-		.filter((entry) => entry.isDirectory())
-		.map((entry) => join(projectsRoot, entry.name))
-		.filter((repoPath) => existsSync(join(repoPath, ".git")));
+	const repoPaths = [
+		...repoDirsUnder(projectsRoot),
+		...["/Users/d/Notion", "/Users/d/.local/share/personal-ops"].filter(
+			(repoPath) => existsSync(join(repoPath, ".git")),
+		),
+	];
 	const byKey = new Map<string, string[]>();
 	for (const repoPath of repoPaths) {
-		const key = normalizeProjectKey(repoPath.split("/").at(-1) ?? repoPath);
-		const values = byKey.get(key) ?? [];
-		values.push(repoPath);
-		byKey.set(key, values);
+		for (const key of repoKeys(repoPath)) {
+			const values = byKey.get(key) ?? [];
+			values.push(repoPath);
+			byKey.set(key, [...new Set(values)]);
+		}
 	}
 	return { byKey, repoPaths };
+}
+
+function repoDirsUnder(projectsRoot: string): string[] {
+	return readdirSync(projectsRoot, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.flatMap((entry) => {
+			const firstLevel = join(projectsRoot, entry.name);
+			const firstLevelRepo = existsSync(join(firstLevel, ".git")) ? [firstLevel] : [];
+			const secondLevelRepos = readdirSync(firstLevel, { withFileTypes: true })
+				.filter((child) => child.isDirectory())
+				.map((child) => join(firstLevel, child.name))
+				.filter((repoPath) => existsSync(join(repoPath, ".git")));
+			return [...firstLevelRepo, ...secondLevelRepos];
+		});
 }
 
 function resolveLocalRepoMapping(input: {
@@ -250,24 +319,60 @@ function resolveLocalRepoMapping(input: {
 	localPath: string;
 	projectsRoot: string;
 	repoIndex: LocalRepoIndex;
+	githubSources?: ExternalSignalSourceRecord[];
 }): {
 	status: LocalRepoMappingStatus;
 	resolvedRepoPath: string;
+	recommendedLocalPath: string;
 	candidates: string[];
 } {
 	if (input.localPath.trim()) {
-		const repoPath = input.localPath.startsWith("/")
-			? input.localPath
-			: join(input.projectsRoot, input.localPath);
-		return existsSync(join(repoPath, ".git"))
-			? { status: "mapped", resolvedRepoPath: repoPath, candidates: [] }
-			: { status: "path-missing", resolvedRepoPath: repoPath, candidates: [] };
+		const repoPath = resolveLocalPath(input.localPath, input.projectsRoot, {
+			normalize: false,
+		});
+		if (existsSync(join(repoPath, ".git"))) {
+			return {
+				status: "mapped",
+				resolvedRepoPath: repoPath,
+				recommendedLocalPath: input.localPath,
+				candidates: [],
+			};
+		}
+		const normalizedPath = resolveLocalPath(
+			normalizeLocalPathText(input.localPath),
+			input.projectsRoot,
+		);
+		if (normalizedPath !== repoPath && existsSync(join(normalizedPath, ".git"))) {
+			return {
+				status: "needs-normalization",
+				resolvedRepoPath: normalizedPath,
+				recommendedLocalPath: toRecommendedLocalPath(normalizedPath, input.projectsRoot),
+				candidates: [],
+			};
+		}
+		const sourceMatch = findSourceRepoMatch(input.githubSources ?? [], input.repoIndex);
+		if (sourceMatch) {
+			return {
+				status: "needs-normalization",
+				resolvedRepoPath: sourceMatch,
+				recommendedLocalPath: toRecommendedLocalPath(sourceMatch, input.projectsRoot),
+				candidates: [],
+			};
+		}
+		const candidates = findRepoCandidates(input.title, input.repoIndex.repoPaths).slice(0, 5);
+		return {
+			status: "path-missing",
+			resolvedRepoPath: repoPath,
+			recommendedLocalPath: "",
+			candidates,
+		};
 	}
 	const exactMatches = input.repoIndex.byKey.get(normalizeProjectKey(input.title)) ?? [];
 	if (exactMatches.length === 1) {
 		return {
 			status: "inferred",
 			resolvedRepoPath: exactMatches[0] ?? "",
+			recommendedLocalPath: toRecommendedLocalPath(exactMatches[0] ?? "", input.projectsRoot),
 			candidates: [],
 		};
 	}
@@ -275,13 +380,23 @@ function resolveLocalRepoMapping(input: {
 		return {
 			status: "ambiguous",
 			resolvedRepoPath: "",
+			recommendedLocalPath: "",
 			candidates: exactMatches,
+		};
+	}
+	const sourceMatch = findSourceRepoMatch(input.githubSources ?? [], input.repoIndex);
+	if (sourceMatch) {
+		return {
+			status: "inferred",
+			resolvedRepoPath: sourceMatch,
+			recommendedLocalPath: toRecommendedLocalPath(sourceMatch, input.projectsRoot),
+			candidates: [],
 		};
 	}
 	const candidates = findRepoCandidates(input.title, input.repoIndex.repoPaths).slice(0, 5);
 	return candidates.length > 0
-		? { status: "ambiguous", resolvedRepoPath: "", candidates }
-		: { status: "missing", resolvedRepoPath: "", candidates: [] };
+		? { status: "ambiguous", resolvedRepoPath: "", recommendedLocalPath: "", candidates }
+		: { status: "missing", resolvedRepoPath: "", recommendedLocalPath: "", candidates: [] };
 }
 
 function findRepoCandidates(title: string, repoPaths: string[]): string[] {
@@ -368,6 +483,9 @@ function hasGithubMappingGap(project: RepoMappingAuditProject): boolean {
 }
 
 function buildRepoMappingNextMove(project: RepoMappingAuditProject): string {
+	if (project.localMappingStatus === "needs-normalization") {
+		return `Update Local Path to ${project.recommendedLocalPath || project.resolvedRepoPath}.`;
+	}
 	if (project.localMappingStatus === "path-missing") {
 		return "Repair Local Path or mark the project parked/archived before treating it as active.";
 	}
@@ -404,6 +522,7 @@ function priorityScore(project: RepoMappingAuditProject): number {
 	if (isDecisionQueueProject(project)) score += 100;
 	if (project.localMappingStatus === "missing") score += 40;
 	if (project.localMappingStatus === "path-missing") score += 35;
+	if (project.localMappingStatus === "needs-normalization") score += 30;
 	if (project.localMappingStatus === "ambiguous") score += 25;
 	if (project.githubSourceStatus === "needs-mapping") score += 20;
 	if (project.githubSourceStatus === "missing") score += 15;
@@ -445,6 +564,84 @@ function renderRepoMappingAuditMarkdown(input: Omit<RepoMappingAuditResult, "mar
 
 function normalizeProjectKey(value: string): string {
 	return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeLocalPathText(value: string): string {
+	return value.trim().replace(/[.\s]+$/g, "");
+}
+
+function resolveLocalPath(
+	value: string,
+	projectsRoot: string,
+	options: { normalize?: boolean } = {},
+): string {
+	const normalized =
+		options.normalize === false ? value.trim() : normalizeLocalPathText(value);
+	if (normalized.startsWith("~/")) {
+		return join(homedir(), normalized.slice(2));
+	}
+	if (normalized.startsWith("/")) {
+		return normalized;
+	}
+	return join(projectsRoot, normalized);
+}
+
+function toRecommendedLocalPath(repoPath: string, projectsRoot: string): string {
+	if (!repoPath) {
+		return "";
+	}
+	if (repoPath.startsWith(`${projectsRoot}/`)) {
+		return repoPath.slice(projectsRoot.length + 1);
+	}
+	return repoPath;
+}
+
+function findSourceRepoMatch(
+	sources: ExternalSignalSourceRecord[],
+	repoIndex: LocalRepoIndex,
+): string | undefined {
+	const sourceRepoKeys = sources
+		.map((source) => repoNameFromIdentifier(source.identifier) || repoNameFromUrl(source.sourceUrl))
+		.filter((value): value is string => Boolean(value))
+		.map(normalizeProjectKey);
+	for (const key of sourceRepoKeys) {
+		const matches = repoIndex.byKey.get(key) ?? [];
+		if (matches.length === 1) {
+			return matches[0];
+		}
+	}
+	return undefined;
+}
+
+function repoNameFromIdentifier(value: string): string {
+	return value.split("/").at(-1)?.trim() ?? "";
+}
+
+function repoNameFromUrl(value: string): string {
+	const clean = value.replace(/\.git$/i, "").replace(/\/$/g, "");
+	return clean.split("/").at(-1)?.trim() ?? "";
+}
+
+function repoKeys(repoPath: string): string[] {
+	const repoName = repoPath.split("/").at(-1) ?? repoPath;
+	return [
+		...new Set(
+			[normalizeProjectKey(repoName), normalizeProjectKey(remoteRepoName(repoPath))].filter(Boolean),
+		),
+	];
+}
+
+function remoteRepoName(repoPath: string): string {
+	try {
+		const remoteUrl = execFileSync("git", ["remote", "get-url", "origin"], {
+			cwd: repoPath,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+		return repoNameFromUrl(remoteUrl);
+	} catch {
+		return "";
+	}
 }
 
 function tokenizeProjectName(value: string): string[] {
