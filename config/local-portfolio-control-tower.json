@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-35bc21f1caf081fdb4b3dd04b9875257",
-    "pageId": "35bc21f1-caf0-81fd-b4b3-dd04b9875257"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-35bc21f1caf081969d71de3dc99b0024",
+    "pageId": "35bc21f1-caf0-8196-9d71-de3dc99b0024"
   },
   "fieldOwnership": {
     "manual": [
@@ -793,18 +793,18 @@
       "queueCounts": {
         "Shipped": 6,
         "Needs Review": 88,
-        "Needs Decision": 1,
+        "Needs Decision": 2,
         "Worth Finishing": 8,
-        "Resume Now": 6,
+        "Resume Now": 5,
         "Cold Storage": 2,
         "Watch": 6
       },
-      "overdueReviews": 90,
+      "overdueReviews": 88,
       "missingNextMove": 1,
       "missingLastActive": 4,
-      "staleActiveProjects": 44,
+      "staleActiveProjects": 20,
       "orphanedProjects": 6,
-      "recentBuildSessions": 0
+      "recentBuildSessions": 1
     },
     "lastClosedPhase": 9
   },

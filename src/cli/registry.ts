@@ -568,23 +568,32 @@ export const cliRegistry: CliCommandDefinition[] = [
 			"stale-active-rescue",
 			"Report stale Active Build projects with reasons and next actions.",
 			[
+				commonOptions.live,
 				commonOptions.today,
 				commonOptions.config,
 				{
 					name: "limit",
-					description: "Maximum number of stale active projects to include in the detailed list.",
+					description: "Maximum number of stale active projects to include and update.",
 					type: "number",
 					valueName: "count",
+				},
+				{
+					name: "missing-repos-only",
+					description:
+						"Only plan or apply updates for stale active projects without a matching local repo.",
+					type: "boolean",
 				},
 			],
 			({ parsed }) =>
 				runStaleActiveRescueCommand({
+					live: asBoolean(parsed.options.live),
 					today: asString(parsed.options.today),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
 					limit: asNumber(parsed.options.limit),
+					missingReposOnly: asBoolean(parsed.options["missing-repos-only"]),
 				}),
 		),
 	]),
