@@ -8,7 +8,9 @@ the stale-active rescue and repo-mapping cleanup pass.
 - `npm run control-tower:stale-active-rescue -- --limit 1` returned clean: 0 stale active projects.
 - `npm run control-tower:repo-mapping-audit -- --limit 50` found 117 project rows, 9 decision queue rows, 9 local mapping gaps, 4 GitHub source mapping gaps, and 16 attention rows before cleanup.
 - `npm run control-tower:repo-mapping-audit -- --limit 50 --live-normalize-local-paths` applied 8 deterministic Local Path fixes.
-- Final live audit state: 9 decision queue rows, 5 local mapping gaps, 4 GitHub source mapping gaps, and 13 attention rows.
+- `npm run control-tower:repo-mapping-audit -- --limit 50 --include-all-gaps --live-normalize-local-paths` applied 3 additional deterministic Local Path fixes.
+- A live decision pass resolved the remaining decision rows, repaired the nested/absolute local paths for DesktopTerrarium and the sandbox row, paused local-only GitHub placeholders, and created the missing EvolutionSandbox GitHub source.
+- Final live audit state: 0 decision queue rows, 0 local mapping gaps, 0 GitHub source mapping gaps, and 0 attention rows.
 
 ## Live Local Path Fixes Applied
 
@@ -22,32 +24,41 @@ the stale-active rescue and repo-mapping cleanup pass.
 | Notion Operating System | `Notion Operating System.` | `/Users/d/Notion` |
 | Personal Ops | `Personal Ops.` | `/Users/d/.local/share/personal-ops` |
 | Reddit Sentiment Analyzer | `RedditSentimentAnalyzer.` | `RedditSentimentAnalyzer` |
+| EarthPulse | `FunGamePrjs/EarthPulse` | `Fun:GamePrjs/EarthPulse` |
+| EarthPulse-readiness | `FunGamePrjs/EarthPulse-readiness` | `Fun:GamePrjs/EarthPulse` |
+| PomGambler-prod | `Fun:GamePrjs/PomGambler-prod` | `Fun:GamePrjs/PomGambler` |
+| DesktopTerrarium | `Fun:GamePrjs/DesktopTerrarium` | `Fun:GamePrjs/DesktopTerrarium/desktop_terrarium` |
+| Sandbox Local Portfolio Project | `Sandbox Local Portfolio Project.` | `/Users/d/portfolio-actuation-sandbox` |
 
 ## Decision Queue
 
-These rows are still `Needs Decision` or derived into the decision queue. Their
-local repo and GitHub source mappings are now active unless noted elsewhere.
+The decision queue is now empty. The former decision rows were moved into their
+current operating posture:
 
-| Project | Current state | Portfolio call | Next decision |
-|---|---|---|---|
-| ComplianceKit | Needs Decision | Build Now | Continue, park, or clean up `feat/phase0-scaffold`. |
-| DesktopPEt-ready | Needs Decision | Finish | Decide whether this should remain a separate row or merge back into DesktopPEt. |
-| KBFreshnessDetector | Needs Decision | Finish | Decide whether to continue, park, or refresh the repo evidence. |
-| LoreKeeper | Needs Decision | Finish | Decide whether to continue, park, or refresh the repo evidence. |
-| OrbitForge (staging) | Needs Decision | Build Now | Run the local app or park the staging row. |
-| PersonalKBDrafter | Needs Decision | Finish | Decide whether to continue, park, or refresh the repo evidence. |
-| ScreenshotAnnotate | Needs Decision | Merge | Decide whether it stays separate or merges with the nearby screenshot/data-selection lineage. |
-| SpecCompanion | Needs Decision | Build Now | Decide whether to wire tests/UI gates now or park. |
-| TicketHandoff | Needs Decision | Finish | Decide whether to continue, park, or refresh the repo evidence. |
+| Project | Current state | Operating queue | Portfolio call | Current disposition |
+|---|---|---|---|---|
+| ComplianceKit | Active Build | Needs Review | Build Now | Close the scaffold branch before treating readiness as clear. |
+| DesktopPEt-ready | Parked | Watch | Merge | Treat as a readiness artifact under DesktopPEt unless a distinct release scope reappears. |
+| KBFreshnessDetector | Active Build | Needs Review | Finish | Close the bootstrap verification branch. |
+| LoreKeeper | Active Build | Needs Review | Finish | Close the batch verification branch. |
+| OrbitForge (staging) | Active Build | Needs Review | Build Now | Verify the local app, then decide whether staging stays separate. |
+| PersonalKBDrafter | Active Build | Needs Review | Finish | Close the bootstrap branch and duplicate source posture. |
+| ScreenshotAnnotate | Parked | Watch | Merge | Merge into the screenshot/data-selection lineage after confirming the canonical active surface. |
+| SpecCompanion | Active Build | Resume Now | Build Now | Keep as the clearest build-now item; wire tests, UI gates, and error-boundary UI. |
+| TicketHandoff | Active Build | Needs Review | Finish | Close the bootstrap branch. |
 
 ## Remaining Mapping Cleanup
 
-| Project | Current issue | Recommended next move |
-|---|---|---|
-| DesktopTerrarium | `Local Path` points at `Fun:GamePrjs/DesktopTerrarium`, but no local repo exists there. | Confirm whether this is archived, renamed, or should map to another repo before keeping it active. |
-| Sandbox Local Portfolio Project | `Local Path` remains `Sandbox Local Portfolio Project.`; closest local repo candidate is `/Users/d/Projects/EvolutionSandbox`. | Confirm whether this row should map to `EvolutionSandbox` or be retired as a sandbox proof row. |
-| da-scaffold | Local repo exists, but GitHub source row is still `Needs Mapping` with no identifier/source URL. | Add a real remote/source only after the repo gets an origin, or pause the placeholder. |
-| TabTriage | Local repo exists, but GitHub source row is still `Needs Mapping`; local repo currently has no upstream. | Decide whether to publish the repo and fill the source mapping, or keep it local/parked. |
+No repo/source mapping cleanup remains after the live decision pass.
+
+| Project | Resolution |
+|---|---|
+| DesktopTerrarium | Repointed to the nested `desktop_terrarium` git repo. |
+| Sandbox Local Portfolio Project | Repointed to `/Users/d/portfolio-actuation-sandbox` and parked as a watch-only proof row. |
+| da-scaffold | Paused the empty GitHub placeholder; keep local-only until an origin exists. |
+| RAG Knowledge Base | Paused the empty GitHub placeholder; keep local-only until an origin exists. |
+| TabTriage | Paused the empty GitHub placeholder; publish or park after local dirty files are reviewed. |
+| evolutionsandbox | Added the missing active GitHub source for `saagpatel/EvolutionSandbox`. |
 
 ## Current Command
 
