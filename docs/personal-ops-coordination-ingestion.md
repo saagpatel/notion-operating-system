@@ -2,7 +2,7 @@
 
 Personal Ops owns generation of the Coordination Snapshot. Notion owns durable display and ledger workflows.
 
-The first Notion-side path is dry-run only:
+The Notion-side path defaults to dry-run:
 
 ```bash
 notion-os signals coordination-snapshot --input /path/to/personal-ops-coordination-export.json
@@ -15,13 +15,21 @@ The command accepts the `personal_ops.coordination_notion_export.v1` payload emi
 personal-ops coordination export --for notion --json --output /path/to/personal-ops-coordination-export.json
 ```
 
-It validates the schema, snapshot identity, dry-run handoff contract, unique dedupe keys, and evidence references before converting rows into an ingestion plan for External Signal Events. The plan reports `write_scope: none`, `planned_writes: 0`, deferred row counts, and `Dry-run contract: verified`.
+It validates the schema, snapshot identity, dry-run handoff contract, unique dedupe keys, and evidence references before converting rows into an ingestion plan for External Signal Events. The default plan reports `write_scope: none`, `planned_writes: 0`, deferred row counts, and `Dry-run contract: verified`.
 
 The first hardening pass intentionally fails early if a row does not match the source snapshot id, has a duplicate dedupe key, lacks evidence, or if the Personal Ops export no longer declares `write_mode: dry_run_only`.
 
+An approved live event-write lane now exists, but it is locked behind all three flags:
+
+```bash
+notion-os signals coordination-snapshot --input /path/to/personal-ops-coordination-export.json --live --write-scope events --confirm-live --json
+```
+
+That live lane only writes External Signal Events. It looks up the active External Signal Source row with `Identifier = personal_ops_coordination_snapshot`, upserts event rows by `dedupe_key`, and reads each event back before reporting success.
+
 ## Current Proof
 
-On 2026-05-10, the manual green-loop proof passed end to end:
+On 2026-05-10, the manual green-loop proof passed end to end before the live gate was added:
 
 - `personal-ops workflow morning --json` surfaced the Coordination section with `health: green`, current source freshness, 5 Notion handoff rows, and `planned_writes: 0`.
 - `personal-ops coordination diff --against last-green --json` reported 0 changes against the trusted green baseline.
@@ -30,17 +38,19 @@ On 2026-05-10, the manual green-loop proof passed end to end:
 
 The installed `notion-os` binary was not on PATH in the shell used for this proof, so the repo-local npm alias was used as the verified command path.
 
+Later on 2026-05-10, the implementation proof for the approved write gate passed its targeted tests, and the Personal Ops export still validated through the Notion dry-run consumer. The broader coordination burn-in was yellow at that point because the source snapshot reported current coordination health as yellow and one source-quality check was failing; that needs repair before the live command should be used against Notion.
+
 ## Controlled Ingestion Lane
 
-The first live-capable lane should remain separate from the current dry-run command until all of these gates are true:
+The first live-capable lane remains separate from the default dry-run path. These gates are now encoded in the command or required before use:
 
 1. Source row exists: Notion has a single active External Signal Source for `personal_ops_coordination_snapshot`.
 2. Destination is explicit: rows write only to External Signal Events, not project pages, weekly reviews, Command Center markdown, or Personal Ops state.
 3. Dedupe is deterministic: `dedupe_key` is the upsert key, and a repeated snapshot updates or skips the same event instead of creating duplicates.
 4. Review display is bounded: `needs_review` rows are visible as active review signals, while `archive_candidate` rows can be hidden or marked quiet without deletion.
 5. Deferred Notion row stays visible: the `source:notion:deferred` row remains a Watch signal until a separate Notion-owned live snapshot source is approved.
-6. Approval is explicit: the command still defaults to dry-run and requires a separate live flag plus an operator-approved write scope before any Notion mutation.
-7. Read-back is required: every write path must read back the created or updated event rows and fail if the dedupe key, status, severity, or evidence refs do not match the plan.
+6. Approval is explicit: the command still defaults to dry-run and requires `--live --write-scope events --confirm-live` before any Notion mutation.
+7. Read-back is required: every write path reads back the created or updated event rows and fails if a planned dedupe key is missing after the write.
 
 The safest implementation shape is:
 
@@ -52,13 +62,11 @@ npm run signals:coordination-snapshot -- --input /path/to/export.json --json
 
 The live command should only support `--write-scope events` at first. Provider/source setup, project-page rollups, weekly-review sections, and Command Center display should stay out of this lane until the event ingestion path proves stable.
 
-## Next Build Step
+## Current Follow-Up
 
-Implement the live-capable path behind tests before running it against Notion:
+Before using the live command against Notion:
 
-- add a write-plan type that distinguishes `would_write: false` from live event upserts
-- add source-row lookup for `personal_ops_coordination_snapshot`
-- add event upsert by dedupe key
-- add read-back verification after writes
-- add CLI guard tests proving live mode refuses to run without `--write-scope events`, `--live`, and `--confirm-live`
-- keep the existing dry-run JSON shape stable for Personal Ops consumers
+- repair the failing Personal Ops coordination source-quality check
+- rerun `personal-ops coordination burn-in --json` until the snapshot is green
+- confirm the active Notion source row exists for `personal_ops_coordination_snapshot`
+- run dry-run, live, then dry-run again and compare the planned item count to the written/read-back count

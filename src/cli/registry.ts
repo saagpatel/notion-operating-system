@@ -1099,14 +1099,29 @@ export const cliRegistry: CliCommandDefinition[] = [
 		),
 		buildConfigCommand(
 			"coordination-snapshot",
-			"Dry-run ingestion of a Personal Ops coordination snapshot export.",
+			"Dry-run or approved live ingestion of a Personal Ops coordination snapshot export.",
 			[
+				commonOptions.live,
+				commonOptions.config,
 				{
 					name: "input",
 					description: "Path to personal-ops coordination export JSON.",
 					type: "string",
 					valueName: "path",
 					required: true,
+				},
+				{
+					name: "write-scope",
+					description: "Limit live writes to the approved coordination ingestion stage.",
+					type: "enum",
+					valueName: "scope",
+					choices: ["none", "events"],
+					defaultValue: "none",
+				},
+				{
+					name: "confirm-live",
+					description: "Confirm the approved External Signal Events write.",
+					type: "boolean",
 				},
 				{
 					name: "json",
@@ -1118,6 +1133,14 @@ export const cliRegistry: CliCommandDefinition[] = [
 				runCoordinationSnapshotIngestionPlanCommand({
 					input: asString(parsed.options.input),
 					json: asBoolean(parsed.options.json),
+					live: asBoolean(parsed.options.live),
+					writeScope:
+						(asString(parsed.options["write-scope"]) as "none" | "events" | undefined) ?? "none",
+					confirmLive: asBoolean(parsed.options["confirm-live"]),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
 				}),
 		),
 		buildConfigCommand(

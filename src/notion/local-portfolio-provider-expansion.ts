@@ -249,7 +249,7 @@ function isActionKeyRunnerSupported(actionKey: string): boolean {
 function normalizeExternalProviderKey(
 	key: ExternalProviderKey,
 ): GovernanceProviderKey {
-	if (key === "notification_hub" || key === "repo_auditor") {
+	if (key === "notification_hub" || key === "repo_auditor" || key === "personal_ops") {
 		// local providers with no governance policy — treat as vercel (scaffolded)
 		return "vercel";
 	}

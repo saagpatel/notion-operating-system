@@ -23,7 +23,8 @@ export type ExternalProviderKey =
 	| "vercel"
 	| "google_calendar"
 	| "notification_hub"
-	| "repo_auditor";
+	| "repo_auditor"
+	| "personal_ops";
 export type ExternalSignalCoverage =
 	| "None"
 	| "Repo Only"
@@ -52,7 +53,8 @@ export type ExternalSignalProviderName =
 	| "Render"
 	| "Cloudflare"
 	| "Notification Hub"
-	| "Repo Auditor";
+	| "Repo Auditor"
+	| "Personal Ops";
 export type ExternalSourceType =
 	| "Repo"
 	| "Deployment Project"
@@ -595,7 +597,7 @@ function buildExternalSignalSeedPlanKey(
 function providerSupportsGlobalManualSeed(
 	provider: ExternalSignalProviderName,
 ): boolean {
-	return provider === "Notification Hub" || provider === "Repo Auditor";
+	return provider === "Notification Hub" || provider === "Repo Auditor" || provider === "Personal Ops";
 }
 
 export function selectPriorityProjectsForExternalSignals(input: {
@@ -1018,6 +1020,9 @@ export function normalizeProviderKey(
 		case "Repo Auditor":
 		case "repo_auditor":
 			return "repo_auditor";
+		case "Personal Ops":
+		case "personal_ops":
+			return "personal_ops";
 		default:
 			throw new AppError(`Unsupported external provider "${value}"`);
 	}
@@ -1691,7 +1696,8 @@ function parseProviderName(value: string): ExternalSignalProviderName {
 		value !== "Render" &&
 		value !== "Cloudflare" &&
 		value !== "Notification Hub" &&
-		value !== "Repo Auditor"
+		value !== "Repo Auditor" &&
+		value !== "Personal Ops"
 	) {
 		throw new AppError(`Unsupported external signal provider name "${value}"`);
 	}
@@ -1704,7 +1710,8 @@ function parseProviderKey(value: string): ExternalProviderKey {
 		value !== "vercel" &&
 		value !== "google_calendar" &&
 		value !== "notification_hub" &&
-		value !== "repo_auditor"
+		value !== "repo_auditor" &&
+		value !== "personal_ops"
 	) {
 		throw new AppError(`Unsupported external provider key "${value}"`);
 	}

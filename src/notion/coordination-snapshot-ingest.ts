@@ -1,6 +1,20 @@
 import { readFile } from "node:fs/promises";
 
+import { resolveRequiredNotionToken } from "../cli/context.js";
 import { AppError } from "../utils/errors.js";
+import { DirectNotionClient } from "./direct-notion-client.js";
+import { loadLocalPortfolioControlTowerConfig } from "./local-portfolio-control-tower.js";
+import {
+	datePropertyValue,
+	relationIds,
+	relationValue,
+	richTextValue,
+	selectPropertyValue,
+	selectValue,
+	titleValue,
+	type NotionPageProperty,
+} from "./local-portfolio-control-tower-live.js";
+import { requirePhase5ExternalSignals } from "./local-portfolio-external-signals.js";
 
 export const COORDINATION_NOTION_EXPORT_SCHEMA_VERSION = "personal_ops.coordination_notion_export.v1" as const;
 export const COORDINATION_NOTION_SIGNAL_SCHEMA_VERSION = "personal_ops.coordination_notion_signal.v1" as const;
@@ -70,23 +84,26 @@ export interface CoordinationSnapshotIngestionPlanItem {
 	title: string;
 	status: CoordinationSignalStatus;
 	severity: "Info" | "Watch" | "Risk";
-	would_write: false;
+	would_write: boolean;
 	summary: string;
 	evidence_refs: string[];
 	raw_excerpt: string;
 }
 
+export type CoordinationSnapshotIngestionMode = "dry_run" | "live";
+export type CoordinationSnapshotWriteScope = "none" | "events";
+
 export interface CoordinationSnapshotIngestionPlan {
 	schema_version: "notion.personal_ops_coordination_ingestion_plan.v1";
 	generated_at: string;
-	mode: "dry_run";
-	write_scope: "none";
+	mode: CoordinationSnapshotIngestionMode;
+	write_scope: CoordinationSnapshotWriteScope;
 	source_snapshot_id: string;
 	source_generated_at: string;
 	summary: {
 		rows_seen: number;
 		items_planned: number;
-		planned_writes: 0;
+		planned_writes: number;
 		needs_review: number;
 		archive_candidates: number;
 		deferred_rows: number;
@@ -96,6 +113,28 @@ export interface CoordinationSnapshotIngestionPlan {
 	checks: CoordinationSnapshotIngestionPlanCheck[];
 	items: CoordinationSnapshotIngestionPlanItem[];
 	next_actions: string[];
+}
+
+export interface CoordinationSnapshotIngestionOptions {
+	mode?: CoordinationSnapshotIngestionMode;
+	writeScope?: CoordinationSnapshotWriteScope;
+}
+
+export interface CoordinationSnapshotLiveWriteResult {
+	mode: "live";
+	write_scope: "events";
+	source_page_id: string;
+	created_events: number;
+	updated_events: number;
+	read_back_verified: number;
+	written_event_ids: string[];
+}
+
+export interface CoordinationSnapshotEventWriter {
+	upsertEvents(input: {
+		payload: PersonalOpsCoordinationNotionExport;
+		plan: CoordinationSnapshotIngestionPlan;
+	}): Promise<CoordinationSnapshotLiveWriteResult>;
 }
 
 function assertCoordinationExport(value: unknown): PersonalOpsCoordinationNotionExport {
@@ -156,8 +195,17 @@ function severityForRow(row: PersonalOpsCoordinationSignalRow): CoordinationSnap
 export function buildCoordinationSnapshotIngestionPlan(
 	input: unknown,
 	now = new Date(),
+	options: CoordinationSnapshotIngestionOptions = {},
 ): CoordinationSnapshotIngestionPlan {
 	const payload = assertCoordinationExport(input);
+	const mode = options.mode ?? "dry_run";
+	const writeScope = options.writeScope ?? "none";
+	if (mode === "dry_run" && writeScope !== "none") {
+		throw new AppError("Dry-run coordination ingestion must use write_scope none.");
+	}
+	if (mode === "live" && writeScope !== "events") {
+		throw new AppError("Live coordination ingestion must use write_scope events.");
+	}
 	const items = payload.rows.map((row) => ({
 		dedupe_key: row.dedupe_key,
 		target: "external_signal_events" as const,
@@ -165,7 +213,7 @@ export function buildCoordinationSnapshotIngestionPlan(
 		title: `Coordination Snapshot - ${row.project_title}`,
 		status: row.status,
 		severity: severityForRow(row),
-		would_write: false as const,
+		would_write: mode === "live",
 		summary: row.summary,
 		evidence_refs: row.evidence_refs,
 		raw_excerpt: row.raw_excerpt,
@@ -191,34 +239,43 @@ export function buildCoordinationSnapshotIngestionPlan(
 		},
 		{
 			id: "dry_run",
-			title: "Dry-run contract",
+			title: mode === "dry_run" ? "Dry-run contract" : "Approved write contract",
 			state: "pass",
-			message: "This command still plans zero Notion writes.",
+			message:
+				mode === "dry_run"
+					? "This command still plans zero Notion writes."
+					: "Live writes are limited to External Signal Events and require explicit approval flags.",
 		},
 	];
 	return {
 		schema_version: "notion.personal_ops_coordination_ingestion_plan.v1",
 		generated_at: now.toISOString(),
-		mode: "dry_run",
-		write_scope: "none",
+		mode,
+		write_scope: writeScope,
 		source_snapshot_id: payload.snapshot_id,
 		source_generated_at: payload.generated_at,
 		summary: {
 			rows_seen: payload.rows.length,
 			items_planned: items.length,
-			planned_writes: 0,
+			planned_writes: mode === "live" ? items.length : 0,
 			needs_review: payload.rows.filter((row) => row.needs_review).length,
 			archive_candidates: payload.rows.filter((row) => row.archive_candidate).length,
 			deferred_rows: payload.rows.filter((row) => row.status === "deferred").length,
 			highest_urgency: payload.summary.highest_urgency,
-			dry_run_contract_verified: true,
+			dry_run_contract_verified: mode === "dry_run",
 		},
 		checks,
 		items,
-		next_actions: [
-			"Review the dry-run plan before wiring live Notion writes.",
-			"Keep Personal Ops as the snapshot generator and Notion as the ledger consumer.",
-		],
+		next_actions:
+			mode === "dry_run"
+				? [
+						"Review the dry-run plan before running the approved Notion event write.",
+						"Run live only with --live --write-scope events --confirm-live after the plan is accepted.",
+					]
+				: [
+						"Read back the written External Signal Events by dedupe key.",
+						"Keep Personal Ops as the snapshot generator and Notion as the ledger consumer.",
+					],
 	};
 }
 
@@ -254,15 +311,260 @@ export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapsh
 export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 	input?: string;
 	json?: boolean;
+	live?: boolean;
+	confirmLive?: boolean;
+	writeScope?: CoordinationSnapshotWriteScope;
+	config?: string;
+	writer?: CoordinationSnapshotEventWriter;
 }): Promise<void> {
 	if (!options.input) {
 		throw new AppError("--input is required");
 	}
+	const live = options.live ?? false;
+	const confirmLive = options.confirmLive ?? false;
+	const writeScope = options.writeScope ?? "none";
+	if (confirmLive && !live) {
+		throw new AppError("--confirm-live can only be used with --live.");
+	}
+	if (writeScope === "events" && !live) {
+		throw new AppError("--write-scope events requires --live.");
+	}
+	if (live && !confirmLive) {
+		throw new AppError("Live coordination ingestion requires --confirm-live.");
+	}
+	if (live && writeScope !== "events") {
+		throw new AppError("Live coordination ingestion requires --write-scope events.");
+	}
 	const raw = await readFile(options.input, "utf8");
-	const plan = buildCoordinationSnapshotIngestionPlan(JSON.parse(raw));
+	const parsed = JSON.parse(raw);
+	const mode: CoordinationSnapshotIngestionMode = live ? "live" : "dry_run";
+	const plan = buildCoordinationSnapshotIngestionPlan(parsed, new Date(), {
+		mode,
+		writeScope,
+	});
+	let writeResult: CoordinationSnapshotLiveWriteResult | undefined;
+	if (live) {
+		const payload = assertCoordinationExport(parsed);
+		const writer = options.writer ?? (await createNotionCoordinationSnapshotEventWriter(options.config));
+		writeResult = await writer.upsertEvents({ payload, plan });
+	}
 	if (options.json) {
-		console.log(JSON.stringify({ coordination_snapshot_ingestion_plan: plan }, null, 2));
+		console.log(
+			JSON.stringify(
+				{
+					coordination_snapshot_ingestion_plan: plan,
+					...(writeResult ? { coordination_snapshot_write_result: writeResult } : {}),
+				},
+				null,
+				2,
+			),
+		);
 		return;
 	}
 	console.log(formatCoordinationSnapshotIngestionPlan(plan));
+	if (writeResult) {
+		console.log("");
+		console.log("Write Result");
+		console.log(`- Created events: ${writeResult.created_events}`);
+		console.log(`- Updated events: ${writeResult.updated_events}`);
+		console.log(`- Read-back verified: ${writeResult.read_back_verified}`);
+	}
+}
+
+async function createNotionCoordinationSnapshotEventWriter(
+	configPath?: string,
+): Promise<CoordinationSnapshotEventWriter> {
+	const token = resolveRequiredNotionToken("NOTION_TOKEN is required for live coordination snapshot ingestion");
+	const config = await loadLocalPortfolioControlTowerConfig(configPath);
+	const phase5 = requirePhase5ExternalSignals(config);
+	const api = new DirectNotionClient(token);
+	const [, eventSchema] = await Promise.all([
+		api.retrieveDataSource(phase5.sources.dataSourceId),
+		api.retrieveDataSource(phase5.events.dataSourceId),
+	]);
+
+	return {
+		async upsertEvents({ payload, plan }) {
+			const sourcePage = await findPersonalOpsCoordinationSource({
+				api,
+				dataSourceId: phase5.sources.dataSourceId,
+			});
+			if (!sourcePage) {
+				throw new AppError(
+					"Live coordination ingestion requires an active External Signal Source row with Identifier = personal_ops_coordination_snapshot.",
+				);
+			}
+			const sourceStatus = selectValue(sourcePage.properties?.Status);
+			if (sourceStatus !== "Active") {
+				throw new AppError("The personal_ops_coordination_snapshot source row must be Active before live writes.");
+			}
+			const localProjectIds = relationIds(sourcePage.properties?.["Local Project"]);
+
+			let createdEvents = 0;
+			let updatedEvents = 0;
+			const writtenEventIds: string[] = [];
+			for (const item of plan.items) {
+				const row = payload.rows.find((candidate) => candidate.dedupe_key === item.dedupe_key);
+				if (!row) {
+					throw new AppError(`No source row found for planned dedupe key ${item.dedupe_key}.`);
+				}
+				const existing = await findCoordinationEventByKey({
+					api,
+					dataSourceId: phase5.events.dataSourceId,
+					eventKey: item.dedupe_key,
+				});
+				const properties = buildCoordinationEventProperties({
+					titlePropertyName: eventSchema.titlePropertyName,
+					item,
+					row,
+					sourcePageId: sourcePage.id,
+					localProjectIds,
+				});
+				if (existing) {
+					await api.updatePageProperties({
+						pageId: existing.id,
+						properties,
+					});
+					updatedEvents += 1;
+					writtenEventIds.push(existing.id);
+				} else {
+					const created = await api.createPageWithMarkdown({
+						parent: {
+							data_source_id: phase5.events.dataSourceId,
+						},
+						properties,
+						markdown: renderCoordinationEventMarkdown(item, row),
+					});
+					createdEvents += 1;
+					writtenEventIds.push(created.id);
+				}
+			}
+
+			let readBackVerified = 0;
+			for (const item of plan.items) {
+				const readBack = await findCoordinationEventByKey({
+					api,
+					dataSourceId: phase5.events.dataSourceId,
+					eventKey: item.dedupe_key,
+				});
+				if (!readBack) {
+					throw new AppError(`Read-back verification failed for coordination event ${item.dedupe_key}.`);
+				}
+				readBackVerified += 1;
+			}
+
+			return {
+				mode: "live",
+				write_scope: "events",
+				source_page_id: sourcePage.id,
+				created_events: createdEvents,
+				updated_events: updatedEvents,
+				read_back_verified: readBackVerified,
+				written_event_ids: writtenEventIds,
+			};
+		},
+	};
+}
+
+async function findPersonalOpsCoordinationSource(input: {
+	api: DirectNotionClient;
+	dataSourceId: string;
+}): Promise<{
+	id: string;
+	url: string;
+	title?: string;
+	properties?: Record<string, NotionPageProperty>;
+} | null> {
+	const response = await input.api.queryDataSourcePages({
+		dataSourceId: input.dataSourceId,
+		pageSize: 1,
+		filter: {
+			and: [
+				{
+					property: "Identifier",
+					rich_text: { equals: "personal_ops_coordination_snapshot" },
+				},
+				{
+					property: "Status",
+					select: { equals: "Active" },
+				},
+			],
+		},
+	});
+	return (response.results?.[0] as
+		| {
+				id: string;
+				url: string;
+				title?: string;
+				properties?: Record<string, NotionPageProperty>;
+		  }
+		| undefined) ?? null;
+}
+
+async function findCoordinationEventByKey(input: {
+	api: DirectNotionClient;
+	dataSourceId: string;
+	eventKey: string;
+}): Promise<{ id: string; url: string; properties?: Record<string, unknown> } | null> {
+	const response = await input.api.queryDataSourcePages({
+		dataSourceId: input.dataSourceId,
+		pageSize: 1,
+		filter: {
+			property: "Event Key",
+			rich_text: { equals: input.eventKey },
+		},
+	});
+	return response.results?.[0] ?? null;
+}
+
+function buildCoordinationEventProperties(input: {
+	titlePropertyName: string;
+	item: CoordinationSnapshotIngestionPlanItem;
+	row: PersonalOpsCoordinationSignalRow;
+	sourcePageId: string;
+	localProjectIds: string[];
+}): Record<string, unknown> {
+	return {
+		[input.titlePropertyName]: titleValue(input.item.title),
+		"Local Project": relationValue(input.localProjectIds),
+		Source: relationValue([input.sourcePageId]),
+		Provider: selectPropertyValue("Personal Ops"),
+		"Signal Type": selectPropertyValue("Audit"),
+		"Occurred At": datePropertyValue(input.row.freshness_at ?? input.row.generated_at),
+		Status: richTextValue(input.row.status),
+		Environment: selectPropertyValue("N/A"),
+		Severity: selectPropertyValue(input.item.severity),
+		"Source ID": richTextValue(input.row.dedupe_key),
+		"Source URL": { url: null },
+		"Sync Run": relationValue([]),
+		"Event Key": richTextValue(input.row.dedupe_key),
+		Summary: richTextValue(input.row.summary),
+		"Raw Excerpt": richTextValue(input.row.raw_excerpt),
+	};
+}
+
+function renderCoordinationEventMarkdown(
+	item: CoordinationSnapshotIngestionPlanItem,
+	row: PersonalOpsCoordinationSignalRow,
+): string {
+	return [
+		`# ${item.title}`,
+		"",
+		`- Provider: Personal Ops`,
+		`- Signal type: Audit`,
+		`- Status: ${row.status}`,
+		`- Urgency: ${row.urgency}`,
+		`- Severity: ${item.severity}`,
+		`- Snapshot: ${row.snapshot_id}`,
+		`- Dedupe key: ${row.dedupe_key}`,
+		"",
+		"## Summary",
+		row.summary,
+		"",
+		"## Evidence",
+		...row.evidence_refs.map((ref) => `- ${ref}`),
+		"",
+		"## Raw Excerpt",
+		row.raw_excerpt || "No raw excerpt captured.",
+	].join("\n");
 }
