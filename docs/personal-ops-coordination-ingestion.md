@@ -17,6 +17,22 @@ personal-ops coordination export --for notion --json --output /path/to/personal-
 
 It validates the schema, snapshot identity, dry-run handoff contract, unique dedupe keys, and evidence references before converting rows into an ingestion plan for External Signal Events. The default plan reports `write_scope: none`, `planned_writes: 0`, deferred row counts, and `Dry-run contract: verified`.
 
+Personal Ops now has a repo-owned dry-run proof command:
+
+```bash
+personal-ops coordination verify-notion-dry-run
+```
+
+That command generates or reads a Personal Ops export, runs this Notion dry-run consumer, and compares schema, snapshot id, row counts, review/archive counts, dry-run mode, write scope, and `planned_writes: 0`.
+
+Personal Ops also writes local restart archives with:
+
+```bash
+personal-ops coordination archive
+```
+
+The archive is local Personal Ops evidence, not a Notion write. Notion remains the durable display and ledger consumer through External Signal Events.
+
 The first hardening pass intentionally fails early if a row does not match the source snapshot id, has a duplicate dedupe key, lacks evidence, or if the Personal Ops export no longer declares `write_mode: dry_run_only`.
 
 An approved live event-write lane now exists, but it is locked behind all three flags:
@@ -68,5 +84,6 @@ Before using the live command against Notion:
 
 - repair the failing Personal Ops coordination source-quality check
 - rerun `personal-ops coordination burn-in --json` until the snapshot is green
+- run `personal-ops coordination verify-notion-dry-run` and confirm it passes
 - confirm the active Notion source row exists for `personal_ops_coordination_snapshot`
 - run dry-run, live, then dry-run again and compare the planned item count to the written/read-back count
