@@ -8,8 +8,9 @@ import { RunLogger } from "../logging/run-logger.js";
 import { losAngelesToday } from "../utils/date.js";
 import { AppError } from "../utils/errors.js";
 import {
-	normalizeMarkdown,
+	pageMarkdownMatches,
 	preserveManagedSections,
+	stripLeadingMarkdownTitle,
 } from "../utils/markdown.js";
 import { extractNotionIdFromUrl } from "../utils/notion-id.js";
 import { postNotificationHubEvent } from "../utils/notification-hub.js";
@@ -159,10 +160,11 @@ export async function runControlTowerSyncCommand(
 		nextConfig.commandCenter.title,
 	);
 	const commandCenterWouldChange = previousCommandCenter
-		? normalizeMarkdown(markdown) !==
-			normalizeMarkdown(previousCommandCenter.markdown) &&
-			normalizeMarkdown(commandCenterMarkdown) !==
-				normalizeMarkdown(previousCommandCenter.markdown)
+		? !pageMarkdownMatches({
+				expectedMarkdown: markdown,
+				actualMarkdown: previousCommandCenter.markdown,
+				title: nextConfig.commandCenter.title,
+			})
 		: true;
 
 	const commandCenterBootstrap = !nextConfig.commandCenter.pageId;
@@ -279,6 +281,24 @@ async function publishCommandCenter(input: {
 		throw new AppError("Control tower command center parentPageUrl is not a Notion page URL");
 	}
 
+	if (input.config.commandCenter.pageId) {
+		try {
+			await input.api.patchPageMarkdown({
+				pageId: input.config.commandCenter.pageId,
+				command: "replace_content",
+				newMarkdown: input.markdown,
+			});
+			return {
+				pageId: input.config.commandCenter.pageId,
+				pageUrl: input.config.commandCenter.pageUrl,
+			};
+		} catch (error) {
+			if (!isMarkdownPatchTransportError(error)) {
+				throw error;
+			}
+		}
+	}
+
 	const created = await input.api.createPageWithMarkdown({
 		parent: { page_id: parentPageId },
 		properties: {
@@ -295,6 +315,13 @@ async function publishCommandCenter(input: {
 		pageId: created.id,
 		pageUrl: created.url,
 	};
+}
+
+function isMarkdownPatchTransportError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /Notion request transport error.*PATCH \/pages\/.*\/markdown/i.test(
+		message,
+	);
 }
 
 export function buildDerivedPropertyUpdates(
@@ -357,15 +384,6 @@ function diffDays(fromDate: string, toDate: string): number {
 	const from = new Date(`${fromDate}T00:00:00Z`);
 	const to = new Date(`${toDate}T00:00:00Z`);
 	return Math.floor((to.getTime() - from.getTime()) / 86_400_000);
-}
-
-function stripLeadingMarkdownTitle(markdown: string, title: string): string {
-	const lines = markdown.split("\n");
-	if (lines[0]?.trim() !== `# ${title}`) {
-		return markdown;
-	}
-	const [, maybeBlank, ...rest] = lines;
-	return (maybeBlank?.trim() === "" ? rest : [maybeBlank, ...rest]).join("\n").trim();
 }
 
 if (isDirectExecution(import.meta.url)) {

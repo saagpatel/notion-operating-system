@@ -26,6 +26,8 @@ import {
 } from "./local-portfolio-control-tower-live.js";
 import type { ActionRequestRecord } from "./local-portfolio-governance.js";
 import { toActionRequestRecord } from "./local-portfolio-governance-live.js";
+import type { WorkPacketRecord } from "./local-portfolio-execution.js";
+import { toWorkPacketRecord } from "./local-portfolio-execution-live.js";
 
 export type OrphanDisposition =
 	| "already_parked"
@@ -41,6 +43,8 @@ export interface OrphanClassificationResult {
 	lastActive: string;
 	disposition: OrphanDisposition;
 	reason: string;
+	existingKickoffPacketId?: string;
+	existingKickoffPacketTitle?: string;
 }
 
 export interface OrphanClassificationCommandOptions {
@@ -156,6 +160,9 @@ export function classifyOrphan(
 export function getGovernedOrphanAction(
 	result: OrphanClassificationResult,
 ): string {
+	if (result.existingKickoffPacketId) {
+		return "Work existing kickoff packet before creating another";
+	}
 	if (result.disposition === "already_parked") {
 		return "No action";
 	}
@@ -163,6 +170,32 @@ export function getGovernedOrphanAction(
 		return "Request archive/defer approval before status changes";
 	}
 	return "Request approval for a kickoff packet";
+}
+
+export function attachExistingKickoffPackets(
+	results: OrphanClassificationResult[],
+	packets: WorkPacketRecord[],
+): OrphanClassificationResult[] {
+	const kickoffByProject = new Map<string, WorkPacketRecord>();
+	for (const packet of packets) {
+		if (!packet.title.startsWith("Kickoff: ")) continue;
+		if (isClosedPacketStatus(packet.status)) continue;
+		for (const projectId of packet.localProjectIds) {
+			if (!kickoffByProject.has(projectId)) {
+				kickoffByProject.set(projectId, packet);
+			}
+		}
+	}
+
+	return results.map((result) => {
+		const packet = kickoffByProject.get(result.projectId);
+		if (!packet) return result;
+		return {
+			...result,
+			existingKickoffPacketId: packet.id,
+			existingKickoffPacketTitle: packet.title,
+		};
+	});
 }
 
 function renderMarkdownTable(
@@ -184,8 +217,11 @@ function renderMarkdownTable(
 			r.disposition === "archive_candidate"
 				? "Archive Candidate"
 				: "Viable — Needs Kickoff";
+		const reason = r.existingKickoffPacketTitle
+			? `${r.reason}; existing packet: ${r.existingKickoffPacketTitle}`
+			: r.reason;
 		lines.push(
-			`| ${r.projectTitle} | ${r.category} | ${r.portfolioCall} | ${lastActive} | ${disposition} | ${r.reason} | ${getGovernedOrphanAction(r)} |`,
+			`| ${r.projectTitle} | ${r.category} | ${r.portfolioCall} | ${lastActive} | ${disposition} | ${reason} | ${getGovernedOrphanAction(r)} |`,
 		);
 	}
 
@@ -343,6 +379,10 @@ function findMatchingApprovalRequest(
 	);
 }
 
+function isClosedPacketStatus(status: string): boolean {
+	return ["Done", "Dropped", "Canceled", "Cancelled"].includes(status);
+}
+
 export async function runOrphanClassificationCommand(
 	options: OrphanClassificationCommandOptions = {},
 ): Promise<void> {
@@ -394,7 +434,21 @@ export async function runOrphanClassificationCommand(
 	);
 
 	const orphans = projects.filter(isOrphan);
-	const results = orphans.map((p) => classifyOrphan(p, today));
+	let results = orphans.map((p) => classifyOrphan(p, today));
+	if (config.phase2Execution) {
+		const packetSchema = await api.retrieveDataSource(
+			config.phase2Execution.packets.dataSourceId,
+		);
+		const packetPages = await fetchAllPages(
+			api,
+			config.phase2Execution.packets.dataSourceId,
+			packetSchema.titlePropertyName,
+		);
+		results = attachExistingKickoffPackets(
+			results,
+			packetPages.map((page) => toWorkPacketRecord(page)),
+		);
+	}
 
 	const alreadyParked = results.filter(
 		(r) => r.disposition === "already_parked",
@@ -404,6 +458,9 @@ export async function runOrphanClassificationCommand(
 	);
 	const viableNeedsKickoff = results.filter(
 		(r) => r.disposition === "viable_needs_kickoff",
+	);
+	const viableNeedsKickoffWithoutPacket = viableNeedsKickoff.filter(
+		(r) => !r.existingKickoffPacketId,
 	);
 
 	const markdown = renderMarkdownTable(results, today);
@@ -435,7 +492,7 @@ export async function runOrphanClassificationCommand(
 			await rm(tempDir, { recursive: true, force: true });
 		}
 
-		if (requestApproval && viableNeedsKickoff.length > 0) {
+		if (requestApproval && viableNeedsKickoffWithoutPacket.length > 0) {
 			if (!config.phase6Governance) {
 				throw new Error(
 					"Control tower config is missing phase6Governance for approval requests",
@@ -452,7 +509,7 @@ export async function runOrphanClassificationCommand(
 			const actionRequests = requestPages.map((page) =>
 				toActionRequestRecord(page),
 			);
-			for (const result of viableNeedsKickoff) {
+			for (const result of viableNeedsKickoffWithoutPacket) {
 				const draft = buildKickoffApprovalRequestDraft(result, today, {
 					approve,
 					requestedByUserId: config.phase2Execution?.defaultOwnerUserId,
@@ -495,7 +552,10 @@ export async function runOrphanClassificationCommand(
 			}
 		}
 
-		if ((createPackets || createApprovedPackets) && viableNeedsKickoff.length > 0) {
+		if (
+			(createPackets || createApprovedPackets) &&
+			viableNeedsKickoffWithoutPacket.length > 0
+		) {
 			if (!config.phase2Execution) {
 				throw new Error(
 					"Control tower config is missing phase2Execution for work packet creation",
@@ -523,7 +583,7 @@ export async function runOrphanClassificationCommand(
 			const packetSchema = await api.retrieveDataSource(
 				config.phase2Execution.packets.dataSourceId,
 			);
-			for (const result of viableNeedsKickoff) {
+			for (const result of viableNeedsKickoffWithoutPacket) {
 				if (createApprovedPackets) {
 					const providerRequestKey = `orphan-kickoff:${result.projectId}`;
 					const approvedRequest = findMatchingApprovalRequest(
@@ -566,6 +626,9 @@ export async function runOrphanClassificationCommand(
 		alreadyParked,
 		archiveCandidates: archiveCandidates.length,
 		viableNeedsKickoff: viableNeedsKickoff.length,
+		viableNeedsKickoffWithoutPacket: viableNeedsKickoffWithoutPacket.length,
+		viableWithExistingKickoffPacket:
+			viableNeedsKickoff.length - viableNeedsKickoffWithoutPacket.length,
 		approvalRequestsUpserted,
 		approvedRequestsMatched,
 		packetsCreated,

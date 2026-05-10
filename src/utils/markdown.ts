@@ -61,6 +61,45 @@ export function normalizeMarkdown(markdown: string): string {
   return normalizeComparisonMarkdown(markdown).trim();
 }
 
+export function stripLeadingMarkdownTitle(markdown: string, title: string): string {
+  const lines = markdown.split("\n");
+  if (lines[0]?.trim() !== `# ${title}`) {
+    return markdown.trim();
+  }
+
+  const [, maybeBlank, ...rest] = lines;
+  return (maybeBlank?.trim() === "" ? rest : [maybeBlank, ...rest])
+    .join("\n")
+    .trim();
+}
+
+export function pageMarkdownMatches(input: {
+  expectedMarkdown: string;
+  actualMarkdown: string;
+  title: string;
+}): boolean {
+  const expectedCandidates = normalizedPageCandidates(
+    input.expectedMarkdown,
+    input.title,
+  );
+  const actualCandidates = normalizedPageCandidates(input.actualMarkdown, input.title);
+
+  return expectedCandidates.some((expected) =>
+    actualCandidates.some((actual) => expected === actual),
+  );
+}
+
+function normalizedPageCandidates(markdown: string, title: string): string[] {
+  return uniqueStrings([
+    normalizeMarkdown(markdown),
+    normalizeMarkdown(stripLeadingMarkdownTitle(markdown, title)),
+  ]);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
 export function mergeManagedSection(
   existingMarkdown: string,
   sectionMarkdown: string,
@@ -155,9 +194,12 @@ function normalizeComparisonMarkdown(markdown: string): string {
   return normalizeAdjacentDuplicateLinks(
     normalizeManagedMarkers(markdown)
     .replace(/\r\n/g, "\n")
+    .replace(/\\\[/g, "[")
+    .replace(/\\\]/g, "]")
     .replace(/\\\|/g, "|")
     .replace(/\\</g, "<")
     .replace(/\\>/g, ">")
+    .replace(/\]\(<mention-page url="([^"]+)"\/>\)/g, "]($1)")
     .replace(/\n{2,}/g, "\n")
     .replace(/(https:\/\/www\.notion\.so\/[^\s)#?]+)(?:\?[^\s)#]*)?(?:#[^\s)#]*)?/gi, "$1")
     .replace(

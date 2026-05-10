@@ -25,7 +25,7 @@ import {
 } from "./local-portfolio-external-signals.js";
 import { toExternalSignalEventRecord } from "./local-portfolio-external-signals-live.js";
 import { toIntelligenceProjectRecord } from "./local-portfolio-intelligence-live.js";
-import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import { syncManagedMarkdownSectionWithReadBack } from "./managed-markdown-sync.js";
 
 export const MORNING_BRIEF_START = "<!-- codex:notion-morning-brief:start -->";
 export const MORNING_BRIEF_END = "<!-- codex:notion-morning-brief:end -->";
@@ -732,13 +732,14 @@ export async function runMorningBriefCommand(
 			? mergeManagedSectionInto(previousPage.markdown, section)
 			: `${previousPage.markdown}\n\n${MORNING_BRIEF_START}\n${section}\n${MORNING_BRIEF_END}`;
 
-		await syncManagedMarkdownSection({
+		await syncManagedMarkdownSectionWithReadBack({
 			api,
 			pageId: weeklyPage.id,
 			previousMarkdown: previousPage.markdown,
 			nextMarkdown,
 			startMarker: MORNING_BRIEF_START,
 			endMarker: MORNING_BRIEF_END,
+			maxAttempts: 2,
 		});
 	}
 

@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-05-09
+Updated: 2026-05-10
 
 ## Current Phase
 - Phase: 10 - Signal Wiring and Intelligence Layer
@@ -9,7 +9,9 @@ Updated: 2026-05-09
 
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
-- The May 9 Notion maintenance work is complete: Dependabot updates are merged, the targeted cleanup lanes are clean, and the Command Center destination now points at the current live page. Earlier in the day the full fast weekly refresh converged cleanly; after the Phase 10C live writes, execution and intelligence were repaired back to clean while Command Center and weekly review packet still show content-only drift after successful writes.
+- The May 10 follow-through pass closed the Command Center and weekly-review content drift loops: both now return clean dry-runs after live refreshes.
+- The May 10 operator brief command is live as `npm run control-tower:operator-brief`, combining top signal risks, stale-active count, orphan kickoff follow-through, and the first review-recovery queue.
+- The May 9 Notion maintenance work is complete: Dependabot updates are merged, the targeted cleanup lanes are clean, and the Command Center destination now points at the current live page.
 - The May 9 Phase 10C operator-surface pass is complete: morning brief priority ranking, governed orphan actions, deduped trend movement, live weekly sections, approved orphan kickoff packets, and a Command Center refresh are now in place.
 - The May 4 Notion maintenance work is complete: Intelligence, Execution, and External Signal generated briefs now converge through dedicated Notion databases instead of project-page markdown writes.
 - The weekly refresh fast path is now clean across all six lanes and includes compact per-lane timing output.
@@ -23,6 +25,14 @@ Updated: 2026-05-09
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run control-tower:sync -- --today 2026-05-10 --live` refreshed derived rows and the Command Center; the final follow-up dry-run returned clean with `derivedRowsWouldChange=0` and `commandCenterWouldChange=0`.
+- `npm run control-tower:review-packet -- --today 2026-05-10 --live` refreshed the weekly review packet; the follow-up dry-run returned clean with `weeklyReviewWouldChange=0`.
+- `npm run signals:morning-brief -- --today 2026-05-10 --lookback-days 7 --live` republished the ranked morning brief after the weekly review refresh. Current top risk projects are ApplyKit and AuraForge.
+- `npm run control-tower:trend-analysis -- --today 2026-05-10 --live` republished trend analysis after the stale-active rescue; current trend movement is 117 tracked projects and stale evidence flat at 54.
+- `npm run governance:orphan-classify -- --today 2026-05-10` now reports 5 viable orphans with existing kickoff packets and 0 viable orphans still needing packet creation.
+- `npm run control-tower:stale-active-rescue -- --today 2026-05-10 --limit 10 --live` applied the 10-project rescue batch; the follow-up dry-run now reports 0 stale active projects.
+- `npm run control-tower:review-packet -- --today 2026-05-10` and `npm run control-tower:sync -- --today 2026-05-10` both returned clean after the final review and Command Center refresh.
+- `npm run control-tower:operator-brief -- --today 2026-05-10` reports the current operator queue: 83 overdue reviews, 0 stale active projects, 0 new orphan kickoff packets needed, and 5 orphans already routed to kickoff packets.
 - `npm run maintenance:weekly-refresh -- --fast --summary-first --today 2026-05-09` passed earlier on 2026-05-09 with 6 clean lanes, 0 drift, 0 failed steps, and `needsLiveWrite=false`; a later post-Phase-10C dry run found 4 drift lanes, with no failed steps.
 - `npm run signals:morning-brief -- --today 2026-05-09 --lookback-days 7 --live` patched the weekly review on 2026-05-09 with a ranked Priority Projects section. Current top risk projects were ApplyKit and AuraForge.
 - `npm run governance:orphan-classify -- --today 2026-05-09 --live --request-approval --approve --create-approved-packets` created or refreshed 5 approved orphan kickoff requests and 5 work packets on 2026-05-09.

@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest";
 import type { ControlTowerProjectRecord } from "../src/notion/local-portfolio-control-tower.js";
 import {
+	attachExistingKickoffPackets,
 	buildKickoffApprovalRequestDraft,
 	buildKickoffPacketDraft,
 	classifyOrphan,
 	getGovernedOrphanAction,
 } from "../src/notion/orphan-classification.js";
+import type { WorkPacketRecord } from "../src/notion/local-portfolio-execution.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -166,6 +168,52 @@ describe("getGovernedOrphanAction", () => {
 	});
 });
 
+describe("attachExistingKickoffPackets", () => {
+	test("marks viable orphans that already have an open kickoff packet", () => {
+		const [result] = attachExistingKickoffPackets(
+			[
+				classifyOrphan(
+					baseProject({
+						id: "proj-with-packet",
+						title: "Packet Project",
+						category: "Feature",
+					}),
+					TODAY,
+				),
+			],
+			[
+				basePacket({
+					id: "packet-1",
+					title: "Kickoff: Packet Project",
+					localProjectIds: ["proj-with-packet"],
+					status: "Ready",
+				}),
+			],
+		);
+
+		expect(result?.existingKickoffPacketId).toBe("packet-1");
+		expect(getGovernedOrphanAction(result!)).toBe(
+			"Work existing kickoff packet before creating another",
+		);
+	});
+
+	test("ignores closed kickoff packets", () => {
+		const [result] = attachExistingKickoffPackets(
+			[classifyOrphan(baseProject({ id: "proj-closed" }), TODAY)],
+			[
+				basePacket({
+					id: "packet-closed",
+					title: "Kickoff: Test Project",
+					localProjectIds: ["proj-closed"],
+					status: "Done",
+				}),
+			],
+		);
+
+		expect(result?.existingKickoffPacketId).toBeUndefined();
+	});
+});
+
 describe("buildKickoffPacketDraft", () => {
 	test("creates a structured kickoff packet draft tied to the local project", () => {
 		const result = classifyOrphan(
@@ -194,6 +242,32 @@ describe("buildKickoffPacketDraft", () => {
 		});
 	});
 });
+
+function basePacket(overrides: Partial<WorkPacketRecord> = {}): WorkPacketRecord {
+	return {
+		id: "packet-test",
+		url: "",
+		title: "Kickoff: Test Project",
+		status: "Ready",
+		packetType: "Resume",
+		priority: "Later",
+		ownerIds: [],
+		localProjectIds: ["proj-test"],
+		drivingDecisionIds: [],
+		goal: "",
+		definitionOfDone: "",
+		whyNow: "",
+		targetStart: "",
+		targetFinish: "",
+		estimatedSize: "",
+		rolloverCount: 0,
+		executionTaskIds: [],
+		buildLogSessionIds: [],
+		weeklyReviewIds: [],
+		blockerSummary: "",
+		...overrides,
+	};
+}
 
 describe("buildKickoffApprovalRequestDraft", () => {
 	test("creates a pending approval request for a kickoff packet by default", () => {

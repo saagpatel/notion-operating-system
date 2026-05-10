@@ -10,7 +10,7 @@ import {
 	loadLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import { fetchAllPages } from "./local-portfolio-control-tower-live.js";
-import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import { syncManagedMarkdownSectionWithReadBack } from "./managed-markdown-sync.js";
 
 export const TREND_REPORT_START = "<!-- codex:notion-trend-analysis:start -->";
 export const TREND_REPORT_END = "<!-- codex:notion-trend-analysis:end -->";
@@ -419,13 +419,14 @@ export async function runTrendAnalysisCommand(
 				? mergeTrendSectionInto(previousPage.markdown, markdown)
 				: `${previousPage.markdown}\n\n${section}`;
 
-			await syncManagedMarkdownSection({
+			await syncManagedMarkdownSectionWithReadBack({
 				api,
 				pageId: weeklyPage.id,
 				previousMarkdown: previousPage.markdown,
 				nextMarkdown,
 				startMarker: TREND_REPORT_START,
 				endMarker: TREND_REPORT_END,
+				maxAttempts: 2,
 			});
 
 			output.weeklyPagePatched = true;

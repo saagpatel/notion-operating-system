@@ -8,7 +8,7 @@ import {
   syncManagedMarkdownSectionWithReadBack,
 } from "../src/notion/managed-markdown-sync.js";
 import { limitRelationIds, stripLeadingMarkdownTitle } from "../src/notion/review-packet.js";
-import { extractManagedSection, mergeManagedSection, normalizeMarkdown } from "../src/utils/markdown.js";
+import { extractManagedSection, mergeManagedSection, normalizeMarkdown, pageMarkdownMatches } from "../src/utils/markdown.js";
 import { AppError } from "../src/utils/errors.js";
 
 describe("managed markdown sync", () => {
@@ -17,6 +17,33 @@ describe("managed markdown sync", () => {
 
     expect(stripLeadingMarkdownTitle(markdown, "Week of 2026-05-04")).toBe("Review window: Since 2026-04-27");
     expect(stripLeadingMarkdownTitle(markdown, "Different title")).toBe(markdown);
+  });
+
+  test("compares page markdown idempotently with or without the Notion title heading", () => {
+    const expected = [
+      "# Local Portfolio Command Center",
+      "",
+      "Updated: 2026-05-09",
+      "<!-- codex:notion-example:start -->",
+      "## Example",
+      "- Stable",
+      "<!-- codex:notion-example:end -->",
+    ].join("\n");
+    const actual = [
+      "Updated: 2026-05-09",
+      "\\<!-- codex:notion-example:start --\\>",
+      "## Example",
+      "- Stable",
+      "\\<!-- codex:notion-example:end --\\>",
+    ].join("\n");
+
+    expect(
+      pageMarkdownMatches({
+        expectedMarkdown: expected,
+        actualMarkdown: actual,
+        title: "Local Portfolio Command Center",
+      }),
+    ).toBe(true);
   });
 
   test("builds a unique tail update for first-time managed section inserts", () => {
@@ -249,6 +276,15 @@ describe("managed markdown sync", () => {
       "- [Claude (claude.ai)](https://www.notion.so/326c21f1caf0810a946cfa381a5232a9)",
       "- [window.storage API](https://www.notion.so/326c21f1caf0813cb16ed81f5059678d)",
     ].join("\n");
+
+    expect(normalizeMarkdown(stored)).toBe(normalizeMarkdown(rendered));
+  });
+
+  test("normalizes Notion mention-page link readback into plain markdown links", () => {
+    const stored =
+      '- \\[2026-05-09 - \\[CC\\] bridge-db — 2026-05-09\\](<mention-page url="https://www.notion.so/35bc21f1caf0819f9c8afc89d2fb0f9d"/>)';
+    const rendered =
+      "- [2026-05-09 - [CC] bridge-db — 2026-05-09](https://www.notion.so/35bc21f1caf0819f9c8afc89d2fb0f9d)";
 
     expect(normalizeMarkdown(stored)).toBe(normalizeMarkdown(rendered));
   });

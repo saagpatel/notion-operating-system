@@ -20,6 +20,7 @@ import { runIntelligenceSyncCommand } from "../notion/intelligence-sync.js";
 import { runLinkSuggestionsSyncCommand } from "../notion/link-suggestions-sync.js";
 import { runMorningBriefCommand } from "../notion/morning-brief.js";
 import { runOperationalRolloutCommand } from "../notion/operational-rollout.js";
+import { runOperatorBriefCommand } from "../notion/operator-brief.js";
 import { runOrphanClassificationCommand } from "../notion/orphan-classification.js";
 import { runPhaseCloseoutCommand } from "../notion/phase-closeout.js";
 import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfolio-views.js";
@@ -483,6 +484,29 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+				}),
+		),
+		buildConfigCommand(
+			"operator-brief",
+			"Print the current daily operator brief across signals, review recovery, stale-active, and orphan follow-through.",
+			[
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "lookback-days",
+					description: "Signal lookback window for priority risk ranking.",
+					type: "number",
+					valueName: "days",
+				},
+			],
+			({ parsed }) =>
+				runOperatorBriefCommand({
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					lookbackDays: asNumber(parsed.options["lookback-days"]),
 				}),
 		),
 		buildConfigCommand(

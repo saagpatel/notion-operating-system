@@ -3,8 +3,9 @@ import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
 import {
-	normalizeMarkdown,
+	pageMarkdownMatches,
 	preserveManagedSections,
+	stripLeadingMarkdownTitle as stripLeadingMarkdownTitleValue,
 } from "../utils/markdown.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
@@ -28,6 +29,8 @@ import {
 } from "./local-portfolio-control-tower-live.js";
 import { buildRoadmapPhases } from "./local-portfolio-roadmap.js";
 import { WEEKLY_EXTERNAL_SIGNALS_SECTION } from "./managed-markdown-sections.js";
+import { MORNING_BRIEF_END, MORNING_BRIEF_START } from "./morning-brief.js";
+import { TREND_REPORT_END, TREND_REPORT_START } from "./snapshot-history.js";
 import {
 	buildWeeklyStepContract,
 	mapWeeklyStepStatusToCommandStatus,
@@ -142,6 +145,8 @@ export async function runReviewPacketCommand(
 	const finalMarkdown = previousWeeklyMarkdown
 		? preserveManagedSections(markdown, previousWeeklyMarkdown.markdown, [
 				WEEKLY_EXTERNAL_SIGNALS_SECTION,
+				{ startMarker: MORNING_BRIEF_START, endMarker: MORNING_BRIEF_END },
+				{ startMarker: TREND_REPORT_START, endMarker: TREND_REPORT_END },
 			])
 		: markdown;
 	const weeklyReviewPageMarkdown = stripLeadingMarkdownTitle(
@@ -149,10 +154,11 @@ export async function runReviewPacketCommand(
 		weekTitle,
 	);
 	const weeklyReviewWouldChange = previousWeeklyMarkdown
-		? normalizeMarkdown(finalMarkdown) !==
-				normalizeMarkdown(previousWeeklyMarkdown.markdown) &&
-			normalizeMarkdown(weeklyReviewPageMarkdown) !==
-				normalizeMarkdown(previousWeeklyMarkdown.markdown)
+		? !pageMarkdownMatches({
+				expectedMarkdown: finalMarkdown,
+				actualMarkdown: previousWeeklyMarkdown.markdown,
+				title: weekTitle,
+			})
 		: true;
 	const weeklyReviewPageExists = Boolean(existingWeeklyPage);
 
@@ -284,14 +290,7 @@ export function limitRelationIds(ids: string[], maxCount: number): string[] {
 }
 
 export function stripLeadingMarkdownTitle(markdown: string, title: string): string {
-	const lines = markdown.split("\n");
-	if (lines[0]?.trim() !== `# ${title}`) {
-		return markdown;
-	}
-	const [, maybeBlank, ...rest] = lines;
-	return (maybeBlank?.trim() === "" ? rest : [maybeBlank, ...rest])
-		.join("\n")
-		.trim();
+	return stripLeadingMarkdownTitleValue(markdown, title);
 }
 
 function buildRelationWarnings(
