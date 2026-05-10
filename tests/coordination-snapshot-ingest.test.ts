@@ -27,7 +27,10 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 			items_planned: 2,
 			needs_review: 1,
 			archive_candidates: 1,
+			highest_urgency: "high",
+			dry_run_contract_verified: true,
 		});
+		expect(plan.checks.every((check) => check.state === "pass")).toBe(true);
 		expect(plan.items[0]).toEqual(
 			expect.objectContaining({
 				provider_key: "personal_ops_coordination_snapshot",
@@ -38,6 +41,8 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 		);
 		expect(plan.items[1]?.severity).toBe("Risk");
 		expect(formatted).toContain("Planned writes: 0");
+		expect(formatted).toContain("Dry-run contract: verified");
+		expect(formatted).toContain("Quality Checks");
 	});
 
 	test("CLI exposes the dry-run plan without requiring Notion credentials", async () => {
@@ -60,6 +65,25 @@ function exportFixture() {
 		mode: "export_only",
 		destination: "notion_external_signal_provider",
 		snapshot_id: "coordination-20260509T000000Z",
+		source_snapshot: {
+			schema_version: "1.0.0",
+			generated_at: "2026-05-09T00:00:00.000Z",
+			overall: "green",
+		},
+		summary: {
+			rows_total: 2,
+			needs_review: 1,
+			archive_candidates: 1,
+			highest_urgency: "high",
+		},
+		handoff: {
+			consumer: "notion",
+			write_mode: "dry_run_only",
+			source_owner: "personal_ops",
+			ledger_owner: "notion",
+			consumer_command: "notion-os signals coordination-snapshot --input <coordination-export.json> --json",
+			verification_checks: ["Validate schema versions before planning ingestion."],
+		},
 		next_actions: [],
 		rows: [
 			{
