@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-35cc21f1caf08139b3cfcbe2e7a4199c",
-    "pageId": "35cc21f1-caf0-8139-b3cf-cbe2e7a4199c"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-35cc21f1caf081e4bf6de9499203933c",
+    "pageId": "35cc21f1-caf0-81e4-bf6d-e9499203933c"
   },
   "fieldOwnership": {
     "manual": [
@@ -810,7 +810,7 @@
   },
   "weeklyMaintenance": {
     "supportMaintenanceLastSyncAt": "2026-05-09",
-    "weeklyRefreshLastRunAt": "2026-05-09",
+    "weeklyRefreshLastRunAt": "2026-05-10",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
