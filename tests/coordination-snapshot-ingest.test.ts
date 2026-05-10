@@ -6,7 +6,9 @@ import { afterEach, describe, expect, test } from "vitest";
 
 import { runCli } from "../src/cli/runner.js";
 import {
+	buildCoordinationSnapshotDisplayModel,
 	buildCoordinationSnapshotIngestionPlan,
+	formatCoordinationSnapshotDisplayModel,
 	formatCoordinationSnapshotIngestionPlan,
 	runCoordinationSnapshotIngestionPlanCommand,
 } from "../src/notion/coordination-snapshot-ingest.js";
@@ -50,6 +52,25 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 		expect(formatted).toContain("Quality Checks");
 	});
 
+	test("builds a read-only Notion display model for the ledger pilot", () => {
+		const plan = buildCoordinationSnapshotIngestionPlan(exportFixture(), new Date("2026-05-09T00:00:00.000Z"));
+		const display = buildCoordinationSnapshotDisplayModel(plan, new Date("2026-05-09T00:05:00.000Z"));
+		const formatted = formatCoordinationSnapshotDisplayModel(display);
+
+		expect(display.schema_version).toBe("notion.personal_ops_coordination_display.v1");
+		expect(display.mode).toBe("read_only_display");
+		expect(display.ledger_contract).toEqual({
+			source_owner: "personal_ops",
+			ledger_owner: "notion",
+			default_write_scope: "none",
+			approved_write_scope: "events",
+		});
+		expect(display.sections.find((section) => section.title === "Needs Review")?.count).toBe(1);
+		expect(display.sections.find((section) => section.title === "Archive Candidates")?.count).toBe(1);
+		expect(formatted).toContain("Personal Ops Coordination Display");
+		expect(formatted).toContain("Needs Review (1)");
+	});
+
 	test("matches the shared fixture contract for Personal Ops exports", async () => {
 		const input = JSON.parse(
 			await readFile(new URL("./fixtures/personal-ops-coordination-export.v1.json", import.meta.url), "utf8"),
@@ -75,6 +96,19 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 		expect(result.exitCode).toBe(0);
 		expect(result.stderr).toBe("");
 		expect(JSON.parse(result.stdout).coordination_snapshot_ingestion_plan.mode).toBe("dry_run");
+	});
+
+	test("CLI can include the display model without enabling writes", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "notion-coordination-snapshot-"));
+		tempDirs.push(tempDir);
+		const inputPath = join(tempDir, "coordination-export.json");
+		await writeFile(inputPath, JSON.stringify({ coordination_notion_export: exportFixture() }, null, 2), "utf8");
+
+		const result = await runCliForTest(["signals", "coordination-snapshot", "--input", inputPath, "--display", "--json"]);
+		expect(result.exitCode).toBe(0);
+		const parsed = JSON.parse(result.stdout);
+		expect(parsed.coordination_snapshot_ingestion_plan.summary.planned_writes).toBe(0);
+		expect(parsed.coordination_snapshot_display.mode).toBe("read_only_display");
 	});
 
 	test("builds an approved live event-write plan without changing the dry-run default", () => {

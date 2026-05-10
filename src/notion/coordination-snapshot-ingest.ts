@@ -90,6 +90,34 @@ export interface CoordinationSnapshotIngestionPlanItem {
 	raw_excerpt: string;
 }
 
+export interface CoordinationSnapshotDisplaySection {
+	title: string;
+	count: number;
+	items: Array<{
+		title: string;
+		status: CoordinationSignalStatus;
+		severity: CoordinationSnapshotIngestionPlanItem["severity"];
+		summary: string;
+		dedupe_key: string;
+	}>;
+}
+
+export interface CoordinationSnapshotDisplayModel {
+	schema_version: "notion.personal_ops_coordination_display.v1";
+	generated_at: string;
+	mode: "read_only_display";
+	source_snapshot_id: string;
+	headline: string;
+	ledger_contract: {
+		source_owner: "personal_ops";
+		ledger_owner: "notion";
+		default_write_scope: "none";
+		approved_write_scope: "events";
+	};
+	sections: CoordinationSnapshotDisplaySection[];
+	next_actions: string[];
+}
+
 export type CoordinationSnapshotIngestionMode = "dry_run" | "live";
 export type CoordinationSnapshotWriteScope = "none" | "events";
 
@@ -279,6 +307,49 @@ export function buildCoordinationSnapshotIngestionPlan(
 	};
 }
 
+export function buildCoordinationSnapshotDisplayModel(
+	plan: CoordinationSnapshotIngestionPlan,
+	now = new Date(),
+): CoordinationSnapshotDisplayModel {
+	const needsReview = plan.items.filter((item) => item.status === "needs_attention" || item.severity === "Risk");
+	const watch = plan.items.filter(
+		(item) => !needsReview.includes(item) && (item.status === "deferred" || item.severity === "Watch"),
+	);
+	const archive = plan.items.filter((item) => !needsReview.includes(item) && !watch.includes(item));
+	const toDisplayItem = (item: CoordinationSnapshotIngestionPlanItem) => ({
+		title: item.title,
+		status: item.status,
+		severity: item.severity,
+		summary: item.summary,
+		dedupe_key: item.dedupe_key,
+	});
+	return {
+		schema_version: "notion.personal_ops_coordination_display.v1",
+		generated_at: now.toISOString(),
+		mode: "read_only_display",
+		source_snapshot_id: plan.source_snapshot_id,
+		headline:
+			needsReview.length === 0
+				? "Coordination Snapshot is ready for durable display with no active review signals."
+				: `Coordination Snapshot has ${needsReview.length} active review signal${needsReview.length === 1 ? "" : "s"}.`,
+		ledger_contract: {
+			source_owner: "personal_ops",
+			ledger_owner: "notion",
+			default_write_scope: "none",
+			approved_write_scope: "events",
+		},
+		sections: [
+			{ title: "Needs Review", count: needsReview.length, items: needsReview.map(toDisplayItem) },
+			{ title: "Watch", count: watch.length, items: watch.map(toDisplayItem) },
+			{ title: "Archive Candidates", count: archive.length, items: archive.map(toDisplayItem) },
+		],
+		next_actions: [
+			"Display this model in Notion as the current Coordination Snapshot ledger view.",
+			"Keep live writes limited to External Signal Events after explicit approval.",
+		],
+	};
+}
+
 export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapshotIngestionPlan): string {
 	const lines: string[] = [];
 	lines.push("Personal Ops Coordination Ingestion Plan");
@@ -308,12 +379,37 @@ export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapsh
 	return lines.join("\n");
 }
 
+export function formatCoordinationSnapshotDisplayModel(model: CoordinationSnapshotDisplayModel): string {
+	const lines: string[] = [];
+	lines.push("Personal Ops Coordination Display");
+	lines.push(`Generated: ${model.generated_at}`);
+	lines.push(`Source snapshot: ${model.source_snapshot_id}`);
+	lines.push(model.headline);
+	lines.push("");
+	for (const section of model.sections) {
+		lines.push(`${section.title} (${section.count})`);
+		if (section.items.length === 0) {
+			lines.push("- none");
+		} else {
+			for (const item of section.items) {
+				lines.push(`- ${item.severity}: ${item.title} (${item.status})`);
+				lines.push(`  ${item.summary}`);
+			}
+		}
+		lines.push("");
+	}
+	lines.push("Next Actions");
+	for (const action of model.next_actions) lines.push(`- ${action}`);
+	return lines.join("\n");
+}
+
 export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 	input?: string;
 	json?: boolean;
 	live?: boolean;
 	confirmLive?: boolean;
 	writeScope?: CoordinationSnapshotWriteScope;
+	display?: boolean;
 	config?: string;
 	writer?: CoordinationSnapshotEventWriter;
 }): Promise<void> {
@@ -342,6 +438,7 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 		mode,
 		writeScope,
 	});
+	const display = options.display ? buildCoordinationSnapshotDisplayModel(plan) : undefined;
 	let writeResult: CoordinationSnapshotLiveWriteResult | undefined;
 	if (live) {
 		const payload = assertCoordinationExport(parsed);
@@ -353,6 +450,7 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 			JSON.stringify(
 				{
 					coordination_snapshot_ingestion_plan: plan,
+					...(display ? { coordination_snapshot_display: display } : {}),
 					...(writeResult ? { coordination_snapshot_write_result: writeResult } : {}),
 				},
 				null,
@@ -362,6 +460,10 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 		return;
 	}
 	console.log(formatCoordinationSnapshotIngestionPlan(plan));
+	if (display) {
+		console.log("");
+		console.log(formatCoordinationSnapshotDisplayModel(display));
+	}
 	if (writeResult) {
 		console.log("");
 		console.log("Write Result");

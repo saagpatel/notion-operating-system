@@ -1128,12 +1128,18 @@ export const cliRegistry: CliCommandDefinition[] = [
 					description: "Emit the ingestion plan as JSON.",
 					type: "boolean",
 				},
+				{
+					name: "display",
+					description: "Include the read-only Notion display model for the coordination ledger pilot.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runCoordinationSnapshotIngestionPlanCommand({
 					input: asString(parsed.options.input),
 					json: asBoolean(parsed.options.json),
 					live: asBoolean(parsed.options.live),
+					display: asBoolean(parsed.options.display),
 					writeScope:
 						(asString(parsed.options["write-scope"]) as "none" | "events" | undefined) ?? "none",
 					confirmLive: asBoolean(parsed.options["confirm-live"]),
