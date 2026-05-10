@@ -27,6 +27,7 @@ import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfoli
 import { runProviderExpansionAuditCommand } from "../notion/provider-expansion-audit.js";
 import { runRecommendationRunCommand } from "../notion/recommendation-run.js";
 import { runRepoMappingAuditCommand } from "../notion/repo-mapping-audit.js";
+import { runReviewRecoveryCommand } from "../notion/review-recovery.js";
 import { runReviewPacketCommand } from "../notion/review-packet.js";
 import { runSchemaReportCommand } from "../notion/schema-report.js";
 import { runStaleActiveRescueCommand } from "../notion/stale-active-rescue.js";
@@ -587,6 +588,40 @@ export const cliRegistry: CliCommandDefinition[] = [
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
 					}),
+				}),
+		),
+		buildConfigCommand(
+			"review-recovery",
+			"Refresh overdue review rows and patch small review metadata gaps.",
+			[
+				commonOptions.live,
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "limit",
+					description: "Maximum number of review recovery rows to update.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "include-metadata-gaps",
+					description:
+						"Also include rows missing Next Move or Last Active, even when they are not overdue.",
+					type: "boolean",
+				},
+			],
+			({ parsed }) =>
+				runReviewRecoveryCommand({
+					live: asBoolean(parsed.options.live),
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					limit: asNumber(parsed.options.limit),
+					includeMetadataGaps: asBoolean(
+						parsed.options["include-metadata-gaps"],
+					),
 				}),
 		),
 		buildConfigCommand(

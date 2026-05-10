@@ -109,7 +109,18 @@ external-source coverage so mapping cleanup does not depend on stale chat
 memory. Add `--live-normalize-local-paths` only after the dry run shows
 deterministic Local Path fixes.
 
-### 5. Generate the weekly review packet
+### 5. Recover overdue portfolio reviews
+
+```bash
+npm run control-tower:review-recovery
+```
+
+Review recovery is dry-run by default. Use `--limit <count>` to scope a batch,
+add `--include-metadata-gaps` when you also want to patch missing Next Move or
+Last Active rows, and add `--live` only after the dry-run plan matches the
+intended portfolio cleanup.
+
+### 6. Generate the weekly review packet
 
 ```bash
 npm run portfolio-audit:review-packet -- --live
@@ -117,7 +128,7 @@ npm run portfolio-audit:review-packet -- --live
 
 Run this **before** any command that patches the "latest weekly" managed section (signals, recommendations, action-request sync). If the current week's page does not exist yet, those commands land on the wrong weekly page.
 
-### 6. Sync GitHub signals
+### 7. Sync GitHub signals
 
 ```bash
 # Recompute from existing Notion rows (no GitHub fetch)
@@ -127,7 +138,7 @@ npm run portfolio-audit:external-signal-sync
 npm run portfolio-audit:external-signal-sync -- --provider github --live
 ```
 
-### 6. Governed GitHub actions (dry-run → approval → live)
+### 8. Governed GitHub actions (dry-run → approval → live)
 
 GitHub mutations follow a strict three-step pipeline. Never skip steps.
 
@@ -193,6 +204,7 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `npm run destinations:check` | List configured Notion destination aliases |
 | `npm run destinations:resolve` | Resolve and persist Notion IDs for all destinations |
 | `npm run portfolio-audit:control-tower-sync` | Refresh derived PM signals (dry-run) |
+| `npm run control-tower:review-recovery` | Recover overdue review rows and small review metadata gaps; dry-run by default |
 | `npm run control-tower:stale-active-rescue` | Stale Active Build project rescue report and scoped updater; dry-run by default, live only with `--live` |
 | `npm run control-tower:repo-mapping-audit` | Read-only decision queue and repo/source mapping cleanup packet |
 | `npm run bridge-db:sync -- --shipped-only` | Sync only bridge-db `SHIPPED` rows into Build Log; omit the filter to process both queues |

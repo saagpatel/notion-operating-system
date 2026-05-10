@@ -19,6 +19,7 @@
   - the 2026-04-23 branch cleanup deleted fully merged stale remote refs and local feature refs; only `origin/main` remains as a remote branch after pruning
   - the 2026-05-04 Notion maintenance pass is complete: generated Intelligence, Execution, and External Signal project briefs now store in dedicated Notion databases with hash-based convergence; the May 4 weekly refresh is clean across all six lanes; weekly review title/body convergence is fixed; `--fast` now has bounded project-write concurrency and compact per-lane timing summaries
   - the 2026-05-09 maintenance pass is complete: dependency PRs were merged, the final fast weekly refresh reported `clean=6` and `needsLiveWrite=false`, and the active product follow-up is now stale-active rescue plus operator-surface polish
+  - the 2026-05-10 review-recovery pass is complete: `control-tower:review-recovery` exists, live recovery cleared 83 overdue reviews plus 5 small metadata reasons across 87 rows, Command Center and weekly review dry-runs are clean, and ApplyKit has a routed signal-risk repair packet
 
 ## Structural work completed
 
@@ -158,6 +159,7 @@ notion-os --profile sandbox doctor
 npm run sandbox:smoke
 notion-os logs recent
 npm run control-tower:sync
+npm run control-tower:review-recovery
 npm run control-tower:stale-active-rescue
 npm run governance:audit
 npm run signals:sync
@@ -206,7 +208,7 @@ Sandbox local reality from the 2026-04-17 confidence pass:
 
 - no required structural phase remains after Phase 10
 - current follow-up work is operational maturity:
-  - stale-active rescue and operator-surface productization
+  - signal-risk follow-through and operator-surface productization
   - watch the weekly timing summary for recurring slow lanes; as of the May 4 proof run, `external-signals` and `intelligence-sync` are the expected slow read-only lanes
   - continue signal-quality follow-through now that execution WIP and project-level external-source coverage are clean
   - dependency review and the documented `exceljs -> uuid` audit exception as upstream fixes land
@@ -223,13 +225,14 @@ If resuming from here, do not start with another repo cleanup pass.
 
 Start with one explicit Phase 10 product slice:
 
-1. use `npm run control-tower:stale-active-rescue` to classify stale active projects before changing portfolio status
-2. productize the operator surface on top of the now-proven adapters:
+1. use `npm run control-tower:operator-brief` to find the smallest current portfolio pressure
+2. use `npm run control-tower:review-recovery` only when overdue reviews or review metadata gaps return
+3. productize the operator surface on top of the now-proven adapters:
    morning-brief prioritization, command-center synthesis, or a tighter governed orphan routine
-3. improve signal quality:
+4. improve signal quality:
    resolve explicit `Needs Mapping` source rows where real provider identifiers become available
 
-The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`, and it is no longer managed-markdown convergence recovery. The best next move is stale-active rescue or another operator-surface product slice on top of the proven lanes.
+The preferred first move is no longer adapter implementation for `notification-hub`, `GithubRepoAuditor`, or `bridge-db`, and it is no longer managed-markdown convergence recovery. The best next move is signal-risk follow-through or another operator-surface product slice on top of the proven lanes.
 
 ## Known assumptions
 
@@ -255,6 +258,7 @@ The correct current posture is:
 - the cleanup and command-surface simplification pass is complete
 - several Phase 10 dry-run lanes are already usable (`trend-analysis`, `orphan-classify`, `bridge-db status`, `morning-brief`, `signals sync --provider notification_hub`, `signals sync --provider repo_auditor`)
 - `control-tower stale-active-rescue` is the read-only first stop for the current stale active project backlog
+- `control-tower review-recovery` is the dry-run-first path when overdue reviews or small review metadata gaps return
 - the sandbox proving lane is healthy again and `npm run sandbox:smoke` passes
 - the `notification-hub` and `repo-auditor` adapters are proven in sandbox live mode and now exercise primary-profile source rows in dry-run mode
 - the next meaningful work should start from one explicit Phase 10 productization slice rather than another broad cleanup sweep

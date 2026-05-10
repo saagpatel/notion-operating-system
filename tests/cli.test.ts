@@ -140,6 +140,16 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--missing-repos-only");
   });
 
+  test("control tower exposes review recovery", async () => {
+    const help = await runCliForTest(["control-tower", "review-recovery", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("review-recovery");
+    expect(help.stdout).toContain("--live");
+    expect(help.stdout).toContain("--limit <count>");
+    expect(help.stdout).toContain("--include-metadata-gaps");
+  });
+
   test("control tower exposes repo mapping audit reporting", async () => {
     const help = await runCliForTest(["control-tower", "repo-mapping-audit", "--help"]);
 

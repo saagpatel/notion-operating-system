@@ -30,6 +30,15 @@ npm run control-tower:sync -- --today 2026-05-04 --live
 npm run control-tower:sync -- --today 2026-05-04
 ```
 
+For review backlog recovery, use the dedicated review command instead of a
+broad weekly write:
+
+```bash
+npm run control-tower:review-recovery -- --today 2026-05-10 --include-metadata-gaps --limit 120
+npm run control-tower:review-recovery -- --today 2026-05-10 --include-metadata-gaps --limit 120 --live
+npm run control-tower:sync -- --today 2026-05-10
+```
+
 The weekly orchestrator can also run a bounded single-step preflight when you need quick triage:
 
 ```bash
