@@ -3014,6 +3014,8 @@ export function normalizeProviderName(
 			return "notification_hub";
 		case "Repo Auditor":
 			return "repo_auditor";
+		case "Personal Ops":
+			return "personal_ops";
 		default:
 			return undefined;
 	}

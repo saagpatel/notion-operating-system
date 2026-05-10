@@ -8,6 +8,7 @@ import { runCli } from "../src/cli/runner.js";
 import {
 	buildCoordinationSnapshotIngestionPlan,
 	formatCoordinationSnapshotIngestionPlan,
+	runCoordinationSnapshotIngestionPlanCommand,
 } from "../src/notion/coordination-snapshot-ingest.js";
 
 describe("Personal Ops coordination snapshot ingestion", () => {
@@ -74,6 +75,102 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 		expect(result.exitCode).toBe(0);
 		expect(result.stderr).toBe("");
 		expect(JSON.parse(result.stdout).coordination_snapshot_ingestion_plan.mode).toBe("dry_run");
+	});
+
+	test("builds an approved live event-write plan without changing the dry-run default", () => {
+		const plan = buildCoordinationSnapshotIngestionPlan(exportFixture(), new Date("2026-05-09T00:00:00.000Z"), {
+			mode: "live",
+			writeScope: "events",
+		});
+
+		expect(plan.mode).toBe("live");
+		expect(plan.write_scope).toBe("events");
+		expect(plan.summary.planned_writes).toBe(2);
+		expect(plan.summary.dry_run_contract_verified).toBe(false);
+		expect(plan.items.every((item) => item.would_write)).toBe(true);
+	});
+
+	test("CLI refuses live writes unless every approval flag is present", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "notion-coordination-snapshot-"));
+		tempDirs.push(tempDir);
+		const inputPath = join(tempDir, "coordination-export.json");
+		await writeFile(inputPath, JSON.stringify({ coordination_notion_export: exportFixture() }, null, 2), "utf8");
+
+		const missingConfirm = await runCliForTest([
+			"signals",
+			"coordination-snapshot",
+			"--input",
+			inputPath,
+			"--live",
+			"--write-scope",
+			"events",
+		]);
+		expect(missingConfirm.exitCode).toBe(1);
+		expect(missingConfirm.stderr).toContain("Live coordination ingestion requires --confirm-live.");
+
+		const missingLive = await runCliForTest([
+			"signals",
+			"coordination-snapshot",
+			"--input",
+			inputPath,
+			"--write-scope",
+			"events",
+		]);
+		expect(missingLive.exitCode).toBe(1);
+		expect(missingLive.stderr).toContain("--write-scope events requires --live.");
+
+		const confirmWithoutLive = await runCliForTest([
+			"signals",
+			"coordination-snapshot",
+			"--input",
+			inputPath,
+			"--confirm-live",
+		]);
+		expect(confirmWithoutLive.exitCode).toBe(1);
+		expect(confirmWithoutLive.stderr).toContain("--confirm-live can only be used with --live.");
+	});
+
+	test("approved live flow delegates writes to the event writer and reports read-back proof", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "notion-coordination-snapshot-"));
+		tempDirs.push(tempDir);
+		const inputPath = join(tempDir, "coordination-export.json");
+		await writeFile(inputPath, JSON.stringify({ coordination_notion_export: exportFixture() }, null, 2), "utf8");
+
+		const result = await runCoordinationCommandForTest({
+			input: inputPath,
+			json: true,
+			live: true,
+			writeScope: "events",
+			confirmLive: true,
+			writer: {
+				async upsertEvents({ payload, plan }) {
+					expect(payload.rows).toHaveLength(2);
+					expect(plan.mode).toBe("live");
+					expect(plan.summary.planned_writes).toBe(2);
+					return {
+						mode: "live",
+						write_scope: "events",
+						source_page_id: "source-page-1",
+						created_events: 1,
+						updated_events: 1,
+						read_back_verified: 2,
+						written_event_ids: ["event-1", "event-2"],
+					};
+				},
+			},
+		});
+
+		expect(result.stderr).toBe("");
+		const parsed = JSON.parse(result.stdout);
+		expect(parsed.coordination_snapshot_ingestion_plan.mode).toBe("live");
+		expect(parsed.coordination_snapshot_write_result).toEqual(
+			expect.objectContaining({
+				write_scope: "events",
+				created_events: 1,
+				updated_events: 1,
+				read_back_verified: 2,
+			}),
+		);
 	});
 });
 
@@ -169,5 +266,26 @@ async function runCliForTest(argv: string[]): Promise<{ stdout: string; stderr: 
 		stdout: stdout.join("\n"),
 		stderr: stderr.join("\n"),
 		exitCode,
+	};
+}
+
+async function runCoordinationCommandForTest(
+	options: Parameters<typeof runCoordinationSnapshotIngestionPlanCommand>[0],
+): Promise<{ stdout: string; stderr: string }> {
+	const stdout: string[] = [];
+	const stderr: string[] = [];
+	const previousLog = console.log;
+	const previousError = console.error;
+	try {
+		console.log = (...values: unknown[]) => stdout.push(values.map((value) => String(value)).join(" "));
+		console.error = (...values: unknown[]) => stderr.push(values.map((value) => String(value)).join(" "));
+		await runCoordinationSnapshotIngestionPlanCommand(options);
+	} finally {
+		console.log = previousLog;
+		console.error = previousError;
+	}
+	return {
+		stdout: stdout.join("\n"),
+		stderr: stderr.join("\n"),
 	};
 }
