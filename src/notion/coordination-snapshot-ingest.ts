@@ -80,13 +80,16 @@ export interface CoordinationSnapshotIngestionPlan {
 	schema_version: "notion.personal_ops_coordination_ingestion_plan.v1";
 	generated_at: string;
 	mode: "dry_run";
+	write_scope: "none";
 	source_snapshot_id: string;
 	source_generated_at: string;
 	summary: {
 		rows_seen: number;
 		items_planned: number;
+		planned_writes: 0;
 		needs_review: number;
 		archive_candidates: number;
+		deferred_rows: number;
 		highest_urgency: CoordinationSignalUrgency | null;
 		dry_run_contract_verified: boolean;
 	};
@@ -197,13 +200,16 @@ export function buildCoordinationSnapshotIngestionPlan(
 		schema_version: "notion.personal_ops_coordination_ingestion_plan.v1",
 		generated_at: now.toISOString(),
 		mode: "dry_run",
+		write_scope: "none",
 		source_snapshot_id: payload.snapshot_id,
 		source_generated_at: payload.generated_at,
 		summary: {
 			rows_seen: payload.rows.length,
 			items_planned: items.length,
+			planned_writes: 0,
 			needs_review: payload.rows.filter((row) => row.needs_review).length,
 			archive_candidates: payload.rows.filter((row) => row.archive_candidate).length,
+			deferred_rows: payload.rows.filter((row) => row.status === "deferred").length,
 			highest_urgency: payload.summary.highest_urgency,
 			dry_run_contract_verified: true,
 		},
@@ -221,9 +227,11 @@ export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapsh
 	lines.push("Personal Ops Coordination Ingestion Plan");
 	lines.push(`Generated: ${plan.generated_at}`);
 	lines.push(`Mode: ${plan.mode}`);
+	lines.push(`Write scope: ${plan.write_scope}`);
 	lines.push(`Source snapshot: ${plan.source_snapshot_id}`);
 	lines.push(`Rows: ${plan.summary.rows_seen}`);
-	lines.push(`Planned writes: 0`);
+	lines.push(`Planned writes: ${plan.summary.planned_writes}`);
+	lines.push(`Deferred rows: ${plan.summary.deferred_rows}`);
 	lines.push(`Dry-run contract: ${plan.summary.dry_run_contract_verified ? "verified" : "not verified"}`);
 	lines.push("");
 	lines.push("Quality Checks");

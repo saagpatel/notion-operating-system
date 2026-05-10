@@ -63,8 +63,13 @@ export async function replaceCommandCenterPageAfterPatchFailure(input: {
 
 export function isMarkdownPatchTransportError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
-	return /Notion request transport error.*PATCH \/pages\/.*\/markdown/i.test(
-		message,
+	return (
+		/Notion request transport error.*PATCH \/pages\/.*\/markdown/i.test(
+			message,
+		) ||
+		/Notion request returned retryable error responses after \d+ attempt\(s\) for PATCH \/pages\/.*\/markdown/i.test(
+			message,
+		)
 	);
 }
 

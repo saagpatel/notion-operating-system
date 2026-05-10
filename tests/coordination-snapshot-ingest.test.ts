@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -22,11 +22,14 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 		const formatted = formatCoordinationSnapshotIngestionPlan(plan);
 
 		expect(plan.mode).toBe("dry_run");
+		expect(plan.write_scope).toBe("none");
 		expect(plan.summary).toEqual({
 			rows_seen: 2,
 			items_planned: 2,
+			planned_writes: 0,
 			needs_review: 1,
 			archive_candidates: 1,
+			deferred_rows: 0,
 			highest_urgency: "high",
 			dry_run_contract_verified: true,
 		});
@@ -41,8 +44,24 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 		);
 		expect(plan.items[1]?.severity).toBe("Risk");
 		expect(formatted).toContain("Planned writes: 0");
+		expect(formatted).toContain("Write scope: none");
 		expect(formatted).toContain("Dry-run contract: verified");
 		expect(formatted).toContain("Quality Checks");
+	});
+
+	test("matches the shared fixture contract for Personal Ops exports", async () => {
+		const input = JSON.parse(
+			await readFile(new URL("./fixtures/personal-ops-coordination-export.v1.json", import.meta.url), "utf8"),
+		) as unknown;
+		const expected = JSON.parse(
+			await readFile(
+				new URL("./fixtures/personal-ops-coordination-ingestion-plan.v1.json", import.meta.url),
+				"utf8",
+			),
+		);
+
+		const plan = buildCoordinationSnapshotIngestionPlan(input, new Date("2026-05-10T10:30:00.000Z"));
+		expect(plan).toEqual(expected.coordination_snapshot_ingestion_plan);
 	});
 
 	test("CLI exposes the dry-run plan without requiring Notion credentials", async () => {

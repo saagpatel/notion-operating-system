@@ -1,0 +1,78 @@
+{
+  "coordination_notion_export": {
+    "schema_version": "personal_ops.coordination_notion_export.v1",
+    "generated_at": "2026-05-10T10:25:00.000Z",
+    "mode": "export_only",
+    "destination": "notion_external_signal_provider",
+    "snapshot_id": "coordination-20260510T102500Z",
+    "source_snapshot": {
+      "schema_version": "1.0.0",
+      "generated_at": "2026-05-10T10:24:55.000Z",
+      "overall": "green"
+    },
+    "summary": {
+      "rows_total": 2,
+      "needs_review": 1,
+      "archive_candidates": 1,
+      "highest_urgency": "medium"
+    },
+    "handoff": {
+      "consumer": "notion",
+      "write_mode": "dry_run_only",
+      "source_owner": "personal_ops",
+      "ledger_owner": "notion",
+      "consumer_command": "notion-os signals coordination-snapshot --input <coordination-export.json> --json",
+      "verification_checks": [
+        "Validate schema versions before planning ingestion.",
+        "Confirm row dedupe keys are unique within the snapshot.",
+        "Keep planned writes at zero until the Notion live-write lane is explicitly approved."
+      ]
+    },
+    "next_actions": [
+      "Run the Notion dry-run consumer before adding any Notion ingestion writes.",
+      "Keep Notion writes in the Notion lane and dry-run-first."
+    ],
+    "rows": [
+      {
+        "schema_version": "personal_ops.coordination_notion_signal.v1",
+        "snapshot_id": "coordination-20260510T102500Z",
+        "generated_at": "2026-05-10T10:25:00.000Z",
+        "source": "personal_ops",
+        "project_key": "personal-ops",
+        "project_title": "Personal Ops health",
+        "summary": "Personal Ops health is ready.",
+        "status": "ok",
+        "urgency": "low",
+        "needs_review": false,
+        "archive_candidate": true,
+        "confidence": "high",
+        "freshness_at": "2026-05-10T10:24:50.000Z",
+        "evidence_refs": [
+          "personal-ops health check --deep --json"
+        ],
+        "dedupe_key": "coordination-20260510T102500Z:health:green",
+        "raw_excerpt": "Personal Ops health is ready."
+      },
+      {
+        "schema_version": "personal_ops.coordination_notion_signal.v1",
+        "snapshot_id": "coordination-20260510T102500Z",
+        "generated_at": "2026-05-10T10:25:00.000Z",
+        "source": "notion",
+        "project_key": "notion",
+        "project_title": "Notion",
+        "summary": "Notion is intentionally deferred in this lane because active Notion work is handled separately.",
+        "status": "deferred",
+        "urgency": "medium",
+        "needs_review": true,
+        "archive_candidate": false,
+        "confidence": "medium",
+        "freshness_at": null,
+        "evidence_refs": [
+          "/Users/d/Notion"
+        ],
+        "dedupe_key": "coordination-20260510T102500Z:source:notion:deferred",
+        "raw_excerpt": "Notion is intentionally deferred in this lane."
+      }
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "coordination_snapshot_ingestion_plan": {
+    "schema_version": "notion.personal_ops_coordination_ingestion_plan.v1",
+    "generated_at": "2026-05-10T10:30:00.000Z",
+    "mode": "dry_run",
+    "write_scope": "none",
+    "source_snapshot_id": "coordination-20260510T102500Z",
+    "source_generated_at": "2026-05-10T10:25:00.000Z",
+    "summary": {
+      "rows_seen": 2,
+      "items_planned": 2,
+      "planned_writes": 0,
+      "needs_review": 1,
+      "archive_candidates": 1,
+      "deferred_rows": 1,
+      "highest_urgency": "medium",
+      "dry_run_contract_verified": true
+    },
+    "checks": [
+      {
+        "id": "schema",
+        "title": "Schema and snapshot identity",
+        "state": "pass",
+        "message": "Payload and row schema versions are supported and row snapshot ids match the export."
+      },
+      {
+        "id": "dedupe",
+        "title": "Dedupe keys are unique",
+        "state": "pass",
+        "message": "2 row dedupe keys are unique within this snapshot."
+      },
+      {
+        "id": "evidence",
+        "title": "Rows include evidence references",
+        "state": "pass",
+        "message": "Every planned signal has at least one evidence reference."
+      },
+      {
+        "id": "dry_run",
+        "title": "Dry-run contract",
+        "state": "pass",
+        "message": "This command still plans zero Notion writes."
+      }
+    ],
+    "items": [
+      {
+        "dedupe_key": "coordination-20260510T102500Z:health:green",
+        "target": "external_signal_events",
+        "provider_key": "personal_ops_coordination_snapshot",
+        "title": "Coordination Snapshot - Personal Ops health",
+        "status": "ok",
+        "severity": "Info",
+        "would_write": false,
+        "summary": "Personal Ops health is ready.",
+        "evidence_refs": [
+          "personal-ops health check --deep --json"
+        ],
+        "raw_excerpt": "Personal Ops health is ready."
+      },
+      {
+        "dedupe_key": "coordination-20260510T102500Z:source:notion:deferred",
+        "target": "external_signal_events",
+        "provider_key": "personal_ops_coordination_snapshot",
+        "title": "Coordination Snapshot - Notion",
+        "status": "deferred",
+        "severity": "Watch",
+        "would_write": false,
+        "summary": "Notion is intentionally deferred in this lane because active Notion work is handled separately.",
+        "evidence_refs": [
+          "/Users/d/Notion"
+        ],
+        "raw_excerpt": "Notion is intentionally deferred in this lane."
+      }
+    ],
+    "next_actions": [
+      "Review the dry-run plan before wiring live Notion writes.",
+      "Keep Personal Ops as the snapshot generator and Notion as the ledger consumer."
+    ]
+  }
+}

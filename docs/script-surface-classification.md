@@ -75,6 +75,7 @@ These commands are part of the durable shared CLI surface and should stay discov
 - `signals views-validate`
 - `signals provider-expansion-audit`
 - `signals morning-brief`
+- `signals coordination-snapshot`
 
 ### Governance
 

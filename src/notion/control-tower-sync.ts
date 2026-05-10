@@ -44,6 +44,7 @@ import {
 	buildWeeklyStepContract,
 	mapWeeklyStepStatusToCommandStatus,
 } from "./weekly-refresh-contract.js";
+import { isMarkdownPatchTransportError } from "./command-center-replacement.js";
 
 export interface ControlTowerSyncCommandOptions {
 	live?: boolean;
@@ -315,13 +316,6 @@ async function publishCommandCenter(input: {
 		pageId: created.id,
 		pageUrl: created.url,
 	};
-}
-
-function isMarkdownPatchTransportError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return /Notion request transport error.*PATCH \/pages\/.*\/markdown/i.test(
-		message,
-	);
 }
 
 export function buildDerivedPropertyUpdates(
