@@ -73,8 +73,8 @@
       }
     ],
     "next_actions": [
-      "Review the dry-run plan before wiring live Notion writes.",
-      "Keep Personal Ops as the snapshot generator and Notion as the ledger consumer."
+      "Review the dry-run plan before running the approved Notion event write.",
+      "Run live only with --live --write-scope events --confirm-live after the plan is accepted."
     ]
   }
 }
