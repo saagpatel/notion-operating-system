@@ -8,6 +8,7 @@ import { runCli } from "../src/cli/runner.js";
 import {
 	buildCoordinationSnapshotDisplayModel,
 	buildCoordinationSnapshotIngestionPlan,
+	buildCoordinationSnapshotReadBackResult,
 	formatCoordinationSnapshotDisplayModel,
 	formatCoordinationSnapshotIngestionPlan,
 	runCoordinationSnapshotIngestionPlanCommand,
@@ -203,6 +204,40 @@ describe("Personal Ops coordination snapshot ingestion", () => {
 				created_events: 1,
 				updated_events: 1,
 				read_back_verified: 2,
+			}),
+		);
+	});
+
+	test("read-back proof reports displayed rows without enabling writes", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "notion-coordination-snapshot-"));
+		tempDirs.push(tempDir);
+		const inputPath = join(tempDir, "coordination-export.json");
+		const fixture = exportFixture();
+		await writeFile(inputPath, JSON.stringify({ coordination_notion_export: fixture }, null, 2), "utf8");
+
+		const result = await runCoordinationCommandForTest({
+			input: inputPath,
+			json: true,
+			readBack: true,
+			reader: {
+				async readBack({ payload }) {
+					expect(payload.rows).toHaveLength(2);
+					return buildCoordinationSnapshotReadBackResult({
+						payload,
+						eventIdsByDedupeKey: new Map(payload.rows.map((row, index) => [row.dedupe_key, `event-${index}`])),
+						now: new Date("2026-05-10T12:00:00.000Z"),
+					});
+				},
+			},
+		});
+
+		const parsed = JSON.parse(result.stdout);
+		expect(parsed.coordination_snapshot_ingestion_plan.summary.planned_writes).toBe(0);
+		expect(parsed.coordination_snapshot_read_back).toEqual(
+			expect.objectContaining({
+				state: "pass",
+				rows_expected: 2,
+				rows_found: 2,
 			}),
 		);
 	});

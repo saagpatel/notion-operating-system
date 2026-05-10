@@ -158,11 +158,30 @@ export interface CoordinationSnapshotLiveWriteResult {
 	written_event_ids: string[];
 }
 
+export interface CoordinationSnapshotReadBackResult {
+	schema_version: "notion.personal_ops_coordination_read_back.v1";
+	generated_at: string;
+	state: "pass" | "fail";
+	source_snapshot_id: string;
+	rows_expected: number;
+	rows_found: number;
+	missing_dedupe_keys: string[];
+	event_ids: string[];
+	next_actions: string[];
+}
+
 export interface CoordinationSnapshotEventWriter {
 	upsertEvents(input: {
 		payload: PersonalOpsCoordinationNotionExport;
 		plan: CoordinationSnapshotIngestionPlan;
 	}): Promise<CoordinationSnapshotLiveWriteResult>;
+}
+
+export interface CoordinationSnapshotEventReader {
+	readBack(input: {
+		payload: PersonalOpsCoordinationNotionExport;
+		plan: CoordinationSnapshotIngestionPlan;
+	}): Promise<CoordinationSnapshotReadBackResult>;
 }
 
 function assertCoordinationExport(value: unknown): PersonalOpsCoordinationNotionExport {
@@ -350,6 +369,33 @@ export function buildCoordinationSnapshotDisplayModel(
 	};
 }
 
+export function buildCoordinationSnapshotReadBackResult(input: {
+	payload: PersonalOpsCoordinationNotionExport;
+	eventIdsByDedupeKey: Map<string, string>;
+	now?: Date | undefined;
+}): CoordinationSnapshotReadBackResult {
+	const missing = input.payload.rows
+		.map((row) => row.dedupe_key)
+		.filter((key) => !input.eventIdsByDedupeKey.has(key));
+	const eventIds = input.payload.rows
+		.map((row) => input.eventIdsByDedupeKey.get(row.dedupe_key))
+		.filter((value): value is string => Boolean(value));
+	const state = missing.length === 0 ? "pass" : "fail";
+	return {
+		schema_version: "notion.personal_ops_coordination_read_back.v1",
+		generated_at: (input.now ?? new Date()).toISOString(),
+		state,
+		source_snapshot_id: input.payload.snapshot_id,
+		rows_expected: input.payload.rows.length,
+		rows_found: eventIds.length,
+		missing_dedupe_keys: missing,
+		event_ids: eventIds,
+		next_actions: state === "pass"
+			? ["Record this snapshot as displayed in Personal Ops if this proof is part of the approved ledger pilot."]
+			: ["Run the approved live event write or inspect missing External Signal Events before recording display proof."],
+	};
+}
+
 export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapshotIngestionPlan): string {
 	const lines: string[] = [];
 	lines.push("Personal Ops Coordination Ingestion Plan");
@@ -410,8 +456,10 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 	confirmLive?: boolean;
 	writeScope?: CoordinationSnapshotWriteScope;
 	display?: boolean;
+	readBack?: boolean;
 	config?: string;
 	writer?: CoordinationSnapshotEventWriter;
+	reader?: CoordinationSnapshotEventReader;
 }): Promise<void> {
 	if (!options.input) {
 		throw new AppError("--input is required");
@@ -440,10 +488,16 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 	});
 	const display = options.display ? buildCoordinationSnapshotDisplayModel(plan) : undefined;
 	let writeResult: CoordinationSnapshotLiveWriteResult | undefined;
+	let readBackResult: CoordinationSnapshotReadBackResult | undefined;
 	if (live) {
 		const payload = assertCoordinationExport(parsed);
 		const writer = options.writer ?? (await createNotionCoordinationSnapshotEventWriter(options.config));
 		writeResult = await writer.upsertEvents({ payload, plan });
+	}
+	if (options.readBack) {
+		const payload = assertCoordinationExport(parsed);
+		const reader = options.reader ?? (await createNotionCoordinationSnapshotEventReader(options.config));
+		readBackResult = await reader.readBack({ payload, plan });
 	}
 	if (options.json) {
 		console.log(
@@ -452,6 +506,7 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 					coordination_snapshot_ingestion_plan: plan,
 					...(display ? { coordination_snapshot_display: display } : {}),
 					...(writeResult ? { coordination_snapshot_write_result: writeResult } : {}),
+					...(readBackResult ? { coordination_snapshot_read_back: readBackResult } : {}),
 				},
 				null,
 				2,
@@ -470,6 +525,12 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 		console.log(`- Created events: ${writeResult.created_events}`);
 		console.log(`- Updated events: ${writeResult.updated_events}`);
 		console.log(`- Read-back verified: ${writeResult.read_back_verified}`);
+	}
+	if (readBackResult) {
+		console.log("");
+		console.log("Read-Back Result");
+		console.log(`- State: ${readBackResult.state}`);
+		console.log(`- Rows found: ${readBackResult.rows_found}/${readBackResult.rows_expected}`);
 	}
 }
 
@@ -564,6 +625,32 @@ async function createNotionCoordinationSnapshotEventWriter(
 				read_back_verified: readBackVerified,
 				written_event_ids: writtenEventIds,
 			};
+		},
+	};
+}
+
+async function createNotionCoordinationSnapshotEventReader(
+	configPath?: string,
+): Promise<CoordinationSnapshotEventReader> {
+	const token = resolveRequiredNotionToken("NOTION_TOKEN is required for coordination snapshot read-back");
+	const config = await loadLocalPortfolioControlTowerConfig(configPath);
+	const phase5 = requirePhase5ExternalSignals(config);
+	const api = new DirectNotionClient(token);
+	return {
+		async readBack({ payload }) {
+			const eventIdsByDedupeKey = new Map<string, string>();
+			for (const row of payload.rows) {
+				const event = await findCoordinationEventByKey({
+					api,
+					dataSourceId: phase5.events.dataSourceId,
+					eventKey: row.dedupe_key,
+				});
+				if (event) eventIdsByDedupeKey.set(row.dedupe_key, event.id);
+			}
+			return buildCoordinationSnapshotReadBackResult({
+				payload,
+				eventIdsByDedupeKey,
+			});
 		},
 	};
 }

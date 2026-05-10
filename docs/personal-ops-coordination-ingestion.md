@@ -8,6 +8,7 @@ The Notion-side path defaults to dry-run:
 notion-os signals coordination-snapshot --input /path/to/personal-ops-coordination-export.json
 notion-os signals coordination-snapshot --input /path/to/personal-ops-coordination-export.json --json
 notion-os signals coordination-snapshot --input /path/to/personal-ops-coordination-export.json --display --json
+notion-os signals coordination-snapshot --input /path/to/personal-ops-coordination-export.json --read-back --json
 ```
 
 The command accepts the `personal_ops.coordination_notion_export.v1` payload emitted by:
@@ -19,6 +20,8 @@ personal-ops coordination export --for notion --json --output /path/to/personal-
 It validates the schema, snapshot identity, dry-run handoff contract, unique dedupe keys, and evidence references before converting rows into an ingestion plan for External Signal Events. The default plan reports `write_scope: none`, `planned_writes: 0`, deferred row counts, and `Dry-run contract: verified`.
 
 The optional `--display` flag adds the v1 read-only Notion ledger pilot model. It groups rows into `Needs Review`, `Watch`, and `Archive Candidates` so Notion can display the current coordination state before any approved write lane runs.
+
+The optional `--read-back` flag verifies the exported row dedupe keys against existing External Signal Events without writing. Personal Ops uses that proof to record the latest snapshot that Notion has actually displayed.
 
 Personal Ops now has a repo-owned dry-run proof command:
 
@@ -34,6 +37,7 @@ Personal Ops also writes local restart archives with:
 personal-ops coordination archive
 personal-ops coordination archive-store list
 personal-ops coordination archive-store inspect --archive <archive-dir>
+personal-ops coordination verify-notion-read-back --export <coordination-export.json> --record
 ```
 
 The archive is local Personal Ops evidence, not a Notion write. Notion remains the durable display and ledger consumer through External Signal Events.

@@ -1133,6 +1133,11 @@ export const cliRegistry: CliCommandDefinition[] = [
 					description: "Include the read-only Notion display model for the coordination ledger pilot.",
 					type: "boolean",
 				},
+				{
+					name: "read-back",
+					description: "Read back External Signal Events by dedupe key without writing.",
+					type: "boolean",
+				},
 			],
 			({ parsed }) =>
 				runCoordinationSnapshotIngestionPlanCommand({
@@ -1140,6 +1145,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 					json: asBoolean(parsed.options.json),
 					live: asBoolean(parsed.options.live),
 					display: asBoolean(parsed.options.display),
+					readBack: asBoolean(parsed.options["read-back"]),
 					writeScope:
 						(asString(parsed.options["write-scope"]) as "none" | "events" | undefined) ?? "none",
 					confirmLive: asBoolean(parsed.options["confirm-live"]),
