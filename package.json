@@ -154,7 +154,7 @@
 		"dotenv": "^17.4.2",
 		"exceljs": "^4.4.0",
 		"gray-matter": "^4.0.3",
-		"zod": "^4.4.2"
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@types/node": "^25.6.0",
