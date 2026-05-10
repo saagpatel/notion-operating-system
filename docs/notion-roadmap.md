@@ -12,6 +12,7 @@ Updated: 2026-05-10
 - The May 10 review-recovery pass is complete: `npm run control-tower:review-recovery` is now available, the live pass cleared the review backlog and small review metadata gaps, and the operator brief now reports 0 overdue reviews.
 - The May 10 follow-through pass closed the Command Center and weekly-review content drift loops: both now return clean dry-runs after live refreshes.
 - The May 10 operator brief command is live as `npm run control-tower:operator-brief`, combining top signal risks, stale-active count, orphan kickoff follow-through, and the first review-recovery queue.
+- The May 10 packet follow-through lane is live as `npm run control-tower:packet-follow-through`, ranking existing kickoff packets, signal-risk repair packets, overdue packet work, and packets that need a first concrete task. The first live run created the missing ApplyKit signal-risk follow-up task and published a Build Log report.
 - The May 9 Notion maintenance work is complete: Dependabot updates are merged, the targeted cleanup lanes are clean, and the Command Center destination now points at the current live page.
 - The May 9 Phase 10C operator-surface pass is complete: morning brief priority ranking, governed orphan actions, deduped trend movement, live weekly sections, approved orphan kickoff packets, and a Command Center refresh are now in place.
 - The May 4 Notion maintenance work is complete: Intelligence, Execution, and External Signal generated briefs now converge through dedicated Notion databases instead of project-page markdown writes.
@@ -36,6 +37,8 @@ Updated: 2026-05-10
 - `npm run control-tower:stale-active-rescue -- --today 2026-05-10 --limit 10 --live` applied the 10-project rescue batch; the follow-up dry-run now reports 0 stale active projects.
 - `npm run control-tower:review-packet -- --today 2026-05-10` and `npm run control-tower:sync -- --today 2026-05-10` both returned clean after the final review and Command Center refresh.
 - `npm run control-tower:operator-brief -- --today 2026-05-10` reports the current operator queue: 0 overdue reviews, 0 stale active projects, 0 new orphan kickoff packets needed, and 5 orphans already routed to kickoff packets.
+- `npm run control-tower:packet-follow-through -- --today 2026-05-10 --limit 12 --live --create-signal-tasks` published the packet follow-through report, created 1 signal-risk task for ApplyKit, and the follow-up dry-run now shows the ApplyKit signal-risk packet as `Ready to start` with 1 open task.
+- ApplyKit monitoring found the next true repo blocker after the pnpm and Trivy repairs: the GitHub CI/quality/security verify jobs now fail on the build-time performance threshold (`buildMs` exceeded the 15% allowance), while pnpm setup, Trivy, Rust tests, UI tests, coverage, docs checks, and bundle size pass.
 - `npm run maintenance:weekly-refresh -- --fast --summary-first --today 2026-05-09` passed earlier on 2026-05-09 with 6 clean lanes, 0 drift, 0 failed steps, and `needsLiveWrite=false`; a later post-Phase-10C dry run found 4 drift lanes, with no failed steps.
 - `npm run signals:morning-brief -- --today 2026-05-09 --lookback-days 7 --live` patched the weekly review on 2026-05-09 with a ranked Priority Projects section. Current top risk projects were ApplyKit and AuraForge.
 - `npm run governance:orphan-classify -- --today 2026-05-09 --live --request-approval --approve --create-approved-packets` created or refreshed 5 approved orphan kickoff requests and 5 work packets on 2026-05-09.
@@ -101,9 +104,9 @@ Updated: 2026-05-10
 
 ## Latest Metrics
 - Total projects: 117
-- Overdue reviews: 81
-- Missing next moves: 1
-- Missing last active: 4
+- Overdue reviews: 0
+- Missing next moves: 0
+- Missing last active: 0
 - Stale active projects: 0
 - Orphaned projects: 6
 - Recent build sessions: 2

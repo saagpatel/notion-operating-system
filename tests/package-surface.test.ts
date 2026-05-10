@@ -43,6 +43,9 @@ describe("package surface", () => {
     expect(packageJson.scripts["control-tower:review-recovery"]).toBe(
       "tsx src/cli.ts control-tower review-recovery",
     );
+    expect(packageJson.scripts["control-tower:packet-follow-through"]).toBe(
+      "tsx src/cli.ts control-tower packet-follow-through",
+    );
     expect(packageJson.scripts["control-tower:repo-mapping-audit"]).toBe(
       "tsx src/cli.ts control-tower repo-mapping-audit",
     );
@@ -199,7 +202,7 @@ async function runNpmScript(
   try {
     const result = await execFileAsync(npmBin, ["run", scriptName, "--", ...args], {
       cwd: repoRoot,
-      env: process.env,
+      env: quietNodeWarningsEnv(),
     });
 
     return {
@@ -224,7 +227,7 @@ async function runTsxFile(
   try {
     const result = await execFileAsync(tsxBin, [filePath, ...args], {
       cwd: repoRoot,
-      env: process.env,
+      env: quietNodeWarningsEnv(),
     });
 
     return {
@@ -240,4 +243,11 @@ async function runTsxFile(
       exitCode: failure.code ?? 1,
     };
   }
+}
+
+function quietNodeWarningsEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, "--no-deprecation"].filter(Boolean).join(" "),
+  };
 }

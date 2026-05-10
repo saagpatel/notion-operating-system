@@ -58,14 +58,16 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
 - the sandbox profile-owned Vercel manual seeds and rollout targets were trimmed because the sandbox workspace does not currently contain matching local project rows for those primary-profile IDs
 - the orphan-classification packet lane now creates structured `work_packets` entries with execution fields and `Local Project` relations; the remaining orphan follow-through gap is approval gating rather than packet shape
 - the orphan-classification lane now has an approval-backed path too: `--request-approval` creates governance requests for kickoff packets, and `--create-approved-packets` only materializes approved ones
+- `npm run control-tower:packet-follow-through` is now the first operator surface for deciding which existing packet to work next; it ranks orphan kickoff packets, signal-risk repair packets, overdue packet work, and packets that need a first concrete task. Its live `--create-signal-tasks` mode is intentionally narrow: it only creates one first task for signal-risk packets that currently have no open task.
 - Current `governance:health-report` may still warn in active runtime about missing `VERCEL_TOKEN` and `VERCEL_WEBHOOK_SECRET`; treat that as an operational-env follow-up, not a code bug
+- ApplyKit is now a good example of the signal-risk loop: Notion surfaced workflow failures, the repo-level pnpm and Trivy blockers were fixed, and the remaining GitHub failure is a build-time performance threshold regression. Work it through the existing `Signal risk repair - ApplyKit workflow failures` packet and its follow-up task rather than creating another packet.
 - The next meaningful work should start from one explicit Phase 10 delivery slice, not from another repo cleanup pass
 - `notification-hub` and `repo-auditor` are implemented, sandbox-proven, and now exercise primary-profile source rows in dry-run mode
 
 ## Open Loops
 - Advance active Phase 10 work rather than reopening generic cleanup:
   - clean up signal quality for `notification_hub` unmatched/null project events and refresh or document the `repo_auditor` audit input date
-  - keep morning-brief, orphan classification, and trend-analysis lanes coherent
+  - keep morning-brief, packet follow-through, orphan classification, and trend-analysis lanes coherent
   - prefer the new approval-backed orphan path for live use when human signoff is desirable
   - preserve script-surface discipline as new commands are added
 - Keep docs current as active workflows evolve
@@ -77,14 +79,14 @@ This repo is a working “Notion Operating System” in `/Users/d/Notion`. The m
 1. Re-ground from `HANDOFF.md`, `docs/notion-roadmap.md`, and `docs/script-surface-classification.md`.
 2. Choose the next explicit Phase 10 implementation slice now that the sandbox rehearsal lane is healthy again.
    The best current candidate is no longer `notification-hub` or `GithubRepoAuditor`; those are already proven in sandbox live mode.
-   Choose either `bridge-db` completion or operator-surface productization on top of the proven adapters.
+   Choose either `bridge-db` completion or the next packet follow-through cleanup batch on top of the proven adapters.
 3. Treat the sandbox GitHub lane, orphan packet structure, and approval-backed orphan flow as already-proven foundations unless a new bug appears.
 4. Treat the `notification-hub` and `repo-auditor` adapters as already-proven foundations too:
    - both use global local-provider source rows
    - `notification-hub` is project-only in v1
    - `repo-auditor` resolves through GitHub source identifiers first
 5. Prefer shared CLI additions over new standalone script entrypoints.
-6. Re-run `notion-os --profile sandbox doctor --json`, `npm run sandbox:smoke`, and the relevant Phase 10 dry-run checks after any new work.
+6. Re-run `npm run control-tower:packet-follow-through -- --today <date>`, `notion-os --profile sandbox doctor --json`, `npm run sandbox:smoke`, and the relevant Phase 10 dry-run checks after any new work.
 
 ## Guardrails
 - Reuse established decisions unless I explicitly reopen them

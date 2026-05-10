@@ -42,11 +42,16 @@ These commands are part of the durable shared CLI surface and should stay discov
 
 - `control-tower sync`
 - `control-tower review-packet`
+- `control-tower operator-brief`
+- `control-tower packet-follow-through`
 - `control-tower phase-closeout`
 - `control-tower views-plan`
 - `control-tower views-validate`
 - `control-tower export-project-snapshot`
 - `control-tower schema-report`
+- `control-tower review-recovery`
+- `control-tower stale-active-rescue`
+- `control-tower repo-mapping-audit`
 - `control-tower trend-analysis`
 
 ### Execution

@@ -189,8 +189,8 @@ export function renderOperatorBrief(input: {
 		"",
 		"### Next Commands",
 		"- `npm run control-tower:operator-brief`",
+		"- `npm run control-tower:packet-follow-through`",
 		"- `npm run signals:morning-brief -- --lookback-days 7 --live`",
-		"- `npm run governance:orphan-classify -- --live --request-approval`",
 		"- `npm run control-tower:review-packet -- --live`",
 	];
 	return lines.join("\n");

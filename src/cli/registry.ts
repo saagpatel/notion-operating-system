@@ -21,6 +21,7 @@ import { runLinkSuggestionsSyncCommand } from "../notion/link-suggestions-sync.j
 import { runMorningBriefCommand } from "../notion/morning-brief.js";
 import { runOperationalRolloutCommand } from "../notion/operational-rollout.js";
 import { runOperatorBriefCommand } from "../notion/operator-brief.js";
+import { runPacketFollowThroughCommand } from "../notion/packet-follow-through.js";
 import { runOrphanClassificationCommand } from "../notion/orphan-classification.js";
 import { runPhaseCloseoutCommand } from "../notion/phase-closeout.js";
 import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfolio-views.js";
@@ -508,6 +509,45 @@ export const cliRegistry: CliCommandDefinition[] = [
 						positionals: parsed.positionals,
 					}),
 					lookbackDays: asNumber(parsed.options["lookback-days"]),
+				}),
+		),
+		buildConfigCommand(
+			"packet-follow-through",
+			"Rank existing work packets that need operator follow-through.",
+			[
+				commonOptions.live,
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "limit",
+					description: "Maximum number of packet follow-through rows to show.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "include-all-open",
+					description:
+						"Include every open packet, not just follow-through attention rows.",
+					type: "boolean",
+				},
+				{
+					name: "create-signal-tasks",
+					description:
+						"Create one first task for signal-risk repair packets that have no open task (requires --live).",
+					type: "boolean",
+				},
+			],
+			({ parsed }) =>
+				runPacketFollowThroughCommand({
+					live: asBoolean(parsed.options.live),
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					limit: asNumber(parsed.options.limit),
+					includeAllOpen: asBoolean(parsed.options["include-all-open"]),
+					createSignalTasks: asBoolean(parsed.options["create-signal-tasks"]),
 				}),
 		),
 		buildConfigCommand(
