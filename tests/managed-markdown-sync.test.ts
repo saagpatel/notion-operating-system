@@ -327,6 +327,113 @@ describe("managed markdown sync", () => {
 		expect(patchInputs[0]?.maxAttempts).toBe(3);
 	});
 
+	test("syncManagedMarkdownSection skips the API call when NOTION_SKIP_MANAGED_MARKDOWN_PATCH=1", async () => {
+		const previousEnv = process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH;
+		process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH = "1";
+		try {
+			const calls: Array<unknown> = [];
+			const api = {
+				patchPageMarkdown: async (input: unknown) => {
+					calls.push(input);
+				},
+			};
+
+			const mode = await syncManagedMarkdownSection({
+				api: api as never,
+				pageId: "page-1",
+				previousMarkdown: "# Old\n\nbody",
+				nextMarkdown: "# New\n\nbody",
+				startMarker: "<!-- codex:notion-execution-brief:start -->",
+				endMarker: "<!-- codex:notion-execution-brief:end -->",
+			});
+
+			expect(mode).toBe("skipped_by_env");
+			expect(calls).toHaveLength(0);
+		} finally {
+			if (previousEnv === undefined) {
+				delete process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH;
+			} else {
+				process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH = previousEnv;
+			}
+		}
+	});
+
+	test("syncManagedMarkdownSectionWithReadBack skips when NOTION_SKIP_MANAGED_MARKDOWN_PATCH=1", async () => {
+		const previousEnv = process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH;
+		process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH = "1";
+		try {
+			const calls: Array<unknown> = [];
+			const api = {
+				patchPageMarkdown: async (input: unknown) => {
+					calls.push(input);
+				},
+				readPageMarkdown: async () => {
+					throw new Error("readPageMarkdown should not be called when skipped");
+				},
+			};
+
+			const mode = await syncManagedMarkdownSectionWithReadBack({
+				api: api as never,
+				pageId: "page-1",
+				previousMarkdown: "# Old\n\nbody",
+				nextMarkdown: "# New\n\nbody",
+				startMarker: "<!-- codex:notion-execution-brief:start -->",
+				endMarker: "<!-- codex:notion-execution-brief:end -->",
+				maxAttempts: 2,
+			});
+
+			expect(mode).toBe("skipped_by_env");
+			expect(calls).toHaveLength(0);
+		} finally {
+			if (previousEnv === undefined) {
+				delete process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH;
+			} else {
+				process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH = previousEnv;
+			}
+		}
+	});
+
+	test("env-var skip only triggers on '1', not on other truthy strings", async () => {
+		const previousEnv = process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH;
+		process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH = "true";
+		try {
+			const calls: Array<{ command: string }> = [];
+			const api = {
+				patchPageMarkdown: async (input: { command: string }) => {
+					calls.push(input);
+				},
+			};
+
+			const mode = await syncManagedMarkdownSection({
+				api: api as never,
+				pageId: "page-1",
+				previousMarkdown: [
+					"# Project",
+					"<!-- codex:notion-execution-brief:start -->",
+					"old",
+					"<!-- codex:notion-execution-brief:end -->",
+				].join("\n"),
+				nextMarkdown: [
+					"# Project",
+					"<!-- codex:notion-execution-brief:start -->",
+					"new",
+					"<!-- codex:notion-execution-brief:end -->",
+				].join("\n"),
+				startMarker: "<!-- codex:notion-execution-brief:start -->",
+				endMarker: "<!-- codex:notion-execution-brief:end -->",
+			});
+
+			expect(mode).toBe("update_content");
+			expect(calls).toHaveLength(1);
+		} finally {
+			if (previousEnv === undefined) {
+				delete process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH;
+			} else {
+				process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH = previousEnv;
+			}
+		}
+	});
+
 	test("recognizes managed sections after Notion escapes the markers", () => {
 		const existing = [
 			"# Project",
