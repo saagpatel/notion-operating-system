@@ -1,4 +1,7 @@
-import { recordCommandFailureCategory } from "../cli/run-observability.js";
+import {
+	recordCommandFailureCategory,
+	recordCommandWarningCategory,
+} from "../cli/run-observability.js";
 import type { ContentUpdate } from "../types.js";
 import { AppError } from "../utils/errors.js";
 import {
@@ -15,11 +18,16 @@ const DEFAULT_READ_BACK_MAX_ATTEMPTS = 1;
 type ManagedMarkdownSyncMode =
 	| "replace_content"
 	| "update_content"
-	| "append_tail_update";
+	| "append_tail_update"
+	| "skipped_by_env";
 
 export type ManagedMarkdownSyncWithReadBackMode =
 	| ManagedMarkdownSyncMode
 	| "read_back_converged";
+
+function shouldSkipManagedMarkdownPatch(): boolean {
+	return process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH === "1";
+}
 
 export async function syncManagedMarkdownSection(input: {
 	api: DirectNotionClient;
@@ -30,6 +38,10 @@ export async function syncManagedMarkdownSection(input: {
 	endMarker: string;
 	patchMaxAttempts?: number;
 }): Promise<ManagedMarkdownSyncMode> {
+	if (shouldSkipManagedMarkdownPatch()) {
+		recordCommandWarningCategory("managed_markdown_patch_skipped");
+		return "skipped_by_env";
+	}
 	if (
 		normalizeMarkdown(input.previousMarkdown) ===
 		normalizeMarkdown(input.nextMarkdown)
@@ -124,6 +136,10 @@ export async function syncManagedMarkdownSectionWithReadBack(input: {
 	maxAttempts?: number;
 	patchMaxAttempts?: number;
 }): Promise<ManagedMarkdownSyncWithReadBackMode> {
+	if (shouldSkipManagedMarkdownPatch()) {
+		recordCommandWarningCategory("managed_markdown_patch_skipped");
+		return "skipped_by_env";
+	}
 	let previousMarkdown = input.previousMarkdown;
 	const maxAttempts = input.maxAttempts ?? DEFAULT_READ_BACK_MAX_ATTEMPTS;
 	let lastError: unknown;
