@@ -37,3 +37,8 @@ Updated: 2026-04-14
 ## Phase 9
 - Objective: Expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is trusted.
 - Next-phase brief: Phase 9 will expand the proven governance-and-actuation pattern to non-GitHub providers only after the deep GitHub lane is stable, low-noise, and easy to audit.
+
+## Phase 10
+- Objective: Wire local signal adapters into the external-signal pipeline and close the feedback loop between portfolio health and daily operations.
+- Shipped capabilities: Phase 10 gave us three local-provider adapters (notification-hub JSONL, GithubRepoAuditor audit reports, bridge-db SHIPPED rows), a morning brief digest patched onto the weekly review, deterministic orphan classification with approval-backed packet creation, historical trend analysis via JSONL snapshots, and a productized operator surface with packet follow-through, stale-active rescue, and review-recovery lanes.
+- Next-phase brief: Phase 10 closed the signal-wiring loop cleanly. Phase 11 should make the system opinionated about what to work on today, not just what the signals say. The morning brief and packet queue are both healthy; the gap is synthesis and prioritization.
