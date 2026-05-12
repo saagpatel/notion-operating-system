@@ -15,3 +15,5 @@ tmp/
 var/
 .claude/
 .serena/
+pnpm-lock.yaml
+pnpm-workspace.yaml
