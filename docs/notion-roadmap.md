@@ -270,7 +270,7 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - Cross-provider expansion remains easy to understand and clearly worth the added complexity
 
 ### Phase 10: Signal Wiring and Intelligence Layer
-- Status: Active
+- Status: Completed
 - Objective: Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
 - Deliverables:
   - Notification Hub JSONL → ExternalSignalEvents adapter with severity classification
@@ -300,15 +300,29 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - as of 2026-04-17, the orphan-classification live packet lane writes structured `work_packets` entries with execution metadata and project relations
   - as of 2026-04-17, orphan follow-through also has an approval-backed path: `--request-approval` creates or refreshes governance requests and `--create-approved-packets` materializes only approved kickoff packets
   - as of 2026-04-17, the sandbox GitHub lane has enough live evidence to stop proving it further unless a new action family is needed; the next work should be productization, not more sandbox mutation depth
+  - Phase 10 closed 2026-05-12: all exit criteria met, 329 tests passing, stale-active rescue clean, operator brief reports 0 overdue reviews and 0 stale active projects
+
+### Phase 11: Daily Intelligence and Packet Prioritization
+- Status: Planned
+- Objective: Make the portfolio OS opinionated about what to work on today — add packet prioritization by composite score, a daily focus synthesis command, packet staleness detection, and signal-quality cleanup that promotes the morning brief from a diagnostic tool to a trusted daily driver.
+- Deliverables:
+  - Packet prioritizer (`control-tower:packet-prioritizer`): ranks open packets by composite score (signal severity × recommendation score × evidence staleness × time-since-last-task-created), with brief per-packet rationale
+  - Today's focus command (`control-tower:today`): synthesizes morning brief + packet priorities + personal-ops worklist into a single ranked daily action output, patched onto the weekly review page
+  - Packet staleness detection: surfaces in operator brief when a packet has had no task activity in N days (configurable); escalates to "at risk" if both overdue and task-stale
+  - Signal-quality cleanup: fuzzy-match fallback for `Needs Mapping` source rows; dry-run mapping audit command to surface unresolved sources for operator action
+  - Block-level managed section writes: investigate block-API alternative to `PATCH /pages/{id}` markdown endpoint for managed sections; implement as primary path if viable, eliminating `NOTION_SKIP_MANAGED_MARKDOWN_PATCH` dependency; document decision clearly if Notion API fix is required first
+- Exit criteria:
+  - `control-tower:packet-prioritizer` dry-run produces a ranked list with rationale for ≥5 actionable packets
+  - `control-tower:today` dry-run produces a valid daily focus section on the weekly review page
+  - Packet staleness surfaces in `control-tower:operator-brief`
+  - Signal audit shows 0 unaddressed `Needs Mapping` rows (intentionally unmapped ones are documented)
+  - Block-level managed writes either in production OR a clearly documented decision to defer pending Notion API fix
+  - Typecheck clean, 350+ tests pass
+- Carry-forward: Do not invent new status fields — packet prioritizer must use existing signals only. Daily synthesis is only worth building if it demonstrably reduces the time to decide what to work on.
 
 ## Next Phase
-Phase 10 - Signal Wiring and Intelligence Layer
+Phase 11 - Daily Intelligence and Packet Prioritization
 
-Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
+Make the portfolio OS opinionated about what to work on today by adding packet prioritization, daily focus synthesis, and signal-quality cleanup.
 
-Immediate next step: keep moving Phase 10 forward from the now-healthy sandbox and primary-profile dry-run lanes. Treat `notification-hub`, `repo-auditor`, and `bridge-db` as implemented adapters; signal-quality cleanup is now mostly narrowed to operating data quality and operator-surface follow-through.
-Recommended next slice:
-- improve the operator surface on top of the now-proven adapters: morning-brief ranking, command-center synthesis, or a tighter governed orphan routine
-- improve signal quality by resolving explicit `Needs Mapping` provider rows when real identifiers become available
-
-Phase 10C should now focus on the remaining gaps after adapter closure: signal-quality cleanup, stronger morning-brief synthesis around top-priority projects, a more explicit governed orphan routine, and continued managed weekly-review trend output.
+Immediate next step: run `control-tower:packet-follow-through` to see the current packet queue state, then design the composite scoring model for the packet prioritizer using existing signal severity, recommendation score, and evidence staleness fields.
