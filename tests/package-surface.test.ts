@@ -46,6 +46,9 @@ describe("package surface", () => {
     expect(packageJson.scripts["control-tower:packet-follow-through"]).toBe(
       "tsx src/cli.ts control-tower packet-follow-through",
     );
+    expect(packageJson.scripts["control-tower:packet-prioritizer"]).toBe(
+      "tsx src/cli.ts control-tower packet-prioritizer",
+    );
     expect(packageJson.scripts["control-tower:repo-mapping-audit"]).toBe(
       "tsx src/cli.ts control-tower repo-mapping-audit",
     );

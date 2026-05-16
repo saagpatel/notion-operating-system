@@ -5,30 +5,35 @@
 Latest checkpoint: 2026-05-16.
 
 The repo is in a healthy maintenance posture. Phase 10 is closed, Phase 11 is defined, and the next useful work is product follow-through rather than another broad cleanup pass.
+The first Phase 11 packet-prioritizer slice is implemented in this branch and verified against live Notion data.
 
 Repo-state note: do not treat this file as the source of truth for the current branch or working tree. Check `git status --short --branch` before acting on branch state.
 
-The current closeout lane is PR #70, `chore/post-live-state-update`, which carries the post-live config state and the architecture memo for Devil's Advocate and DecisionStressTest. If that PR is already merged when you read this, treat `main` as the starting point. If it is still open, finish that PR before beginning new Phase 11 work.
+The current closeout lane is `codex/phase-11-packet-prioritizer`. If that PR is already merged when you read this, treat `main` as the starting point.
 
 ## Verified today
 
 - Governance health report is healthy with 0 warnings.
 - Actuation policy coverage is healthy across GitHub and Vercel supported actions.
-- Operator brief reports 117 projects, 7 overdue reviews, 0 stale active projects, 3 actionable orphans, and 1 orphan already routed to a kickoff packet.
+- `npm run control-tower:packet-prioritizer -- --today 2026-05-16 --limit 12` scans 29 open packets and reports 12 ranked packets. Top priorities are app, AuraForge, Afterimage, DevToolsTranslator, and Codec.
+- Review recovery was run live on 2026-05-16 and the follow-up dry-run reports 0 overdue reviews, 0 missing Next Move rows, and 0 missing Last Active rows.
+- Orphan classification was run through the approval-backed live path on 2026-05-16; 5 approved kickoff packets were created, and the follow-up dry-run reports 0 viable orphans still needing packet creation.
+- Packet follow-through now reports 29 open packets, 6 orphan kickoff packets, 3 blocked packets, and 20 overdue packets.
 
 ## Recently completed
 
 - Weekly live refresh cleared the prior drift lanes and produced a clean 6-lane post-live dry run.
+- Phase 11 packet prioritizer command, tests, npm surface, and roadmap checkpoint were added.
 - Phase 10 closed and Phase 11 was defined.
 - PR #69 merged the Phase 10/11 docs and related ignore-file cleanup.
-- PR #70 adds the post-live config state and architecture decision memo.
+- PR #70 and PR #71 are merged; local `main` was synced before the Phase 11 branch started.
 
 ## Active follow-up
 
-1. Finish PR #70 if it is still open.
-2. Run `npm run maintenance:weekly-refresh -- --fast` for the next weekly health check.
-3. Start Phase 11 with a packet-prioritizer slice that uses existing signal severity, recommendation score, and evidence-staleness fields. Do not add new Notion fields for the first pass.
-4. Use `npm run control-tower:operator-brief` to pick the next portfolio pressure from live data.
+1. Finish and merge the Phase 11 packet-prioritizer PR if it is still open.
+2. Use `npm run control-tower:packet-prioritizer -- --limit 12` to pick the next product follow-through packet.
+3. Use `npm run control-tower:packet-follow-through -- --limit 12` when you need the blocked/overdue/kickoff operational queue.
+4. Run `npm run maintenance:weekly-refresh -- --fast` for the next weekly health check.
 5. Use `npm run sandbox:smoke` before risky advanced workflow changes that touch control-tower, signals, governance, rollout, or profile portability paths.
 
 ## Cross-repo operator reminders
