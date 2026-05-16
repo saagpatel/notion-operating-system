@@ -22,6 +22,7 @@ import { runMorningBriefCommand } from "../notion/morning-brief.js";
 import { runOperationalRolloutCommand } from "../notion/operational-rollout.js";
 import { runOperatorBriefCommand } from "../notion/operator-brief.js";
 import { runPacketFollowThroughCommand } from "../notion/packet-follow-through.js";
+import { runPacketPrioritizerCommand } from "../notion/packet-prioritizer.js";
 import { runOrphanClassificationCommand } from "../notion/orphan-classification.js";
 import { runPhaseCloseoutCommand } from "../notion/phase-closeout.js";
 import { runLocalPortfolioViewsPlanCommand } from "../notion/plan-local-portfolio-views.js";
@@ -548,6 +549,36 @@ export const cliRegistry: CliCommandDefinition[] = [
 					limit: asNumber(parsed.options.limit),
 					includeAllOpen: asBoolean(parsed.options["include-all-open"]),
 					createSignalTasks: asBoolean(parsed.options["create-signal-tasks"]),
+				}),
+		),
+		buildConfigCommand(
+			"packet-prioritizer",
+			"Rank open work packets by recommendation, signal, freshness, and task-staleness signals.",
+			[
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "limit",
+					description: "Maximum number of packet priority rows to show.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "lookback-days",
+					description: "External signal lookback window for priority scoring.",
+					type: "number",
+					valueName: "days",
+				},
+			],
+			({ parsed }) =>
+				runPacketPrioritizerCommand({
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					limit: asNumber(parsed.options.limit),
+					lookbackDays: asNumber(parsed.options["lookback-days"]),
 				}),
 		),
 		buildConfigCommand(

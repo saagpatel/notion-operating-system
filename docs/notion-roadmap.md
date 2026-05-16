@@ -1,14 +1,16 @@
 # Notion Operating Roadmap
 
-Updated: 2026-05-10
+Updated: 2026-05-16
 
 ## Current Phase
-- Phase: 10 - Signal Wiring and Intelligence Layer
+- Phase: 11 - Packet Prioritization and Product Follow-Through
 - Status: Active
-- Objective: Wire local signal adapters (notification-hub, repo-auditor, bridge-db) into the external-signal pipeline, add a morning-brief digest, orphan classification, and historical trending to close the feedback loop between portfolio health and daily operations.
+- Objective: Turn the Phase 10 signal and execution surfaces into a ranked packet queue that helps the operator pick the next concrete product follow-through slice without adding new Notion fields.
 
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
+- The May 16 Phase 11 first slice is live in the repo as `npm run control-tower:packet-prioritizer`, ranking open work packets by recommendation score, external signal severity, evidence freshness, and task staleness without adding new Notion fields.
+- The May 16 operator pass recovered review drift and created approved kickoff packets for all viable orphan projects that lacked packets; follow-up dry-runs report 0 overdue reviews, 0 missing Next Move rows, and 0 viable orphans still needing packet creation.
 - The May 10 review-recovery pass is complete: `npm run control-tower:review-recovery` is now available, the live pass cleared the review backlog and small review metadata gaps, and the operator brief now reports 0 overdue reviews.
 - The May 10 follow-through pass closed the Command Center and weekly-review content drift loops: both now return clean dry-runs after live refreshes.
 - The May 10 operator brief command is live as `npm run control-tower:operator-brief`, combining top signal risks, stale-active count, orphan kickoff follow-through, and the first review-recovery queue.
@@ -27,6 +29,10 @@ Updated: 2026-05-10
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run control-tower:packet-prioritizer -- --today 2026-05-16 --limit 12` scanned 29 open packets and returned 12 ranked packets. The top five were `app - restore ContentView or confirm scaffold stop`, `AuraForge - first Rust command wiring slice`, `Afterimage - evidence-hardening next slice`, `DevToolsTranslator - release blocker packet`, and `Codec - package the verified local baseline`.
+- `npm run control-tower:review-recovery -- --today 2026-05-16 --include-metadata-gaps --limit 120 --live` applied 9 review-recovery updates; the follow-up dry-run returned `totalEligibleProjects=0`, `overdueReviews=0`, `missingNextMove=0`, and `missingLastActive=0`.
+- `npm run governance:orphan-classify -- --today 2026-05-16 --live --request-approval --approve` upserted 5 approved kickoff requests, and `npm run governance:orphan-classify -- --today 2026-05-16 --live --create-approved-packets` created 5 kickoff packets. The follow-up dry-run reports `viableNeedsKickoffWithoutPacket=0`.
+- `npm run control-tower:packet-follow-through -- --today 2026-05-16 --limit 12` now scans 29 open packets, including 6 orphan kickoff packets, 3 blocked packets, and 20 overdue packets. The top follow-through items are AIWorkFlow, DevToolsTranslator, Kickoff: da-scaffold, Phantom Frequencies, and Recall.
 - `npm run control-tower:sync -- --today 2026-05-10 --live` refreshed derived rows and the Command Center; the final follow-up dry-run returned clean with `derivedRowsWouldChange=0` and `commandCenterWouldChange=0`.
 - `npm run control-tower:review-recovery -- --today 2026-05-10 --include-metadata-gaps --limit 120 --live` applied 87 review-recovery updates; overdue reviews moved from 83 to 0, missing Next Move from 1 to 0, and missing Last Active from 4 to 0.
 - `npm run control-tower:review-packet -- --today 2026-05-10 --live` refreshed the weekly review packet; the follow-up dry-run returned clean with `weeklyReviewWouldChange=0`.
