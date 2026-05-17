@@ -383,3 +383,48 @@ Then inspect current Notion state and existing signal/action ledgers.
 - **65 projects tracked**, 0 overdue reviews. **50 orphaned projects** means `buildSessionCount === 0` AND `relatedResearchCount === 0` AND `supportingSkillsCount === 0` AND `linkedToolCount === 0`. These are not corrupted — they are safe to sync and safe to run `control-tower-sync` against. They simply have no linked operating records.
 - **Webhook feedback** is currently `trusted_feedback` mode, but shadow/drain/reconcile machinery still exists. Do not assume the feedback loop is magically self-healing — verify execution rows and reconcile state.
 - **MCP vs REST:** Direct REST is used for all data operations. Notion MCP is the primary strategy for saved view operations. Playwright is fallback only when MCP auth is unavailable.
+
+<!-- portfolio-context:start -->
+# Portfolio Context
+
+## What This Project Is
+
+Notion Operating System is the local automation and rules layer that connects Notion project databases, GitHub external signals, and governed action workflows. It publishes markdown into Notion, refreshes portfolio control-tower fields, generates weekly review packets, syncs GitHub signals, and executes approved GitHub actions through a dry-run-first governance pipeline.
+
+## Current State
+
+- **Phase 8 (GitHub Deepening) is complete.** The GitHub action lane is mature with issue lifecycle, PR comments, hardened App posture, and audit-grade feedback loops.
+- **Phase 9 (Provider Expansion) is planned.** Next phase will expand governance to non-GitHub providers, but only after the GitHub lane is measurably trusted.
+- **Provider scaffolding exists** for Vercel (disabled governance policies) and Google Calendar (disabled provider scaffolding). Treat this repo as "GitHub-first operating system with future provider hooks," not "multi-provider actuation system already in production."
+- **65 projects tracked**, 0 overdue reviews. **50 orphaned projects** means `buildSessionCount === 0` AND `relatedResearchCount === 0` AND `supportingSkillsCount === 0` AND `linkedToolCount === 0`. These are not corrupted — they are safe to sync and safe to run `control-tower-sync` against. They simply have no linked operating records.
+- **Webhook feedback** is currently `trusted_feedback` mode, but shadow/drain/reconcile machinery still exists. Do not assume the feedback loop is magically self-healing — verify execution rows and reconcile state.
+- **MCP vs REST:** Direct REST is used for all data operations. Notion MCP is the primary strategy for saved view operations. Playwright is fallback only when MCP auth is unavailable.
+
+## Stack
+
+- Node/npm command suite
+- Notion API integration and destination aliases
+- GitHub signal sync and governed GitHub action runner
+- JSON config for destinations, policies, views, and control-tower rules
+- Dry-run/live command separation with explicit live guards
+
+## How To Run
+
+- Start with `npm run governance:health-report`.
+- Use `npm run doctor` and `npm run verify` for local setup checks.
+- For targeted command-center work, prefer `npm run portfolio-audit:control-tower-sync` dry-run, then live only with explicit approval.
+- For a full weekly refresh, use `npm run maintenance:weekly-refresh -- --live --confirm-full-live` only after explicit approval.
+
+## Known Risks
+
+- Never hardcode Notion or GitHub tokens.
+- Do not run broad weekly live refresh as a targeted repair tool.
+- Keep Notion writes dry-run-first and live-only on explicit approval.
+- Do not blur manual project fields with derived sync-owned fields.
+- Governed GitHub writes must follow request, dry run, approval, live execution, and audit trail.
+
+## Next Recommended Move
+
+Use targeted dry-run commands for narrow repairs. Reserve portfolio-wide live maintenance for explicit weekly-refresh requests and report drift before writing.
+
+<!-- portfolio-context:end -->
