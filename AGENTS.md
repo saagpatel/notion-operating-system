@@ -104,3 +104,43 @@ Only stop for:
 - Do not run `portfolio-audit:control-tower-sync` or `portfolio-audit:external-signal-sync` as the default final step for a single-project push. Save those commands for explicit portfolio-wide refresh requests.
 - `portfolio-audit:review-packet` should publish the current weekly review from build-log and project state rather than manual reconstruction.
 - `portfolio-audit:phase-closeout` is responsible for keeping `docs/notion-roadmap.md` and the Build Log aligned on the exact next-phase brief.
+
+<!-- portfolio-context:start -->
+# Portfolio Context
+
+## What This Project Is
+
+Notion Operating System is the local automation and rules layer that connects Notion project databases, GitHub external signals, and governed action workflows. It publishes markdown into Notion, refreshes portfolio control-tower fields, generates weekly review packets, syncs GitHub signals, and executes approved GitHub actions through a dry-run-first governance pipeline.
+
+## Current State
+
+The repo is an operational control system, not an ad hoc Notion script folder. The Local Portfolio Projects database is the main operating surface; config files define destinations, policies, schemas, views, and rollout rules. Broad weekly maintenance is available but should only run when explicitly requested.
+
+## Stack
+
+- Node/npm command suite
+- Notion API integration and destination aliases
+- GitHub signal sync and governed GitHub action runner
+- JSON config for destinations, policies, views, and control-tower rules
+- Dry-run/live command separation with explicit live guards
+
+## How To Run
+
+- Start with `npm run governance:health-report`.
+- Use `npm run doctor` and `npm run verify` for local setup checks.
+- For targeted command-center work, prefer `npm run portfolio-audit:control-tower-sync` dry-run, then live only with explicit approval.
+- For a full weekly refresh, use `npm run maintenance:weekly-refresh -- --live --confirm-full-live` only after explicit approval.
+
+## Known Risks
+
+- Never hardcode Notion or GitHub tokens.
+- Do not run broad weekly live refresh as a targeted repair tool.
+- Keep Notion writes dry-run-first and live-only on explicit approval.
+- Do not blur manual project fields with derived sync-owned fields.
+- Governed GitHub writes must follow request, dry run, approval, live execution, and audit trail.
+
+## Next Recommended Move
+
+Use targeted dry-run commands for narrow repairs. Reserve portfolio-wide live maintenance for explicit weekly-refresh requests and report drift before writing.
+
+<!-- portfolio-context:end -->
