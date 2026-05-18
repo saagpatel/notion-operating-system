@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-363c21f1caf081a18745ec709e297c63",
-    "pageId": "363c21f1-caf0-81a1-8745-ec709e297c63"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-364c21f1caf081fc9e30d893ea9c39a2",
+    "pageId": "364c21f1-caf0-81fc-9e30-d893ea9c39a2"
   },
   "fieldOwnership": {
     "manual": [
@@ -214,17 +214,17 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-05-04",
+    "lastSyncAt": "2026-05-17",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 1,
       "standbyPackets": 1,
-      "blockedPackets": 0,
-      "blockedTasks": 0,
-      "overdueTasks": 11,
-      "backlogOverdueTasks": 86,
-      "tasksCompletedThisWeek": 1,
-      "packetsCompletedThisWeek": 0,
+      "blockedPackets": 5,
+      "blockedTasks": 12,
+      "overdueTasks": 0,
+      "backlogOverdueTasks": 66,
+      "tasksCompletedThisWeek": 40,
+      "packetsCompletedThisWeek": 8,
       "rolloverPackets": 1,
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
@@ -794,17 +794,17 @@
         "Shipped": 8,
         "Needs Review": 16,
         "Needs Decision": 0,
-        "Worth Finishing": 27,
-        "Resume Now": 48,
-        "Cold Storage": 12,
-        "Watch": 8
+        "Worth Finishing": 29,
+        "Resume Now": 46,
+        "Cold Storage": 13,
+        "Watch": 7
       },
       "overdueReviews": 0,
       "missingNextMove": 0,
       "missingLastActive": 0,
       "staleActiveProjects": 0,
-      "orphanedProjects": 7,
-      "recentBuildSessions": 3
+      "orphanedProjects": 2,
+      "recentBuildSessions": 18
     },
     "lastClosedPhase": 9
   },
