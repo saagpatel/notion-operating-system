@@ -11,6 +11,7 @@ Updated: 2026-05-18
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
 - The May 18 Phase 11 daily-focus slice is live as `npm run control-tower:today`, synthesizing packet priority and follow-through pressure into a managed Daily Focus section on the current weekly review page.
 - The May 18 packet-staleness slice is live in `npm run control-tower:operator-brief`, surfacing stale task activity and at-risk overdue packets without adding new Notion fields.
+- The May 18 managed-section block audit is live as `npm run control-tower:managed-section-audit`; it confirms Daily Focus is readable as top-level Notion blocks, while replacement writes remain deferred to the markdown REST path until a rollback-safe block writer exists.
 - The May 18 weekly review page was created for `Week of 2026-05-18`, and the Daily Focus section was patched live with top focus items AIWorkFlow, DevToolsTranslator, Codec, Construction, and Nexus.
 - The May 16 Phase 11 first slice is live in the repo as `npm run control-tower:packet-prioritizer`, ranking open work packets by recommendation score, external signal severity, evidence freshness, and task staleness without adding new Notion fields.
 - The May 16 operator pass recovered review drift and created approved kickoff packets for all viable orphan projects that lacked packets; follow-up dry-runs report 0 overdue reviews, 0 missing Next Move rows, and 0 viable orphans still needing packet creation.
@@ -33,6 +34,7 @@ Updated: 2026-05-18
 
 ## Fresh Verification Snapshot
 - `npm run control-tower:operator-brief -- --today 2026-05-18 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 10 at-risk packets with stale task activity. The top five are DevToolsTranslator, IncidentWorkbench, visual-album-studio, Construction, and Nexus.
+- `npm run control-tower:managed-section-audit -- --today 2026-05-18` found the Daily Focus managed markers on `Week of 2026-05-18` as top-level blocks 54-72 of 73, with a 19-block span. The block read path is viable; production replacement writes stay on `PATCH /pages/{id}/markdown` because append/delete block replacement is not transactional or rollback-safe yet.
 - `npm run control-tower:today -- --today 2026-05-18 --limit 5` scanned 21 open packets and produced a valid Daily Focus section. The live follow-up patched the section onto `Week of 2026-05-18`.
 - `npm run control-tower:review-packet -- --today 2026-05-18 --include-next-phase --live` created the weekly review page for `Week of 2026-05-18`.
 - `npm run control-tower:packet-follow-through -- --today 2026-05-18 --limit 12` scanned 21 open packets and surfaced 12 follow-through rows: 5 blocked packet pressures, 17 overdue packet pressures, and 0 unworked packets.
@@ -324,13 +326,13 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - Today's focus command (`control-tower:today`): synthesizes morning brief + packet priorities + personal-ops worklist into a single ranked daily action output, patched onto the weekly review page
   - Packet staleness detection: surfaces in operator brief when a packet has had no task activity in N days (configurable); escalates to "at risk" if both overdue and task-stale
   - Signal-quality cleanup: fuzzy-match fallback for `Needs Mapping` source rows; dry-run mapping audit command to surface unresolved sources for operator action
-  - Block-level managed section writes: investigate block-API alternative to `PATCH /pages/{id}` markdown endpoint for managed sections; implement as primary path if viable, eliminating `NOTION_SKIP_MANAGED_MARKDOWN_PATCH` dependency; document decision clearly if Notion API fix is required first
+  - Block-level managed section writes: `control-tower:managed-section-audit` proves managed markers are readable as top-level blocks; replacement writes are intentionally deferred until the block writer can be transactional or rollback-safe
 - Exit criteria:
   - `control-tower:packet-prioritizer` dry-run produces a ranked list with rationale for ≥5 actionable packets
   - `control-tower:today` dry-run produces a valid daily focus section on the weekly review page
   - Packet staleness surfaces in `control-tower:operator-brief`
   - Signal audit shows 0 unaddressed `Needs Mapping` rows (intentionally unmapped ones are documented)
-  - Block-level managed writes either in production OR a clearly documented decision to defer pending Notion API fix
+  - Block-level managed writes either in production OR a clearly documented decision to defer pending Notion API fix: satisfied for the current slice by the May 18 block audit decision
   - Typecheck clean, 350+ tests pass
 - Carry-forward: Do not invent new status fields — packet prioritizer must use existing signals only. Daily synthesis is only worth building if it demonstrably reduces the time to decide what to work on.
 
