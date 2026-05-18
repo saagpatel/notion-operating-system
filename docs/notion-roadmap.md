@@ -13,6 +13,7 @@ Updated: 2026-05-18
 - The May 18 packet-staleness slice is live in `npm run control-tower:operator-brief`, surfacing stale task activity and at-risk overdue packets without adding new Notion fields.
 - The May 18 managed-section block audit is live as `npm run control-tower:managed-section-audit`; it confirms Daily Focus is readable as top-level Notion blocks, while replacement writes remain deferred to the markdown REST path until a rollback-safe block writer exists.
 - The May 18 signal-quality cleanup is complete: `SecondBrain` and `claude-code-harness` GitHub placeholders are now intentionally `Paused`, and the repo-mapping audit reports 0 GitHub mapping gaps on the operator surface.
+- The May 18 Phase 12 first operating pass republished Packet Follow-Through, refreshed the weekly review packet, repatched Morning Brief and Daily Focus, and documented the required daily-driver refresh order.
 - The May 18 weekly review page was created for `Week of 2026-05-18`, and the Daily Focus section was patched live with top focus items AIWorkFlow, DevToolsTranslator, Codec, Construction, and Nexus.
 - The May 16 Phase 11 first slice is live in the repo as `npm run control-tower:packet-prioritizer`, ranking open work packets by recommendation score, external signal severity, evidence freshness, and task staleness without adding new Notion fields.
 - The May 16 operator pass recovered review drift and created approved kickoff packets for all viable orphan projects that lacked packets; follow-up dry-runs report 0 overdue reviews, 0 missing Next Move rows, and 0 viable orphans still needing packet creation.
@@ -36,6 +37,7 @@ Updated: 2026-05-18
 ## Fresh Verification Snapshot
 - `npm run control-tower:operator-brief -- --today 2026-05-18 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 10 at-risk packets with stale task activity. The top five are DevToolsTranslator, IncidentWorkbench, visual-album-studio, Construction, and Nexus.
 - `npm run signals:seed-mappings -- --live --limit 2` updated the two documented monitor-only GitHub placeholders, and `npm run control-tower:repo-mapping-audit -- --today 2026-05-18 --limit 80` now reports `githubMappingGapCount=0` and `attentionCount=0`.
+- `npm run control-tower:packet-follow-through -- --today 2026-05-18 --limit 12 --live` republished the current 12-item packet recovery queue, then the weekly review packet and Morning Brief were refreshed live. Follow-up dry-runs report the weekly review packet clean, Daily Focus unchanged, and the Daily Focus block audit at a single 19-block marker span.
 - `npm run control-tower:managed-section-audit -- --today 2026-05-18` found the Daily Focus managed markers on `Week of 2026-05-18` as top-level blocks 54-72 of 73, with a 19-block span. The block read path is viable; production replacement writes stay on `PATCH /pages/{id}/markdown` because append/delete block replacement is not transactional or rollback-safe yet.
 - `npm run control-tower:today -- --today 2026-05-18 --limit 5` scanned 21 open packets and produced a valid Daily Focus section. The live follow-up patched the section onto `Week of 2026-05-18`.
 - `npm run control-tower:review-packet -- --today 2026-05-18 --include-next-phase --live` created the weekly review page for `Week of 2026-05-18`.
@@ -343,4 +345,4 @@ Phase 12 - Managed Write Reliability and Daily Driver Hardening
 
 Make the daily driver more durable now that Phase 11 can rank, publish, and audit the work queue.
 
-Immediate next step: design a rollback-safe block writer for managed sections, or keep the markdown REST path as the production write surface and focus on daily-driver adoption signals.
+Immediate next step: recover the top stale packet in its project repo, starting with AIWorkFlow or DevToolsTranslator, then rerun `control-tower:operator-brief` to verify the packet-staleness signal moves for real.
