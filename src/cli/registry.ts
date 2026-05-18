@@ -33,6 +33,7 @@ import { runReviewRecoveryCommand } from "../notion/review-recovery.js";
 import { runReviewPacketCommand } from "../notion/review-packet.js";
 import { runSchemaReportCommand } from "../notion/schema-report.js";
 import { runStaleActiveRescueCommand } from "../notion/stale-active-rescue.js";
+import { runTodayFocusCommand } from "../notion/today-focus.js";
 import { runTrendAnalysisCommand } from "../notion/snapshot-history.js";
 import { runVercelRolloutReadinessCommand } from "../notion/vercel-rollout-readiness.js";
 import { runExecutionViewsValidateCommand } from "../notion/validate-local-portfolio-execution-views.js";
@@ -572,6 +573,38 @@ export const cliRegistry: CliCommandDefinition[] = [
 			],
 			({ parsed }) =>
 				runPacketPrioritizerCommand({
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					limit: asNumber(parsed.options.limit),
+					lookbackDays: asNumber(parsed.options["lookback-days"]),
+				}),
+		),
+		buildConfigCommand(
+			"today",
+			"Print or patch a ranked daily focus section from packet priority and follow-through signals.",
+			[
+				commonOptions.live,
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "limit",
+					description: "Maximum number of daily focus rows to show.",
+					type: "number",
+					valueName: "count",
+				},
+				{
+					name: "lookback-days",
+					description: "External signal lookback window for priority scoring.",
+					type: "number",
+					valueName: "days",
+				},
+			],
+			({ parsed }) =>
+				runTodayFocusCommand({
+					live: asBoolean(parsed.options.live),
 					today: asString(parsed.options.today),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
