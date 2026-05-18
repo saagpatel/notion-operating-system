@@ -161,6 +161,15 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--create-signal-tasks");
   });
 
+  test("control tower exposes packet staleness in operator brief", async () => {
+    const help = await runCliForTest(["control-tower", "operator-brief", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("operator-brief");
+    expect(help.stdout).toContain("--lookback-days <days>");
+    expect(help.stdout).toContain("--packet-stale-days <days>");
+  });
+
   test("control tower exposes packet prioritizer reporting", async () => {
     const help = await runCliForTest(["control-tower", "packet-prioritizer", "--help"]);
 

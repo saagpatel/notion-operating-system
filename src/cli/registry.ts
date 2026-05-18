@@ -502,6 +502,12 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "number",
 					valueName: "days",
 				},
+				{
+					name: "packet-stale-days",
+					description: "Task-activity age threshold for packet staleness.",
+					type: "number",
+					valueName: "days",
+				},
 			],
 			({ parsed }) =>
 				runOperatorBriefCommand({
@@ -511,6 +517,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						positionals: parsed.positionals,
 					}),
 					lookbackDays: asNumber(parsed.options["lookback-days"]),
+					packetStaleDays: asNumber(parsed.options["packet-stale-days"]),
 				}),
 		),
 		buildConfigCommand(
