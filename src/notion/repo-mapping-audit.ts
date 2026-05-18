@@ -437,11 +437,11 @@ function classifyGithubSourceStatus(
 	if (sources.some((source) => source.status === "Needs Review")) {
 		return "needs-review";
 	}
-	if (sources.some((source) => source.status === "Needs Mapping" || !source.identifier.trim())) {
-		return "needs-mapping";
-	}
 	if (sources.every((source) => source.status === "Paused")) {
 		return "paused";
+	}
+	if (sources.some((source) => source.status === "Needs Mapping" || !source.identifier.trim())) {
+		return "needs-mapping";
 	}
 	return "needs-review";
 }

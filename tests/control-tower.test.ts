@@ -297,6 +297,33 @@ describe("local portfolio control tower rules", () => {
 		}
 	});
 
+	test("treats blank paused GitHub sources as documented non-mappings", () => {
+		const result = buildRepoMappingAudit({
+			today: TODAY,
+			projectsRoot: "/tmp/notion-os-no-such-projects-root",
+			includeAllGaps: true,
+			projectPages: [
+				projectPage({
+					id: "monitor-only",
+					title: "Monitor Only",
+					currentState: "Shipped",
+					operatingQueue: "Shipped",
+				}),
+			],
+			sources: [
+				githubSource({
+					localProjectIds: ["monitor-only"],
+					status: "Paused",
+					identifier: "",
+					sourceUrl: "",
+				}),
+			],
+		});
+
+		expect(result.githubMappingGapCount).toBe(0);
+		expect(result.projects[0]?.githubSourceStatus).toBe("paused");
+	});
+
 	test("counts only the rows whose derived properties actually changed", async () => {
 		const config = await loadConfig();
 		const previousProjects = [
