@@ -170,6 +170,16 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--lookback-days <days>");
   });
 
+  test("control tower exposes daily focus reporting", async () => {
+    const help = await runCliForTest(["control-tower", "today", "--help"]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("today");
+    expect(help.stdout).toContain("--live");
+    expect(help.stdout).toContain("--limit <count>");
+    expect(help.stdout).toContain("--lookback-days <days>");
+  });
+
   test("control tower exposes repo mapping audit reporting", async () => {
     const help = await runCliForTest(["control-tower", "repo-mapping-audit", "--help"]);
 
