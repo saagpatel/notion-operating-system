@@ -6,7 +6,8 @@
     "notes": [
       "Keep external source mapping rows repo-owned and additive.",
       "Seed the first wave from the highest-priority projects only.",
-      "Create Needs Mapping rows when identifiers are unknown instead of fabricating mappings."
+      "Create Needs Mapping rows when identifiers are unknown instead of fabricating mappings.",
+      "Use Paused for shipped or monitor-only rows that intentionally have no GitHub source."
     ]
   },
   "seedRules": {
@@ -45,7 +46,7 @@
       "localProjectId": "362c21f1-caf0-8147-8bbf-fa0fd3ae1480",
       "provider": "GitHub",
       "sourceType": "Repo",
-      "status": "Needs Mapping",
+      "status": "Paused",
       "environment": "N/A",
       "syncStrategy": "Poll"
     },
@@ -54,7 +55,7 @@
       "localProjectId": "362c21f1-caf0-81bd-8c6e-dd3acaebc34b",
       "provider": "GitHub",
       "sourceType": "Repo",
-      "status": "Needs Mapping",
+      "status": "Paused",
       "environment": "N/A",
       "syncStrategy": "Poll"
     },

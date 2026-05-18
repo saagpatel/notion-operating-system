@@ -12,6 +12,7 @@ Updated: 2026-05-18
 - The May 18 Phase 11 daily-focus slice is live as `npm run control-tower:today`, synthesizing packet priority and follow-through pressure into a managed Daily Focus section on the current weekly review page.
 - The May 18 packet-staleness slice is live in `npm run control-tower:operator-brief`, surfacing stale task activity and at-risk overdue packets without adding new Notion fields.
 - The May 18 managed-section block audit is live as `npm run control-tower:managed-section-audit`; it confirms Daily Focus is readable as top-level Notion blocks, while replacement writes remain deferred to the markdown REST path until a rollback-safe block writer exists.
+- The May 18 signal-quality cleanup is complete: `SecondBrain` and `claude-code-harness` GitHub placeholders are now intentionally `Paused`, and the repo-mapping audit reports 0 GitHub mapping gaps on the operator surface.
 - The May 18 weekly review page was created for `Week of 2026-05-18`, and the Daily Focus section was patched live with top focus items AIWorkFlow, DevToolsTranslator, Codec, Construction, and Nexus.
 - The May 16 Phase 11 first slice is live in the repo as `npm run control-tower:packet-prioritizer`, ranking open work packets by recommendation score, external signal severity, evidence freshness, and task staleness without adding new Notion fields.
 - The May 16 operator pass recovered review drift and created approved kickoff packets for all viable orphan projects that lacked packets; follow-up dry-runs report 0 overdue reviews, 0 missing Next Move rows, and 0 viable orphans still needing packet creation.
@@ -34,6 +35,7 @@ Updated: 2026-05-18
 
 ## Fresh Verification Snapshot
 - `npm run control-tower:operator-brief -- --today 2026-05-18 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 10 at-risk packets with stale task activity. The top five are DevToolsTranslator, IncidentWorkbench, visual-album-studio, Construction, and Nexus.
+- `npm run signals:seed-mappings -- --live --limit 2` updated the two documented monitor-only GitHub placeholders, and `npm run control-tower:repo-mapping-audit -- --today 2026-05-18 --limit 80` now reports `githubMappingGapCount=0` and `attentionCount=0`.
 - `npm run control-tower:managed-section-audit -- --today 2026-05-18` found the Daily Focus managed markers on `Week of 2026-05-18` as top-level blocks 54-72 of 73, with a 19-block span. The block read path is viable; production replacement writes stay on `PATCH /pages/{id}/markdown` because append/delete block replacement is not transactional or rollback-safe yet.
 - `npm run control-tower:today -- --today 2026-05-18 --limit 5` scanned 21 open packets and produced a valid Daily Focus section. The live follow-up patched the section onto `Week of 2026-05-18`.
 - `npm run control-tower:review-packet -- --today 2026-05-18 --include-next-phase --live` created the weekly review page for `Week of 2026-05-18`.
@@ -319,26 +321,26 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - Phase 10 closed 2026-05-12: all exit criteria met, 329 tests passing, stale-active rescue clean, operator brief reports 0 overdue reviews and 0 stale active projects
 
 ### Phase 11: Daily Intelligence and Packet Prioritization
-- Status: Planned
+- Status: Complete
 - Objective: Make the portfolio OS opinionated about what to work on today — add packet prioritization by composite score, a daily focus synthesis command, packet staleness detection, and signal-quality cleanup that promotes the morning brief from a diagnostic tool to a trusted daily driver.
 - Deliverables:
   - Packet prioritizer (`control-tower:packet-prioritizer`): ranks open packets by composite score (signal severity × recommendation score × evidence staleness × time-since-last-task-created), with brief per-packet rationale
   - Today's focus command (`control-tower:today`): synthesizes morning brief + packet priorities + personal-ops worklist into a single ranked daily action output, patched onto the weekly review page
   - Packet staleness detection: surfaces in operator brief when a packet has had no task activity in N days (configurable); escalates to "at risk" if both overdue and task-stale
-  - Signal-quality cleanup: fuzzy-match fallback for `Needs Mapping` source rows; dry-run mapping audit command to surface unresolved sources for operator action
+  - Signal-quality cleanup: repo-mapping audit reports 0 operator-surface GitHub mapping gaps; monitor-only shipped placeholders are explicitly paused instead of unresolved
   - Block-level managed section writes: `control-tower:managed-section-audit` proves managed markers are readable as top-level blocks; replacement writes are intentionally deferred until the block writer can be transactional or rollback-safe
 - Exit criteria:
   - `control-tower:packet-prioritizer` dry-run produces a ranked list with rationale for ≥5 actionable packets
   - `control-tower:today` dry-run produces a valid daily focus section on the weekly review page
   - Packet staleness surfaces in `control-tower:operator-brief`
-  - Signal audit shows 0 unaddressed `Needs Mapping` rows (intentionally unmapped ones are documented)
+  - Signal audit shows 0 unaddressed `Needs Mapping` rows (intentionally unmapped ones are documented): satisfied on 2026-05-18
   - Block-level managed writes either in production OR a clearly documented decision to defer pending Notion API fix: satisfied for the current slice by the May 18 block audit decision
   - Typecheck clean, 350+ tests pass
 - Carry-forward: Do not invent new status fields — packet prioritizer must use existing signals only. Daily synthesis is only worth building if it demonstrably reduces the time to decide what to work on.
 
 ## Next Phase
-Phase 11 - Daily Intelligence and Packet Prioritization
+Phase 12 - Managed Write Reliability and Daily Driver Hardening
 
-Make the portfolio OS opinionated about what to work on today by adding packet prioritization, daily focus synthesis, and signal-quality cleanup.
+Make the daily driver more durable now that Phase 11 can rank, publish, and audit the work queue.
 
-Immediate next step: run `control-tower:packet-follow-through` to see the current packet queue state, then design the composite scoring model for the packet prioritizer using existing signal severity, recommendation score, and evidence staleness fields.
+Immediate next step: design a rollback-safe block writer for managed sections, or keep the markdown REST path as the production write surface and focus on daily-driver adoption signals.

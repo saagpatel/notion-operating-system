@@ -44,8 +44,18 @@ describe("local portfolio external signals", () => {
 		const providerConfig =
 			parseLocalPortfolioExternalSignalProviderConfig(providersRaw);
 		const viewPlan = parseLocalPortfolioExternalSignalViewPlan(viewsRaw);
+		const intentionallyPausedSources = sourceConfig.manualSeeds.filter(
+			(seed) =>
+				["SecondBrain - GitHub Repo", "claude-code-harness - GitHub Repo"].includes(
+					seed.title,
+				),
+		);
 
 		expect(sourceConfig.sourceTemplates).toHaveLength(2);
+		expect(intentionallyPausedSources.map((seed) => seed.status)).toEqual([
+			"Paused",
+			"Paused",
+		]);
 		expect(providerConfig.providers).toHaveLength(5);
 		expect(viewPlan.collections).toHaveLength(4);
 	});
