@@ -52,6 +52,9 @@ describe("package surface", () => {
     expect(packageJson.scripts["control-tower:today"]).toBe(
       "tsx src/cli.ts control-tower today",
     );
+    expect(packageJson.scripts["control-tower:managed-section-audit"]).toBe(
+      "tsx src/cli.ts control-tower managed-section-audit",
+    );
     expect(packageJson.scripts["control-tower:repo-mapping-audit"]).toBe(
       "tsx src/cli.ts control-tower repo-mapping-audit",
     );

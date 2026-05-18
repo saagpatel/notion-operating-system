@@ -18,6 +18,7 @@ import { runGovernanceAuditCommand } from "../notion/governance-audit.js";
 import { runGovernanceHealthReportCommand } from "../notion/governance-health-report.js";
 import { runIntelligenceSyncCommand } from "../notion/intelligence-sync.js";
 import { runLinkSuggestionsSyncCommand } from "../notion/link-suggestions-sync.js";
+import { runManagedSectionBlockAuditCommand } from "../notion/managed-section-block-audit.js";
 import { runMorningBriefCommand } from "../notion/morning-brief.js";
 import { runOperationalRolloutCommand } from "../notion/operational-rollout.js";
 import { runOperatorBriefCommand } from "../notion/operator-brief.js";
@@ -619,6 +620,30 @@ export const cliRegistry: CliCommandDefinition[] = [
 					}),
 					limit: asNumber(parsed.options.limit),
 					lookbackDays: asNumber(parsed.options["lookback-days"]),
+				}),
+		),
+		buildConfigCommand(
+			"managed-section-audit",
+			"Inspect whether a managed weekly-review section is addressable through top-level Notion blocks.",
+			[
+				commonOptions.today,
+				commonOptions.config,
+				{
+					name: "section",
+					description: "Managed section to inspect.",
+					type: "string",
+					valueName: "name",
+					defaultValue: "today-focus",
+				},
+			],
+			({ parsed }) =>
+				runManagedSectionBlockAuditCommand({
+					today: asString(parsed.options.today),
+					config: resolveOptionalControlTowerConfigPath({
+						config: asString(parsed.options.config),
+						positionals: parsed.positionals,
+					}),
+					section: asString(parsed.options.section),
 				}),
 		),
 		buildConfigCommand(

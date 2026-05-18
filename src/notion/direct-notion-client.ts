@@ -20,6 +20,15 @@ import { NotionHttp } from "./http.js";
 import type { RunLogger } from "../logging/run-logger.js";
 import { getCurrentCommandLogger } from "../cli/run-observability.js";
 
+export interface NotionBlockChild {
+  id: string;
+  type: string;
+  plainText: string;
+  hasChildren: boolean;
+  archived: boolean;
+  inTrash: boolean;
+}
+
 export class DirectNotionClient implements NotionApi {
   private readonly http: NotionHttp;
 
@@ -315,6 +324,34 @@ export class DirectNotionClient implements NotionApi {
     };
   }
 
+  public async listBlockChildren(input: {
+    blockId: string;
+    pageSize?: number;
+    startCursor?: string;
+  }): Promise<{
+    results: NotionBlockChild[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
+    const params = new URLSearchParams({
+      page_size: String(input.pageSize ?? 100),
+    });
+    if (input.startCursor) {
+      params.set("start_cursor", input.startCursor);
+    }
+    const response = await this.http.requestJson<{
+      results?: Array<Record<string, unknown>>;
+      has_more?: boolean;
+      next_cursor?: string | null;
+    }>(`/blocks/${input.blockId}/children?${params.toString()}`);
+
+    return {
+      results: (response.results ?? []).map(mapNotionBlockChild),
+      hasMore: Boolean(response.has_more),
+      nextCursor: response.next_cursor ?? undefined,
+    };
+  }
+
   public async patchPageMarkdown(input: MarkdownPatchInput): Promise<void> {
     const body =
       input.command === "replace_content"
@@ -344,6 +381,22 @@ export class DirectNotionClient implements NotionApi {
       recordClientErrorAsFailure: input.recordClientErrorAsFailure,
     });
   }
+}
+
+function mapNotionBlockChild(block: Record<string, unknown>): NotionBlockChild {
+  const type = typeof block.type === "string" ? block.type : "unknown";
+  const payload =
+    type !== "unknown" && typeof block[type] === "object" && block[type] !== null
+      ? (block[type] as Record<string, unknown>)
+      : undefined;
+  return {
+    id: normalizeNotionId(String(block.id ?? "")),
+    type,
+    plainText: richTextToPlainText(payload?.rich_text) ?? "",
+    hasChildren: Boolean(block.has_children),
+    archived: Boolean(block.archived),
+    inTrash: Boolean(block.in_trash),
+  };
 }
 
 function extractRequiredId(sourceUrl: string, alias: string): string {
