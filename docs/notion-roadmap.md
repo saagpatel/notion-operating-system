@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-05-16
+Updated: 2026-05-18
 
 ## Current Phase
 - Phase: 11 - Packet Prioritization and Product Follow-Through
@@ -9,6 +9,8 @@ Updated: 2026-05-16
 
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
+- The May 18 Phase 11 daily-focus slice is live as `npm run control-tower:today`, synthesizing packet priority and follow-through pressure into a managed Daily Focus section on the current weekly review page.
+- The May 18 weekly review page was created for `Week of 2026-05-18`, and the Daily Focus section was patched live with top focus items AIWorkFlow, DevToolsTranslator, Codec, Construction, and Nexus.
 - The May 16 Phase 11 first slice is live in the repo as `npm run control-tower:packet-prioritizer`, ranking open work packets by recommendation score, external signal severity, evidence freshness, and task staleness without adding new Notion fields.
 - The May 16 operator pass recovered review drift and created approved kickoff packets for all viable orphan projects that lacked packets; follow-up dry-runs report 0 overdue reviews, 0 missing Next Move rows, and 0 viable orphans still needing packet creation.
 - The May 10 review-recovery pass is complete: `npm run control-tower:review-recovery` is now available, the live pass cleared the review backlog and small review metadata gaps, and the operator brief now reports 0 overdue reviews.
@@ -29,6 +31,10 @@ Updated: 2026-05-16
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run control-tower:today -- --today 2026-05-18 --limit 5` scanned 21 open packets and produced a valid Daily Focus section. The live follow-up patched the section onto `Week of 2026-05-18`.
+- `npm run control-tower:review-packet -- --today 2026-05-18 --include-next-phase --live` created the weekly review page for `Week of 2026-05-18`.
+- `npm run control-tower:packet-follow-through -- --today 2026-05-18 --limit 12` scanned 21 open packets and surfaced 12 follow-through rows: 5 blocked packet pressures, 17 overdue packet pressures, and 0 unworked packets.
+- `npm run control-tower:packet-prioritizer -- --today 2026-05-18 --limit 12` scanned 21 open packets and returned 12 ranked packets. The top five were `AIWorkFlow - Notion-only production packet`, `DevToolsTranslator - release blocker packet`, `Codec - package the verified local baseline`, `Construction - PR failure triage and dependency restore`, and `Nexus - restore desktop build scripts and rerun smoke`.
 - `npm run control-tower:packet-prioritizer -- --today 2026-05-16 --limit 12` scanned 29 open packets and returned 12 ranked packets. The top five were `app - restore ContentView or confirm scaffold stop`, `AuraForge - first Rust command wiring slice`, `Afterimage - evidence-hardening next slice`, `DevToolsTranslator - release blocker packet`, and `Codec - package the verified local baseline`.
 - `npm run control-tower:review-recovery -- --today 2026-05-16 --include-metadata-gaps --limit 120 --live` applied 9 review-recovery updates; the follow-up dry-run returned `totalEligibleProjects=0`, `overdueReviews=0`, `missingNextMove=0`, and `missingLastActive=0`.
 - `npm run governance:orphan-classify -- --today 2026-05-16 --live --request-approval --approve` upserted 5 approved kickoff requests, and `npm run governance:orphan-classify -- --today 2026-05-16 --live --create-approved-packets` created 5 kickoff packets. The follow-up dry-run reports `viableNeedsKickoffWithoutPacket=0`.
