@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-364c21f1caf081fc9e30d893ea9c39a2",
-    "pageId": "364c21f1-caf0-81fc-9e30-d893ea9c39a2"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-364c21f1caf081648e13c564993e8ca7",
+    "pageId": "364c21f1-caf0-8164-8e13-c564993e8ca7"
   },
   "fieldOwnership": {
     "manual": [
@@ -217,14 +217,14 @@
     "lastSyncAt": "2026-05-17",
     "lastSyncMetrics": {
       "openDecisions": 0,
-      "nowPackets": 1,
+      "nowPackets": 0,
       "standbyPackets": 1,
       "blockedPackets": 5,
       "blockedTasks": 12,
       "overdueTasks": 0,
       "backlogOverdueTasks": 66,
       "tasksCompletedThisWeek": 40,
-      "packetsCompletedThisWeek": 8,
+      "packetsCompletedThisWeek": 9,
       "rolloverPackets": 1,
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
