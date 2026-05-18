@@ -92,6 +92,7 @@ export interface ExecutionTaskRecord {
 	localProjectIds: string[];
 	estimate: string;
 	completedOn: string;
+	lastEditedTime?: string;
 	taskNotes: string;
 }
 
