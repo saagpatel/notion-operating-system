@@ -41,6 +41,24 @@
   ],
   "manualSeeds": [
     {
+      "title": "SecondBrain - GitHub Repo",
+      "localProjectId": "362c21f1-caf0-8147-8bbf-fa0fd3ae1480",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Needs Mapping",
+      "environment": "N/A",
+      "syncStrategy": "Poll"
+    },
+    {
+      "title": "claude-code-harness - GitHub Repo",
+      "localProjectId": "362c21f1-caf0-81bd-8c6e-dd3acaebc34b",
+      "provider": "GitHub",
+      "sourceType": "Repo",
+      "status": "Needs Mapping",
+      "environment": "N/A",
+      "syncStrategy": "Poll"
+    },
+    {
       "title": "Notification Hub - Event Log",
       "provider": "Notification Hub",
       "sourceType": "Event Log",
