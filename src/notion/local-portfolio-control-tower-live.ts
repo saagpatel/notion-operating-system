@@ -28,6 +28,7 @@ export interface DataSourcePageRef {
 	url: string;
 	title: string;
 	createdTime?: string;
+	lastEditedTime?: string;
 	properties: Record<string, NotionPageProperty>;
 }
 
@@ -96,6 +97,7 @@ export async function fetchAllPages(
 							id: string;
 							url: string;
 							created_time?: string;
+							last_edited_time?: string;
 							in_trash?: boolean;
 							archived?: boolean;
 							properties?: Record<string, NotionPageProperty>;
@@ -112,6 +114,7 @@ export async function fetchAllPages(
 				id: normalizeNotionId(page.id),
 				url: page.url,
 				createdTime: page.created_time,
+				lastEditedTime: page.last_edited_time,
 				title: titleFromProperty(
 					(page.properties as Record<string, NotionPageProperty> | undefined)?.[
 						titlePropertyName

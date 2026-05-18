@@ -199,6 +199,7 @@ export function toExecutionTaskRecord(page: DataSourcePageRef): ExecutionTaskRec
     localProjectIds: relationIds(page.properties["Local Project"]),
     estimate: selectValue(page.properties.Estimate),
     completedOn: dateValue(page.properties["Completed On"]),
+    lastEditedTime: page.lastEditedTime,
     taskNotes: textValue(page.properties["Task Notes"]),
   };
 }
