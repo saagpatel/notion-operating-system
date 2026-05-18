@@ -22,8 +22,8 @@
   "commandCenter": {
     "title": "Local Portfolio Command Center",
     "parentPageUrl": "https://www.notion.so/326c21f1caf0801484efce5bd9323449",
-    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-364c21f1caf08196819efdbe634366df",
-    "pageId": "364c21f1-caf0-8196-819e-fdbe634366df"
+    "pageUrl": "https://www.notion.so/Local-Portfolio-Command-Center-364c21f1caf081168c16ddee04cbda19",
+    "pageId": "364c21f1-caf0-8116-8c16-ddee04cbda19"
   },
   "fieldOwnership": {
     "manual": [
@@ -304,16 +304,16 @@
       "proposedLinkSuggestions": 0,
       "acceptedLinkSuggestions": 0
     },
-    "lastSyncAt": "2026-04-07",
+    "lastSyncAt": "2026-05-18",
     "lastSyncMetrics": {
-      "totalProjects": 113,
-      "resumeCandidates": 56,
-      "finishCandidates": 30,
-      "investigateCandidates": 2,
-      "deferCandidates": 19,
-      "monitorProjects": 6,
-      "orphanedProjects": 4,
-      "supportGapProjects": 4,
+      "totalProjects": 119,
+      "resumeCandidates": 53,
+      "finishCandidates": 29,
+      "investigateCandidates": 0,
+      "deferCandidates": 29,
+      "monitorProjects": 8,
+      "orphanedProjects": 10,
+      "supportGapProjects": 10,
       "proposedLinkSuggestions": 63,
       "acceptedLinkSuggestions": 55
     }
@@ -498,15 +498,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-05-10",
+    "lastSyncAt": "2026-05-18",
     "lastSyncMetrics": {
       "mappedProjects": 117,
-      "projectsNeedingMapping": 0,
+      "projectsNeedingMapping": 2,
       "activeSources": 119,
-      "riskEvents": 761,
+      "riskEvents": 754,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 24,
-      "contradictionProjects": 3
+      "failedWorkflowRuns": 53,
+      "contradictionProjects": 7
     }
   },
   "phase6Governance": {
@@ -767,7 +767,7 @@
   },
   "phaseState": {
     "currentPhase": 10,
-    "currentPhaseStatus": "Planned",
+    "currentPhaseStatus": "In Progress",
     "baselineCapturedAt": "2026-03-17",
     "baselineMetrics": {
       "totalProjects": 65,
@@ -787,7 +787,7 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-05-17",
+    "lastSyncAt": "2026-05-18",
     "lastSyncMetrics": {
       "totalProjects": 119,
       "queueCounts": {

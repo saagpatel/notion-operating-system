@@ -16,6 +16,7 @@ import { AppError, toErrorMessage } from "../utils/errors.js";
 import {
 	assertSafeReplacement,
 	buildReplaceCommand,
+	extractManagedSection,
 	normalizeMarkdown,
 } from "../utils/markdown.js";
 import { postNotificationHubEvent } from "../utils/notification-hub.js";
@@ -823,16 +824,19 @@ export async function runExternalSignalSyncCommand(
 			(intelligenceCommandCenterSectionWouldChange ||
 				externalSignalsCommandCenterSectionWouldChange)
 		) {
-			assertSafeReplacement(
-				previousCommandCenter.markdown,
-				withExternalSignals,
-			);
-			await api.patchPageMarkdown({
-				pageId: config.commandCenter.pageId!,
-				command: "replace_content",
-				newMarkdown: buildReplaceCommand(withExternalSignals),
-			}).catch(async (error) => {
-				if (!isMarkdownPatchTransportError(error)) {
+			try {
+				await syncExternalSignalCommandCenterMarkdown({
+					api,
+					pageId: config.commandCenter.pageId!,
+					previousMarkdown: previousCommandCenter.markdown,
+					nextMarkdown: withExternalSignals,
+				});
+			} catch (error) {
+				if (
+					!isMarkdownPatchTransportError(error) &&
+					!isReadBackRecoverableMarkdownError(error) &&
+					!isNotionPolicyBlockedError(error)
+				) {
 					throw error;
 				}
 				config = await replaceCommandCenterPageAfterPatchFailure({
@@ -841,7 +845,7 @@ export async function runExternalSignalSyncCommand(
 					configPath,
 					markdown: withExternalSignals,
 				});
-			});
+			}
 		}
 
 		if (
@@ -1488,6 +1492,58 @@ async function syncProjectBriefSection(input: {
 		endMarker: input.endMarker,
 	});
 	return (await input.api.readPageMarkdown(input.pageId)).markdown;
+}
+
+export async function syncExternalSignalCommandCenterMarkdown(input: {
+	api: DirectNotionClient;
+	pageId: string;
+	previousMarkdown: string;
+	nextMarkdown: string;
+}): Promise<string> {
+	let currentMarkdown = input.previousMarkdown;
+	for (const section of [
+		{
+			startMarker: INTELLIGENCE_COMMAND_CENTER_START,
+			endMarker: INTELLIGENCE_COMMAND_CENTER_END,
+		},
+		{
+			startMarker: EXTERNAL_SIGNAL_COMMAND_CENTER_START,
+			endMarker: EXTERNAL_SIGNAL_COMMAND_CENTER_END,
+		},
+	]) {
+		const nextSection = extractManagedSection(
+			input.nextMarkdown,
+			section.startMarker,
+			section.endMarker,
+		);
+		if (!nextSection) {
+			continue;
+		}
+		const nextMarkdownForSection = mergeManagedSection(
+			currentMarkdown,
+			nextSection,
+			section.startMarker,
+			section.endMarker,
+		);
+		if (
+			normalizeMarkdown(currentMarkdown) ===
+			normalizeMarkdown(nextMarkdownForSection)
+		) {
+			continue;
+		}
+		await syncManagedMarkdownSectionWithReadBack({
+			api: input.api,
+			pageId: input.pageId,
+			previousMarkdown: currentMarkdown,
+			nextMarkdown: nextMarkdownForSection,
+			startMarker: section.startMarker,
+			endMarker: section.endMarker,
+			maxAttempts: 1,
+			patchMaxAttempts: 1,
+		});
+		currentMarkdown = (await input.api.readPageMarkdown(input.pageId)).markdown;
+	}
+	return currentMarkdown;
 }
 
 function normalizedSignalEventToRecord(

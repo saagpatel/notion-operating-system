@@ -53,7 +53,7 @@ import {
 } from "./local-portfolio-intelligence.js";
 import { validateLocalPortfolioIntelligenceViewPlanAgainstSchemas } from "./local-portfolio-intelligence-views.js";
 import { AppError } from "../utils/errors.js";
-import { assertSafeReplacement, buildReplaceCommand, normalizeMarkdown } from "../utils/markdown.js";
+import { normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { mapWithConcurrency } from "../utils/concurrency.js";
 import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
@@ -384,15 +384,19 @@ export async function runIntelligenceSyncCommand(
 
       logLiveStage(live, "Refreshing intelligence command center");
       if (previousCommandCenter && nextCommandCenter && intelligenceCommandCenterSectionWouldChange) {
-        assertSafeReplacement(previousCommandCenter.markdown, nextCommandCenter);
         try {
-          await api.patchPageMarkdown({
+          await syncIntelligenceCommandCenterMarkdown({
+            api,
             pageId: config.commandCenter.pageId!,
-            command: "replace_content",
-            newMarkdown: buildReplaceCommand(nextCommandCenter),
+            previousMarkdown: previousCommandCenter.markdown,
+            nextMarkdown: nextCommandCenter,
           });
         } catch (error) {
-          if (!isMarkdownPatchTransportError(error)) {
+          if (
+            !isMarkdownPatchTransportError(error) &&
+            !isReadBackRecoverableMarkdownError(error) &&
+            !isNotionPolicyBlockedError(error)
+          ) {
             throw error;
           }
           config = await replaceCommandCenterPageAfterPatchFailure({
@@ -685,6 +689,24 @@ function selectProjectBriefBatch<T>(
   const offset = options.projectOffset ?? 0;
   const limit = options.projectLimit ?? briefs.length;
   return briefs.slice(offset, offset + limit);
+}
+
+export async function syncIntelligenceCommandCenterMarkdown(input: {
+  api: DirectNotionClient;
+  pageId: string;
+  previousMarkdown: string;
+  nextMarkdown: string;
+}): Promise<Awaited<ReturnType<typeof syncManagedMarkdownSectionWithReadBack>>> {
+  return syncManagedMarkdownSectionWithReadBack({
+    api: input.api,
+    pageId: input.pageId,
+    previousMarkdown: input.previousMarkdown,
+    nextMarkdown: input.nextMarkdown,
+    startMarker: INTELLIGENCE_COMMAND_CENTER_START,
+    endMarker: INTELLIGENCE_COMMAND_CENTER_END,
+    maxAttempts: 1,
+    patchMaxAttempts: 1,
+  });
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
