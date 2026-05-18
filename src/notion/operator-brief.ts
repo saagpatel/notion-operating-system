@@ -332,6 +332,7 @@ function latestTaskActivityDate(input: {
 	const dates = input.tasks
 		.flatMap((task) => [
 			task.completedOn,
+			normalizeDate(task.lastEditedTime ?? ""),
 			normalizeDate(input.taskCreatedAtById.get(task.id) ?? ""),
 		])
 		.filter((date) => date.length > 0)

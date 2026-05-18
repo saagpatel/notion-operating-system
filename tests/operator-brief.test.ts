@@ -102,6 +102,37 @@ describe("renderOperatorBrief", () => {
 			nextAction: "Recover overdue task: Turn Codec build proof into a demo checklist.",
 		});
 	});
+
+	test("counts task note edits as recent packet activity", () => {
+		const items = buildPacketStalenessItems({
+			today: "2026-05-18",
+			projects: [baseProject({ id: "project-devtools", title: "DevToolsTranslator" })],
+			packets: [
+				basePacket({
+					id: "packet-release",
+					title: "DevToolsTranslator - release blocker packet",
+					localProjectIds: ["project-devtools"],
+					targetFinish: "2026-03-28",
+				}),
+			],
+			tasks: [
+				baseTask({
+					id: "task-release",
+					title: "Resolve updater signature blocker",
+					status: "Blocked",
+					workPacketIds: ["packet-release"],
+					dueDate: "2026-03-26",
+					lastEditedTime: "2026-05-18T15:17:54.000Z",
+				}),
+			],
+			taskCreatedAtById: new Map([
+				["task-release", "2026-03-21T00:00:00.000Z"],
+			]),
+			staleAfterDays: 14,
+		});
+
+		expect(items).toHaveLength(0);
+	});
 });
 
 function baseMetrics(overrides: Partial<ControlTowerMetrics> = {}): ControlTowerMetrics {

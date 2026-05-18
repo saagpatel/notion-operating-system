@@ -292,6 +292,7 @@ export class DirectNotionClient implements NotionApi {
       id: string;
       url: string;
       created_time?: string;
+      last_edited_time?: string;
       in_trash?: boolean;
       archived?: boolean;
       properties?: Record<string, unknown>;
