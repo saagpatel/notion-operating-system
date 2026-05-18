@@ -63,6 +63,17 @@ npm run maintenance:weekly-refresh -- --today 2026-05-04 --fast --live --confirm
 
 If the full weekly live command fails in `execution-sync`, `intelligence-sync`, or `external-signals`, continue with that lane's targeted command instead of rerunning the full weekly sequence.
 
+## Daily Driver Refresh
+
+Use this order when refreshing the operator-facing weekly page after packet, morning-brief, or review-packet drift:
+
+1. Publish the specific queue report, such as `npm run control-tower:packet-follow-through -- --today <date> --live`.
+2. Refresh the weekly review packet only if its dry-run reports drift: `npm run control-tower:review-packet -- --today <date> --include-next-phase --live`.
+3. Repatch managed sections that the review packet should preserve but may disturb: `npm run signals:morning-brief -- --today <date> --lookback-days 7 --live`, then `npm run control-tower:today -- --today <date> --live`.
+4. Verify convergence with `npm run control-tower:review-packet -- --today <date> --include-next-phase`, `npm run control-tower:today -- --today <date>`, and `npm run control-tower:managed-section-audit -- --today <date>`.
+
+Do not create duplicate recovery tasks for stale packets that already have open tasks. Publish the queue report, preserve the existing task trail, and recover the actual blocked task in the project repo.
+
 ## Monthly
 
 - Run `npm run release:prepare`.
