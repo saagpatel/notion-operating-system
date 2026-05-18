@@ -10,6 +10,7 @@ Updated: 2026-05-18
 ## Repo State Snapshot
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
 - The May 18 Phase 11 daily-focus slice is live as `npm run control-tower:today`, synthesizing packet priority and follow-through pressure into a managed Daily Focus section on the current weekly review page.
+- The May 18 packet-staleness slice is live in `npm run control-tower:operator-brief`, surfacing stale task activity and at-risk overdue packets without adding new Notion fields.
 - The May 18 weekly review page was created for `Week of 2026-05-18`, and the Daily Focus section was patched live with top focus items AIWorkFlow, DevToolsTranslator, Codec, Construction, and Nexus.
 - The May 16 Phase 11 first slice is live in the repo as `npm run control-tower:packet-prioritizer`, ranking open work packets by recommendation score, external signal severity, evidence freshness, and task staleness without adding new Notion fields.
 - The May 16 operator pass recovered review drift and created approved kickoff packets for all viable orphan projects that lacked packets; follow-up dry-runs report 0 overdue reviews, 0 missing Next Move rows, and 0 viable orphans still needing packet creation.
@@ -31,6 +32,7 @@ Updated: 2026-05-18
 - Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run control-tower:operator-brief -- --today 2026-05-18 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 10 at-risk packets with stale task activity. The top five are DevToolsTranslator, IncidentWorkbench, visual-album-studio, Construction, and Nexus.
 - `npm run control-tower:today -- --today 2026-05-18 --limit 5` scanned 21 open packets and produced a valid Daily Focus section. The live follow-up patched the section onto `Week of 2026-05-18`.
 - `npm run control-tower:review-packet -- --today 2026-05-18 --include-next-phase --live` created the weekly review page for `Week of 2026-05-18`.
 - `npm run control-tower:packet-follow-through -- --today 2026-05-18 --limit 12` scanned 21 open packets and surfaced 12 follow-through rows: 5 blocked packet pressures, 17 overdue packet pressures, and 0 unworked packets.
