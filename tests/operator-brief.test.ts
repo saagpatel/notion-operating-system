@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
 
 import type { ControlTowerMetrics, ControlTowerProjectRecord } from "../src/notion/local-portfolio-control-tower.js";
-import { renderOperatorBrief } from "../src/notion/operator-brief.js";
+import type {
+	ExecutionTaskRecord,
+	WorkPacketRecord,
+} from "../src/notion/local-portfolio-execution.js";
+import {
+	buildPacketStalenessItems,
+	renderOperatorBrief,
+} from "../src/notion/operator-brief.js";
 
 describe("renderOperatorBrief", () => {
 	test("summarizes top risks, review backlog, and orphan follow-through", () => {
@@ -18,6 +25,20 @@ describe("renderOperatorBrief", () => {
 			staleActiveCount: 0,
 			actionableOrphans: 1,
 			orphansWithKickoff: 5,
+			packetStaleDays: 14,
+			packetStalenessItems: [
+				{
+					packetId: "packet-stale",
+					packetTitle: "ApplyKit - repair workflow evidence",
+					packetUrl: "https://notion.example/packet",
+					projectTitle: "ApplyKit",
+					openTaskCount: 1,
+					taskActivityAgeDays: 20,
+					isOverdue: true,
+					isAtRisk: true,
+					nextAction: "Recover overdue task: ApplyKit - verify CI.",
+				},
+			],
 			overdueProjects: [
 				baseProject({
 					title: "SpecCompanion",
@@ -30,8 +51,56 @@ describe("renderOperatorBrief", () => {
 		expect(markdown).toContain("## Operator Brief — 2026-05-09");
 		expect(markdown).toContain("ApplyKit — score 84");
 		expect(markdown).toContain("Orphans already routed to kickoff packets: 5");
+		expect(markdown).toContain("Packet staleness: 1 packet(s) stale by task activity; 1 at risk");
+		expect(markdown).toContain("At risk: ApplyKit — ApplyKit - repair workflow evidence");
 		expect(markdown).toContain("SpecCompanion — review due 2026-05-01");
 		expect(markdown).toContain("npm run control-tower:operator-brief");
+	});
+
+	test("ranks overdue packets with stale task activity as at risk", () => {
+		const items = buildPacketStalenessItems({
+			today: "2026-05-18",
+			projects: [baseProject({ id: "project-risk", title: "Codec" })],
+			packets: [
+				basePacket({
+					id: "packet-fresh",
+					title: "Fresh packet",
+					localProjectIds: ["project-risk"],
+				}),
+				basePacket({
+					id: "packet-risk",
+					title: "Codec - package verified local baseline",
+					localProjectIds: ["project-risk"],
+					targetFinish: "2026-05-01",
+				}),
+			],
+			tasks: [
+				baseTask({
+					id: "task-fresh",
+					workPacketIds: ["packet-fresh"],
+				}),
+				baseTask({
+					id: "task-risk",
+					title: "Turn Codec build proof into a demo checklist",
+					workPacketIds: ["packet-risk"],
+					dueDate: "2026-05-01",
+				}),
+			],
+			taskCreatedAtById: new Map([
+				["task-fresh", "2026-05-18T00:00:00.000Z"],
+				["task-risk", "2026-04-01T00:00:00.000Z"],
+			]),
+			staleAfterDays: 14,
+		});
+
+		expect(items).toHaveLength(1);
+		expect(items[0]).toMatchObject({
+			packetTitle: "Codec - package verified local baseline",
+			projectTitle: "Codec",
+			taskActivityAgeDays: 47,
+			isAtRisk: true,
+			nextAction: "Recover overdue task: Turn Codec build proof into a demo checklist.",
+		});
 	});
 });
 
@@ -91,6 +160,51 @@ function baseProject(
 		operatingQueue: "Needs Review",
 		nextReviewDate: "",
 		evidenceFreshness: "Fresh",
+		...overrides,
+	};
+}
+
+function basePacket(overrides: Partial<WorkPacketRecord> = {}): WorkPacketRecord {
+	return {
+		id: "packet",
+		url: "https://notion.example/packet",
+		title: "Packet",
+		status: "Ready",
+		packetType: "Build",
+		priority: "Now",
+		ownerIds: [],
+		localProjectIds: [],
+		drivingDecisionIds: [],
+		goal: "",
+		definitionOfDone: "",
+		whyNow: "",
+		targetStart: "",
+		targetFinish: "",
+		estimatedSize: "",
+		rolloverCount: 0,
+		executionTaskIds: [],
+		buildLogSessionIds: [],
+		weeklyReviewIds: [],
+		blockerSummary: "",
+		...overrides,
+	};
+}
+
+function baseTask(overrides: Partial<ExecutionTaskRecord> = {}): ExecutionTaskRecord {
+	return {
+		id: "task",
+		url: "https://notion.example/task",
+		title: "Task",
+		status: "Todo",
+		assigneeIds: [],
+		dueDate: "",
+		priority: "Now",
+		taskType: "Build",
+		workPacketIds: [],
+		localProjectIds: [],
+		estimate: "",
+		completedOn: "",
+		taskNotes: "",
 		...overrides,
 	};
 }
