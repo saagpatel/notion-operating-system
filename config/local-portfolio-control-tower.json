@@ -787,7 +787,7 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-05-18",
+    "lastSyncAt": "2026-05-30",
     "lastSyncMetrics": {
       "totalProjects": 119,
       "queueCounts": {
@@ -804,13 +804,13 @@
       "missingLastActive": 0,
       "staleActiveProjects": 0,
       "orphanedProjects": 2,
-      "recentBuildSessions": 18
+      "recentBuildSessions": 0
     },
     "lastClosedPhase": 9
   },
   "weeklyMaintenance": {
     "supportMaintenanceLastSyncAt": "2026-05-09",
-    "weeklyRefreshLastRunAt": "2026-05-17",
+    "weeklyRefreshLastRunAt": "2026-05-30",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
@@ -830,6 +830,6 @@
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-05-18"
+    "weeklyReviewLastPublishedAt": "2026-05-30"
   }
 }

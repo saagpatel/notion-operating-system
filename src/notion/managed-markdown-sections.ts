@@ -62,12 +62,43 @@ export const WEEKLY_EXTERNAL_SIGNALS_SECTION: ManagedMarkdownSection = {
   fallbackBody: "- Not refreshed yet.",
 };
 
+export const WEEKLY_MORNING_BRIEF_SECTION: ManagedMarkdownSection = {
+  key: "weeklyMorningBrief",
+  startMarker: "<!-- codex:notion-morning-brief:start -->",
+  endMarker: "<!-- codex:notion-morning-brief:end -->",
+  fallbackHeading: "## Morning Brief",
+  fallbackBody: "- Not refreshed yet.",
+};
+
+export const WEEKLY_TREND_REPORT_SECTION: ManagedMarkdownSection = {
+  key: "weeklyTrendReport",
+  startMarker: "<!-- codex:notion-trend-analysis:start -->",
+  endMarker: "<!-- codex:notion-trend-analysis:end -->",
+  fallbackHeading: "## Trend Analysis",
+  fallbackBody: "- Not refreshed yet.",
+};
+
+export const WEEKLY_TODAY_FOCUS_SECTION: ManagedMarkdownSection = {
+  key: "weeklyTodayFocus",
+  startMarker: "<!-- codex:notion-today-focus:start -->",
+  endMarker: "<!-- codex:notion-today-focus:end -->",
+  fallbackHeading: "## Daily Focus",
+  fallbackBody: "- Not refreshed yet.",
+};
+
 export const COMMAND_CENTER_MANAGED_SECTIONS: ManagedMarkdownSection[] = [
   EXECUTION_COMMAND_CENTER_SECTION,
   INTELLIGENCE_COMMAND_CENTER_SECTION,
   EXTERNAL_SIGNAL_COMMAND_CENTER_SECTION,
   GOVERNANCE_COMMAND_CENTER_SECTION,
   ACTUATION_COMMAND_CENTER_SECTION,
+];
+
+export const WEEKLY_REVIEW_MANAGED_SECTIONS: ManagedMarkdownSection[] = [
+  WEEKLY_EXTERNAL_SIGNALS_SECTION,
+  WEEKLY_MORNING_BRIEF_SECTION,
+  WEEKLY_TREND_REPORT_SECTION,
+  WEEKLY_TODAY_FOCUS_SECTION,
 ];
 
 export function renderManagedSectionPlaceholder(section: ManagedMarkdownSection): string {

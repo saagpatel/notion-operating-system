@@ -1,13 +1,22 @@
 # Notion Operating Roadmap
 
-Updated: 2026-05-18
+Updated: 2026-05-30
 
 ## Current Phase
-- Phase: 11 - Packet Prioritization and Product Follow-Through
+- Phase: 12 - Managed Write Reliability and Daily Driver Hardening
 - Status: Active
-- Objective: Turn the Phase 10 signal and execution surfaces into a ranked packet queue that helps the operator pick the next concrete product follow-through slice without adding new Notion fields.
+- Objective: Make the daily driver durable now that Phase 11 can rank, publish, and audit the work queue.
 
 ## Repo State Snapshot
+- The May 30 targeted maintenance pass cleared dependency and live Notion drift without using broad weekly live refresh as a repair tool.
+- Dependabot PRs for `tmp`, `qs`, production dependencies, and development tooling were merged into `main`; local validation passes with `npm ci`, `npm run typecheck`, and `npm test`.
+- `npm audit --json` now reports only the documented moderate `exceljs -> uuid` exception. The prior high `tmp` advisory and moderate `qs` advisory are cleared.
+- The current weekly review page is `Week of 2026-05-25`; review recovery, Control Tower sync, Execution sync, Intelligence sync, External Signals sync, Morning Brief, and Daily Focus were repaired through targeted live commands and follow-up dry-runs.
+- Final weekly fast preflight for 2026-05-30 reports 6 clean lanes and 0 drift after the Phase 12 Daily Focus preservation fix.
+- Operator brief now reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 8 at-risk stale packets. The top stale packet queue is Nocturne, DevToolsTranslator, IncidentWorkbench, JobCommandCenter, and GPT_RAG.
+- Daily Focus is present and dry-run clean on the current weekly review page, with DevToolsTranslator, GPT_RAG, and Phantom Frequencies as the top Now items.
+- The first Phase 12 implementation fix is complete: weekly review packet generation now preserves the Daily Focus managed section, so review-packet and Daily Focus no longer compete in the weekly fast preflight.
+- Weekly managed-section preservation now uses `WEEKLY_REVIEW_MANAGED_SECTIONS` so External Signals, Morning Brief, Trend Analysis, and Daily Focus are registered in one place.
 - The repo is currently in a strong maintenance state after a broad cleanup and command-surface hardening pass.
 - The May 18 Phase 11 daily-focus slice is live as `npm run control-tower:today`, synthesizing packet priority and follow-through pressure into a managed Daily Focus section on the current weekly review page.
 - The May 18 packet-staleness slice is live in `npm run control-tower:operator-brief`, surfacing stale task activity and at-risk overdue packets without adding new Notion fields.
@@ -24,17 +33,27 @@ Updated: 2026-05-18
 - The May 9 Notion maintenance work is complete: Dependabot updates are merged, the targeted cleanup lanes are clean, and the Command Center destination now points at the current live page.
 - The May 9 Phase 10C operator-surface pass is complete: morning brief priority ranking, governed orphan actions, deduped trend movement, live weekly sections, approved orphan kickoff packets, and a Command Center refresh are now in place.
 - The May 4 Notion maintenance work is complete: Intelligence, Execution, and External Signal generated briefs now converge through dedicated Notion databases instead of project-page markdown writes.
-- The weekly refresh fast path is now clean across all six lanes and includes compact per-lane timing output.
-- The next Notion-only product focus is stale-active rescue, Command Center readability, weekly recovery guidance, and governed-action operator clarity.
+- The weekly refresh fast path includes compact per-lane timing output; as of 2026-05-30 it is clean across all six lanes.
+- The next Notion-only product focus is packet-staleness follow-through, led by DevToolsTranslator in Packet Follow-Through and Nocturne in stale-task age.
 - Weekly `--fast` uses bounded project brief write concurrency and can be tuned with `--project-concurrency`.
 - That cleanup and hardening work is now merged reality, not an in-progress branch posture.
 - The shared CLI plus modern npm aliases are now the intended public operator surface.
 - Legacy `portfolio-audit:*` aliases remain only where compatibility is still useful, and they now route either through the CLI or through clearly internal maintenance utilities.
 - Public npm scripts no longer point directly at `src/notion/*.ts`.
 - Internal maintenance and historical migration utilities were quarantined under `src/internal/notion-maintenance/` or `src/internal/portfolio-audit/`.
-- Current focus should be Phase 10 follow-through and operational maturity, not another repo-wide cleanup campaign.
+- Current focus should be Phase 12 managed write convergence and packet follow-through, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run control-tower:review-recovery -- --today 2026-05-30 --include-metadata-gaps --limit 120 --live` applied 69 review-recovery updates; the follow-up dry-run returned `totalEligibleProjects=0`, `overdueReviews=0`, `missingNextMove=0`, and `missingLastActive=0`.
+- `npm run control-tower:sync -- --today 2026-05-30 --live` applied 90 derived row updates and refreshed the Command Center; the follow-up dry-run returned `derivedRowsWouldChange=0` and `commandCenterWouldChange=0`.
+- Targeted weekly-refresh live repairs for `execution-sync`, `intelligence-sync`, and `external-signals` each completed with `--fast --max-project-pages 119 --project-concurrency 2`; each matching follow-up dry-run returned `needsLiveWrite=false`.
+- `npm run signals:morning-brief -- --today 2026-05-30 --lookback-days 7 --live` patched the current weekly page with 8 events and 98 coverage gaps.
+- `npm run control-tower:today -- --today 2026-05-30 --limit 5 --live` patched Daily Focus onto `Week of 2026-05-25`; the follow-up dry-run returned `weeklyReviewWouldChange=false`.
+- `npm run control-tower:managed-section-audit -- --today 2026-05-30` found the Daily Focus marker span on the current weekly page, with 19 managed blocks and markdown REST still recommended as the write mode.
+- `npm run control-tower:operator-brief -- --today 2026-05-30 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 8 at-risk stale packets.
+- `npm run maintenance:weekly-refresh -- --today 2026-05-30 --fast --summary-first --step-timeout-minutes 5 --max-project-pages 119 --project-concurrency 2` completed with 6 clean lanes, 0 drift lanes, no failed or partial steps, and `needsLiveWrite=false`.
+- `npm run typecheck` and `npm test` passed after dependency updates, the Daily Focus preservation fix, and the weekly managed-section registry refactor. The test suite currently reports 59 test files and 401 tests.
+- GitHub CI is green on the latest main merge commit; Dependabot's advisory workflow still fails on the accepted `exceljs -> uuid` exception.
 - `npm run control-tower:operator-brief -- --today 2026-05-18 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 10 at-risk packets with stale task activity. The top five are DevToolsTranslator, IncidentWorkbench, visual-album-studio, Construction, and Nexus.
 - `npm run signals:seed-mappings -- --live --limit 2` updated the two documented monitor-only GitHub placeholders, and `npm run control-tower:repo-mapping-audit -- --today 2026-05-18 --limit 80` now reports `githubMappingGapCount=0` and `attentionCount=0`.
 - `npm run control-tower:packet-follow-through -- --today 2026-05-18 --limit 12 --live` republished the current 12-item packet recovery queue, then the weekly review packet and Morning Brief were refreshed live. Follow-up dry-runs report the weekly review packet clean, Daily Focus unchanged, and the Daily Focus block audit at a single 19-block marker span.
@@ -340,9 +359,11 @@ Phase 9 expanded the proven governance-and-actuation pattern to non-GitHub provi
   - Typecheck clean, 350+ tests pass
 - Carry-forward: Do not invent new status fields — packet prioritizer must use existing signals only. Daily synthesis is only worth building if it demonstrably reduces the time to decide what to work on.
 
-## Next Phase
+## Active Phase Detail
 Phase 12 - Managed Write Reliability and Daily Driver Hardening
 
 Make the daily driver more durable now that Phase 11 can rank, publish, and audit the work queue.
 
-Immediate next step: recover the top stale packet in its project repo, starting with AIWorkFlow or DevToolsTranslator, then rerun `control-tower:operator-brief` to verify the packet-staleness signal moves for real.
+Immediate next implementation step: follow the packet queue into DevToolsTranslator or the stale-task queue into Nocturne, then rerun `control-tower:operator-brief` to verify packet pressure moves.
+
+Immediate operating step: recover the top stale packet in its project repo, starting with Nocturne or DevToolsTranslator, then rerun `control-tower:operator-brief` to verify the packet-staleness signal moves for real.

@@ -7,8 +7,10 @@ import {
 	syncManagedMarkdownSection,
 	syncManagedMarkdownSectionWithReadBack,
 } from "../src/notion/managed-markdown-sync.js";
+import { WEEKLY_REVIEW_MANAGED_SECTIONS } from "../src/notion/managed-markdown-sections.js";
 import {
 	limitRelationIds,
+	preserveWeeklyReviewManagedSections,
 	stripLeadingMarkdownTitle,
 } from "../src/notion/review-packet.js";
 import { AppError } from "../src/utils/errors.js";
@@ -60,6 +62,42 @@ describe("managed markdown sync", () => {
 				title: "Local Portfolio Command Center",
 			}),
 		).toBe(true);
+	});
+
+	test("preserves Daily Focus when rebuilding weekly review markdown", () => {
+		const nextMarkdown = [
+			"# Week of 2026-05-25",
+			"",
+			"## Weekly Review",
+			"- Fresh generated packet.",
+		].join("\n");
+		const previousMarkdown = [
+			"# Week of 2026-05-25",
+			"",
+			"## Weekly Review",
+			"- Older generated packet.",
+			"",
+			"<!-- codex:notion-today-focus:start -->",
+			"## Daily Focus - 2026-05-30",
+			"- Keep this managed section.",
+			"<!-- codex:notion-today-focus:end -->",
+		].join("\n");
+
+		const merged = preserveWeeklyReviewManagedSections(
+			nextMarkdown,
+			previousMarkdown,
+		);
+
+		expect(merged).toContain("- Fresh generated packet.");
+		expect(merged).toContain("<!-- codex:notion-today-focus:start -->");
+		expect(merged).toContain("- Keep this managed section.");
+		expect(merged).not.toContain("- Older generated packet.");
+	});
+
+	test("registers Daily Focus in the weekly review managed-section registry", () => {
+		expect(
+			WEEKLY_REVIEW_MANAGED_SECTIONS.map((section) => section.key),
+		).toContain("weeklyTodayFocus");
 	});
 
 	test("builds a unique tail update for first-time managed section inserts", () => {

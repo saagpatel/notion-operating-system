@@ -28,9 +28,7 @@ import {
 	upsertPageByTitle,
 } from "./local-portfolio-control-tower-live.js";
 import { buildRoadmapPhases } from "./local-portfolio-roadmap.js";
-import { WEEKLY_EXTERNAL_SIGNALS_SECTION } from "./managed-markdown-sections.js";
-import { MORNING_BRIEF_END, MORNING_BRIEF_START } from "./morning-brief.js";
-import { TREND_REPORT_END, TREND_REPORT_START } from "./snapshot-history.js";
+import { WEEKLY_REVIEW_MANAGED_SECTIONS } from "./managed-markdown-sections.js";
 import {
 	buildWeeklyStepContract,
 	mapWeeklyStepStatusToCommandStatus,
@@ -143,11 +141,10 @@ export async function runReviewPacketCommand(
 		? await api.readPageMarkdown(existingWeeklyPage.id)
 		: undefined;
 	const finalMarkdown = previousWeeklyMarkdown
-		? preserveManagedSections(markdown, previousWeeklyMarkdown.markdown, [
-				WEEKLY_EXTERNAL_SIGNALS_SECTION,
-				{ startMarker: MORNING_BRIEF_START, endMarker: MORNING_BRIEF_END },
-				{ startMarker: TREND_REPORT_START, endMarker: TREND_REPORT_END },
-			])
+		? preserveWeeklyReviewManagedSections(
+				markdown,
+				previousWeeklyMarkdown.markdown,
+			)
 		: markdown;
 	const weeklyReviewPageMarkdown = stripLeadingMarkdownTitle(
 		finalMarkdown,
@@ -265,6 +262,17 @@ export async function runReviewPacketCommand(
 		},
 	});
 	console.log(JSON.stringify(output, null, 2));
+}
+
+export function preserveWeeklyReviewManagedSections(
+	nextMarkdown: string,
+	previousMarkdown: string,
+): string {
+	return preserveManagedSections(
+		nextMarkdown,
+		previousMarkdown,
+		WEEKLY_REVIEW_MANAGED_SECTIONS,
+	);
 }
 
 function findCompareStartDate(
