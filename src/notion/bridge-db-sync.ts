@@ -67,6 +67,10 @@ const OPERATIONAL_PROJECT_ALIASES = new Map<string, OperationalProjectAlias>([
 		"claude-md-lint",
 		{ targetTitle: "Machine Audits", relationProperty: "Project" },
 	],
+	[
+		"portfolio-dep-security",
+		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
+	],
 ]);
 
 // ---------------------------------------------------------------------------
@@ -534,15 +538,9 @@ export function buildProjectNameIndex(
 ): Map<string, string> {
 	const index = new Map<string, string>();
 	for (const project of projects) {
-		index.set(project.title.toLowerCase().trim(), project.id);
-		index.set(
-			project.title.toLowerCase().trim().replace(/\s+/g, "-"),
-			project.id,
-		);
-		index.set(
-			project.title.toLowerCase().trim().replace(/-/g, " "),
-			project.id,
-		);
+		for (const key of projectNameLookupKeys(project.title)) {
+			index.set(key, project.id);
+		}
 	}
 	return index;
 }
@@ -551,12 +549,11 @@ function resolveProjectId(
 	projectName: string,
 	index: Map<string, string>,
 ): string | undefined {
-	const normalized = projectName.toLowerCase().trim();
-	return (
-		index.get(normalized) ||
-		index.get(normalized.replace(/\s+/g, "-")) ||
-		index.get(normalized.replace(/-/g, " "))
-	);
+	for (const key of projectNameLookupKeys(projectName)) {
+		const projectId = index.get(key);
+		if (projectId) return projectId;
+	}
+	return undefined;
 }
 
 function resolveBuildLogProjectTarget(
@@ -567,6 +564,11 @@ function resolveBuildLogProjectTarget(
 	const localProjectId = resolveProjectId(projectName, localProjectIndex);
 	if (localProjectId) {
 		return { id: localProjectId, relationProperty: "Local Project" };
+	}
+
+	const portfolioProjectId = resolveProjectId(projectName, projectPortfolioIndex);
+	if (portfolioProjectId) {
+		return { id: portfolioProjectId, relationProperty: "Project" };
 	}
 
 	const alias = resolveOperationalProjectAlias(projectName);
@@ -589,12 +591,23 @@ function resolveBuildLogProjectTarget(
 function resolveOperationalProjectAlias(
 	projectName: string,
 ): OperationalProjectAlias | undefined {
+	for (const key of projectNameLookupKeys(projectName)) {
+		const alias = OPERATIONAL_PROJECT_ALIASES.get(key);
+		if (alias) return alias;
+	}
+	return undefined;
+}
+
+function projectNameLookupKeys(projectName: string): string[] {
 	const normalized = projectName.toLowerCase().trim();
-	return (
-		OPERATIONAL_PROJECT_ALIASES.get(normalized) ||
-		OPERATIONAL_PROJECT_ALIASES.get(normalized.replace(/\s+/g, "-")) ||
-		OPERATIONAL_PROJECT_ALIASES.get(normalized.replace(/-/g, " "))
-	);
+	const keys = new Set<string>([
+		normalized,
+		normalized.replace(/\s+/g, "-"),
+		normalized.replace(/-/g, " "),
+		normalized.replace(/[^a-z0-9]/g, ""),
+	]);
+	keys.delete("");
+	return [...keys];
 }
 
 // ---------------------------------------------------------------------------
