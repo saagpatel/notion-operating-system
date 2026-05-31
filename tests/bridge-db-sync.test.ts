@@ -16,6 +16,7 @@ const bridgeSyncMocks = vi.hoisted(() => {
 		createPageWithMarkdown: vi.fn(),
 		updatePageProperties: vi.fn(),
 		projectPages: [] as Array<{ id: string; title: string }>,
+		projectPortfolioPages: [] as Array<{ id: string; title: string }>,
 	};
 });
 
@@ -44,7 +45,12 @@ vi.mock("../src/notion/local-portfolio-control-tower.js", () => ({
 }));
 
 vi.mock("../src/notion/local-portfolio-control-tower-live.js", () => ({
-	fetchAllPages: vi.fn(async () => bridgeSyncMocks.projectPages),
+	fetchAllPages: vi.fn(async (_sdk, dataSourceId: string) => {
+		if (dataSourceId === "35e04e4d-bcd8-45c0-b783-238edef210f7") {
+			return bridgeSyncMocks.projectPortfolioPages;
+		}
+		return bridgeSyncMocks.projectPages;
+	}),
 	relationValue: vi.fn((ids: string[]) => ({
 		relation: ids.map((id) => ({ id })),
 	})),
@@ -94,6 +100,9 @@ function baseRow(overrides: Partial<BridgeDbRow> = {}): BridgeDbRow {
 function resetBridgeSyncMocks(): void {
 	vi.clearAllMocks();
 	bridgeSyncMocks.projectPages = [{ id: "project-ghost", title: "Ghost Routes" }];
+	bridgeSyncMocks.projectPortfolioPages = [
+		{ id: "project-machine-audits", title: "Machine Audits" },
+	];
 	bridgeSyncMocks.openSession.mockResolvedValue(bridgeSyncMocks.session);
 	bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
 		baseRow({
@@ -188,6 +197,68 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 
 		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledOnce();
 		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledOnce();
+		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
+	});
+
+	test("links known operational aliases to Project Portfolio targets", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 789,
+				project_name: "claude-md-lint",
+				summary: "Closed Claude Markdown lint checks.",
+				source: "cc",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Session Date": { date: { start: "2026-04-14" } },
+				Project: { relation: [{ id: "project-machine-audits" }] },
+				Tags: { multi_select: [{ name: "cc" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.updatePageProperties).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": expect.anything(),
+				}),
+			}),
+		);
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 789,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[CC] claude-md-lint — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
+
+	test("skips known operational aliases when the target Project Portfolio row is missing", async () => {
+		bridgeSyncMocks.projectPortfolioPages = [];
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 789,
+				project_name: "claude-md-lint",
+				summary: "Closed Claude Markdown lint checks.",
+				source: "cc",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
 	});
 

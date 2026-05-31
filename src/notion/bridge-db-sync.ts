@@ -47,6 +47,27 @@ export interface BridgeDbSyncResult {
 }
 
 const BRIDGE_DB_DEFAULT_PATH = `${homedir()}/.local/share/bridge-db/bridge.db`;
+const PROJECT_PORTFOLIO_DATA_SOURCE_ID = "35e04e4d-bcd8-45c0-b783-238edef210f7";
+const PROJECT_PORTFOLIO_TITLE_PROPERTY = "Project Name";
+
+type BuildLogProjectRelation = "Local Project" | "Project";
+
+interface BuildLogProjectTarget {
+	id: string;
+	relationProperty: BuildLogProjectRelation;
+}
+
+interface OperationalProjectAlias {
+	targetTitle: string;
+	relationProperty: BuildLogProjectRelation;
+}
+
+const OPERATIONAL_PROJECT_ALIASES = new Map<string, OperationalProjectAlias>([
+	[
+		"claude-md-lint",
+		{ targetTitle: "Machine Audits", relationProperty: "Project" },
+	],
+]);
 
 // ---------------------------------------------------------------------------
 // Entry point
@@ -75,17 +96,22 @@ export async function runBridgeDbSyncCommand(
 	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
 
-	// Fetch project list and build log schema
+	// Fetch project lists and build log schema
 	const [projectSchema, buildSchema] = await Promise.all([
 		api.retrieveDataSource(config.database.dataSourceId),
 		api.retrieveDataSource(config.relatedDataSources.buildLogId),
 	]);
 
-	const [projectPages] = await Promise.all([
+	const [projectPages, projectPortfolioPages] = await Promise.all([
 		fetchAllPages(
 			sdk,
 			config.database.dataSourceId,
 			projectSchema.titlePropertyName,
+		),
+		fetchAllPages(
+			sdk,
+			PROJECT_PORTFOLIO_DATA_SOURCE_ID,
+			PROJECT_PORTFOLIO_TITLE_PROPERTY,
 		),
 	]);
 
@@ -94,6 +120,9 @@ export async function runBridgeDbSyncCommand(
 	);
 	const projectIndex = buildProjectNameIndex(
 		projects.map((p) => ({ id: p.id, title: p.title })),
+	);
+	const projectPortfolioIndex = buildProjectNameIndex(
+		projectPortfolioPages.map((page) => ({ id: page.id, title: page.title })),
 	);
 
 	// Read unprocessed SHIPPED rows from bridge-db via MCP
@@ -129,12 +158,23 @@ export async function runBridgeDbSyncCommand(
 	}
 
 	for (const row of entries) {
-		const localProjectId = resolveProjectId(row.project_name, projectIndex);
-		if (!localProjectId) {
+		const projectTarget = resolveBuildLogProjectTarget(
+			row.project_name,
+			projectIndex,
+			projectPortfolioIndex,
+		);
+		if (!projectTarget) {
+			const alias = resolveOperationalProjectAlias(row.project_name);
 			result.rowsSkipped += 1;
-			result.notes.push(
-				`Skipped row ${row.id}: project "${row.project_name}" not matched to a Local Portfolio project.`,
-			);
+			if (alias) {
+				result.notes.push(
+					`Skipped row ${row.id}: operational alias "${row.project_name}" target "${alias.targetTitle}" not found for Build Log ${alias.relationProperty} relation.`,
+				);
+			} else {
+				result.notes.push(
+					`Skipped row ${row.id}: project "${row.project_name}" not matched to a Local Portfolio project.`,
+				);
+			}
 			continue;
 		}
 
@@ -143,7 +183,7 @@ export async function runBridgeDbSyncCommand(
 
 		if (!live) {
 			console.log(
-				`[bridge-db-sync] [dry-run] Would write: "${title}" → project ${localProjectId}`,
+				`[bridge-db-sync] [dry-run] Would write: "${title}" → ${projectTarget.relationProperty} ${projectTarget.id}`,
 			);
 			result.rowsWritten += 1;
 			continue;
@@ -164,7 +204,7 @@ export async function runBridgeDbSyncCommand(
 				pageId: created.id,
 				properties: {
 					"Session Date": { date: { start: sessionDate } },
-					"Local Project": relationValue([localProjectId]),
+					[projectTarget.relationProperty]: relationValue([projectTarget.id]),
 					Tags: buildTagProperty(row),
 				},
 			});
@@ -205,13 +245,17 @@ export async function runBridgeDbSyncCommand(
 				);
 			}
 			for (const row of opsEntries) {
-				const localProjectId = resolveProjectId(row.project_name, projectIndex);
+				const projectTarget = resolveBuildLogProjectTarget(
+					row.project_name,
+					projectIndex,
+					projectPortfolioIndex,
+				);
 				const sessionDate = row.timestamp?.slice(0, 10) ?? today;
 				const title = buildBuildLogTitle(row);
 
 				if (!live) {
 					console.log(
-						`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${localProjectId ? ` → project ${localProjectId}` : " (no project match)"}`,
+						`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${projectTarget ? ` → ${projectTarget.relationProperty} ${projectTarget.id}` : " (no project match)"}`,
 					);
 					result.opsRowsWritten += 1;
 					continue;
@@ -231,8 +275,10 @@ export async function runBridgeDbSyncCommand(
 						"Session Date": { date: { start: sessionDate } },
 						Tags: buildTagProperty(row),
 					};
-					if (localProjectId) {
-						updateProps["Local Project"] = relationValue([localProjectId]);
+					if (projectTarget) {
+						updateProps[projectTarget.relationProperty] = relationValue([
+							projectTarget.id,
+						]);
 					}
 					await api.updatePageProperties({
 						pageId: created.id,
@@ -510,6 +556,44 @@ function resolveProjectId(
 		index.get(normalized) ||
 		index.get(normalized.replace(/\s+/g, "-")) ||
 		index.get(normalized.replace(/-/g, " "))
+	);
+}
+
+function resolveBuildLogProjectTarget(
+	projectName: string,
+	localProjectIndex: Map<string, string>,
+	projectPortfolioIndex: Map<string, string>,
+): BuildLogProjectTarget | undefined {
+	const localProjectId = resolveProjectId(projectName, localProjectIndex);
+	if (localProjectId) {
+		return { id: localProjectId, relationProperty: "Local Project" };
+	}
+
+	const alias = resolveOperationalProjectAlias(projectName);
+	if (!alias) {
+		return undefined;
+	}
+
+	const targetIndex =
+		alias.relationProperty === "Project"
+			? projectPortfolioIndex
+			: localProjectIndex;
+	const targetId = resolveProjectId(alias.targetTitle, targetIndex);
+	if (!targetId) {
+		return undefined;
+	}
+
+	return { id: targetId, relationProperty: alias.relationProperty };
+}
+
+function resolveOperationalProjectAlias(
+	projectName: string,
+): OperationalProjectAlias | undefined {
+	const normalized = projectName.toLowerCase().trim();
+	return (
+		OPERATIONAL_PROJECT_ALIASES.get(normalized) ||
+		OPERATIONAL_PROJECT_ALIASES.get(normalized.replace(/\s+/g, "-")) ||
+		OPERATIONAL_PROJECT_ALIASES.get(normalized.replace(/-/g, " "))
 	);
 }
 
