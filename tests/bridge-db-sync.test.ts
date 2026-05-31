@@ -99,9 +99,14 @@ function baseRow(overrides: Partial<BridgeDbRow> = {}): BridgeDbRow {
 
 function resetBridgeSyncMocks(): void {
 	vi.clearAllMocks();
-	bridgeSyncMocks.projectPages = [{ id: "project-ghost", title: "Ghost Routes" }];
+	bridgeSyncMocks.projectPages = [
+		{ id: "project-ghost", title: "Ghost Routes" },
+		{ id: "project-mcp-audit", title: "MCP Audit" },
+		{ id: "project-github-auditor", title: "GitHub Repo Auditor" },
+	];
 	bridgeSyncMocks.projectPortfolioPages = [
 		{ id: "project-machine-audits", title: "Machine Audits" },
+		{ id: "project-skill-forge", title: "skill-forge" },
 	];
 	bridgeSyncMocks.openSession.mockResolvedValue(bridgeSyncMocks.session);
 	bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
@@ -237,6 +242,99 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] claude-md-lint — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
+
+	test("links compact bridge project names to Local Portfolio projects", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 790,
+				project_name: "MCPAudit",
+				summary: "Published MCPAudit release.",
+				source: "cc",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "project-mcp-audit" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 790,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[CC] MCPAudit — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
+
+	test("links direct Project Portfolio project names when no Local Portfolio row exists", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 791,
+				project_name: "skill-forge",
+				summary: "Improved compact-prep skill.",
+				source: "cc",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				Project: { relation: [{ id: "project-skill-forge" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 791,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[CC] skill-forge — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
+
+	test("links dependency-security operational rows to GitHub Repo Auditor", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 792,
+				project_name: "portfolio-dep-security",
+				summary: "Completed dependency security sweep.",
+				source: "cc",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "project-github-auditor" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 792,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[CC] portfolio-dep-security — 2026-04-14" with Session Date 2026-04-14',
 		});
 	});
 
@@ -412,5 +510,14 @@ describe("buildProjectNameIndex", () => {
 	test("returns undefined for unmatched names", () => {
 		const index = buildProjectNameIndex(projects);
 		expect(index.get("nonexistent-project")).toBeUndefined();
+	});
+
+	test("compact punctuation-free variant matches", () => {
+		const index = buildProjectNameIndex([
+			{ id: "proj-4", title: "MCP Audit" },
+			{ id: "proj-5", title: "GitHub Repo Auditor" },
+		]);
+		expect(index.get("mcpaudit")).toBe("proj-4");
+		expect(index.get("githubrepoauditor")).toBe("proj-5");
 	});
 });
