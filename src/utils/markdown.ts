@@ -200,6 +200,10 @@ function normalizeComparisonMarkdown(markdown: string): string {
     .replace(/\\</g, "<")
     .replace(/\\>/g, ">")
     .replace(/\]\(<mention-page url="([^"]+)"\/>\)/g, "]($1)")
+    .replace(
+      /\[([A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,})(?:\/)?\]\(https?:\/\/\1\/?\)/gi,
+      "$1",
+    )
     .replace(/\n{2,}/g, "\n")
     .replace(/(https:\/\/www\.notion\.so\/[^\s)#?]+)(?:\?[^\s)#]*)?(?:#[^\s)#]*)?/gi, "$1")
     .replace(
