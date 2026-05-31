@@ -161,13 +161,13 @@ npm run portfolio-audit:action-request-sync -- --live
 
 Supported actions: `github.create_issue`, `github.update_issue`, `github.set_issue_labels`, `github.set_issue_assignees`, `github.add_issue_comment`, `github.comment_pull_request`.
 
-### 7. Governed Vercel actions
+### 9. Governed Vercel actions
 
 Same three-step pipeline as GitHub. Supported actions: `vercel.redeploy`, `vercel.rollback`, `vercel.promote`.
 
 Requires `VERCEL_TOKEN` in your `.env`. The live gate also requires a successful dry run within the last 24 hours.
 
-### 8. Weekly live sequence (correct order)
+### 10. Weekly live sequence (correct order)
 
 Use the guarded orchestrator for a full weekly pass:
 

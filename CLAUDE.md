@@ -34,6 +34,7 @@ The repo replaces ad hoc manual Notion editing and GitHub mutation with determin
 3. **Writes Notion** — updates derived fields, publishes command-center markdown, generates weekly review packets.
 4. **Reads GitHub** — polls repos for open PRs and workflow runs (in `--live` mode only; dry-run recomputes from existing Notion rows without hitting GitHub).
 5. **Writes GitHub** — executes approved action requests through a dry-run → approval → live pipeline.
+6. **Writes Vercel** — executes approved redeploy, rollback, and promote actions through the same pipeline.
 
 ### Source of truth
 
@@ -276,13 +277,7 @@ npm run portfolio-audit:action-request-sync -- --live
 | `npm run portfolio-audit:action-runner -- --mode live --request <id>` | Execute an approved GitHub action |
 | `npm run portfolio-audit:action-request-sync -- --live` | Sync governance/actuation summaries |
 | `npm run portfolio-audit:operational-rollout` | Generate operational rollout plan |
-| `npm run portfolio-audit:overhaul-notion` | Full schema upgrade and project refresh |
 | `npm run portfolio-audit:views-validate` | Validate core project view config against live schema |
-| `npm run portfolio-audit:execution-views-validate` | Validate execution views |
-| `npm run portfolio-audit:external-signal-views-validate` | Validate external signal views |
-| `npm run portfolio-audit:phase6-views-validate` | Validate governance views |
-| `npm run portfolio-audit:phase7-views-validate` | Validate actuation views |
-| `npm run portfolio-audit:phase8-views-validate` | Validate GitHub-specific views |
 | `npm run portfolio-audit:views-plan` | Print saved-view plan |
 | `npm run typecheck` | Run TypeScript type checking |
 | `npm test` | Run Vitest tests |
@@ -377,10 +372,9 @@ Then inspect current Notion state and existing signal/action ledgers.
 
 ### Current state
 
-- **Phase 8 (GitHub Deepening) is complete.** The GitHub action lane is mature with issue lifecycle, PR comments, hardened App posture, and audit-grade feedback loops.
-- **Phase 9 (Provider Expansion) is planned.** Next phase will expand governance to non-GitHub providers, but only after the GitHub lane is measurably trusted.
-- **Provider scaffolding exists** for Vercel (disabled governance policies) and Google Calendar (disabled provider scaffolding). Treat this repo as "GitHub-first operating system with future provider hooks," not "multi-provider actuation system already in production."
-- **65 projects tracked**, 0 overdue reviews. **50 orphaned projects** means `buildSessionCount === 0` AND `relatedResearchCount === 0` AND `supportingSkillsCount === 0` AND `linkedToolCount === 0`. These are not corrupted — they are safe to sync and safe to run `control-tower-sync` against. They simply have no linked operating records.
+- **Phase 12 (Managed Write Reliability and Daily Driver Hardening) is active.** Phases 1–11 are complete. The GitHub and Vercel actuation lanes are both mature and live.
+- **Phase 9 (Provider Expansion) is complete.** Vercel actuation (`vercel.redeploy`, `vercel.rollback`, `vercel.promote`) is live and policy-backed in `config/local-portfolio-governance-policies.json`. Google Calendar scaffolding remains disabled.
+- **117 projects tracked**, 0 overdue reviews. **6 orphaned projects** means `buildSessionCount === 0` AND `relatedResearchCount === 0` AND `supportingSkillsCount === 0` AND `linkedToolCount === 0`. These are not corrupted — they are safe to sync and safe to run `control-tower-sync` against. They simply have no linked operating records.
 - **Webhook feedback** is currently `trusted_feedback` mode, but shadow/drain/reconcile machinery still exists. Do not assume the feedback loop is magically self-healing — verify execution rows and reconcile state.
 - **MCP vs REST:** Direct REST is used for all data operations. Notion MCP is the primary strategy for saved view operations. Playwright is fallback only when MCP auth is unavailable.
 
@@ -393,10 +387,9 @@ Notion Operating System is the local automation and rules layer that connects No
 
 ## Current State
 
-- **Phase 8 (GitHub Deepening) is complete.** The GitHub action lane is mature with issue lifecycle, PR comments, hardened App posture, and audit-grade feedback loops.
-- **Phase 9 (Provider Expansion) is planned.** Next phase will expand governance to non-GitHub providers, but only after the GitHub lane is measurably trusted.
-- **Provider scaffolding exists** for Vercel (disabled governance policies) and Google Calendar (disabled provider scaffolding). Treat this repo as "GitHub-first operating system with future provider hooks," not "multi-provider actuation system already in production."
-- **65 projects tracked**, 0 overdue reviews. **50 orphaned projects** means `buildSessionCount === 0` AND `relatedResearchCount === 0` AND `supportingSkillsCount === 0` AND `linkedToolCount === 0`. These are not corrupted — they are safe to sync and safe to run `control-tower-sync` against. They simply have no linked operating records.
+- **Phase 12 (Managed Write Reliability and Daily Driver Hardening) is active.** Phases 1–11 are complete. The GitHub and Vercel actuation lanes are both mature and live.
+- **Phase 9 (Provider Expansion) is complete.** Vercel actuation (`vercel.redeploy`, `vercel.rollback`, `vercel.promote`) is live and policy-backed. Google Calendar scaffolding remains disabled.
+- **117 projects tracked**, 0 overdue reviews. **6 orphaned projects** means `buildSessionCount === 0` AND `relatedResearchCount === 0` AND `supportingSkillsCount === 0` AND `linkedToolCount === 0`. These are not corrupted — they are safe to sync and safe to run `control-tower-sync` against. They simply have no linked operating records.
 - **Webhook feedback** is currently `trusted_feedback` mode, but shadow/drain/reconcile machinery still exists. Do not assume the feedback loop is magically self-healing — verify execution rows and reconcile state.
 - **MCP vs REST:** Direct REST is used for all data operations. Notion MCP is the primary strategy for saved view operations. Playwright is fallback only when MCP auth is unavailable.
 
