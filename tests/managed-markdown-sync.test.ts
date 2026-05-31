@@ -544,6 +544,15 @@ describe("managed markdown sync", () => {
 		expect(normalizeMarkdown(stored)).toBe(normalizeMarkdown(rendered));
 	});
 
+	test("normalizes Notion auto-linked bare domains", () => {
+		const stored =
+			"Create an [itch.io](http://itch.io) release-prep packet, then review [itch.io](http://itch.io) reception.";
+		const rendered =
+			"Create an itch.io release-prep packet, then review itch.io reception.";
+
+		expect(normalizeMarkdown(stored)).toBe(normalizeMarkdown(rendered));
+	});
+
 	test("normalizes Notion mention-page link readback into plain markdown links", () => {
 		const stored =
 			'- \\[2026-05-09 - \\[CC\\] bridge-db — 2026-05-09\\](<mention-page url="https://www.notion.so/35bc21f1caf0819f9c8afc89d2fb0f9d"/>)';
