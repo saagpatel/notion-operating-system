@@ -144,3 +144,8 @@ The repo is an operational control system, not an ad hoc Notion script folder. T
 Use targeted dry-run commands for narrow repairs. Reserve portfolio-wide live maintenance for explicit weekly-refresh requests and report drift before writing.
 
 <!-- portfolio-context:end -->
+
+<!-- secondbrain-breadcrumb -->
+## SecondBrain knowledge vault
+
+Prior lessons, decisions, and context for this project live in SecondBrain at `wiki/maps/projects/notion-os.md`. The whole vault is searchable via the `engraph` MCP — query it for this project + its stack before non-trivial work.
