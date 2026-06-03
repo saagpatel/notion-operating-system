@@ -118,6 +118,7 @@ New destination alias → update `config/destinations.json`, run `destinations:r
 | `GITHUB_APP_ID` | Governed actions | GitHub App ID |
 | `GITHUB_APP_PRIVATE_KEY_PEM` | Governed actions | GitHub App private key (PEM) |
 | `GITHUB_APP_WEBHOOK_SECRET` | Webhook verification | Shared secret for webhook validation |
+| `VERCEL_TOKEN` | Governed Vercel writes | Vercel API token |
 | `NOTION_LOG_DIR` | Optional | Log directory (default: `./logs`) |
 | `NOTION_DESTINATIONS_PATH` | Optional | Destinations config path (default: `./config/destinations.json`) |
 
