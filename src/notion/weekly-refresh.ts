@@ -100,6 +100,7 @@ type WeeklyStepKey = (typeof WEEKLY_STEP_KEYS)[number];
 
 const POST_LIVE_FRESHNESS_TIMEOUT_MS = 20_000;
 const SLOW_STEP_THRESHOLD_MS = 30_000;
+const WEEKLY_PROGRESS_ENV = "NOTION_WEEKLY_PROGRESS";
 
 export async function runWeeklyRefreshCommand(
   options: WeeklyRefreshCommandOptions = {},
@@ -407,10 +408,20 @@ async function runStep(
   while (attempts < maxAttempts) {
     attempts += 1;
     try {
+      if (options.streamChildOutput) {
+        logHumanMessage(
+          `Starting ${step.args.includes("--live") ? "live" : "preflight"} step: ${step.title} (attempt ${attempts}/${maxAttempts}).`,
+        );
+      }
       const output = await runJsonCommand(step, {
         streamChildOutput: options.streamChildOutput,
       });
       const contract = toStepContract(output, step.args.includes("--live"));
+      if (options.streamChildOutput) {
+        logHumanMessage(
+          `Finished ${step.title}: ${contract.status} in ${formatDuration(Date.now() - startedAt)}.`,
+        );
+      }
       return {
         key: step.key,
         title: step.title,
@@ -479,7 +490,7 @@ async function runJsonCommand(
   const tsxPath = path.resolve(process.cwd(), "node_modules/.bin/tsx");
   const child = spawn(tsxPath, commandPath, {
     cwd: process.cwd(),
-    env: process.env,
+    env: buildWeeklyRefreshChildEnv(process.env, options.streamChildOutput),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -525,6 +536,19 @@ function prefixChildStderr(stepTitle: string, text: string): string {
     .filter((line) => line.length > 0)
     .map((line) => `[weekly-refresh:${stepTitle}] ${line}`)
     .join("");
+}
+
+export function buildWeeklyRefreshChildEnv(
+  env: NodeJS.ProcessEnv,
+  streamChildOutput: boolean,
+): NodeJS.ProcessEnv {
+  const next = { ...env };
+  if (streamChildOutput) {
+    next[WEEKLY_PROGRESS_ENV] = "1";
+  } else {
+    delete next[WEEKLY_PROGRESS_ENV];
+  }
+  return next;
 }
 
 function buildSkippedStep(
@@ -716,6 +740,14 @@ export function buildWeeklyRefreshTimingSummary(
 
 function roundOneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function formatDuration(durationMs: number): string {
+  const seconds = Math.round(durationMs / 1000);
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  return `${roundOneDecimal(durationMs / 60000)}m`;
 }
 
 function deriveWeeklyRefreshNextCommands(

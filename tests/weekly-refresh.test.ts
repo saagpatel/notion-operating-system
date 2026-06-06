@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import {
 	applyFastBooleanDefault,
+	buildWeeklyRefreshChildEnv,
 	buildWeeklyRefreshQuickSummary,
 	buildWeeklyRefreshRecoveryPlan,
 	buildWeeklyRefreshTimingSummary,
@@ -13,6 +14,16 @@ describe("weekly refresh fast workflow guidance", () => {
 		expect(applyFastBooleanDefault(undefined, true)).toBe(true);
 		expect(applyFastBooleanDefault(true, false)).toBe(true);
 		expect(applyFastBooleanDefault(false, false)).toBe(false);
+	});
+
+	test("enables child progress only when child output is streamed", () => {
+		expect(
+			buildWeeklyRefreshChildEnv({ NOTION_WEEKLY_PROGRESS: "1" }, false)
+				.NOTION_WEEKLY_PROGRESS,
+		).toBeUndefined();
+		expect(
+			buildWeeklyRefreshChildEnv({}, true).NOTION_WEEKLY_PROGRESS,
+		).toBe("1");
 	});
 
 	test("recommends targeted fast live commands for drifting lanes", () => {

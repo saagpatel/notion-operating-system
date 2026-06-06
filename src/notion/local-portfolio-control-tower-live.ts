@@ -32,6 +32,13 @@ export interface DataSourcePageRef {
 	properties: Record<string, NotionPageProperty>;
 }
 
+export interface FetchAllPagesOptions {
+	filter?: Record<string, unknown>;
+	sorts?: Array<Record<string, unknown>>;
+	pageSize?: number;
+	maxResults?: number;
+}
+
 export async function ensureLocalPortfolioControlTowerSchema(
 	sdk: Client,
 	config: LocalPortfolioControlTowerConfig,
@@ -73,24 +80,33 @@ export async function fetchAllPages(
 	client: Client | DirectNotionClient,
 	dataSourceId: string,
 	titlePropertyName: string,
+	options: FetchAllPagesOptions = {},
 ): Promise<DataSourcePageRef[]> {
 	const pages: DataSourcePageRef[] = [];
 	let nextCursor: string | undefined;
+	const pageSize = Math.max(
+		1,
+		Math.min(100, options.pageSize ?? options.maxResults ?? 100),
+	);
 
 	while (true) {
 		const response =
 			client instanceof DirectNotionClient
 				? await client.queryDataSourcePages({
 						dataSourceId,
-						pageSize: 100,
+						pageSize,
 						startCursor: nextCursor,
+						filter: options.filter,
+						sorts: options.sorts,
 					})
 				: ((await client.request({
 						path: `data_sources/${dataSourceId}/query`,
 						method: "post",
 						body: {
-							page_size: 100,
+							page_size: pageSize,
 							start_cursor: nextCursor,
+							filter: options.filter,
+							sorts: options.sorts,
 						},
 					})) as {
 						results?: Array<{
@@ -123,8 +139,11 @@ export async function fetchAllPages(
 				properties: (page.properties ?? {}) as Record<
 					string,
 					NotionPageProperty
-				>,
+					>,
 			});
+			if (options.maxResults !== undefined && pages.length >= options.maxResults) {
+				return pages.slice(0, options.maxResults);
+			}
 		}
 
 		if (!response.has_more || !response.next_cursor) {

@@ -9,6 +9,7 @@ import {
 	deriveExternalSignalSyncStatus,
 	deriveExternalSignalSyncWarningCategories,
 	deriveExternalSignalSyncWritePlan,
+	filterProviderResultsAgainstExistingEventKeys,
 	normalizeProviderName,
 	selectProjectRefreshBatch,
 	syncExternalSignalProjectBrief,
@@ -19,6 +20,10 @@ import {
 	syncRepoAuditorSources,
 	validateExternalSignalSyncOptions,
 } from "../src/notion/external-signal-sync.js";
+import {
+	fetchExistingExternalSignalEventKeys,
+	fetchRecentExternalSignalEventPagesByProject,
+} from "../src/notion/local-portfolio-external-signals-live.js";
 import type {
 	ExternalSignalProviderPlan,
 	ExternalSignalSourceRecord,
@@ -84,6 +89,210 @@ describe("external signal sync hardening", () => {
 			"p-4",
 			"p-3",
 		]);
+	});
+
+	test("fetches recent external signal events by project relation with bounded sorted queries", async () => {
+		const projectOne = "11111111-1111-4111-8111-111111111111";
+		const projectTwo = "22222222-2222-4222-8222-222222222222";
+		const eventOne = eventPage("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa", "Event One");
+		const eventTwo = eventPage("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb", "Event Two");
+		const calls: Array<Record<string, unknown>> = [];
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				calls.push(body);
+				const filter = body.filter as { relation?: { contains?: string } } | undefined;
+				const projectId = filter?.relation?.contains;
+				return {
+					results: projectId === projectOne ? [eventOne, eventTwo] : [eventTwo],
+					has_more: false,
+					next_cursor: null,
+				};
+			},
+		};
+
+		const result = await fetchRecentExternalSignalEventPagesByProject({
+			client: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			projectIds: [projectOne, projectTwo],
+			perProjectLimit: 7,
+			concurrency: 1,
+		});
+
+		expect(result.mode).toBe("project_relation");
+		expect(result.pages.map((page) => page.id)).toEqual([eventOne.id, eventTwo.id]);
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toMatchObject({
+			page_size: 7,
+			filter: { property: "Local Project", relation: { contains: projectOne } },
+			sorts: [
+				{ property: "Occurred At", direction: "descending" },
+				{ property: "Signal Type", direction: "descending" },
+				{ property: "Status", direction: "descending" },
+				{ property: "Name", direction: "descending" },
+			],
+		});
+	});
+
+	test("falls back to a full event scan when project relation queries fail", async () => {
+		const projectOne = "11111111-1111-4111-8111-111111111111";
+		const fallbackEvent = eventPage("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "Fallback Event");
+		const calls: Array<Record<string, unknown>> = [];
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				calls.push(body);
+				if (body.filter) {
+					throw new Error("relation filter rejected");
+				}
+				return { results: [fallbackEvent], has_more: false, next_cursor: null };
+			},
+		};
+
+		const result = await fetchRecentExternalSignalEventPagesByProject({
+			client: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			projectIds: [projectOne],
+		});
+
+		expect(result.mode).toBe("full_scan_fallback");
+		expect(result.fallbackError).toContain("relation filter rejected");
+		expect(result.pages.map((page) => page.id)).toEqual([fallbackEvent.id]);
+		expect(calls).toHaveLength(2);
+		expect(calls[1]?.filter).toBeUndefined();
+	});
+
+	test("fetches existing external signal event keys with bounded key filters", async () => {
+		const calls: Array<Record<string, unknown>> = [];
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				calls.push(body);
+				return {
+					results: [
+						eventPage(
+							"dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+							"Existing Event",
+							"github::workflow::1",
+						),
+					],
+					has_more: false,
+					next_cursor: null,
+				};
+			},
+		};
+
+		const result = await fetchExistingExternalSignalEventKeys({
+			client: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			eventKeys: ["github::workflow::1", "github::workflow::2"],
+			batchSize: 50,
+			concurrency: 1,
+		});
+
+		expect(result.mode).toBe("event_key_filter");
+		expect([...result.eventKeys]).toEqual(["github::workflow::1"]);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toMatchObject({
+			page_size: 100,
+			filter: {
+				or: [
+					{ property: "Event Key", rich_text: { equals: "github::workflow::1" } },
+					{ property: "Event Key", rich_text: { equals: "github::workflow::2" } },
+				],
+			},
+		});
+	});
+
+	test("falls back to full event scan when event-key filter queries fail", async () => {
+		const calls: Array<Record<string, unknown>> = [];
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				calls.push(body);
+				if (body.filter) {
+					throw new Error("event key filter rejected");
+				}
+				return {
+					results: [
+						eventPage(
+							"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+							"Existing Event",
+							"github::workflow::1",
+						),
+						eventPage(
+							"ffffffff-ffff-4fff-8fff-ffffffffffff",
+							"Other Event",
+							"github::workflow::old",
+						),
+					],
+					has_more: false,
+					next_cursor: null,
+				};
+			},
+		};
+
+		const result = await fetchExistingExternalSignalEventKeys({
+			client: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			eventKeys: ["github::workflow::1"],
+		});
+
+		expect(result.mode).toBe("full_scan_fallback");
+		expect(result.fallbackError).toContain("event key filter rejected");
+		expect([...result.eventKeys]).toEqual(["github::workflow::1"]);
+		expect(calls).toHaveLength(2);
+		expect(calls[1]?.filter).toBeUndefined();
+	});
+
+	test("filters provider results against existing Notion event keys before writes", async () => {
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				expect(body.filter).toBeDefined();
+				return {
+					results: [
+						eventPage(
+							"dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+							"Existing Event",
+							"github::workflow::existing",
+						),
+					],
+					has_more: false,
+					next_cursor: null,
+				};
+			},
+		};
+		const result = await filterProviderResultsAgainstExistingEventKeys({
+			api: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			today: "2026-06-06",
+			providerResults: [
+				{
+					provider: "GitHub",
+					status: "Succeeded",
+					itemsSeen: 2,
+					itemsWritten: 2,
+					itemsDeduped: 0,
+					failures: 0,
+					notes: [],
+					cursor: "2026-06-06",
+					events: [
+						normalizedEvent("github::workflow::existing"),
+						normalizedEvent("github::workflow::new"),
+					],
+					syncedSourceIds: ["source-1"],
+					providerExercised: true,
+				},
+			],
+		});
+
+		expect(result[0]?.events.map((event) => event.eventKey)).toEqual([
+			"github::workflow::new",
+		]);
+		expect(result[0]?.itemsWritten).toBe(1);
+		expect(result[0]?.itemsDeduped).toBe(1);
+		expect(result[0]?.notes[0]).toContain("already exists in Notion");
 	});
 
 	test("derives scoped write plans without crossing provider/page boundaries", () => {
@@ -1335,6 +1544,42 @@ describe("repo auditor sync", () => {
 		expect(result.events.length).toBeLessThanOrEqual(2);
 	});
 });
+
+function eventPage(id: string, title: string, eventKey = "") {
+	return {
+		id,
+		url: `https://notion.so/${id.replaceAll("-", "")}`,
+		properties: {
+			Name: {
+				type: "title",
+					title: [{ plain_text: title }],
+			},
+			"Event Key": {
+				type: "rich_text",
+				rich_text: eventKey ? [{ plain_text: eventKey }] : [],
+			},
+		},
+	};
+}
+
+function normalizedEvent(eventKey: string) {
+	return {
+		title: "Workflow run",
+		localProjectId: "project-1",
+		sourceId: "source-1",
+		provider: "GitHub" as const,
+		signalType: "Workflow Run" as const,
+		occurredAt: "2026-06-06",
+		status: "success",
+		environment: "N/A" as const,
+		severity: "Info" as const,
+		sourceIdValue: eventKey,
+		sourceUrl: "https://github.com/owner/repo/actions/runs/1",
+		eventKey,
+		summary: "Workflow run succeeded.",
+		rawExcerpt: "status=success",
+	};
+}
 
 function repoAuditorProvider(
 	overrides: Partial<ExternalSignalProviderPlan> = {},

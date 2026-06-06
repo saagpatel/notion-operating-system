@@ -287,6 +287,7 @@ export class DirectNotionClient implements NotionApi {
     pageSize?: number;
     startCursor?: string;
     filter?: Record<string, unknown>;
+    sorts?: Array<Record<string, unknown>>;
   }): Promise<{
     results?: Array<{
       id: string;
@@ -306,6 +307,7 @@ export class DirectNotionClient implements NotionApi {
         page_size: input.pageSize ?? 100,
         start_cursor: input.startCursor,
         filter: input.filter,
+        sorts: input.sorts,
       },
     });
   }
