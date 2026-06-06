@@ -18,6 +18,7 @@ import {
 	extractManagedSection,
 	mergeManagedSection,
 	normalizeMarkdown,
+	normalizePageBodyMarkdown,
 	pageMarkdownMatches,
 } from "../src/utils/markdown.js";
 
@@ -62,6 +63,75 @@ describe("managed markdown sync", () => {
 				title: "Local Portfolio Command Center",
 			}),
 		).toBe(true);
+	});
+
+	test("normalizes Notion app page links that are canonicalized during read-back", () => {
+		const id = "326c21f1caf0815d8d77d44b03d8daa6";
+		const expected = [
+			"# Local Portfolio Command Center",
+			"",
+			`- [DevToolsTranslator](https://app.notion.com/p/DevToolsTranslator-${id}) - stable`,
+			`- [Packet](https://www.notion.so/Phase-2-now-packet-${id}?v=abc#section)`,
+		].join("\n");
+		const actual = [
+			`- [DevToolsTranslator](https://app.notion.com/p/${id}) - stable`,
+			`- [Packet](https://www.notion.so/${id})`,
+		].join("\n");
+
+		expect(
+			pageMarkdownMatches({
+				expectedMarkdown: expected,
+				actualMarkdown: actual,
+				title: "Local Portfolio Command Center",
+			}),
+		).toBe(true);
+	});
+
+	test("normalizes duplicated nested links emitted during Notion read-back", () => {
+		const id = "371c21f1caf081a883a7fcb44b8ee4d6";
+		const expected = [
+			"# Local Portfolio Command Center",
+			"",
+			`- [2026-05-31 - [CC] MCPAudit](https://www.notion.so/${id})`,
+		].join("\n");
+		const actual = [
+			`- [2026-05-31 - [CC] MCPAudit]([https://www.notion.so/${id}](https://www.notion.so/${id}))`,
+		].join("\n");
+
+		expect(
+			pageMarkdownMatches({
+				expectedMarkdown: expected,
+				actualMarkdown: actual,
+				title: "Local Portfolio Command Center",
+			}),
+		).toBe(true);
+	});
+
+	test("normalizes stored page bodies without the database title heading", () => {
+		const titled = [
+			"# OrbitMechanic - Execution Brief - 2026-06-05",
+			"",
+			"<!-- codex:notion-execution-brief:start -->",
+			"## Execution Brief",
+			"- Stable body.",
+			"<!-- codex:notion-execution-brief:end -->",
+		].join("\n");
+		const bodyOnly = stripLeadingMarkdownTitle(
+			titled,
+			"OrbitMechanic - Execution Brief - 2026-06-05",
+		);
+
+		expect(
+			normalizePageBodyMarkdown(
+				titled,
+				"OrbitMechanic - Execution Brief - 2026-06-05",
+			),
+		).toBe(
+			normalizePageBodyMarkdown(
+				bodyOnly,
+				"OrbitMechanic - Execution Brief - 2026-06-05",
+			),
+		);
 	});
 
 	test("preserves Daily Focus when rebuilding weekly review markdown", () => {
