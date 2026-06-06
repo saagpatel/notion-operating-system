@@ -251,6 +251,7 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `GITHUB_APP_WEBHOOK_SECRET` | For webhook verification | Shared secret for delivery validation |
 | `VERCEL_TOKEN` | For governed Vercel writes | Vercel API token |
 | `NOTION_LOG_DIR` | Optional | Log directory (default: `./logs`) |
+| `NOTION_DESTINATIONS_PATH` | Optional | Destinations config path (default: `./config/destinations.json`) |
 
 ## Sandbox Profile Discipline
 

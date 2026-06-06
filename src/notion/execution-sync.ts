@@ -42,7 +42,7 @@ import {
   upsertPageByTitle,
 } from "./local-portfolio-control-tower-live.js";
 import { AppError, toErrorMessage } from "../utils/errors.js";
-import { normalizeMarkdown } from "../utils/markdown.js";
+import { normalizeMarkdown, normalizePageBodyMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { mapWithConcurrency } from "../utils/concurrency.js";
 import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
@@ -448,25 +448,27 @@ async function buildStoredExecutionBriefRefreshes(input: {
         context,
         today: input.today,
       });
-      const contentHash = hashMarkdown(nextMarkdown);
+      const contentHash = hashMarkdown(nextMarkdown, storageTitle);
       const existingHash = existing
         ? textValue(existing.properties["Brief Hash"])
         : "";
       const previousMarkdown =
-        existing && !existingHash
+        existing && existingHash !== contentHash
           ? (await input.api.readPageMarkdown(existing.id)).markdown
           : "";
+      const changed = !existing || (
+        existingHash === contentHash
+          ? false
+          : normalizePageBodyMarkdown(nextMarkdown, storageTitle) !==
+            normalizePageBodyMarkdown(previousMarkdown, storageTitle)
+      );
       return {
         projectId: context.project.id,
         projectTitle: context.project.title,
         previousMarkdown,
         nextMarkdown,
         context,
-        changed:
-          !existing ||
-          (existingHash
-            ? existingHash !== contentHash
-            : normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previousMarkdown)),
+        changed,
         storageTitle,
         storagePageId: existing?.id,
         storagePageUrl: existing?.url,
@@ -526,8 +528,10 @@ function buildExecutionBriefStorageProperties(input: {
   };
 }
 
-function hashMarkdown(markdown: string): string {
-  return createHash("sha256").update(normalizeMarkdown(markdown)).digest("hex");
+function hashMarkdown(markdown: string, title: string): string {
+  return createHash("sha256")
+    .update(normalizePageBodyMarkdown(markdown, title))
+    .digest("hex");
 }
 
 function validateProjectBatchOptions(options: Pick<ExecutionSyncCommandOptions, "projectLimit" | "projectOffset" | "projectConcurrency">): void {
@@ -570,7 +574,7 @@ export async function syncExecutionCommandCenterMarkdown(input: {
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
-  if (!live) {
+  if (!shouldLogProgress(live)) {
     return;
   }
 
@@ -579,12 +583,16 @@ function logLiveStage(live: boolean, stage: string, details?: Record<string, unk
 }
 
 function logLoopProgress(live: boolean, scope: string, label: string, index: number, total: number): void {
-  if (!live) {
+  if (!shouldLogProgress(live)) {
     return;
   }
   if (index === 1 || index === total || index % 10 === 0) {
     console.error(`[${scope}] ${label} ${index}/${total}`);
   }
+}
+
+function shouldLogProgress(live: boolean): boolean {
+  return live || process.env.NOTION_WEEKLY_PROGRESS === "1";
 }
 
 function summarizeProjectWarnings(prefix: string, projectTitles: string[]): string[] {

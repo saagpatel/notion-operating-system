@@ -1323,7 +1323,7 @@ function renderFreshnessByLayer(
 		freshnessLine(
 			"Weekly refresh",
 			weekly?.weeklyRefreshLastRunAt,
-			weekly?.weeklyRefreshLastStatus,
+			weeklyRefreshFreshnessSuffix(weekly),
 		),
 	];
 }
@@ -1343,6 +1343,39 @@ function freshnessLine(label: string, date?: string, suffix?: string): string {
 	const state = date ? date : "Never";
 	const statusSuffix = suffix ? ` (${suffix})` : "";
 	return `- ${label}: ${state}${statusSuffix}`;
+}
+
+function weeklyRefreshFreshnessSuffix(
+	weekly?: LocalPortfolioControlTowerConfig["weeklyMaintenance"],
+): string | undefined {
+	if (!weekly?.weeklyRefreshLastStatus) {
+		return undefined;
+	}
+	const summary = weekly.weeklyRefreshLastSummary;
+	const missedWeekdays = numericSummaryValue(summary, "missedWeekdays");
+	const catchUpRecovered = summary?.catchUpRecovered === "yes";
+	if (catchUpRecovered && missedWeekdays > 0) {
+		return `${weekly.weeklyRefreshLastStatus}; caught up after ${missedWeekdays} missed weekday(s)`;
+	}
+	if (summary?.staleBeforeRun === "yes" && missedWeekdays > 0) {
+		return `${weekly.weeklyRefreshLastStatus}; ${missedWeekdays} missed weekday(s) pending recovery`;
+	}
+	return weekly.weeklyRefreshLastStatus;
+}
+
+function numericSummaryValue(
+	summary: Record<string, number | string | boolean> | undefined,
+	key: string,
+): number {
+	const value = summary?.[key];
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+	return 0;
 }
 
 function renderCommandCenterAttention(metrics: ControlTowerMetrics): string[] {
