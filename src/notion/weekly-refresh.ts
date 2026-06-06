@@ -16,7 +16,10 @@ import {
   saveLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import { FRESHNESS_COMMAND_CENTER_SECTION } from "./managed-markdown-sections.js";
-import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import {
+  isReadBackRecoverableMarkdownError,
+  syncManagedMarkdownSectionWithReadBack,
+} from "./managed-markdown-sync.js";
 import { mergeManagedSection, normalizeMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { extractNotionIdFromUrl } from "../utils/notion-id.js";
@@ -1114,16 +1117,17 @@ async function persistWeeklyRefreshState(input: {
       );
       if (normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown)) {
         try {
-          await syncManagedMarkdownSection({
+          await syncManagedMarkdownSectionWithReadBack({
             api,
             pageId: nextConfig.commandCenter.pageId,
             previousMarkdown: previous.markdown,
             nextMarkdown,
             startMarker: FRESHNESS_COMMAND_CENTER_SECTION.startMarker,
             endMarker: FRESHNESS_COMMAND_CENTER_SECTION.endMarker,
+            maxAttempts: 2,
           });
         } catch (error) {
-          if (!isMarkdownPatchTransportError(error)) {
+          if (!isReadBackRecoverableMarkdownError(error)) {
             throw error;
           }
           if (!input.allowCommandCenterReplacement) {
@@ -1205,11 +1209,6 @@ async function replaceCommandCenterPageAfterPatchFailure(input: {
     mode: "replace_full_content",
   });
   return nextConfig;
-}
-
-function isMarkdownPatchTransportError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /Notion request transport error.*PATCH \/pages\/.*\/markdown/i.test(message);
 }
 
 function isPostLiveFreshnessTransportError(error: unknown): boolean {

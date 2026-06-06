@@ -11,7 +11,7 @@ import {
 } from "./local-portfolio-control-tower.js";
 import { fetchAllPages, toControlTowerProjectRecord } from "./local-portfolio-control-tower-live.js";
 import { mergeManagedSection } from "./local-portfolio-execution.js";
-import { syncManagedMarkdownSection } from "./managed-markdown-sync.js";
+import { syncManagedMarkdownSectionWithReadBack } from "./managed-markdown-sync.js";
 import {
   buildGovernanceAuditSummary,
   renderGovernanceBriefSection,
@@ -172,13 +172,14 @@ export async function runActionRequestSyncCommand(
         const updated = mergeManagedSection(existing.markdown, brief, GOVERNANCE_BRIEF_START, GOVERNANCE_BRIEF_END);
         if (updated !== existing.markdown) {
           try {
-            await syncManagedMarkdownSection({
+            await syncManagedMarkdownSectionWithReadBack({
               api,
               pageId: project.id,
               previousMarkdown: existing.markdown,
               nextMarkdown: updated,
               startMarker: GOVERNANCE_BRIEF_START,
               endMarker: GOVERNANCE_BRIEF_END,
+              maxAttempts: 2,
             });
             changedProjectPages += 1;
           } catch (error) {
@@ -229,23 +230,25 @@ export async function runActionRequestSyncCommand(
               GOVERNANCE_COMMAND_CENTER_END,
             );
             if (governanceOnly !== commandCenter.markdown) {
-              await syncManagedMarkdownSection({
+              await syncManagedMarkdownSectionWithReadBack({
                 api,
                 pageId: config.commandCenter.pageId,
                 previousMarkdown: commandCenter.markdown,
                 nextMarkdown: governanceOnly,
                 startMarker: GOVERNANCE_COMMAND_CENTER_START,
                 endMarker: GOVERNANCE_COMMAND_CENTER_END,
+                maxAttempts: 2,
               });
             }
             if (withActuation !== governanceOnly) {
-              await syncManagedMarkdownSection({
+              await syncManagedMarkdownSectionWithReadBack({
                 api,
                 pageId: config.commandCenter.pageId,
                 previousMarkdown: governanceOnly,
                 nextMarkdown: withActuation,
                 startMarker: ACTUATION_COMMAND_CENTER_START,
                 endMarker: ACTUATION_COMMAND_CENTER_END,
+                maxAttempts: 2,
               });
             }
           } catch (error) {
@@ -289,23 +292,25 @@ export async function runActionRequestSyncCommand(
               WEEKLY_GOVERNANCE_END,
             );
             if (governanceOnly !== weekly.markdown) {
-              await syncManagedMarkdownSection({
+              await syncManagedMarkdownSectionWithReadBack({
                 api,
                 pageId: latestWeekly.id,
                 previousMarkdown: weekly.markdown,
                 nextMarkdown: governanceOnly,
                 startMarker: WEEKLY_GOVERNANCE_START,
                 endMarker: WEEKLY_GOVERNANCE_END,
+                maxAttempts: 2,
               });
             }
             if (withActuation !== governanceOnly) {
-              await syncManagedMarkdownSection({
+              await syncManagedMarkdownSectionWithReadBack({
                 api,
                 pageId: latestWeekly.id,
                 previousMarkdown: governanceOnly,
                 nextMarkdown: withActuation,
                 startMarker: WEEKLY_ACTUATION_START,
                 endMarker: WEEKLY_ACTUATION_END,
+                maxAttempts: 2,
               });
             }
           } catch (error) {
