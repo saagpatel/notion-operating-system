@@ -20,6 +20,7 @@ import {
 	normalizeMarkdown,
 	normalizePageBodyMarkdown,
 } from "../utils/markdown.js";
+import { normalizeNotionId } from "../utils/notion-id.js";
 import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
@@ -1242,11 +1243,27 @@ async function upsertExternalSignalBriefPage(input: {
 	properties: Record<string, unknown>;
 	markdown: string;
 }): Promise<void> {
-	const existing = await input.api.searchPage({
+	let existing = await input.api.searchPage({
 		dataSourceId: input.dataSourceId,
 		exactTitle: input.title,
 		titleProperty: input.titlePropertyName,
 	});
+	if (existing) {
+		const existingPage = await input.api.retrievePage(existing.id);
+		const expectedDataSourceId = normalizeNotionId(input.dataSourceId);
+		const actualDataSourceId = existingPage.parent?.data_source_id
+			? normalizeNotionId(existingPage.parent.data_source_id)
+			: undefined;
+		if (actualDataSourceId !== expectedDataSourceId) {
+			logLiveStage(true, "Ignoring stored external signal brief outside expected data source", {
+				pageId: existing.id,
+				title: input.title,
+				expectedDataSourceId,
+				actualDataSourceId,
+			});
+			existing = null;
+		}
+	}
 
 	if (!existing) {
 		await createExternalSignalBriefPage(input);

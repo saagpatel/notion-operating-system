@@ -137,6 +137,7 @@ export class DirectNotionClient implements NotionApi {
     const response = await this.http.requestJson<{
       id: string;
       url: string;
+      parent?: { page_id?: string; data_source_id?: string };
       properties?: Record<string, { type?: string; title?: Array<{ plain_text?: string }> }>;
     }>(`/pages/${pageId}`);
     const title = findPageTitle(response.properties);
@@ -144,6 +145,7 @@ export class DirectNotionClient implements NotionApi {
       id: normalizeNotionId(response.id),
       url: response.url,
       title,
+      parent: normalizePageParent(response.parent),
     };
   }
 
@@ -446,6 +448,20 @@ function findPageTitle(
   }
 
   return undefined;
+}
+
+function normalizePageParent(
+  parent?: { page_id?: string; data_source_id?: string },
+): { page_id?: string; data_source_id?: string } | undefined {
+  if (!parent) {
+    return undefined;
+  }
+  return {
+    page_id: parent.page_id ? normalizeNotionId(parent.page_id) : undefined,
+    data_source_id: parent.data_source_id
+      ? normalizeNotionId(parent.data_source_id)
+      : undefined,
+  };
 }
 
 function richTextToPlainText(value: unknown): string | undefined {
