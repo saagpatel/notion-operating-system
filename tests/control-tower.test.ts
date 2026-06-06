@@ -20,6 +20,7 @@ import {
 	deriveOperatingQueue,
 	parseLocalPortfolioControlTowerConfig,
 	renderCommandCenterMarkdown,
+	renderFreshnessByLayerSection,
 	renderWeeklyReviewMarkdown,
 } from "../src/notion/local-portfolio-control-tower.js";
 import { buildStaleActiveRescueUpdatePlan } from "../src/notion/stale-active-rescue.js";
@@ -576,6 +577,27 @@ describe("local portfolio control tower rules", () => {
 			"Local Portfolio Projects is the project control tower",
 		);
 		expect(buildRoadmapPhases(2, "Planned", true)[1]?.status).toBe("Planned");
+	});
+
+	test("renders recovered missed weekday catch-up in freshness section", async () => {
+		const config = await loadConfig();
+		const section = renderFreshnessByLayerSection({
+			...config,
+			weeklyMaintenance: {
+				...config.weeklyMaintenance,
+				weeklyRefreshLastRunAt: "2026-06-06",
+				weeklyRefreshLastStatus: "completed",
+				weeklyRefreshLastSummary: {
+					missedWeekdays: 4,
+					staleBeforeRun: "yes",
+					catchUpRecovered: "yes",
+				},
+			},
+		});
+
+		expect(section).toContain(
+			"Weekly refresh: 2026-06-06 (completed; caught up after 4 missed weekday(s))",
+		);
 	});
 });
 

@@ -3,9 +3,11 @@ import { describe, expect, test } from "vitest";
 import {
 	applyFastBooleanDefault,
 	buildWeeklyRefreshChildEnv,
+	buildWeeklyRefreshCatchUpStatus,
 	buildWeeklyRefreshQuickSummary,
 	buildWeeklyRefreshRecoveryPlan,
 	buildWeeklyRefreshTimingSummary,
+	expandExternalSignalLiveProjectBatches,
 } from "../src/notion/weekly-refresh.js";
 
 describe("weekly refresh fast workflow guidance", () => {
@@ -24,6 +26,166 @@ describe("weekly refresh fast workflow guidance", () => {
 		expect(
 			buildWeeklyRefreshChildEnv({}, true).NOTION_WEEKLY_PROGRESS,
 		).toBe("1");
+	});
+
+	test("classifies weekend catch-up after missed weekday runs", () => {
+		const catchUp = buildWeeklyRefreshCatchUpStatus({
+			previousRunAt: "2026-06-01",
+			today: "2026-06-06",
+			status: "clean",
+			needsLiveWrite: false,
+			liveExecuted: false,
+		});
+
+		expect(catchUp).toMatchObject({
+			gapDays: 5,
+			missedRunDays: 4,
+			missedWeekdays: 4,
+			catchUpMode: "weekend_catch_up",
+			staleBeforeRun: true,
+			recovered: true,
+		});
+		expect(catchUp.summary).toContain("weekend catch-up");
+		expect(catchUp.summary).toContain("recovered");
+	});
+
+	test("does not mark stale missed runs recovered when drift remains", () => {
+		const catchUp = buildWeeklyRefreshCatchUpStatus({
+			previousRunAt: "2026-06-01",
+			today: "2026-06-05",
+			status: "completed",
+			needsLiveWrite: true,
+			liveExecuted: false,
+		});
+
+		expect(catchUp).toMatchObject({
+			missedRunDays: 3,
+			missedWeekdays: 3,
+			catchUpMode: "weekend_catch_up",
+			staleBeforeRun: true,
+			recovered: false,
+		});
+	});
+
+	test("does not loop on invalid stored weekly refresh dates", () => {
+		const catchUp = buildWeeklyRefreshCatchUpStatus({
+			previousRunAt: "not-a-date",
+			today: "2026-06-06",
+			status: "clean",
+			needsLiveWrite: false,
+			liveExecuted: false,
+		});
+
+		expect(catchUp).toMatchObject({
+			gapDays: 0,
+			missedRunDays: 0,
+			missedWeekdays: 0,
+			catchUpMode: "none",
+			staleBeforeRun: false,
+			recovered: false,
+		});
+		expect(catchUp.summary).toContain("Prior weekly refresh run date is invalid");
+	});
+
+	test("does not loop on invalid current weekly refresh dates", () => {
+		const catchUp = buildWeeklyRefreshCatchUpStatus({
+			previousRunAt: "2026-06-01",
+			today: "2026-02-31",
+			status: "clean",
+			needsLiveWrite: false,
+			liveExecuted: false,
+		});
+
+		expect(catchUp).toMatchObject({
+			gapDays: 0,
+			missedRunDays: 0,
+			missedWeekdays: 0,
+			catchUpMode: "none",
+			staleBeforeRun: false,
+			recovered: false,
+		});
+		expect(catchUp.summary).toContain("Current weekly refresh date is invalid");
+	});
+
+	test("chunks large live external signal project-page refreshes", () => {
+		const [supportStep, ...externalSteps] = expandExternalSignalLiveProjectBatches(
+			[
+				{
+					key: "support-maintenance",
+					title: "GitHub Support Maintenance",
+					kind: "script",
+					args: ["support"],
+					timeoutMs: 1,
+				},
+				{
+					key: "external-signals",
+					title: "External Signal Sync",
+					kind: "cli",
+					args: ["signals", "sync"],
+					timeoutMs: 1,
+				},
+			],
+			{
+				maxProjectPages: 45,
+				projectConcurrency: 2,
+				skipKnownBlockedMarkdown: true,
+			},
+			true,
+			{
+				sharedArgs: ["--live", "--today", "2026-06-06"],
+				externalSignalSourceLimit: 119,
+				externalSignalMaxEventsPerSource: 5,
+			},
+		);
+
+		expect(supportStep?.key).toBe("support-maintenance");
+		expect(externalSteps.map((step) => step.title)).toEqual([
+			"External Signal Sync (batch 1/3)",
+			"External Signal Sync (batch 2/3)",
+			"External Signal Sync (batch 3/3)",
+		]);
+		expect(
+			externalSteps.map((step) => ({
+				limit: valueAfter(step.args, "--project-limit"),
+				offset: valueAfter(step.args, "--project-offset"),
+				concurrency: valueAfter(step.args, "--project-concurrency"),
+			})),
+		).toEqual([
+			{ limit: "20", offset: "0", concurrency: "1" },
+			{ limit: "20", offset: "20", concurrency: "1" },
+			{ limit: "5", offset: "40", concurrency: "1" },
+		]);
+		expect(externalSteps[0]?.args).toContain("--skip-known-blocked-markdown");
+	});
+
+	test("respects manual external signal project offsets without auto-chunking", () => {
+		const steps = [
+			{
+				key: "external-signals",
+				title: "External Signal Sync",
+				kind: "cli" as const,
+				args: ["signals", "sync"],
+				timeoutMs: 1,
+			},
+		];
+
+		expect(
+			expandExternalSignalLiveProjectBatches(
+				steps,
+				{
+					maxProjectPages: 45,
+					projectOffset: 20,
+					projectConcurrency: 2,
+					skipKnownBlockedMarkdown: false,
+				},
+				true,
+				{
+					sharedArgs: ["--live", "--today", "2026-06-06"],
+					externalSignalSourceLimit: 119,
+					externalSignalMaxEventsPerSource: 5,
+				},
+			),
+		).toEqual(steps);
 	});
 
 	test("recommends targeted fast live commands for drifting lanes", () => {
@@ -244,3 +406,8 @@ describe("weekly refresh fast workflow guidance", () => {
 		]);
 	});
 });
+
+function valueAfter(args: string[], flag: string): string | undefined {
+	const index = args.indexOf(flag);
+	return index >= 0 ? args[index + 1] : undefined;
+}

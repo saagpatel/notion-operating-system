@@ -191,4 +191,4 @@ Use targeted dry-run commands for narrow repairs. Reserve portfolio-wide live ma
 <!-- secondbrain-breadcrumb -->
 ## SecondBrain knowledge vault
 
-Prior lessons, decisions, and context for this project live in SecondBrain at `wiki/maps/projects/notion-os.md`. The whole vault is searchable via the `engraph` MCP — query it for this project + its stack before non-trivial work.
+Prior lessons, decisions, and context for this project live in SecondBrain. Search the vault via the `engraph` MCP for `notion-os`, `Notion Operating System`, and related stack terms before non-trivial work; historical map paths may move.

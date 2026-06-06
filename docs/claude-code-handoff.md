@@ -3,90 +3,66 @@
 Continue this work in the same workspace unless I say otherwise.
 
 ## Mission
-This repo is a working “Notion Operating System” in `/Users/d/Notion`. The major Phase 9 feature work is already landed: governed GitHub actions, bounded Vercel redeploy/rollback/promote, operator runbooks, a compact `governance:health-report`, and Notion command-center health visibility. The large cleanup and project-hardening pass is now also complete enough that the next slice should be **Phase 10 follow-through and operational maturity**, not another broad cleanup sweep.
+This repo is a working Notion Operating System in `/Users/d/Projects/Notion`. It publishes local markdown into Notion, refreshes portfolio control-tower fields, syncs external GitHub signals, and runs governed GitHub write workflows. The active lane is **Phase 12: managed write reliability and daily-driver hardening**.
 
 ## Workspace
-- Same folder as the previous session: `/Users/d/Notion`
+- Same folder as the previous session: `/Users/d/Projects/Notion`
 - Treat the workspace as source of truth
 - Re-ground from files before changing anything
+- Check `git status --short --branch` before trusting branch or worktree state
+- Dry-run first unless the user has explicitly approved a live write
 
 ## Read These First
-- `/Users/d/Notion/AGENTS.md`
-- `/Users/d/Notion/README.md`
-- `/Users/d/Notion/docs/notion-roadmap.md`
-- `/Users/d/Notion/docs/notion-phase-memory.md`
-- `/Users/d/Notion/docs/github-governed-actions-runbook.md`
-- `/Users/d/Notion/docs/governance-sync-failure-troubleshooting.md`
-- `/Users/d/Notion/docs/governance-incident-followup-runbook.md`
+- `/Users/d/Projects/Notion/AGENTS.md`
+- `/Users/d/Projects/Notion/HANDOFF.md`
+- `/Users/d/Projects/Notion/README.md`
+- `/Users/d/Projects/Notion/docs/notion-roadmap.md`
+- `/Users/d/Projects/Notion/docs/notion-phase-memory.md`
+- `/Users/d/Projects/Notion/docs/github-governed-actions-runbook.md`
+- `/Users/d/Projects/Notion/docs/governance-sync-failure-troubleshooting.md`
+- `/Users/d/Projects/Notion/docs/governance-incident-followup-runbook.md`
 
 ## Latest Checkpoint
-- The repo has now completed a deep audit-and-prune pass across script surface, docs alignment, and internal utility boundaries.
-- That cleanup is now merged reality and the restart docs have been refreshed against the merged repo state.
-- Recent cleanup outcomes:
-  - maintenance-only and historical utilities were moved behind `src/internal/notion-maintenance/` or `src/internal/portfolio-audit/`
-  - public npm scripts no longer point directly at `src/notion/*.ts`
-  - legacy compatibility aliases now route through the shared CLI or clearly internal maintenance entrypoints
-  - `rollout:vercel-readiness` is now part of the shared rollout CLI surface
-  - historical schema migration utilities remain available but are clearly treated as internal/historical
-- Recent verification passed repeatedly:
-  - `npm run typecheck`
-  - `npm test`
-  - `npm run build`
-  - `npm run verify`
-- Package-surface tests now enforce the public-script boundary directly
+- A June 6 audit found the repo operationally healthy, but not clean branch truth.
+- After `git fetch --prune origin`, the active branch was `codex/fix/notion-autolink-markdown-normalization`, tracking `origin/main` and reporting `ahead 5, behind 2`.
+- The working tree had four uncommitted code/test files: `src/notion/external-signal-sync.ts`, `src/notion/weekly-refresh.ts`, `tests/external-signal-sync.test.ts`, and `tests/weekly-refresh.test.ts`.
+- Those active edits appear to harden stored external-signal brief writes with retries and split large live external-signal project-page refreshes into smaller batches.
+- Local validation passed: `npm run typecheck`, `npm test`, `npm run build`, CLI smoke checks, governance health, doctor checks, destination checks, view schema validation, Codex evals, and hook/MCP checks.
+- `npm audit --json` currently reports a moderate `hono` advisory path through `@modelcontextprotocol/sdk -> hono@4.12.18`. Dependabot PR #99 updates `hono`; PR #94 updates `tsx`.
+- A fast weekly dry-run for 2026-06-06 completed with `failed=0` and `partial=0`, but reported `needsLiveWrite=true` across `control-tower-sync`, `execution-sync`, `intelligence-sync`, and `review-packet`.
 
 ## Decisions Already Made
-- Do **not** widen provider scope by default -> the project should focus on maturity/cleanup now
-- Keep the existing governed GitHub + bounded Vercel control lanes -> those are already proven
-- Use the health report and command center as the main operator visibility surface
-- Prefer shared CLI commands and current runbooks over inventing new surfaces
-- Treat the broad cleanup pass as complete enough for now -> future work should be explicit product or operational work unless a new structural problem appears
+- Keep Phase 12 focused on managed write convergence, retry safety, and daily-driver reliability.
+- Keep the existing governed GitHub and bounded Vercel control lanes; do not widen provider/action scope without a concrete reason.
+- Use the health report and command center as the main operator visibility surface.
+- Prefer shared CLI commands and current runbooks over inventing new surfaces.
+- Treat ChatGPT Pro or browser advice as advisory only; Codex owns local truth, verification, and durable records.
 
 ## Rejected Paths
-- Do not start new provider-expansion work right now -> rejected because the repo needs cleanup and clearer beginner-facing documentation first
-- Do not re-open major Vercel architecture work -> rejected because the bounded recovery loop is already complete
-- Do not assume the README is fully current -> it is not
+- Do not use `npm run maintenance:weekly-refresh -- --live` as a targeted repair tool.
+- Do not run portfolio-wide live refresh commands after a single-project push unless the user explicitly asks for portfolio-wide refresh.
+- Do not assume branch, audit, or live Notion drift state from this file; verify locally.
 
 ## Current State That Matters
-- The repo is structurally healthy and materially cleaner than it was before the hardening track
-- The command surface is now more intentional:
-  - shared CLI + modern npm aliases are the public operator path
-  - internal maintenance tools are quarantined under `src/internal/*`
-  - compatibility aliases remain only where they still buy something
-- a 2026-04-23 remediation pass verified that `dry-run:example`, `bridge-db:status`, and `bridge-db:sync` all produce useful dry-run or read-only output
-- the same pass repaired the `sandbox` profile so that sandbox doctor now passes path isolation, token isolation, and target isolation, and `npm run sandbox:smoke` now passes end to end
-- the sandbox profile-owned Vercel manual seeds and rollout targets were trimmed because the sandbox workspace does not currently contain matching local project rows for those primary-profile IDs
-- the orphan-classification packet lane now creates structured `work_packets` entries with execution fields and `Local Project` relations; the remaining orphan follow-through gap is approval gating rather than packet shape
-- the orphan-classification lane now has an approval-backed path too: `--request-approval` creates governance requests for kickoff packets, and `--create-approved-packets` only materializes approved ones
-- `npm run control-tower:packet-follow-through` is now the first operator surface for deciding which existing packet to work next; it ranks orphan kickoff packets, signal-risk repair packets, overdue packet work, and packets that need a first concrete task. Its live `--create-signal-tasks` mode is intentionally narrow: it only creates one first task for signal-risk packets that currently have no open task.
-- Current `governance:health-report` may still warn in active runtime about missing `VERCEL_TOKEN` and `VERCEL_WEBHOOK_SECRET`; treat that as an operational-env follow-up, not a code bug
-- ApplyKit is now a good example of the signal-risk loop: Notion surfaced workflow failures, the repo-level pnpm and Trivy blockers were fixed, and the remaining GitHub failure is a build-time performance threshold regression. Work it through the existing `Signal risk repair - ApplyKit workflow failures` packet and its follow-up task rather than creating another packet.
-- The next meaningful work should start from one explicit Phase 10 delivery slice, not from another repo cleanup pass
-- `notification-hub` and `repo-auditor` are implemented, sandbox-proven, and now exercise primary-profile source rows in dry-run mode
+- The repo is an operational control system, not an ad hoc script folder.
+- Local safety checks are strong, but current branch divergence and uncommitted code changes must be resolved before any ship/merge claim.
+- The command surface is intentionally dry-run first, with live writes gated by explicit flags and user approval.
+- Weekly maintenance drift is currently a live-write decision, not a failing local validation problem.
+- The active security follow-up is the `hono` advisory path via MCP SDK, not the older ExcelJS/UUID note.
 
 ## Open Loops
-- Advance active Phase 10 work rather than reopening generic cleanup:
-  - clean up signal quality for `notification_hub` unmatched/null project events and refresh or document the `repo_auditor` audit input date
-  - keep morning-brief, packet follow-through, orphan classification, and trend-analysis lanes coherent
-  - prefer the new approval-backed orphan path for live use when human signoff is desirable
-  - preserve script-surface discipline as new commands are added
-- Keep docs current as active workflows evolve
-- Continue normal maintenance:
-  - dependency cleanup when upstream fixes make it worthwhile
-  - sandbox rehearsal discipline for risky live workflows
+- Review and land or discard the active code/test changes intentionally.
+- Reconcile the current branch against `origin/main`.
+- Merge or otherwise handle Dependabot PR #99 to clear the current `hono` advisory path; review PR #94 separately.
+- If live Notion repair is approved, run each drifting lane as targeted dry-run -> live -> same dry-run.
+- Keep docs current as active workflows evolve.
 
 ## Next Best Step
-1. Re-ground from `HANDOFF.md`, `docs/notion-roadmap.md`, and `docs/script-surface-classification.md`.
-2. Choose the next explicit Phase 10 implementation slice now that the sandbox rehearsal lane is healthy again.
-   The best current candidate is no longer `notification-hub` or `GithubRepoAuditor`; those are already proven in sandbox live mode.
-   Choose either `bridge-db` completion or the next packet follow-through cleanup batch on top of the proven adapters.
-3. Treat the sandbox GitHub lane, orphan packet structure, and approval-backed orphan flow as already-proven foundations unless a new bug appears.
-4. Treat the `notification-hub` and `repo-auditor` adapters as already-proven foundations too:
-   - both use global local-provider source rows
-   - `notification-hub` is project-only in v1
-   - `repo-auditor` resolves through GitHub source identifiers first
-5. Prefer shared CLI additions over new standalone script entrypoints.
-6. Re-run `npm run control-tower:packet-follow-through -- --today <date>`, `notion-os --profile sandbox doctor --json`, `npm run sandbox:smoke`, and the relevant Phase 10 dry-run checks after any new work.
+1. Run `git status --short --branch` and inspect the active dirty diff before making more changes.
+2. Run focused verification for the active code edits, especially `tests/external-signal-sync.test.ts` and `tests/weekly-refresh.test.ts`.
+3. Decide whether the active reliability changes should be committed, rebased, or set aside.
+4. If the user approves live Notion writes, repair only the drifting lane with that lane's dry-run, live command, and matching follow-up dry-run.
+5. Keep broad weekly live refresh reserved for explicit weekly-maintenance approval.
 
 ## Guardrails
 - Reuse established decisions unless I explicitly reopen them

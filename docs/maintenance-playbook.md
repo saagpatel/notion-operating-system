@@ -115,8 +115,8 @@ Do not create duplicate recovery tasks for stale packets that already have open 
 - Keep dependency updates review-driven. Do not auto-merge by default.
 - Treat npm `overrides` as temporary mitigations, not permanent architecture.
 - When upstream packages land the needed fix cleanly, remove the matching override and validate with `npm run verify` before merge.
-- Current accepted audit exception: `exceljs@4.4.0` still depends on `uuid@8.3.2`, which triggers the moderate `uuid` advisory path reported by `npm audit`. Do not downgrade `exceljs`; keep the risk limited to workbook import/export utilities and revisit replacement or isolation when a maintained upstream fix exists.
-- Current Dependabot posture after the 2026-04-23 cleanup: package and GitHub Actions update PRs are merged, but the `uuid` advisory workflow is still expected to fail until the accepted `exceljs` path is replaced, isolated, or fixed upstream.
+- Current audit follow-up as of 2026-06-06: `npm audit --json` reports a moderate `hono` advisory path through `@modelcontextprotocol/sdk -> hono@4.12.18`. Review and merge Dependabot PR #99, then rerun `npm audit --json` and the normal verification gates.
+- Do not carry forward the older ExcelJS/UUID note as the active audit posture unless a fresh `npm audit` run reintroduces that path.
 
 ## CI maintenance note
 

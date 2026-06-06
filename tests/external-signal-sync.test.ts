@@ -10,6 +10,7 @@ import {
 	deriveExternalSignalSyncWarningCategories,
 	deriveExternalSignalSyncWritePlan,
 	filterProviderResultsAgainstExistingEventKeys,
+	isRetryableStoredBriefWriteError,
 	normalizeProviderName,
 	selectProjectRefreshBatch,
 	syncExternalSignalProjectBrief,
@@ -18,6 +19,7 @@ import {
 	syncNotificationHubSources,
 	syncProviders,
 	syncRepoAuditorSources,
+	upsertExternalSignalBriefPage,
 	validateExternalSignalSyncOptions,
 } from "../src/notion/external-signal-sync.js";
 import {
@@ -28,6 +30,7 @@ import type {
 	ExternalSignalProviderPlan,
 	ExternalSignalSourceRecord,
 } from "../src/notion/local-portfolio-external-signals.js";
+import { AppError } from "../src/utils/errors.js";
 
 describe("external signal sync hardening", () => {
 	const previousEnv = process.env;
@@ -89,6 +92,183 @@ describe("external signal sync hardening", () => {
 			"p-4",
 			"p-3",
 		]);
+	});
+
+	test("does not update a stored external signal brief found outside the target data source", async () => {
+		const calls: string[] = [];
+		const briefsDataSourceId = "11111111-1111-4111-8111-111111111111";
+		const wrongDataSourceId = "22222222-2222-4222-8222-222222222222";
+		const api = {
+			searchPage: async () => ({
+				id: "wrong-parent",
+				url: "https://www.notion.so/wrong-parent",
+				title: "Project - External Signal Brief - 2026-06-06",
+			}),
+			retrievePage: async () => ({
+				id: "wrong-parent",
+				url: "https://www.notion.so/wrong-parent",
+				title: "Project - External Signal Brief - 2026-06-06",
+				parent: { data_source_id: wrongDataSourceId },
+			}),
+			updatePageProperties: async (input: { pageId: string }) => {
+				calls.push(`update:${input.pageId}`);
+			},
+			createPageWithMarkdown: async () => {
+				calls.push("create");
+				return {
+					id: "created-brief",
+					url: "https://www.notion.so/created-brief",
+					title: "Project - External Signal Brief - 2026-06-06",
+				};
+			},
+			patchPageMarkdown: async (input: { pageId: string }) => {
+				calls.push(`patch:${input.pageId}`);
+			},
+		};
+
+		await upsertExternalSignalBriefPage({
+			api: api as never,
+			dataSourceId: briefsDataSourceId,
+			titlePropertyName: "Name",
+			title: "Project - External Signal Brief - 2026-06-06",
+			properties: {
+				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
+			},
+			markdown: "External brief",
+		});
+
+		expect(calls).toEqual(["create"]);
+	});
+
+	test("retries transient stored external signal brief property patches", async () => {
+		const calls: string[] = [];
+		const briefsDataSourceId = "11111111-1111-4111-8111-111111111111";
+		let updateAttempts = 0;
+		const api = {
+			searchPage: async () => ({
+				id: "existing-brief",
+				url: "https://www.notion.so/existing-brief",
+				title: "Project - External Signal Brief - 2026-06-06",
+			}),
+			retrievePage: async () => ({
+				id: "existing-brief",
+				url: "https://www.notion.so/existing-brief",
+				title: "Project - External Signal Brief - 2026-06-06",
+				parent: { data_source_id: briefsDataSourceId },
+			}),
+			updatePageProperties: async (input: { pageId: string }) => {
+				updateAttempts += 1;
+				calls.push(`update:${input.pageId}:${updateAttempts}`);
+				if (updateAttempts === 1) {
+					throw new AppError("Notion request timed out after 1 attempt(s) for PATCH /pages/existing-brief", {
+						classification: "timeout_exhausted",
+					});
+				}
+			},
+			createPageWithMarkdown: async () => {
+				calls.push("create");
+				return {
+					id: "created-brief",
+					url: "https://www.notion.so/created-brief",
+					title: "Project - External Signal Brief - 2026-06-06",
+				};
+			},
+			patchPageMarkdown: async (input: { pageId: string }) => {
+				calls.push(`patch:${input.pageId}`);
+			},
+		};
+
+		await upsertExternalSignalBriefPage({
+			api: api as never,
+			dataSourceId: briefsDataSourceId,
+			titlePropertyName: "Name",
+			title: "Project - External Signal Brief - 2026-06-06",
+			properties: {
+				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
+				"Brief Hash": { rich_text: [{ type: "text", text: { content: "hash" } }] },
+			},
+			markdown: "External brief",
+		});
+
+		expect(calls).toEqual([
+			"update:existing-brief:1",
+			"update:existing-brief:2",
+			"patch:existing-brief",
+		]);
+	});
+
+	test("retries transient stored external signal brief markdown patches", async () => {
+		const calls: string[] = [];
+		const briefsDataSourceId = "11111111-1111-4111-8111-111111111111";
+		let markdownAttempts = 0;
+		const api = {
+			searchPage: async () => ({
+				id: "existing-brief",
+				url: "https://www.notion.so/existing-brief",
+				title: "Project - External Signal Brief - 2026-06-06",
+			}),
+			retrievePage: async () => ({
+				id: "existing-brief",
+				url: "https://www.notion.so/existing-brief",
+				title: "Project - External Signal Brief - 2026-06-06",
+				parent: { data_source_id: briefsDataSourceId },
+			}),
+			updatePageProperties: async (input: { pageId: string }) => {
+				calls.push(`update:${input.pageId}`);
+			},
+			createPageWithMarkdown: async () => {
+				calls.push("create");
+				return {
+					id: "created-brief",
+					url: "https://www.notion.so/created-brief",
+					title: "Project - External Signal Brief - 2026-06-06",
+				};
+			},
+			patchPageMarkdown: async (input: { pageId: string }) => {
+				markdownAttempts += 1;
+				calls.push(`patch:${input.pageId}:${markdownAttempts}`);
+				if (markdownAttempts === 1) {
+					throw new AppError("Notion request transport error after 1 attempt(s) for PATCH /pages/existing-brief/markdown", {
+						classification: "transport_error",
+					});
+				}
+			},
+		};
+
+		await upsertExternalSignalBriefPage({
+			api: api as never,
+			dataSourceId: briefsDataSourceId,
+			titlePropertyName: "Name",
+			title: "Project - External Signal Brief - 2026-06-06",
+			properties: {
+				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
+				"Brief Hash": { rich_text: [{ type: "text", text: { content: "hash" } }] },
+			},
+			markdown: "External brief",
+		});
+
+		expect(calls).toEqual([
+			"update:existing-brief",
+			"patch:existing-brief:1",
+			"patch:existing-brief:2",
+		]);
+	});
+
+	test("classifies stored brief retryability narrowly", () => {
+		expect(
+			isRetryableStoredBriefWriteError(
+				new AppError("Notion request returned retryable error responses after 1 attempt(s) for PATCH /pages/example", {
+					classification: "unexpected_response",
+				}),
+			),
+		).toBe(true);
+		expect(
+			isRetryableStoredBriefWriteError(
+				new AppError("Notion request failed for PATCH /pages/example", {
+					status: 400,
+				}),
+			),
+		).toBe(false);
 	});
 
 	test("fetches recent external signal events by project relation with bounded sorted queries", async () => {

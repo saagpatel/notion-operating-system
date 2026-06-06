@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-05-31
+Updated: 2026-06-06
 
 ## Current Phase
 - Phase: 12 - Managed Write Reliability and Daily Driver Hardening
@@ -8,14 +8,13 @@ Updated: 2026-05-31
 - Objective: Make the daily driver durable now that Phase 11 can rank, publish, and audit the work queue.
 
 ## Repo State Snapshot
-- The May 31 targeted maintenance pass cleared the only current live Notion drift without using broad weekly live refresh as a repair tool.
-- The first May 31 weekly fast preflight found 5 clean lanes and 1 drift lane, `intelligence-sync`; the targeted live repair updated exactly 1 recommendation brief, and the matching follow-up dry-run returned clean.
-- Final weekly fast preflight for 2026-05-31 reports 6 clean lanes, 0 drift, no failed or partial steps, and `needsLiveWrite=false`.
-- Operator brief now reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, 6 stale-task packets, and 6 at-risk packets. Daily Focus ranks DevToolsTranslator, JobCommandCenter, and Nocturne as the top Now items.
-- Packet follow-through now scans 9 open packets and surfaces 8 follow-through rows: 3 blocked packets and 6 overdue packets.
-- The May 31 ChatGPT advisory context zip was reviewed as evidence only. Its useful repo-facing guidance is boundary discipline: ChatGPT stays advisory, Codex verifies local truth, Drive is not source of truth, and compact receipts should precede any consultation schema.
-- Dependabot PRs for `tmp`, `qs`, production dependencies, and development tooling were merged into `main`; local validation passes with `npm ci`, `npm run typecheck`, and `npm test`.
-- `npm audit --json` now reports only the documented moderate `exceljs -> uuid` exception. The prior high `tmp` advisory and moderate `qs` advisory are cleared.
+- The June 6 audit found the repo operationally healthy, but not a clean `main` checkout. At the checkpoint, the active branch was `codex/fix/notion-autolink-markdown-normalization`, tracking `origin/main` and reporting `ahead 5, behind 2` after fetch.
+- The working tree contained active uncommitted code/test changes in `src/notion/external-signal-sync.ts`, `src/notion/weekly-refresh.ts`, `tests/external-signal-sync.test.ts`, and `tests/weekly-refresh.test.ts`. Review and verify those changes before staging or committing.
+- Local validation passed with `npm run typecheck`, `npm test` (59 files, 426 tests), `npm run build`, CLI smoke checks, governance health, doctor checks, destination checks, view schema validation, Codex evals, and hook/MCP checks.
+- Fast weekly dry-run for 2026-06-06 completed with no failed or partial steps, but reported `needsLiveWrite=true` across `control-tower-sync`, `execution-sync`, `intelligence-sync`, and `review-packet`. No live writes were run during the audit.
+- `npm audit --json` currently reports a moderate `hono` advisory path through `@modelcontextprotocol/sdk -> hono@4.12.18`; Dependabot PR #99 updates `hono`. The older ExcelJS/UUID note is not the current active npm audit posture.
+- Open Dependabot PRs at the checkpoint: #99 for `hono` and #94 for `tsx`. Current `main` GitHub CI/Dependabot runs were green after fetch.
+- The stale SecondBrain breadcrumb in `AGENTS.md` was converted to a search-first instruction because the historical exact map path was not readable during audit.
 - The current weekly review page is `Week of 2026-05-25`; review recovery, Control Tower sync, Execution sync, Intelligence sync, External Signals sync, Morning Brief, and Daily Focus were repaired through targeted live commands and follow-up dry-runs.
 - Final weekly fast preflight for 2026-05-30 reports 6 clean lanes and 0 drift after the Phase 12 Daily Focus preservation fix.
 - Operator brief now reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 8 at-risk stale packets. The top stale packet queue is Nocturne, DevToolsTranslator, IncidentWorkbench, JobCommandCenter, and GPT_RAG.
@@ -38,7 +37,7 @@ Updated: 2026-05-31
 - The May 9 Notion maintenance work is complete: Dependabot updates are merged, the targeted cleanup lanes are clean, and the Command Center destination now points at the current live page.
 - The May 9 Phase 10C operator-surface pass is complete: morning brief priority ranking, governed orphan actions, deduped trend movement, live weekly sections, approved orphan kickoff packets, and a Command Center refresh are now in place.
 - The May 4 Notion maintenance work is complete: Intelligence, Execution, and External Signal generated briefs now converge through dedicated Notion databases instead of project-page markdown writes.
-- The weekly refresh fast path includes compact per-lane timing output; as of 2026-05-31 it is clean across all six lanes.
+- The weekly refresh fast path includes compact per-lane timing output; as of 2026-06-06 it has no failed or partial lanes, but four lanes need targeted live writes if the user approves.
 - The next Notion-only product focus is packet-staleness follow-through, led by DevToolsTranslator in Daily Focus and Nocturne in stale-task age.
 - Weekly `--fast` uses bounded project brief write concurrency and can be tuned with `--project-concurrency`.
 - That cleanup and hardening work is now merged reality, not an in-progress branch posture.
@@ -49,18 +48,17 @@ Updated: 2026-05-31
 - Current focus should be Phase 12 managed write convergence and packet follow-through, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
-- `npm ci` completed on 2026-05-31 and ran the prepare/build step successfully.
-- `npm run typecheck` passed on 2026-05-31.
-- `npm test` passed on 2026-05-31 with 59 test files and 403 tests.
-- `npm run governance:health-report` reports healthy governance and actuation posture with no warnings.
-- `npm run control-tower:operator-brief -- --today 2026-05-31 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 actionable orphans, 6 stale-task packets, and 6 at-risk packets.
-- `npm run control-tower:packet-follow-through -- --today 2026-05-31 --limit 12` scans 9 open packets and surfaces 8 follow-through packets, led by DevToolsTranslator, JobCommandCenter, Nocturne, IncidentWorkbench, and ModelColosseum.
-- `npm run control-tower:today -- --today 2026-05-31 --limit 5` reports `weeklyReviewWouldChange=false`; the top Now items are DevToolsTranslator, JobCommandCenter, and Nocturne.
-- `npm run control-tower:managed-section-audit -- --today 2026-05-31` finds the Daily Focus marker span on the current weekly page, with 19 managed blocks and markdown REST still recommended as the write mode.
-- The first `npm run maintenance:weekly-refresh -- --today 2026-05-31 --fast --summary-first --step-timeout-minutes 5 --max-project-pages 119 --project-concurrency 2` found 1 drift lane: `intelligence-sync`.
-- `npm run maintenance:weekly-refresh -- --today 2026-05-31 --only intelligence-sync --fast --live --confirm-full-live --step-timeout-minutes 5 --max-project-pages 119 --project-concurrency 2` updated 1 recommendation brief; the matching dry-run then reported the lane clean.
-- Final `npm run maintenance:weekly-refresh -- --today 2026-05-31 --fast --summary-first --step-timeout-minutes 5 --max-project-pages 119 --project-concurrency 2` completed with 6 clean lanes, 0 drift lanes, no failed or partial steps, and `needsLiveWrite=false`.
-- `gh pr list --state open --limit 20` returns no open PRs, and `gh run list --branch main --limit 10` shows latest `main` CI runs green; Dependabot's advisory workflow still fails on the accepted `exceljs -> uuid` exception.
+- `npm run typecheck` passed on 2026-06-06.
+- `npm test` passed on 2026-06-06 with 59 test files and 426 tests.
+- `npm run build` passed on 2026-06-06.
+- `npm run smoke:built-cli`, `npm run smoke:packed-install`, and `npm run smoke:git-install` passed on 2026-06-06.
+- `git diff --check` passed on 2026-06-06.
+- `npm run governance:health-report` reports healthy governance and actuation posture.
+- `npm run doctor -- --json`, `npm run destinations:check`, and all configured `*:views-validate` checks passed.
+- Codex evals passed 19/19, and hook/MCP checks passed.
+- `npm audit --json` reports the current moderate `hono` advisory path through `@modelcontextprotocol/sdk`; Dependabot PR #99 is the current dependency follow-up.
+- `npm run maintenance:weekly-refresh -- --today 2026-06-06 --fast --summary-first --step-timeout-minutes 3 --max-step-attempts 1` completed with `failed=0`, `partial=0`, and `needsLiveWrite=true` across `control-tower-sync`, `execution-sync`, `intelligence-sync`, and `review-packet`.
+- `gh pr list --state open --limit 20` shows open Dependabot PRs #99 (`hono`) and #94 (`tsx`), and `gh run list --branch main --limit 10` shows current `main` CI/Dependabot runs green.
 - `npm run control-tower:review-recovery -- --today 2026-05-30 --include-metadata-gaps --limit 120 --live` applied 69 review-recovery updates; the follow-up dry-run returned `totalEligibleProjects=0`, `overdueReviews=0`, `missingNextMove=0`, and `missingLastActive=0`.
 - `npm run control-tower:sync -- --today 2026-05-30 --live` applied 90 derived row updates and refreshed the Command Center; the follow-up dry-run returned `derivedRowsWouldChange=0` and `commandCenterWouldChange=0`.
 - Targeted weekly-refresh live repairs for `execution-sync`, `intelligence-sync`, and `external-signals` each completed with `--fast --max-project-pages 119 --project-concurrency 2`; each matching follow-up dry-run returned `needsLiveWrite=false`.
@@ -70,7 +68,7 @@ Updated: 2026-05-31
 - `npm run control-tower:operator-brief -- --today 2026-05-30 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 8 at-risk stale packets.
 - `npm run maintenance:weekly-refresh -- --today 2026-05-30 --fast --summary-first --step-timeout-minutes 5 --max-project-pages 119 --project-concurrency 2` completed with 6 clean lanes, 0 drift lanes, no failed or partial steps, and `needsLiveWrite=false`.
 - `npm run typecheck` and `npm test` passed after dependency updates, the Daily Focus preservation fix, and the weekly managed-section registry refactor. The test suite currently reports 59 test files and 401 tests.
-- GitHub CI is green on the latest main merge commit; Dependabot's advisory workflow still fails on the accepted `exceljs -> uuid` exception.
+- GitHub CI was green on the May 30 main merge commit; that older Dependabot advisory note has been superseded by the June 6 `hono` audit snapshot above.
 - `npm run control-tower:operator-brief -- --today 2026-05-18 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, and 10 at-risk packets with stale task activity. The top five are DevToolsTranslator, IncidentWorkbench, visual-album-studio, Construction, and Nexus.
 - `npm run signals:seed-mappings -- --live --limit 2` updated the two documented monitor-only GitHub placeholders, and `npm run control-tower:repo-mapping-audit -- --today 2026-05-18 --limit 80` now reports `githubMappingGapCount=0` and `attentionCount=0`.
 - `npm run control-tower:packet-follow-through -- --today 2026-05-18 --limit 12 --live` republished the current 12-item packet recovery queue, then the weekly review packet and Morning Brief were refreshed live. Follow-up dry-runs report the weekly review packet clean, Daily Focus unchanged, and the Daily Focus block audit at a single 19-block marker span.
@@ -124,7 +122,7 @@ Updated: 2026-05-31
 - `npm run bridge-db:status` returned a healthy read-only bridge-db snapshot on 2026-04-23 with `unprocessed_shipped_count: 0`.
 - `npm run bridge-db:sync` completed in dry-run mode on 2026-04-23 with 0 SHIPPED rows, 50 personal-ops rows, and 0 failures.
 - A post-merge fresh clone from GitHub passed `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke:built-cli`, `npm run smoke:packed-install`, and `npm run smoke:git-install` on 2026-04-23.
-- Hosted Dependabot checks ran successfully on the final merged dependency heads after PR cleanup; Dependabot's `uuid` advisory workflow still fails because of the accepted `exceljs -> uuid` exception.
+- Hosted Dependabot checks ran successfully on the final April 23 dependency heads after PR cleanup; the advisory state from that date is historical and must be refreshed with current `npm audit` before acting.
 - The 2026-04-23 dependency cleanup merged GitHub Actions, production dependency, TypeScript/Node types, and Vitest updates. It also added quiet dotenv loading for the `dotenv` 17 default banner so CLI JSON output remains machine-readable.
 - Stale fully merged remote feature branches were pruned on 2026-04-23; `origin/main` is now the only remaining remote branch.
 - `npm run signals:seed-mappings -- --limit 2` completed in dry-run mode on 2026-04-23.
@@ -135,7 +133,7 @@ Updated: 2026-05-31
   - `bridge-db`, `notification-hub`, and `DecisionStressTest` now have Local Portfolio Project rows and live GitHub source mappings, so local-provider dry-runs no longer report unmatched project/repo names.
   - broad live signal sync was approved and attempted on 2026-04-24; signal events and sync runs reconciled, and `signals:sync` now has scoped `providers`, `project-pages`, and `portfolio-sections` write modes for safe recovery.
   - the 2026-04-25 scoped recovery wrote 23 notification-hub events plus one provider sync-run, then reduced project brief drift from 117 to 38 before the new convergence guard stopped on `Phantom Frequencies` and `Recall`.
-- `npm audit --json` still reports 2 moderate findings through `exceljs -> uuid`; this is documented as an accepted temporary exception because the maintained `exceljs` line still depends on vulnerable `uuid`.
+- Historical April 23 audit note: `npm audit --json` reported 2 moderate `uuid` findings through `exceljs` at that time. This has been superseded by the current audit snapshot above.
 - `notification-hub` and `repo-auditor` have sandbox live proof from 2026-04-17 and primary-profile dry-run exercise from 2026-04-23.
   - sandbox source rows exist for both providers
   - `notification-hub` wrote one bounded proof event and one sync-run row

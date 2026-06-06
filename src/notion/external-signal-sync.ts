@@ -128,6 +128,8 @@ const PROVIDER_SOURCE_CONCURRENCY = 6;
 const PROVIDER_FETCH_TIMEOUT_MS = 15_000;
 const EXTERNAL_SIGNAL_BRIEF_STORAGE_VERSION = "external-signal-brief-db-v1";
 const PROGRESS_HEARTBEAT_MS = 15_000;
+const STORED_BRIEF_WRITE_MAX_ATTEMPTS = 2;
+const STORED_BRIEF_WRITE_RETRY_BASE_DELAY_MS = 250;
 
 interface NormalizedSignalEvent {
 	title: string;
@@ -1235,7 +1237,7 @@ function hashMarkdown(markdown: string, title: string): string {
 		.digest("hex");
 }
 
-async function upsertExternalSignalBriefPage(input: {
+export async function upsertExternalSignalBriefPage(input: {
 	api: DirectNotionClient;
 	dataSourceId: string;
 	titlePropertyName: string;
@@ -1271,9 +1273,15 @@ async function upsertExternalSignalBriefPage(input: {
 	}
 
 	try {
-		await input.api.updatePageProperties({
+		await retryStoredExternalSignalBriefWrite({
+			operation: "property patch",
 			pageId: existing.id,
-			properties: input.properties,
+			title: input.title,
+			run: () =>
+				input.api.updatePageProperties({
+					pageId: existing.id,
+					properties: input.properties,
+				}),
 		});
 	} catch (error) {
 		logLiveStage(true, "Stored external signal brief property patch failed", {
@@ -1290,10 +1298,16 @@ async function upsertExternalSignalBriefPage(input: {
 	}
 
 	try {
-		await input.api.patchPageMarkdown({
+		await retryStoredExternalSignalBriefWrite({
+			operation: "markdown patch",
 			pageId: existing.id,
-			command: "replace_content",
-			newMarkdown: input.markdown,
+			title: input.title,
+			run: () =>
+				input.api.patchPageMarkdown({
+					pageId: existing.id,
+					command: "replace_content",
+					newMarkdown: input.markdown,
+				}),
 		});
 	} catch (error) {
 		logLiveStage(true, "Stored external signal brief markdown patch failed", {
@@ -1330,9 +1344,15 @@ async function createExternalSignalBriefPage(input: {
 	);
 	if (Object.keys(nonTitleProperties).length > 0) {
 		try {
-			await input.api.updatePageProperties({
+			await retryStoredExternalSignalBriefWrite({
+				operation: "property patch",
 				pageId: created.id,
-				properties: nonTitleProperties,
+				title: input.title,
+				run: () =>
+					input.api.updatePageProperties({
+						pageId: created.id,
+						properties: nonTitleProperties,
+					}),
 			});
 		} catch (error) {
 			logLiveStage(true, "Stored external signal brief property patch failed", {
@@ -1365,9 +1385,15 @@ async function updateExternalSignalBriefHashProperties(input: {
 		return;
 	}
 	try {
-		await input.api.updatePageProperties({
+		await retryStoredExternalSignalBriefWrite({
+			operation: "hash patch",
 			pageId: input.pageId,
-			properties: minimalProperties,
+			title: input.title,
+			run: () =>
+				input.api.updatePageProperties({
+					pageId: input.pageId,
+					properties: minimalProperties,
+				}),
 		});
 	} catch (error) {
 		logLiveStage(true, "Stored external signal brief hash patch failed", {
@@ -1376,6 +1402,73 @@ async function updateExternalSignalBriefHashProperties(input: {
 			error: toErrorMessage(error),
 		});
 	}
+}
+
+async function retryStoredExternalSignalBriefWrite<T>(input: {
+	operation: "property patch" | "hash patch" | "markdown patch";
+	pageId: string;
+	title: string;
+	run: () => Promise<T>;
+	maxAttempts?: number;
+	baseDelayMs?: number;
+}): Promise<T> {
+	const maxAttempts = input.maxAttempts ?? STORED_BRIEF_WRITE_MAX_ATTEMPTS;
+	const baseDelayMs =
+		input.baseDelayMs ?? STORED_BRIEF_WRITE_RETRY_BASE_DELAY_MS;
+	let lastError: unknown;
+
+	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+		try {
+			return await input.run();
+		} catch (error) {
+			lastError = error;
+			if (attempt >= maxAttempts || !isRetryableStoredBriefWriteError(error)) {
+				throw error;
+			}
+			const delayMs = baseDelayMs * attempt;
+			logLiveStage(true, "Retrying stored external signal brief write", {
+				pageId: input.pageId,
+				title: input.title,
+				operation: input.operation,
+				attempt,
+				nextAttempt: attempt + 1,
+				delayMs,
+				error: toErrorMessage(error),
+			});
+			await waitMs(delayMs);
+		}
+	}
+
+	throw lastError;
+}
+
+export function isRetryableStoredBriefWriteError(error: unknown): boolean {
+	if (error instanceof AppError) {
+		const status = Number(error.details?.status ?? 0);
+		const classification =
+			typeof error.details?.classification === "string"
+				? error.details.classification
+				: "";
+		if (status === 429 || status >= 500) {
+			return true;
+		}
+		if (
+			classification === "timeout_exhausted" ||
+			classification === "transport_error" ||
+			classification === "unexpected_response"
+		) {
+			return true;
+		}
+	}
+
+	const message = toErrorMessage(error);
+	return /Notion request (transport error|timed out|returned retryable error responses)/i.test(
+		message,
+	);
+}
+
+function waitMs(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function logLiveStage(
