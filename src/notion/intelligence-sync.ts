@@ -21,7 +21,11 @@ import {
   requirePhase3Intelligence,
 } from "./local-portfolio-intelligence.js";
 import { buildExternalSignalSummary, requirePhase5ExternalSignals } from "./local-portfolio-external-signals.js";
-import { toExternalSignalEventRecord, toExternalSignalSourceRecord } from "./local-portfolio-external-signals-live.js";
+import {
+  fetchRecentExternalSignalEventPagesByProject,
+  toExternalSignalEventRecord,
+  toExternalSignalSourceRecord,
+} from "./local-portfolio-external-signals-live.js";
 import {
   ensurePhase3IntelligenceSchema,
   toIntelligenceProjectRecord,
@@ -53,7 +57,7 @@ import {
 } from "./local-portfolio-intelligence.js";
 import { validateLocalPortfolioIntelligenceViewPlanAgainstSchemas } from "./local-portfolio-intelligence-views.js";
 import { AppError } from "../utils/errors.js";
-import { normalizeMarkdown } from "../utils/markdown.js";
+import { normalizeMarkdown, normalizePageBodyMarkdown } from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { mapWithConcurrency } from "../utils/concurrency.js";
 import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
@@ -77,6 +81,7 @@ const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->
 const INTELLIGENCE_COMMAND_CENTER_START = "<!-- codex:notion-intelligence-command-center:start -->";
 const INTELLIGENCE_COMMAND_CENTER_END = "<!-- codex:notion-intelligence-command-center:end -->";
 const RECOMMENDATION_BRIEF_STORAGE_VERSION = "recommendation-brief-db-v1";
+const PROGRESS_HEARTBEAT_MS = 15_000;
 
 interface RecommendationBriefRefresh {
   projectId: string;
@@ -157,26 +162,69 @@ export async function runIntelligenceSyncCommand(
     });
 
     logLiveStage(live, "Fetching intelligence datasets");
-    const [projectPages, buildPages, researchPages] = await Promise.all([
-      fetchAllPages(api, config.database.dataSourceId, projectSchema.titlePropertyName),
-      fetchAllPages(api, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
-      fetchAllPages(api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
-    ]);
-    const [skillPages, toolPages, decisionPages] = await Promise.all([
-      fetchAllPages(api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
-      fetchAllPages(api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
-      fetchAllPages(api, config.phase2Execution!.decisions.dataSourceId, decisionSchema.titlePropertyName),
-    ]);
-    const [packetPages, taskPages, runPages, suggestionPages] = await Promise.all([
-      fetchAllPages(api, config.phase2Execution!.packets.dataSourceId, packetSchema.titlePropertyName),
-      fetchAllPages(api, config.phase2Execution!.tasks.dataSourceId, taskSchema.titlePropertyName),
-      fetchAllPages(api, phase3.recommendationRuns.dataSourceId, runSchema.titlePropertyName),
-      fetchAllPages(api, phase3.linkSuggestions.dataSourceId, suggestionSchema.titlePropertyName),
-    ]);
-    const [sourcePages, eventPages] = await Promise.all([
-      phase5 && sourceSchema ? fetchAllPages(api, phase5.sources.dataSourceId, sourceSchema.titlePropertyName) : Promise.resolve([]),
-      phase5 && eventSchema ? fetchAllPages(api, phase5.events.dataSourceId, eventSchema.titlePropertyName) : Promise.resolve([]),
-    ]);
+    const {
+      projectPages,
+      buildPages,
+      researchPages,
+      skillPages,
+      toolPages,
+      decisionPages,
+      packetPages,
+      taskPages,
+      runPages,
+      suggestionPages,
+      sourcePages,
+      eventPages,
+    } = await withProgressHeartbeat(live, "Fetching intelligence datasets", async () => {
+      const [
+        projectPages,
+        buildPages,
+        researchPages,
+        skillPages,
+        toolPages,
+        decisionPages,
+        packetPages,
+        taskPages,
+        runPages,
+        suggestionPages,
+        sourcePages,
+      ] = await Promise.all([
+        fetchPagesWithProgress(live, "projects", api, config.database.dataSourceId, projectSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "build log", api, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "research", api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "skills", api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "tools", api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "decisions", api, config.phase2Execution!.decisions.dataSourceId, decisionSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "packets", api, config.phase2Execution!.packets.dataSourceId, packetSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "tasks", api, config.phase2Execution!.tasks.dataSourceId, taskSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "recommendation runs", api, phase3.recommendationRuns.dataSourceId, runSchema.titlePropertyName),
+        fetchPagesWithProgress(live, "link suggestions", api, phase3.linkSuggestions.dataSourceId, suggestionSchema.titlePropertyName),
+        phase5 && sourceSchema ? fetchPagesWithProgress(live, "external sources", api, phase5.sources.dataSourceId, sourceSchema.titlePropertyName) : Promise.resolve([]),
+      ]);
+      const eventPages = phase5 && eventSchema
+        ? await fetchRecentExternalSignalEventPagesWithProgress(
+            live,
+            api,
+            phase5.events.dataSourceId,
+            eventSchema.titlePropertyName,
+            projectPages.map((page) => page.id),
+          )
+        : [];
+      return {
+        projectPages,
+        buildPages,
+        researchPages,
+        skillPages,
+        toolPages,
+        decisionPages,
+        packetPages,
+        taskPages,
+        runPages,
+        suggestionPages,
+        sourcePages,
+        eventPages,
+      };
+    });
 
     const projects = projectPages.map((page) => toIntelligenceProjectRecord(page));
     const buildSessions = buildPages.map((page) => toBuildSessionRecord(page));
@@ -233,21 +281,31 @@ export async function runIntelligenceSyncCommand(
       .filter((run) => run.runType === "Daily Focus")
       .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
 
-    const recommendationBriefs = phase3.recommendationBriefs
-      ? await buildStoredRecommendationBriefRefreshes({
+    logLiveStage(live, "Evaluating recommendation briefs", {
+      projectCount: contexts.length,
+      storageMode: Boolean(phase3.recommendationBriefs),
+    });
+    const recommendationBriefs = await withProgressHeartbeat(live, "Evaluating recommendation briefs", () =>
+      phase3.recommendationBriefs
+      ? buildStoredRecommendationBriefRefreshes({
           api,
           contexts,
           recommendations,
           dataSourceId: phase3.recommendationBriefs.dataSourceId,
           today,
         })
-      : await buildProjectPageRecommendationBriefRefreshes({
+      : buildProjectPageRecommendationBriefRefreshes({
           api,
           contexts,
           recommendations,
           today,
-        });
+        }),
+    );
     const changedRecommendationBriefs = recommendationBriefs.filter((entry) => entry.changed);
+    logLiveStage(live, "Recommendation brief evaluation complete", {
+      changedCount: changedRecommendationBriefs.length,
+      projectCount: recommendationBriefs.length,
+    });
     const targetRecommendationBriefsBeforeKnownBlocked = selectProjectBriefBatch(changedRecommendationBriefs, options);
     const usesRecommendationBriefStorage = Boolean(phase3.recommendationBriefs);
     const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown && !usesRecommendationBriefStorage
@@ -580,26 +638,27 @@ async function buildStoredRecommendationBriefRefreshes(input: {
         recommendation,
         today: input.today,
       });
-      const contentHash = hashMarkdown(nextMarkdown);
+      const contentHash = hashMarkdown(nextMarkdown, storageTitle);
       const existingHash = existing
         ? textValue(existing.properties["Brief Hash"])
         : "";
       const previousMarkdown =
-        existing && !existingHash
+        existing && existingHash !== contentHash
           ? (await input.api.readPageMarkdown(existing.id)).markdown
           : "";
+      const changed = !existing || (
+        existingHash === contentHash
+          ? false
+          : normalizePageBodyMarkdown(nextMarkdown, storageTitle) !==
+            normalizePageBodyMarkdown(previousMarkdown, storageTitle)
+      );
       return {
         projectId: context.project.id,
         projectTitle: context.project.title,
         previousMarkdown,
         nextMarkdown,
         recommendation,
-        changed:
-          !existing ||
-          (existingHash
-            ? existingHash !== contentHash
-            : normalizeMarkdown(nextMarkdown) !==
-              normalizeMarkdown(previousMarkdown)),
+        changed,
         storageTitle,
         storagePageId: existing?.id,
         storagePageUrl: existing?.url,
@@ -678,8 +737,10 @@ function buildRecommendationBriefStorageProperties(input: {
   };
 }
 
-function hashMarkdown(markdown: string): string {
-  return createHash("sha256").update(normalizeMarkdown(markdown)).digest("hex");
+function hashMarkdown(markdown: string, title: string): string {
+  return createHash("sha256")
+    .update(normalizePageBodyMarkdown(markdown, title))
+    .digest("hex");
 }
 
 function selectProjectBriefBatch<T>(
@@ -710,7 +771,7 @@ export async function syncIntelligenceCommandCenterMarkdown(input: {
 }
 
 function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
-  if (!live) {
+  if (!shouldLogProgress(live)) {
     return;
   }
 
@@ -719,11 +780,76 @@ function logLiveStage(live: boolean, stage: string, details?: Record<string, unk
 }
 
 function logLoopProgress(live: boolean, scope: string, label: string, index: number, total: number): void {
-  if (!live) {
+  if (!shouldLogProgress(live)) {
     return;
   }
 
   console.error(`[${scope}] ${label} ${index}/${total}`);
+}
+
+async function withProgressHeartbeat<T>(
+  live: boolean,
+  stage: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  if (!shouldLogProgress(live)) {
+    return work();
+  }
+  const startedAt = Date.now();
+  const heartbeat = setInterval(() => {
+    console.error(
+      `[intelligence-sync] ${stage} still running (${Math.round((Date.now() - startedAt) / 1000)}s)`,
+    );
+  }, PROGRESS_HEARTBEAT_MS);
+  try {
+    return await work();
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
+async function fetchPagesWithProgress(
+  live: boolean,
+  label: string,
+  api: DirectNotionClient,
+  dataSourceId: string,
+  titlePropertyName: string,
+): Promise<Awaited<ReturnType<typeof fetchAllPages>>> {
+  const startedAt = Date.now();
+  const pages = await fetchAllPages(api, dataSourceId, titlePropertyName);
+  logLiveStage(live, `Fetched ${label}`, {
+    pageCount: pages.length,
+    durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+  });
+  return pages;
+}
+
+async function fetchRecentExternalSignalEventPagesWithProgress(
+  live: boolean,
+  api: DirectNotionClient,
+  dataSourceId: string,
+  titlePropertyName: string,
+  projectIds: string[],
+): Promise<Awaited<ReturnType<typeof fetchAllPages>>> {
+  const startedAt = Date.now();
+  const result = await fetchRecentExternalSignalEventPagesByProject({
+    client: api,
+    dataSourceId,
+    titlePropertyName,
+    projectIds,
+  });
+  logLiveStage(live, "Fetched recent external events", {
+    pageCount: result.pages.length,
+    projectCount: projectIds.length,
+    mode: result.mode,
+    durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+    ...(result.fallbackError ? { fallbackError: result.fallbackError } : {}),
+  });
+  return result.pages;
+}
+
+function shouldLogProgress(live: boolean): boolean {
+  return live || process.env.NOTION_WEEKLY_PROGRESS === "1";
 }
 
 function summarizeProjectWarnings(prefix: string, projectTitles: string[]): string[] {

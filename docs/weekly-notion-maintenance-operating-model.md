@@ -1,6 +1,6 @@
 # Weekly Notion Maintenance Operating Model
 
-Updated: Monday, April 13, 2026
+Updated: Saturday, June 6, 2026
 
 This document is the source of truth for the weekly Notion operating model.
 
@@ -24,7 +24,7 @@ The only active automation in this stream is:
 
 Its steady-state contract is:
 
-- Monday evening cadence
+- Friday evening opportunistic check plus Sunday catch-up cadence
 - dedicated worktree execution
 - report-only behavior
 - exactly three report sections:
@@ -34,7 +34,18 @@ Its steady-state contract is:
 
 The weekly method is defined in the repo-local Codex skill:
 
-- [`weekly-notion-maintenance` skill](/Users/d/Notion/.agents/skills/weekly-notion-maintenance/SKILL.md)
+- [`weekly-notion-maintenance` skill](/Users/d/Projects/Notion/.agents/skills/weekly-notion-maintenance/SKILL.md)
+
+## Schedule Policy
+
+This automation is intentionally not daily. The machine is often unavailable on weekday mornings and afternoons, so the schedule should not depend on daily execution to preserve trust.
+
+Active schedule:
+
+- Friday 5:00 PM local time: opportunistic report-only check before the weekend work window.
+- Sunday 5:00 PM local time: report-only catch-up after missed weekday maintenance windows.
+
+If the automation reports drift, use targeted dry-run -> live -> dry-run repair for the drifting lane. Do not promote this lane to unattended live writes.
 
 ## Manual Live Policy
 
@@ -130,9 +141,9 @@ If future portfolio-level reporting is needed, treat that as a separate project 
 
 The weekly-refresh implementation and hardening work still matter. The following documents are historical references, not active operating instructions:
 
-- [`weekly-refresh-phase-2-handoff.md`](/Users/d/Notion/docs/weekly-refresh-phase-2-handoff.md)
-- [`weekly-refresh-maintenance.md`](/Users/d/Notion/docs/weekly-refresh-maintenance.md)
-- [`weekly-refresh-rollout-scorecard.md`](/Users/d/Notion/docs/weekly-refresh-rollout-scorecard.md)
-- [`weekly-refresh-cutover-review.md`](/Users/d/Notion/docs/weekly-refresh-cutover-review.md)
+- [`weekly-refresh-phase-2-handoff.md`](/Users/d/Projects/Notion/docs/weekly-refresh-phase-2-handoff.md)
+- [`weekly-refresh-maintenance.md`](/Users/d/Projects/Notion/docs/weekly-refresh-maintenance.md)
+- [`weekly-refresh-rollout-scorecard.md`](/Users/d/Projects/Notion/docs/weekly-refresh-rollout-scorecard.md)
+- [`weekly-refresh-cutover-review.md`](/Users/d/Projects/Notion/docs/weekly-refresh-cutover-review.md)
 
 Use those only to understand how the earlier cutover plan evolved. Do not use them as the current weekly operating guide.

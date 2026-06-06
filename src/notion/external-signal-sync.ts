@@ -18,7 +18,9 @@ import {
 	buildReplaceCommand,
 	extractManagedSection,
 	normalizeMarkdown,
+	normalizePageBodyMarkdown,
 } from "../utils/markdown.js";
+import { normalizeNotionId } from "../utils/notion-id.js";
 import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
@@ -68,6 +70,8 @@ import {
 } from "./local-portfolio-external-signals.js";
 import {
 	ensurePhase5ExternalSignalSchema,
+	fetchExistingExternalSignalEventKeys,
+	fetchRecentExternalSignalEventPagesByProject,
 	toExternalSignalEventRecord,
 	toExternalSignalSourceRecord,
 	toExternalSignalSyncRunRecord,
@@ -123,6 +127,9 @@ const WEEKLY_EXTERNAL_SIGNALS_END =
 const PROVIDER_SOURCE_CONCURRENCY = 6;
 const PROVIDER_FETCH_TIMEOUT_MS = 15_000;
 const EXTERNAL_SIGNAL_BRIEF_STORAGE_VERSION = "external-signal-brief-db-v1";
+const PROGRESS_HEARTBEAT_MS = 15_000;
+const STORED_BRIEF_WRITE_MAX_ATTEMPTS = 2;
+const STORED_BRIEF_WRITE_RETRY_BASE_DELAY_MS = 250;
 
 interface NormalizedSignalEvent {
 	title: string;
@@ -285,7 +292,7 @@ export async function runExternalSignalSyncCommand(
 	]);
 
 	logLiveStage(live, "Fetching external signal datasets");
-	const [
+	const {
 		projectPages,
 		buildPages,
 		weeklyPages,
@@ -298,80 +305,135 @@ export async function runExternalSignalSyncCommand(
 		runPages,
 		suggestionPages,
 		sourcePages,
-		eventPages,
 		syncRunPages,
-	] = await Promise.all([
-		fetchAllPages(
-			sdk,
-			config.database.dataSourceId,
-			projectSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.relatedDataSources.buildLogId,
-			buildSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.relatedDataSources.weeklyReviewsId,
-			weeklySchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.relatedDataSources.researchId,
-			researchSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.relatedDataSources.skillsId,
-			skillSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.relatedDataSources.toolsId,
-			toolSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.phase2Execution!.decisions.dataSourceId,
-			decisionSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.phase2Execution!.packets.dataSourceId,
-			packetSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.phase2Execution!.tasks.dataSourceId,
-			taskSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.phase3Intelligence!.recommendationRuns.dataSourceId,
-			runSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.phase3Intelligence!.linkSuggestions.dataSourceId,
-			suggestionSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			phase5.sources.dataSourceId,
-			sourceSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			phase5.events.dataSourceId,
-			eventSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			phase5.syncRuns.dataSourceId,
-			syncRunSchema.titlePropertyName,
-		),
-	]);
+	} = await withProgressHeartbeat(live, "Fetching external signal datasets", async () => {
+		const [
+			projectPages,
+			buildPages,
+			weeklyPages,
+			researchPages,
+			skillPages,
+			toolPages,
+			decisionPages,
+			packetPages,
+			taskPages,
+			runPages,
+			suggestionPages,
+			sourcePages,
+			syncRunPages,
+		] = await Promise.all([
+			fetchPagesWithProgress(
+				live,
+				"projects",
+				sdk,
+				config.database.dataSourceId,
+				projectSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"build log",
+				sdk,
+				config.relatedDataSources.buildLogId,
+				buildSchema.titlePropertyName,
+			),
+			shouldEvaluatePortfolioSections
+				? fetchPagesWithProgress(
+						live,
+						"weekly reviews",
+						sdk,
+						config.relatedDataSources.weeklyReviewsId,
+						weeklySchema.titlePropertyName,
+					)
+				: Promise.resolve([]),
+			fetchPagesWithProgress(
+				live,
+				"research",
+				sdk,
+				config.relatedDataSources.researchId,
+				researchSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"skills",
+				sdk,
+				config.relatedDataSources.skillsId,
+				skillSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"tools",
+				sdk,
+				config.relatedDataSources.toolsId,
+				toolSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"decisions",
+				sdk,
+				config.phase2Execution!.decisions.dataSourceId,
+				decisionSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"packets",
+				sdk,
+				config.phase2Execution!.packets.dataSourceId,
+				packetSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"tasks",
+				sdk,
+				config.phase2Execution!.tasks.dataSourceId,
+				taskSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"recommendation runs",
+				sdk,
+				config.phase3Intelligence!.recommendationRuns.dataSourceId,
+				runSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"link suggestions",
+				sdk,
+				config.phase3Intelligence!.linkSuggestions.dataSourceId,
+				suggestionSchema.titlePropertyName,
+			),
+			fetchPagesWithProgress(
+				live,
+				"external sources",
+				sdk,
+				phase5.sources.dataSourceId,
+				sourceSchema.titlePropertyName,
+			),
+			shouldEvaluatePortfolioSections
+				? fetchPagesWithProgress(
+						live,
+						"sync runs",
+						sdk,
+						phase5.syncRuns.dataSourceId,
+						syncRunSchema.titlePropertyName,
+					)
+				: Promise.resolve([]),
+		]);
+		return {
+			projectPages,
+			buildPages,
+			weeklyPages,
+			researchPages,
+			skillPages,
+			toolPages,
+			decisionPages,
+			packetPages,
+			taskPages,
+			runPages,
+			suggestionPages,
+			sourcePages,
+			syncRunPages,
+		};
+	});
 
 	const projects = projectPages.map((page) =>
 		toIntelligenceProjectRecord(page),
@@ -388,9 +450,6 @@ export async function runExternalSignalSyncCommand(
 		toLinkSuggestionRecord(page),
 	);
 	const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
-	const existingEvents = eventPages.map((page) =>
-		toExternalSignalEventRecord(page),
-	);
 	const existingSyncRuns = syncRunPages.map((page) =>
 		toExternalSignalSyncRunRecord(page),
 	);
@@ -400,24 +459,77 @@ export async function runExternalSignalSyncCommand(
 		sources,
 		sourceLimit: options.sourceLimit,
 	});
-
+	const targetProjectIds =
+		writeScope === "full" && options.sourceLimit
+			? deriveTargetProjectIdsFromSources(scopedSources)
+			: new Set(projects.map((project) => project.id));
+	const allTargetProjects = projects.filter((project) =>
+		targetProjectIds.has(project.id),
+	);
+	const projectRefreshTotalCount = allTargetProjects.length;
+	const targetProjects =
+		writeScope === "project-pages"
+			? selectProjectRefreshBatch({
+					projects: allTargetProjects,
+					limit: options.projectLimit,
+					offset: options.projectOffset,
+				})
+			: allTargetProjects;
+	const projectRefreshOffset =
+		writeScope === "project-pages" ? (options.projectOffset ?? 0) : undefined;
+	const projectRefreshLimit =
+		writeScope === "project-pages" ? options.projectLimit : undefined;
+	const projectRefreshBatchCount =
+		writeScope === "project-pages"
+			? targetProjects.length
+			: projectRefreshTotalCount;
+	const evaluatedProjectCount = shouldEvaluateProjectPages
+		? targetProjects.length
+		: 0;
+	const summaryProjectIds = shouldEvaluatePortfolioSections
+		? projects.map((project) => project.id)
+		: shouldEvaluateProjectPages
+			? targetProjects.map((project) => project.id)
+			: [];
 	let createdEventCount = 0;
 	let createdSyncRunCount = 0;
-	const eventKeySet = new Set(existingEvents.map((event) => event.eventKey));
 	const sourceMap = new Map(sources.map((source) => [source.id, source]));
-	const providerResults = shouldRunProviders
+	let providerResults = shouldRunProviders
 		? await syncProviders({
 				flags: { live, provider, today: options.today },
 				today,
 				phase5,
 				providers: providerConfig.providers,
 				sources,
-				eventKeySet: new Set(eventKeySet),
+				eventKeySet: new Set(),
 				projects: projects.map((p) => ({ id: p.id, title: p.title })),
 				sourceLimit: options.sourceLimit,
 				maxEventsPerSource: options.maxEventsPerSource,
 			})
 		: [];
+	if (shouldRunProviders) {
+		providerResults = await filterProviderResultsAgainstExistingEventKeys({
+			api: sdk,
+			dataSourceId: phase5.events.dataSourceId,
+			titlePropertyName: eventSchema.titlePropertyName,
+			providerResults,
+			today,
+			live,
+		});
+	}
+	const eventPages =
+		summaryProjectIds.length > 0
+			? await fetchRecentExternalSignalEventPagesWithProgress(
+					live,
+					sdk,
+					phase5.events.dataSourceId,
+					eventSchema.titlePropertyName,
+					summaryProjectIds,
+				)
+			: [];
+	const existingEvents = eventPages.map((page) =>
+		toExternalSignalEventRecord(page),
+	);
 
 	if (live && shouldRunProviders) {
 		logLiveStage(live, "Syncing providers", { provider });
@@ -499,38 +611,18 @@ export async function runExternalSignalSyncCommand(
 	const latestDailyRun = runs
 		.filter((run) => run.runType === "Daily Focus")
 		.sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
-	const targetProjectIds =
-		writeScope === "full" && options.sourceLimit
-			? deriveTargetProjectIdsFromSources(scopedSources)
-			: new Set(projects.map((project) => project.id));
-	const allTargetProjects = projects.filter((project) =>
-		targetProjectIds.has(project.id),
-	);
-	const projectRefreshTotalCount = allTargetProjects.length;
-	const targetProjects =
-		writeScope === "project-pages"
-			? selectProjectRefreshBatch({
-					projects: allTargetProjects,
-					limit: options.projectLimit,
-					offset: options.projectOffset,
-				})
-			: allTargetProjects;
-	const projectRefreshOffset =
-		writeScope === "project-pages" ? (options.projectOffset ?? 0) : undefined;
-	const projectRefreshLimit =
-		writeScope === "project-pages" ? options.projectLimit : undefined;
-	const projectRefreshBatchCount =
-		writeScope === "project-pages"
-			? targetProjects.length
-			: projectRefreshTotalCount;
-	const evaluatedProjectCount = shouldEvaluateProjectPages
-		? targetProjects.length
-		: 0;
-
 	const usesExternalSignalBriefStorage = Boolean(phase5.externalSignalBriefs);
-	const projectBriefs: ProjectBriefRefresh[] = shouldEvaluateProjectPages
+	logLiveStage(live, "Evaluating external signal project briefs", {
+		projectCount: targetProjects.length,
+		storageMode: usesExternalSignalBriefStorage,
+	});
+	const projectBriefs: ProjectBriefRefresh[] = await withProgressHeartbeat(
+		live,
+		"Evaluating external signal project briefs",
+		() =>
+			shouldEvaluateProjectPages
 		? usesExternalSignalBriefStorage && phase5.externalSignalBriefs
-			? await buildStoredExternalSignalBriefRefreshes({
+			? buildStoredExternalSignalBriefRefreshes({
 					api,
 					projects: targetProjects,
 					recommendations,
@@ -538,7 +630,7 @@ export async function runExternalSignalSyncCommand(
 					dataSourceId: phase5.externalSignalBriefs.dataSourceId,
 					today,
 				})
-			: await Promise.all(
+			: Promise.all(
 					targetProjects.map(async (project) => {
 			const recommendation = recommendations.find(
 				(entry) => entry.projectId === project.id,
@@ -604,10 +696,15 @@ export async function runExternalSignalSyncCommand(
 			};
 					}),
 				)
-		: [];
+		: Promise.resolve([]),
+	);
 	const projectExternalSignalBriefsWouldChange = projectBriefs.filter(
 		(entry) => entry.changed,
 	).length;
+	logLiveStage(live, "External signal project brief evaluation complete", {
+		changedCount: projectExternalSignalBriefsWouldChange,
+		projectCount: projectBriefs.length,
+	});
 	const changedProjectPageSamples = projectBriefs
 		.filter((entry) => entry.changed)
 		.slice(0, 15)
@@ -1049,14 +1146,20 @@ async function buildStoredExternalSignalBriefRefreshes(input: {
 				summary,
 				today: input.today,
 			});
-			const contentHash = hashMarkdown(nextMarkdown);
+			const contentHash = hashMarkdown(nextMarkdown, storageTitle);
 			const existingHash = existing
 				? textValue(existing.properties["Brief Hash"])
 				: "";
 			const previousMarkdown =
-				existing && !existingHash
+				existing && existingHash !== contentHash
 					? (await input.api.readPageMarkdown(existing.id)).markdown
 					: "";
+			const changed =
+				!existing ||
+				(existingHash === contentHash
+					? false
+					: normalizePageBodyMarkdown(nextMarkdown, storageTitle) !==
+						normalizePageBodyMarkdown(previousMarkdown, storageTitle));
 
 			return {
 				projectId: project.id,
@@ -1064,12 +1167,7 @@ async function buildStoredExternalSignalBriefRefreshes(input: {
 				previousMarkdown,
 				nextMarkdown,
 				summary,
-				changed:
-					!existing ||
-					(existingHash
-						? existingHash !== contentHash
-						: normalizeMarkdown(nextMarkdown) !==
-							normalizeMarkdown(previousMarkdown)),
+				changed,
 				storageTitle,
 				storagePageId: existing?.id,
 				storagePageUrl: existing?.url,
@@ -1133,11 +1231,13 @@ function buildExternalSignalBriefStorageProperties(input: {
 	};
 }
 
-function hashMarkdown(markdown: string): string {
-	return createHash("sha256").update(normalizeMarkdown(markdown)).digest("hex");
+function hashMarkdown(markdown: string, title: string): string {
+	return createHash("sha256")
+		.update(normalizePageBodyMarkdown(markdown, title))
+		.digest("hex");
 }
 
-async function upsertExternalSignalBriefPage(input: {
+export async function upsertExternalSignalBriefPage(input: {
 	api: DirectNotionClient;
 	dataSourceId: string;
 	titlePropertyName: string;
@@ -1145,11 +1245,27 @@ async function upsertExternalSignalBriefPage(input: {
 	properties: Record<string, unknown>;
 	markdown: string;
 }): Promise<void> {
-	const existing = await input.api.searchPage({
+	let existing = await input.api.searchPage({
 		dataSourceId: input.dataSourceId,
 		exactTitle: input.title,
 		titleProperty: input.titlePropertyName,
 	});
+	if (existing) {
+		const existingPage = await input.api.retrievePage(existing.id);
+		const expectedDataSourceId = normalizeNotionId(input.dataSourceId);
+		const actualDataSourceId = existingPage.parent?.data_source_id
+			? normalizeNotionId(existingPage.parent.data_source_id)
+			: undefined;
+		if (actualDataSourceId !== expectedDataSourceId) {
+			logLiveStage(true, "Ignoring stored external signal brief outside expected data source", {
+				pageId: existing.id,
+				title: input.title,
+				expectedDataSourceId,
+				actualDataSourceId,
+			});
+			existing = null;
+		}
+	}
 
 	if (!existing) {
 		await createExternalSignalBriefPage(input);
@@ -1157,9 +1273,15 @@ async function upsertExternalSignalBriefPage(input: {
 	}
 
 	try {
-		await input.api.updatePageProperties({
+		await retryStoredExternalSignalBriefWrite({
+			operation: "property patch",
 			pageId: existing.id,
-			properties: input.properties,
+			title: input.title,
+			run: () =>
+				input.api.updatePageProperties({
+					pageId: existing.id,
+					properties: input.properties,
+				}),
 		});
 	} catch (error) {
 		logLiveStage(true, "Stored external signal brief property patch failed", {
@@ -1176,10 +1298,16 @@ async function upsertExternalSignalBriefPage(input: {
 	}
 
 	try {
-		await input.api.patchPageMarkdown({
+		await retryStoredExternalSignalBriefWrite({
+			operation: "markdown patch",
 			pageId: existing.id,
-			command: "replace_content",
-			newMarkdown: input.markdown,
+			title: input.title,
+			run: () =>
+				input.api.patchPageMarkdown({
+					pageId: existing.id,
+					command: "replace_content",
+					newMarkdown: input.markdown,
+				}),
 		});
 	} catch (error) {
 		logLiveStage(true, "Stored external signal brief markdown patch failed", {
@@ -1216,9 +1344,15 @@ async function createExternalSignalBriefPage(input: {
 	);
 	if (Object.keys(nonTitleProperties).length > 0) {
 		try {
-			await input.api.updatePageProperties({
+			await retryStoredExternalSignalBriefWrite({
+				operation: "property patch",
 				pageId: created.id,
-				properties: nonTitleProperties,
+				title: input.title,
+				run: () =>
+					input.api.updatePageProperties({
+						pageId: created.id,
+						properties: nonTitleProperties,
+					}),
 			});
 		} catch (error) {
 			logLiveStage(true, "Stored external signal brief property patch failed", {
@@ -1251,9 +1385,15 @@ async function updateExternalSignalBriefHashProperties(input: {
 		return;
 	}
 	try {
-		await input.api.updatePageProperties({
+		await retryStoredExternalSignalBriefWrite({
+			operation: "hash patch",
 			pageId: input.pageId,
-			properties: minimalProperties,
+			title: input.title,
+			run: () =>
+				input.api.updatePageProperties({
+					pageId: input.pageId,
+					properties: minimalProperties,
+				}),
 		});
 	} catch (error) {
 		logLiveStage(true, "Stored external signal brief hash patch failed", {
@@ -1264,12 +1404,79 @@ async function updateExternalSignalBriefHashProperties(input: {
 	}
 }
 
+async function retryStoredExternalSignalBriefWrite<T>(input: {
+	operation: "property patch" | "hash patch" | "markdown patch";
+	pageId: string;
+	title: string;
+	run: () => Promise<T>;
+	maxAttempts?: number;
+	baseDelayMs?: number;
+}): Promise<T> {
+	const maxAttempts = input.maxAttempts ?? STORED_BRIEF_WRITE_MAX_ATTEMPTS;
+	const baseDelayMs =
+		input.baseDelayMs ?? STORED_BRIEF_WRITE_RETRY_BASE_DELAY_MS;
+	let lastError: unknown;
+
+	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+		try {
+			return await input.run();
+		} catch (error) {
+			lastError = error;
+			if (attempt >= maxAttempts || !isRetryableStoredBriefWriteError(error)) {
+				throw error;
+			}
+			const delayMs = baseDelayMs * attempt;
+			logLiveStage(true, "Retrying stored external signal brief write", {
+				pageId: input.pageId,
+				title: input.title,
+				operation: input.operation,
+				attempt,
+				nextAttempt: attempt + 1,
+				delayMs,
+				error: toErrorMessage(error),
+			});
+			await waitMs(delayMs);
+		}
+	}
+
+	throw lastError;
+}
+
+export function isRetryableStoredBriefWriteError(error: unknown): boolean {
+	if (error instanceof AppError) {
+		const status = Number(error.details?.status ?? 0);
+		const classification =
+			typeof error.details?.classification === "string"
+				? error.details.classification
+				: "";
+		if (status === 429 || status >= 500) {
+			return true;
+		}
+		if (
+			classification === "timeout_exhausted" ||
+			classification === "transport_error" ||
+			classification === "unexpected_response"
+		) {
+			return true;
+		}
+	}
+
+	const message = toErrorMessage(error);
+	return /Notion request (transport error|timed out|returned retryable error responses)/i.test(
+		message,
+	);
+}
+
+function waitMs(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function logLiveStage(
 	live: boolean,
 	stage: string,
 	details?: Record<string, unknown>,
 ): void {
-	if (!live) {
+	if (!shouldLogProgress(live)) {
 		return;
 	}
 
@@ -1289,7 +1496,7 @@ function logProjectRefreshProgress(
 		projectRefreshLimit?: number;
 	},
 ): void {
-	if (!live) {
+	if (!shouldLogProgress(live)) {
 		return;
 	}
 	if (input.index === 1 || input.index === input.total || input.index % 10 === 0) {
@@ -1305,6 +1512,150 @@ function logProjectRefreshProgress(
 			)}`,
 		);
 	}
+}
+
+async function withProgressHeartbeat<T>(
+	live: boolean,
+	stage: string,
+	work: () => Promise<T>,
+): Promise<T> {
+	if (!shouldLogProgress(live)) {
+		return work();
+	}
+	const startedAt = Date.now();
+	const heartbeat = setInterval(() => {
+		console.error(
+			`[external-signal-sync] ${stage} still running (${Math.round(
+				(Date.now() - startedAt) / 1000,
+			)}s)`,
+		);
+	}, PROGRESS_HEARTBEAT_MS);
+	try {
+		return await work();
+	} finally {
+		clearInterval(heartbeat);
+	}
+}
+
+async function fetchPagesWithProgress(
+	live: boolean,
+	label: string,
+	client: Parameters<typeof fetchAllPages>[0],
+	dataSourceId: string,
+	titlePropertyName: string,
+): Promise<Awaited<ReturnType<typeof fetchAllPages>>> {
+	const startedAt = Date.now();
+	const pages = await fetchAllPages(client, dataSourceId, titlePropertyName);
+	logLiveStage(live, `Fetched ${label}`, {
+		pageCount: pages.length,
+		durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+	});
+	return pages;
+}
+
+async function fetchRecentExternalSignalEventPagesWithProgress(
+	live: boolean,
+	client: Parameters<typeof fetchAllPages>[0],
+	dataSourceId: string,
+	titlePropertyName: string,
+	projectIds: string[],
+): Promise<Awaited<ReturnType<typeof fetchAllPages>>> {
+	const startedAt = Date.now();
+	const result = await fetchRecentExternalSignalEventPagesByProject({
+		client,
+		dataSourceId,
+		titlePropertyName,
+		projectIds,
+	});
+	logLiveStage(live, "Fetched recent external events", {
+		pageCount: result.pages.length,
+		projectCount: projectIds.length,
+		mode: result.mode,
+		durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+		...(result.fallbackError ? { fallbackError: result.fallbackError } : {}),
+	});
+	return result.pages;
+}
+
+export async function filterProviderResultsAgainstExistingEventKeys(input: {
+	api: Parameters<typeof fetchAllPages>[0];
+	dataSourceId: string;
+	titlePropertyName: string;
+	providerResults: ProviderSyncResult[];
+	today: string;
+	live?: boolean;
+}): Promise<ProviderSyncResult[]> {
+	const candidateKeys = [
+		...new Set(
+			input.providerResults.flatMap((result) =>
+				result.events.map((event) => event.eventKey).filter(Boolean),
+			),
+		),
+	];
+	if (candidateKeys.length === 0) {
+		logLiveStage(input.live ?? false, "Provider event-key dedupe skipped", {
+			candidateEventKeys: 0,
+		});
+		return input.providerResults;
+	}
+
+	const existing = await fetchExistingExternalSignalEventKeys({
+		client: input.api,
+		dataSourceId: input.dataSourceId,
+		titlePropertyName: input.titlePropertyName,
+		eventKeys: candidateKeys,
+	});
+	let duplicateCount = 0;
+	const providerResults = input.providerResults.map((result) => {
+		const events = result.events.filter((event) => {
+			const duplicate = existing.eventKeys.has(event.eventKey);
+			if (duplicate) {
+				duplicateCount += 1;
+			}
+			return !duplicate;
+		});
+		const removedCount = result.events.length - events.length;
+		return {
+			...result,
+			status: deriveProviderResultStatus(result.failures, events.length),
+			itemsWritten: events.length,
+			itemsDeduped: result.itemsDeduped + removedCount,
+			cursor: events.length > 0 ? newestOccurredAt(events) : input.today,
+			events,
+			notes:
+				removedCount > 0
+					? [
+							...result.notes,
+							`${removedCount} event(s) skipped: event key already exists in Notion.`,
+						]
+					: result.notes,
+		};
+	});
+	logLiveStage(input.live ?? false, "Provider event-key dedupe complete", {
+		candidateEventKeys: candidateKeys.length,
+		existingEventKeys: existing.eventKeys.size,
+		duplicateEvents: duplicateCount,
+		mode: existing.mode,
+		...(existing.fallbackError ? { fallbackError: existing.fallbackError } : {}),
+	});
+	return providerResults;
+}
+
+function deriveProviderResultStatus(
+	failures: number,
+	eventCount: number,
+): ProviderSyncResult["status"] {
+	if (failures > 0 && eventCount > 0) {
+		return "Partial";
+	}
+	if (failures > 0) {
+		return "Failed";
+	}
+	return "Succeeded";
+}
+
+function shouldLogProgress(live: boolean): boolean {
+	return live || process.env.NOTION_WEEKLY_PROGRESS === "1";
 }
 
 export function validateExternalSignalSyncOptions(

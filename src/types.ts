@@ -181,6 +181,7 @@ export interface PageSnapshot {
   id: string;
   url: string;
   title?: string;
+  parent?: { page_id?: string; data_source_id?: string };
 }
 
 export interface MarkdownReadResult {
