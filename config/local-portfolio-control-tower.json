@@ -214,17 +214,17 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-05-17",
+    "lastSyncAt": "2026-06-05",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 0,
       "standbyPackets": 1,
-      "blockedPackets": 5,
-      "blockedTasks": 12,
+      "blockedPackets": 1,
+      "blockedTasks": 7,
       "overdueTasks": 0,
-      "backlogOverdueTasks": 66,
-      "tasksCompletedThisWeek": 40,
-      "packetsCompletedThisWeek": 9,
+      "backlogOverdueTasks": 45,
+      "tasksCompletedThisWeek": 19,
+      "packetsCompletedThisWeek": 4,
       "rolloverPackets": 1,
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
@@ -304,13 +304,13 @@
       "proposedLinkSuggestions": 0,
       "acceptedLinkSuggestions": 0
     },
-    "lastSyncAt": "2026-05-18",
+    "lastSyncAt": "2026-06-05",
     "lastSyncMetrics": {
       "totalProjects": 119,
-      "resumeCandidates": 53,
-      "finishCandidates": 29,
+      "resumeCandidates": 49,
+      "finishCandidates": 30,
       "investigateCandidates": 0,
-      "deferCandidates": 29,
+      "deferCandidates": 32,
       "monitorProjects": 8,
       "orphanedProjects": 10,
       "supportGapProjects": 10,
@@ -498,15 +498,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-05-18",
+    "lastSyncAt": "2026-06-05",
     "lastSyncMetrics": {
-      "mappedProjects": 117,
-      "projectsNeedingMapping": 2,
+      "mappedProjects": 119,
+      "projectsNeedingMapping": 0,
       "activeSources": 119,
-      "riskEvents": 754,
+      "riskEvents": 742,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 53,
-      "contradictionProjects": 7
+      "failedWorkflowRuns": 20,
+      "contradictionProjects": 1
     }
   },
   "phase6Governance": {
@@ -787,19 +787,19 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-05-31",
+    "lastSyncAt": "2026-06-06",
     "lastSyncMetrics": {
       "totalProjects": 119,
       "queueCounts": {
-        "Shipped": 8,
+        "Shipped": 10,
         "Needs Review": 16,
         "Needs Decision": 0,
         "Worth Finishing": 29,
-        "Resume Now": 46,
+        "Resume Now": 44,
         "Cold Storage": 12,
         "Watch": 8
       },
-      "overdueReviews": 0,
+      "overdueReviews": 62,
       "missingNextMove": 0,
       "missingLastActive": 0,
       "staleActiveProjects": 0,
@@ -809,8 +809,8 @@
     "lastClosedPhase": 9
   },
   "weeklyMaintenance": {
-    "supportMaintenanceLastSyncAt": "2026-05-09",
-    "weeklyRefreshLastRunAt": "2026-05-31",
+    "supportMaintenanceLastSyncAt": "2026-06-06",
+    "weeklyRefreshLastRunAt": "2026-06-06",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
@@ -830,6 +830,6 @@
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-05-31"
+    "weeklyReviewLastPublishedAt": "2026-06-06"
   }
 }

@@ -5,18 +5,36 @@ import type { DataSourcePageRef, NotionPageProperty } from "./local-portfolio-co
 import {
   checkboxValue,
   dateValue,
+  fetchAllPages,
   numberValue,
   relationIds,
   selectValue,
   textValue,
 } from "./local-portfolio-control-tower-live.js";
+import type { DirectNotionClient } from "./direct-notion-client.js";
 import type {
   ExternalSignalEventRecord,
   ExternalSignalSourceRecord,
   ExternalSignalSyncRunRecord,
 } from "./local-portfolio-external-signals.js";
-import { AppError } from "../utils/errors.js";
+import { AppError, toErrorMessage } from "../utils/errors.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
+
+export const RECENT_EXTERNAL_SIGNAL_EVENTS_PER_PROJECT = 25;
+export const RECENT_EXTERNAL_SIGNAL_EVENT_FETCH_CONCURRENCY = 3;
+
+export interface RecentExternalSignalEventPageFetchResult {
+  pages: DataSourcePageRef[];
+  mode: "project_relation" | "full_scan_fallback";
+  fallbackError?: string;
+}
+
+export interface ExistingExternalSignalEventKeyFetchResult {
+  eventKeys: Set<string>;
+  mode: "event_key_filter" | "full_scan_fallback";
+  fallbackError?: string;
+}
 
 export async function ensurePhase5ExternalSignalSchema(
   sdk: Client,
@@ -438,6 +456,103 @@ export function toExternalSignalEventRecord(page: DataSourcePageRef): ExternalSi
   };
 }
 
+export async function fetchRecentExternalSignalEventPagesByProject(input: {
+  client: Client | DirectNotionClient;
+  dataSourceId: string;
+  titlePropertyName: string;
+  projectIds: string[];
+  perProjectLimit?: number;
+  concurrency?: number;
+}): Promise<RecentExternalSignalEventPageFetchResult> {
+  const projectIds = [...new Set(input.projectIds.map(normalizeNotionId).filter(Boolean))];
+  const perProjectLimit = input.perProjectLimit ?? RECENT_EXTERNAL_SIGNAL_EVENTS_PER_PROJECT;
+  if (projectIds.length === 0) {
+    return { pages: [], mode: "project_relation" };
+  }
+
+  try {
+    const pagesByProject = await mapWithConcurrency(
+      projectIds,
+      input.concurrency ?? RECENT_EXTERNAL_SIGNAL_EVENT_FETCH_CONCURRENCY,
+      (projectId) =>
+        fetchAllPages(input.client, input.dataSourceId, input.titlePropertyName, {
+          filter: {
+            property: "Local Project",
+            relation: { contains: projectId },
+          },
+          sorts: [
+            { property: "Occurred At", direction: "descending" },
+            { property: "Signal Type", direction: "descending" },
+            { property: "Status", direction: "descending" },
+            { property: "Name", direction: "descending" },
+          ],
+          pageSize: perProjectLimit,
+          maxResults: perProjectLimit,
+        }),
+    );
+    return {
+      pages: uniquePagesById(pagesByProject.flat()),
+      mode: "project_relation",
+    };
+  } catch (error) {
+    return {
+      pages: await fetchAllPages(input.client, input.dataSourceId, input.titlePropertyName),
+      mode: "full_scan_fallback",
+      fallbackError: toErrorMessage(error),
+    };
+  }
+}
+
+export async function fetchExistingExternalSignalEventKeys(input: {
+  client: Client | DirectNotionClient;
+  dataSourceId: string;
+  titlePropertyName: string;
+  eventKeys: string[];
+  batchSize?: number;
+  concurrency?: number;
+}): Promise<ExistingExternalSignalEventKeyFetchResult> {
+  const eventKeys = [...new Set(input.eventKeys.map((key) => key.trim()).filter(Boolean))];
+  if (eventKeys.length === 0) {
+    return { eventKeys: new Set(), mode: "event_key_filter" };
+  }
+
+  try {
+    const pagesByBatch = await mapWithConcurrency(
+      chunk(eventKeys, input.batchSize ?? 50),
+      input.concurrency ?? RECENT_EXTERNAL_SIGNAL_EVENT_FETCH_CONCURRENCY,
+      (keys) =>
+        fetchAllPages(input.client, input.dataSourceId, input.titlePropertyName, {
+          filter:
+            keys.length === 1
+              ? eventKeyEqualsFilter(keys[0]!)
+              : { or: keys.map(eventKeyEqualsFilter) },
+          pageSize: 100,
+        }),
+    );
+    return {
+      eventKeys: new Set(
+        pagesByBatch
+          .flat()
+          .map((page) => textValue(page.properties["Event Key"]))
+          .filter(Boolean),
+      ),
+      mode: "event_key_filter",
+    };
+  } catch (error) {
+    const pages = await fetchAllPages(input.client, input.dataSourceId, input.titlePropertyName);
+    const requested = new Set(eventKeys);
+    return {
+      eventKeys: new Set(
+        pages
+          .map((page) => textValue(page.properties["Event Key"]))
+          .filter((key) => requested.has(key)),
+      ),
+      mode: "full_scan_fallback",
+      fallbackError: toErrorMessage(error),
+    };
+  }
+}
+
 export function toExternalSignalSyncRunRecord(page: DataSourcePageRef): ExternalSignalSyncRunRecord {
   return {
     id: page.id,
@@ -455,6 +570,34 @@ export function toExternalSignalSyncRunRecord(page: DataSourcePageRef): External
     cursor: textValue(page.properties["Cursor / Sync Token"]),
     notes: textValue(page.properties.Notes),
   };
+}
+
+function eventKeyEqualsFilter(eventKey: string): Record<string, unknown> {
+  return {
+    property: "Event Key",
+    rich_text: { equals: eventKey },
+  };
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function uniquePagesById(pages: DataSourcePageRef[]): DataSourcePageRef[] {
+  const seen = new Set<string>();
+  const unique: DataSourcePageRef[] = [];
+  for (const page of pages) {
+    if (seen.has(page.id)) {
+      continue;
+    }
+    seen.add(page.id);
+    unique.push(page);
+  }
+  return unique;
 }
 
 function peopleIds(property?: NotionPageProperty): string[] {

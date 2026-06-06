@@ -8,7 +8,9 @@ import { DestinationRegistry } from "../config/destination-registry.js";
 import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
+  addDays,
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+  diffDays,
   loadLocalPortfolioControlTowerConfig,
   renderFreshnessByLayerSection,
   saveLocalPortfolioControlTowerConfig,
@@ -48,7 +50,7 @@ interface WeeklyRefreshCommandOptions {
   streamChildOutput?: boolean;
 }
 
-interface WeeklyRefreshStepDefinition {
+export interface WeeklyRefreshStepDefinition {
   key: string;
   title: string;
   kind: "cli" | "script";
@@ -84,6 +86,20 @@ interface WeeklyRefreshOutput {
     summary: Record<string, number>;
   };
   freshness?: Record<string, string | undefined>;
+  catchUp?: WeeklyRefreshCatchUpStatus;
+}
+
+export interface WeeklyRefreshCatchUpStatus {
+  previousRunAt?: string;
+  today: string;
+  gapDays: number;
+  missedRunDays: number;
+  missedWeekdays: number;
+  catchUpMode: "none" | "weekday_catch_up" | "weekend_catch_up";
+  staleDataThresholdDays: number;
+  staleBeforeRun: boolean;
+  recovered: boolean;
+  summary: string;
 }
 
 const DEFAULT_OWNER = "saagpatel";
@@ -100,6 +116,10 @@ type WeeklyStepKey = (typeof WEEKLY_STEP_KEYS)[number];
 
 const POST_LIVE_FRESHNESS_TIMEOUT_MS = 20_000;
 const SLOW_STEP_THRESHOLD_MS = 30_000;
+const WEEKLY_PROGRESS_ENV = "NOTION_WEEKLY_PROGRESS";
+const EXTERNAL_SIGNAL_LIVE_PROJECT_BATCH_SIZE = 20;
+const MISSED_RUN_STALE_THRESHOLD_DAYS = 2;
+const OPERATOR_CATCH_UP_DAYS = new Set([0, 5, 6]);
 
 export async function runWeeklyRefreshCommand(
   options: WeeklyRefreshCommandOptions = {},
@@ -191,6 +211,13 @@ export async function runWeeklyRefreshCommand(
   }
 
   let freshness: Record<string, string | undefined> | undefined;
+  const catchUp = buildWeeklyRefreshCatchUpStatus({
+    previousRunAt: config.weeklyMaintenance?.weeklyRefreshLastRunAt,
+    today: flags.today,
+    status: overallStatus,
+    needsLiveWrite,
+    liveExecuted,
+  });
   if (flags.live) {
     freshness = await persistWeeklyRefreshState({
       configPath: flags.config,
@@ -198,6 +225,7 @@ export async function runWeeklyRefreshCommand(
       status: overallStatus,
       liveExecuted,
       needsLiveWrite,
+      catchUp,
       preflightSummary,
       liveSummary: liveRun?.summary,
       allowCommandCenterReplacement: !flags.only?.length && !flags.skip?.length,
@@ -218,6 +246,7 @@ export async function runWeeklyRefreshCommand(
     },
     liveRun,
     freshness,
+    catchUp,
   };
 
   recordCommandOutputSummary(output as unknown as Record<string, unknown>, {
@@ -317,31 +346,25 @@ function buildStepDefinitions(
       key: "external-signals",
       title: "External Signal Sync",
       kind: "cli",
-      args: [
-        "signals",
-        "sync",
-        ...sharedArgs,
-        "--provider",
-        "github",
-        "--source-limit",
-        String(externalSignalSourceLimit),
-        "--max-events-per-source",
-        String(externalSignalMaxEventsPerSource),
-        ...(flags.maxProjectPages === undefined && flags.projectOffset === undefined ? [] : ["--write-scope", "project-pages"]),
-        ...(flags.maxProjectPages === undefined ? [] : ["--project-limit", String(flags.maxProjectPages)]),
-        ...(flags.projectOffset === undefined ? [] : ["--project-offset", String(flags.projectOffset)]),
-        "--project-concurrency",
-        String(flags.projectConcurrency),
-        ...(flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
-      ],
+      args: buildExternalSignalStepArgs({
+        flags,
+        sharedArgs,
+        externalSignalSourceLimit,
+        externalSignalMaxEventsPerSource,
+      }),
       timeoutMs: 20 * 60 * 1000,
       skipAfterControlTowerFailure: true,
     },
   ];
+  const expandedSteps = expandExternalSignalLiveProjectBatches(steps, flags, live, {
+    sharedArgs,
+    externalSignalSourceLimit,
+    externalSignalMaxEventsPerSource,
+  });
   return applyStepFilters(
     flags.stepTimeoutMinutes === undefined
-      ? steps
-      : steps.map((step) => ({
+      ? expandedSteps
+      : expandedSteps.map((step) => ({
           ...step,
           timeoutMs: Math.max(1, flags.stepTimeoutMinutes!) * 60 * 1000,
         })),
@@ -350,6 +373,108 @@ function buildStepDefinitions(
       skip: flags.skip,
     },
   );
+}
+
+function buildExternalSignalStepArgs(input: {
+  flags: {
+    maxProjectPages?: number;
+    projectOffset?: number;
+    projectConcurrency: number;
+    skipKnownBlockedMarkdown: boolean;
+  };
+  sharedArgs: string[];
+  externalSignalSourceLimit: number;
+  externalSignalMaxEventsPerSource: number;
+  projectLimitOverride?: number;
+  projectOffsetOverride?: number;
+  projectConcurrencyOverride?: number;
+}): string[] {
+  const projectLimit = input.projectLimitOverride ?? input.flags.maxProjectPages;
+  const projectOffset = input.projectOffsetOverride ?? input.flags.projectOffset;
+  const projectConcurrency =
+    input.projectConcurrencyOverride ?? input.flags.projectConcurrency;
+  return [
+    "signals",
+    "sync",
+    ...input.sharedArgs,
+    "--provider",
+    "github",
+    "--source-limit",
+    String(input.externalSignalSourceLimit),
+    "--max-events-per-source",
+    String(input.externalSignalMaxEventsPerSource),
+    ...(projectLimit === undefined && projectOffset === undefined
+      ? []
+      : ["--write-scope", "project-pages"]),
+    ...(projectLimit === undefined ? [] : ["--project-limit", String(projectLimit)]),
+    ...(projectOffset === undefined ? [] : ["--project-offset", String(projectOffset)]),
+    "--project-concurrency",
+    String(projectConcurrency),
+    ...(input.flags.skipKnownBlockedMarkdown ? ["--skip-known-blocked-markdown"] : []),
+  ];
+}
+
+export function expandExternalSignalLiveProjectBatches(
+  steps: WeeklyRefreshStepDefinition[],
+  flags: {
+    maxProjectPages?: number;
+    projectOffset?: number;
+    projectConcurrency: number;
+    skipKnownBlockedMarkdown: boolean;
+  },
+  live: boolean,
+  context: {
+    sharedArgs: string[];
+    externalSignalSourceLimit: number;
+    externalSignalMaxEventsPerSource: number;
+  },
+): WeeklyRefreshStepDefinition[] {
+  if (
+    !live ||
+    flags.projectOffset !== undefined ||
+    flags.maxProjectPages === undefined ||
+    flags.maxProjectPages <= EXTERNAL_SIGNAL_LIVE_PROJECT_BATCH_SIZE
+  ) {
+    return steps;
+  }
+
+  return steps.flatMap((step) => {
+    if (step.key !== "external-signals") {
+      return [step];
+    }
+
+    const batches = buildProjectBatches(
+      flags.maxProjectPages!,
+      EXTERNAL_SIGNAL_LIVE_PROJECT_BATCH_SIZE,
+    );
+    return batches.map((batch, index) => ({
+      ...step,
+      title: `${step.title} (batch ${index + 1}/${batches.length})`,
+      args: buildExternalSignalStepArgs({
+        flags,
+        sharedArgs: context.sharedArgs,
+        externalSignalSourceLimit: context.externalSignalSourceLimit,
+        externalSignalMaxEventsPerSource: context.externalSignalMaxEventsPerSource,
+        projectLimitOverride: batch.limit,
+        projectOffsetOverride: batch.offset,
+        projectConcurrencyOverride: 1,
+      }),
+    }));
+  });
+}
+
+function buildProjectBatches(
+  totalLimit: number,
+  batchSize: number,
+): Array<{ offset: number; limit: number }> {
+  const batches: Array<{ offset: number; limit: number }> = [];
+  for (let offset = 0; offset < totalLimit; offset += batchSize) {
+    batches.push({
+      offset,
+      limit: Math.min(batchSize, totalLimit - offset),
+    });
+  }
+  return batches;
 }
 
 function buildSharedArgs(
@@ -407,10 +532,20 @@ async function runStep(
   while (attempts < maxAttempts) {
     attempts += 1;
     try {
+      if (options.streamChildOutput) {
+        logHumanMessage(
+          `Starting ${step.args.includes("--live") ? "live" : "preflight"} step: ${step.title} (attempt ${attempts}/${maxAttempts}).`,
+        );
+      }
       const output = await runJsonCommand(step, {
         streamChildOutput: options.streamChildOutput,
       });
       const contract = toStepContract(output, step.args.includes("--live"));
+      if (options.streamChildOutput) {
+        logHumanMessage(
+          `Finished ${step.title}: ${contract.status} in ${formatDuration(Date.now() - startedAt)}.`,
+        );
+      }
       return {
         key: step.key,
         title: step.title,
@@ -479,7 +614,7 @@ async function runJsonCommand(
   const tsxPath = path.resolve(process.cwd(), "node_modules/.bin/tsx");
   const child = spawn(tsxPath, commandPath, {
     cwd: process.cwd(),
-    env: process.env,
+    env: buildWeeklyRefreshChildEnv(process.env, options.streamChildOutput),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -525,6 +660,19 @@ function prefixChildStderr(stepTitle: string, text: string): string {
     .filter((line) => line.length > 0)
     .map((line) => `[weekly-refresh:${stepTitle}] ${line}`)
     .join("");
+}
+
+export function buildWeeklyRefreshChildEnv(
+  env: NodeJS.ProcessEnv,
+  streamChildOutput: boolean,
+): NodeJS.ProcessEnv {
+  const next = { ...env };
+  if (streamChildOutput) {
+    next[WEEKLY_PROGRESS_ENV] = "1";
+  } else {
+    delete next[WEEKLY_PROGRESS_ENV];
+  }
+  return next;
 }
 
 function buildSkippedStep(
@@ -675,9 +823,140 @@ export function buildWeeklyRefreshQuickSummary(output: WeeklyRefreshOutput): Rec
     failedSteps,
     partialSteps,
     slowSteps,
+    catchUp: output.catchUp,
     recoveryPlan: buildWeeklyRefreshRecoveryPlan(output, failedSteps, partialSteps),
     recommendedNextCommands: deriveWeeklyRefreshNextCommands(output, failedSteps, partialSteps),
   };
+}
+
+export function buildWeeklyRefreshCatchUpStatus(input: {
+  previousRunAt?: string;
+  today: string;
+  status?: WeeklyRefreshOverallStatus;
+  needsLiveWrite?: boolean;
+  liveExecuted?: boolean;
+  staleDataThresholdDays?: number;
+}): WeeklyRefreshCatchUpStatus {
+  const staleDataThresholdDays =
+    input.staleDataThresholdDays ?? MISSED_RUN_STALE_THRESHOLD_DAYS;
+  const hasValidPreviousRunAt =
+    input.previousRunAt !== undefined && isValidIsoDate(input.previousRunAt);
+  const hasValidToday = isValidIsoDate(input.today);
+  const gapDays =
+    hasValidPreviousRunAt && hasValidToday
+      ? Math.max(0, diffDays(input.previousRunAt!, input.today))
+      : 0;
+  const missedRunDays = Math.max(0, gapDays - 1);
+  const missedWeekdays = hasValidPreviousRunAt && hasValidToday
+    ? countMissedWeekdays(input.previousRunAt!, input.today)
+    : 0;
+  const catchUpMode =
+    missedRunDays === 0
+      ? "none"
+      : isOperatorCatchUpDay(input.today)
+        ? "weekend_catch_up"
+        : "weekday_catch_up";
+  const staleBeforeRun = gapDays > staleDataThresholdDays;
+  const healthyStatus = input.status === "clean" || input.status === "completed";
+  const recovered =
+    staleBeforeRun &&
+    healthyStatus &&
+    (input.liveExecuted === true || input.needsLiveWrite === false);
+  const summary = formatCatchUpSummary({
+    previousRunAt: input.previousRunAt,
+    hasValidPreviousRunAt,
+    hasValidToday,
+    gapDays,
+    missedRunDays,
+    missedWeekdays,
+    catchUpMode,
+    staleBeforeRun,
+    recovered,
+  });
+
+  return {
+    previousRunAt: input.previousRunAt,
+    today: input.today,
+    gapDays,
+    missedRunDays,
+    missedWeekdays,
+    catchUpMode,
+    staleDataThresholdDays,
+    staleBeforeRun,
+    recovered,
+    summary,
+  };
+}
+
+function countMissedWeekdays(previousRunAt: string, today: string): number {
+  if (!isValidIsoDate(previousRunAt) || !isValidIsoDate(today)) {
+    return 0;
+  }
+  const gapDays = Math.max(0, diffDays(previousRunAt, today));
+  let count = 0;
+  for (let offset = 1; offset < gapDays; offset += 1) {
+    if (!isWeekend(addDays(previousRunAt, offset))) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function isValidIsoDate(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return false;
+  }
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+}
+
+function isOperatorCatchUpDay(date: string): boolean {
+  if (!isValidIsoDate(date)) {
+    return false;
+  }
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return OPERATOR_CATCH_UP_DAYS.has(parsed.getUTCDay());
+}
+
+function isWeekend(date: string): boolean {
+  if (!isValidIsoDate(date)) {
+    return false;
+  }
+  const parsed = new Date(`${date}T00:00:00Z`);
+  const day = parsed.getUTCDay();
+  return day === 0 || day === 6;
+}
+
+function formatCatchUpSummary(input: {
+  previousRunAt?: string;
+  hasValidPreviousRunAt: boolean;
+  hasValidToday: boolean;
+  gapDays: number;
+  missedRunDays: number;
+  missedWeekdays: number;
+  catchUpMode: WeeklyRefreshCatchUpStatus["catchUpMode"];
+  staleBeforeRun: boolean;
+  recovered: boolean;
+}): string {
+  if (!input.previousRunAt) {
+    return "No prior weekly refresh run is recorded.";
+  }
+  if (!input.hasValidPreviousRunAt) {
+    return "Prior weekly refresh run date is invalid; catch-up status was not calculated.";
+  }
+  if (!input.hasValidToday) {
+    return "Current weekly refresh date is invalid; catch-up status was not calculated.";
+  }
+  if (input.missedRunDays === 0) {
+    return "No missed run days since the previous refresh.";
+  }
+  const mode =
+    input.catchUpMode === "weekend_catch_up"
+      ? "weekend catch-up"
+      : "weekday catch-up";
+  const stale = input.staleBeforeRun ? "stale before this run" : "within freshness threshold";
+  const recovered = input.recovered ? "; recovered" : "";
+  return `${mode}: ${input.missedRunDays} missed run day(s), ${input.missedWeekdays} missed weekday(s), ${stale}${recovered}.`;
 }
 
 export function buildWeeklyRefreshTimingSummary(
@@ -716,6 +995,14 @@ export function buildWeeklyRefreshTimingSummary(
 
 function roundOneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function formatDuration(durationMs: number): string {
+  const seconds = Math.round(durationMs / 1000);
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  return `${roundOneDecimal(durationMs / 60000)}m`;
 }
 
 function deriveWeeklyRefreshNextCommands(
@@ -779,6 +1066,7 @@ async function persistWeeklyRefreshState(input: {
   status: WeeklyRefreshOverallStatus;
   liveExecuted: boolean;
   needsLiveWrite: boolean;
+  catchUp: WeeklyRefreshCatchUpStatus;
   allowCommandCenterReplacement: boolean;
   preflightSummary: Record<string, number>;
   liveSummary?: Record<string, number>;
@@ -787,6 +1075,15 @@ async function persistWeeklyRefreshState(input: {
   const summary = {
     needsLiveWrite: input.needsLiveWrite ? "yes" : "no",
     liveExecuted: input.liveExecuted ? "yes" : "no",
+    previousRunAt: input.catchUp.previousRunAt ?? "",
+    gapDays: input.catchUp.gapDays,
+    missedRunDays: input.catchUp.missedRunDays,
+    missedWeekdays: input.catchUp.missedWeekdays,
+    catchUpMode: input.catchUp.catchUpMode,
+    staleDataThresholdDays: input.catchUp.staleDataThresholdDays,
+    staleBeforeRun: input.catchUp.staleBeforeRun ? "yes" : "no",
+    catchUpRecovered: input.catchUp.recovered ? "yes" : "no",
+    catchUpSummary: input.catchUp.summary,
     ...prefixCounts("preflight", input.preflightSummary),
     ...prefixCounts("live", input.liveSummary),
   };
