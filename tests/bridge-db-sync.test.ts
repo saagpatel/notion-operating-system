@@ -81,6 +81,7 @@ import {
 	buildTagProperty,
 	runBridgeDbSyncCommand,
 } from "../src/notion/bridge-db-sync.js";
+import { postNotificationHubEvent } from "../src/utils/notification-hub.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -463,6 +464,26 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		// Preflight short-circuits: no rows read, no Notion pages created.
 		expect(bridgeSyncMocks.session.getShippedEvents).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
+	});
+
+	test("escalates to warn and reports the unrouted count when a row matches no project (F9)", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 99,
+				project_name: "totally-unmatched-xyz",
+				tags: '["SHIPPED"]',
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({ live: false });
+
+		expect(vi.mocked(postNotificationHubEvent)).toHaveBeenCalledWith(
+			expect.objectContaining({
+				source: "notion-os",
+				level: "warn",
+				body: expect.stringContaining("1 unrouted"),
+			}),
+		);
 	});
 });
 

@@ -361,11 +361,16 @@ export async function runBridgeDbSyncCommand(
 		}
 	}
 	console.log(summary.join("\n"));
+	// Unrouted rows = events whose project_name matched no Notion page/alias. They are
+	// never written to the Build Log and never marked processed, so they retry every
+	// run and silently accumulate. Surface them explicitly and escalate to warn (which
+	// the hub routes to Slack, vs info → log-only) so they don't stay invisible (F9).
+	const unrouted = result.rowsSkipped + result.opsRowsSkipped;
 	postNotificationHubEvent({
 		source: "notion-os",
-		level: result.failures > 0 ? "warn" : "info",
+		level: result.failures > 0 || unrouted > 0 ? "warn" : "info",
 		title: "bridge-db-sync complete",
-		body: `${live ? "Live" : "Dry-run"}: SHIPPED ${result.rowsFound}→${result.rowsWritten}, Ops ${result.opsRowsFound}→${result.opsRowsWritten}, ${result.failures} failed`,
+		body: `${live ? "Live" : "Dry-run"}: SHIPPED ${result.rowsFound}→${result.rowsWritten}, Ops ${result.opsRowsFound}→${result.opsRowsWritten}, ${unrouted} unrouted, ${result.failures} failed`,
 	});
 }
 
