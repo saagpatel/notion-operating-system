@@ -1,0 +1,93 @@
+{
+  "schema_version": "proof-package.v1",
+  "package_id": "20260607-notion-weekly-dry-run-contract",
+  "subject": {
+    "repo": "Notion",
+    "lane": "weekly-maintenance-dry-run",
+    "claim": "Notion weekly maintenance has a dry-run-first contract that blocks broad live execution when failed or partial steps remain."
+  },
+  "producer": {
+    "repo": "Notion",
+    "mode": "dry-run",
+    "commands": [
+      "npm run maintenance:weekly-refresh -- --fast",
+      "npm run maintenance:weekly-refresh -- --only <step> --fast"
+    ]
+  },
+  "source_state": {
+    "generated_at": "2026-06-07T00:00:00Z",
+    "git_branch": "main",
+    "git_status": "clean",
+    "freshness_window_hours": 168
+  },
+  "claims": [
+    {
+      "id": "dry-run-first-docs",
+      "statement": "Repo instructions require targeted dry-run before live writes and reserve broad weekly live refresh for explicit approval.",
+      "status": "passed",
+      "evidence": [
+        "agents-doc",
+        "readme"
+      ]
+    },
+    {
+      "id": "failed-partial-live-block",
+      "statement": "Weekly refresh implementation avoids live execution when preflight status is failed or partial.",
+      "status": "passed",
+      "evidence": [
+        "weekly-refresh-source"
+      ]
+    },
+    {
+      "id": "recommended-next-commands",
+      "statement": "Weekly refresh derives targeted next commands for failed or partial lanes instead of recommending broad live mode.",
+      "status": "passed",
+      "evidence": [
+        "weekly-refresh-source"
+      ]
+    }
+  ],
+  "verification": {
+    "overall": "passed",
+    "checks": [
+      {
+        "name": "dry-run contract docs and source inspected",
+        "status": "passed"
+      }
+    ],
+    "missing_receipts": [
+      "fresh weekly dry-run output"
+    ],
+    "known_gaps": [
+      "This package proves the dry-run/live safety contract. It does not prove today's Notion workspace state."
+    ]
+  },
+  "safety": {
+    "redaction": "none",
+    "secrets_checked": true,
+    "live_write_performed": false
+  },
+  "artifacts": [
+    {
+      "id": "agents-doc",
+      "kind": "repo-doc",
+      "path": "../../../AGENTS.md",
+      "description": "Repo-local operating instructions for targeted dry-run and live approval boundaries.",
+      "required": true
+    },
+    {
+      "id": "readme",
+      "kind": "repo-doc",
+      "path": "../../../README.md",
+      "description": "Notion OS dry-run-first overview and command list.",
+      "required": true
+    },
+    {
+      "id": "weekly-refresh-source",
+      "kind": "source-contract",
+      "path": "../../../src/notion/weekly-refresh.ts",
+      "description": "Weekly refresh dry-run/live gate and next-command derivation.",
+      "required": true
+    }
+  ]
+}
