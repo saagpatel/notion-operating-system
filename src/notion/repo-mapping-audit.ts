@@ -207,7 +207,7 @@ export function buildRepoMappingAudit(input: {
 		projectsRoot,
 		totalProjects: allProjects.length,
 		decisionQueueCount: allProjects.filter(isDecisionQueueProject).length,
-		localMappingGapCount: allProjects.filter(hasLocalMappingGap).length,
+		localMappingGapCount: allProjects.filter(hasActionableLocalMappingGap).length,
 		githubMappingGapCount: allProjects.filter(hasGithubMappingGap).length,
 		attentionCount: attentionProjects.length,
 		projects,
@@ -457,11 +457,11 @@ function needsRepoMappingAttention(
 		return true;
 	}
 	if (includeAllGaps) {
-		return hasLocalMappingGap(project) || hasGithubMappingGap(project);
+		return hasActionableLocalMappingGap(project) || hasGithubMappingGap(project);
 	}
 	return (
 		isActivePortfolioProject(project) &&
-		(hasLocalMappingGap(project) || hasGithubMappingGap(project))
+		(hasActionableLocalMappingGap(project) || hasGithubMappingGap(project))
 	);
 }
 
@@ -476,6 +476,17 @@ function isActivePortfolioProject(project: RepoMappingAuditProject): boolean {
 
 function hasLocalMappingGap(project: RepoMappingAuditProject): boolean {
 	return !["mapped", "inferred"].includes(project.localMappingStatus);
+}
+
+function hasActionableLocalMappingGap(project: RepoMappingAuditProject): boolean {
+	return hasLocalMappingGap(project) && !isDocumentedNonRepoPosture(project);
+}
+
+function isDocumentedNonRepoPosture(project: RepoMappingAuditProject): boolean {
+	return (
+		["Parked", "Archived"].includes(project.currentState) &&
+		project.githubSourceStatus === "paused"
+	);
 }
 
 function hasGithubMappingGap(project: RepoMappingAuditProject): boolean {

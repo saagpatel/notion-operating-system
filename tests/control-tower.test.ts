@@ -325,6 +325,61 @@ describe("local portfolio control tower rules", () => {
 		expect(result.projects[0]?.githubSourceStatus).toBe("paused");
 	});
 
+	test("exempts parked or archived rows with paused sources from local-path repair noise", () => {
+		const result = buildRepoMappingAudit({
+			today: TODAY,
+			projectsRoot: "/tmp/notion-os-no-such-projects-root",
+			includeAllGaps: true,
+			projectPages: [
+				projectPage({
+					id: "parked-local-artifact",
+					title: "Parked Local Artifact",
+					currentState: "Parked",
+					localPath: "parked-local-artifact",
+				}),
+				projectPage({
+					id: "archived-placeholder",
+					title: "Archived Placeholder",
+					currentState: "Archived",
+					localPath: "archived-placeholder",
+				}),
+				projectPage({
+					id: "active-missing",
+					title: "Active Missing",
+					currentState: "Active Build",
+					localPath: "active-missing",
+				}),
+			],
+			sources: [
+				githubSource({
+					localProjectIds: ["parked-local-artifact"],
+					status: "Paused",
+					identifier: "",
+					sourceUrl: "",
+				}),
+				githubSource({
+					localProjectIds: ["archived-placeholder"],
+					status: "Paused",
+					identifier: "",
+					sourceUrl: "",
+				}),
+				githubSource({
+					localProjectIds: ["active-missing"],
+					status: "Paused",
+					identifier: "",
+					sourceUrl: "",
+				}),
+			],
+		});
+
+		expect(result.localMappingGapCount).toBe(1);
+		expect(result.githubMappingGapCount).toBe(0);
+		expect(result.attentionCount).toBe(1);
+		expect(result.projects.map((project) => project.title)).toEqual([
+			"Active Missing",
+		]);
+	});
+
 	test("counts only the rows whose derived properties actually changed", async () => {
 		const config = await loadConfig();
 		const previousProjects = [
