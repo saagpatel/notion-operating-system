@@ -182,8 +182,8 @@ export async function runBridgeDbSyncCommand(
 	}
 
 	for (const row of entries) {
-		const projectTarget = resolveBuildLogProjectTarget(
-			row.project_name,
+		const projectTarget = resolveShippedProjectTarget(
+			row,
 			projectIndex,
 			projectPortfolioIndex,
 		);
@@ -580,6 +580,39 @@ function resolveProjectId(
 		if (projectId) return projectId;
 	}
 	return undefined;
+}
+
+/**
+ * Resolve the Build Log project relation for a SHIPPED row, preferring the
+ * canonical registry over fuzzy title matching (F1).
+ *
+ * When bridge-db has resolved the row's project through GithubRepoAuditor's
+ * canonical registry to an explicit Notion Local Portfolio page id
+ * (`notion_sync.state === "ready"`), route directly to that page id. This is a
+ * stable `canonical_key → notion_local_page_id` mapping, so a Notion page-title
+ * rename or a name divergence (e.g. `IncidentMgmt` vs `IncidentManagement`) no
+ * longer silently drops the event. Otherwise fall back to the existing
+ * name-based fuzzy/alias resolution — preserving today's behavior for an older
+ * bridge-db that omits `notion_sync`, or for a project the registry can't map.
+ */
+function resolveShippedProjectTarget(
+	row: ShippedEvent,
+	localProjectIndex: Map<string, string>,
+	projectPortfolioIndex: Map<string, string>,
+): BuildLogProjectTarget | undefined {
+	const notionSync = row.notion_sync;
+	if (notionSync?.state === "ready" && notionSync.notion_page_id) {
+		// notion_page_id is a Local Portfolio Projects page id → Local Project relation.
+		return {
+			id: notionSync.notion_page_id,
+			relationProperty: "Local Project",
+		};
+	}
+	return resolveBuildLogProjectTarget(
+		row.project_name,
+		localProjectIndex,
+		projectPortfolioIndex,
+	);
 }
 
 function resolveBuildLogProjectTarget(

@@ -8,6 +8,22 @@ import {
 // Exported types
 // ---------------------------------------------------------------------------
 
+/**
+ * Per-event canonical routing block emitted by bridge-db `get_shipped_events`
+ * (F1). bridge-db resolves the event's project_name through GithubRepoAuditor's
+ * canonical project registry and reports whether it maps to an explicit Notion
+ * Local Portfolio page id, so this consumer can route by stable canonical key
+ * instead of fuzzy title matching. Optional — an older bridge-db that predates
+ * the F1 producer simply omits it, and the fuzzy-match fallback still applies.
+ */
+export interface NotionSyncInfo {
+	state: "ready" | "unmatched" | "no_notion_target" | "registry_unavailable";
+	reason: string;
+	canonical_key: string | null;
+	notion_page_id: string | null;
+	notion_title: string | null;
+}
+
 export interface ShippedEvent {
 	id: number;
 	project_name: string;
@@ -16,6 +32,8 @@ export interface ShippedEvent {
 	source: string;
 	branch?: string | null;
 	tags?: string | string[] | null;
+	canonical_key?: string | null;
+	notion_sync?: NotionSyncInfo;
 }
 
 /**

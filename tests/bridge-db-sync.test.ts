@@ -96,6 +96,8 @@ function baseRow(overrides: Partial<BridgeDbRow> = {}): BridgeDbRow {
 		summary: overrides.summary ?? "Completed the feature.",
 		branch: overrides.branch ?? null,
 		tags: overrides.tags ?? '["SHIPPED"]',
+		canonical_key: overrides.canonical_key,
+		notion_sync: overrides.notion_sync,
 	};
 }
 
@@ -300,6 +302,45 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] portfolio-docs-agent-contract-lane — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
+
+	test("prefers bridge-db canonical Notion target over title matching (F1)", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 796,
+				project_name: "renamed-project-lane",
+				summary: "Shipped through canonical registry routing.",
+				source: "codex",
+				canonical_key: "Canonical/RenamedProject",
+				notion_sync: {
+					state: "ready",
+					reason: "canonical project has explicit notion_local_page_id",
+					canonical_key: "Canonical/RenamedProject",
+					notion_page_id: "project-registry-target",
+					notion_title: "Renamed Project",
+				},
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "project-registry-target" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 796,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[Codex] renamed-project-lane — 2026-04-14" with Session Date 2026-04-14',
 		});
 	});
 
@@ -534,6 +575,106 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 				body: expect.stringContaining("1 unrouted"),
 			}),
 		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// F1 — canonical-key routing via bridge-db notion_sync
+// ---------------------------------------------------------------------------
+
+describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
+	test("routes a SHIPPED row by canonical notion_page_id when notion_sync is ready", async () => {
+		// project_name matches NOTHING in the fuzzy indexes — it only resolves via
+		// the canonical registry's explicit page id, proving canonical routing.
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 800,
+				project_name: "Renamed Local Title That Fuzzy Match Misses",
+				summary: "Shipped via canonical key.",
+				source: "cc",
+				notion_sync: {
+					state: "ready",
+					reason: "canonical project has explicit notion_local_page_id",
+					canonical_key: "incidentmgmt",
+					notion_page_id: "canonical-local-page-99",
+					notion_title: "IncidentMgmt",
+				},
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "canonical-local-page-99" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith(
+			expect.objectContaining({ activityId: 800 }),
+		);
+	});
+
+	test("falls back to fuzzy matching when notion_sync is absent", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 801,
+				project_name: "Ghost Routes",
+				summary: "Shipped without a canonical block.",
+				source: "cc",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "project-ghost" }] },
+			}),
+		});
+	});
+
+	test("falls back to fuzzy matching when notion_sync state is not ready", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 802,
+				project_name: "Ghost Routes",
+				summary: "Registry present but no page target.",
+				source: "cc",
+				notion_sync: {
+					state: "no_notion_target",
+					reason: "canonical project has no notion_local_page_id",
+					canonical_key: "ghost-routes",
+					notion_page_id: null,
+					notion_title: "Ghost Routes",
+				},
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "project-ghost" }] },
+			}),
+		});
 	});
 });
 
