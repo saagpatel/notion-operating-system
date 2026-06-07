@@ -67,6 +67,14 @@ const OPERATIONAL_PROJECT_ALIASES = new Map<string, OperationalProjectAlias>([
 		{ targetTitle: "Machine Audits", relationProperty: "Project" },
 	],
 	[
+		"operator-os-docs",
+		{ targetTitle: "Machine Audits", relationProperty: "Project" },
+	],
+	[
+		"portfolio-docs-agent-contract-lane",
+		{ targetTitle: "Machine Audits", relationProperty: "Project" },
+	],
+	[
 		"portfolio-dep-security",
 		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
 	],
@@ -363,8 +371,9 @@ export async function runBridgeDbSyncCommand(
 	console.log(summary.join("\n"));
 	// Unrouted rows = events whose project_name matched no Notion page/alias. They are
 	// never written to the Build Log and never marked processed, so they retry every
-	// run and silently accumulate. Surface them explicitly and escalate to warn (which
-	// the hub routes to Slack, vs info → log-only) so they don't stay invisible (F9).
+	// run and silently accumulate. Surface them explicitly and request warn-level
+	// handling; notification-hub stores that as normal/Slack-routed instead of
+	// info/log-only, so they don't stay invisible (F9).
 	const unrouted = result.rowsSkipped + result.opsRowsSkipped;
 	postNotificationHubEvent({
 		source: "notion-os",

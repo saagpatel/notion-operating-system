@@ -253,6 +253,56 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		});
 	});
 
+	test("links operator documentation lanes to Machine Audits", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 794,
+				project_name: "operator-os-docs",
+				summary: "Published operator OS documentation.",
+				source: "codex",
+			}),
+			baseRow({
+				id: 795,
+				project_name: "portfolio-docs-agent-contract-lane",
+				summary: "Completed portfolio docs agent contract lane.",
+				source: "codex",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledTimes(2);
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenNthCalledWith(1, {
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				Project: { relation: [{ id: "project-machine-audits" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenNthCalledWith(2, {
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				Project: { relation: [{ id: "project-machine-audits" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 794,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[Codex] operator-os-docs — 2026-04-14" with Session Date 2026-04-14',
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 795,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[Codex] portfolio-docs-agent-contract-lane — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
+
 	test("links compact bridge project names to Local Portfolio projects", async () => {
 		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
 			baseRow({
