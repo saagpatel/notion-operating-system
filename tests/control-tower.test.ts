@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -24,7 +24,11 @@ import {
 	renderWeeklyReviewMarkdown,
 } from "../src/notion/local-portfolio-control-tower.js";
 import { buildStaleActiveRescueUpdatePlan } from "../src/notion/stale-active-rescue.js";
-import { buildRepoMappingAudit } from "../src/notion/repo-mapping-audit.js";
+import {
+	buildRepoMappingAudit,
+	loadRepoMappingProjectionPolicy,
+	REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
+} from "../src/notion/repo-mapping-audit.js";
 import type { DataSourcePageRef } from "../src/notion/local-portfolio-control-tower-live.js";
 import type { ExternalSignalSourceRecord } from "../src/notion/local-portfolio-external-signals.js";
 import {
@@ -431,6 +435,60 @@ describe("local portfolio control tower rules", () => {
 			expect(result.projects[0]?.projectionPolicyTarget).toBe("DesktopPEt");
 		} finally {
 			rmSync(projectsRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("loads only versioned shared projection policy from project registry", () => {
+		const policyDir = mkdtempSync(join(tmpdir(), "notion-os-policy-registry-"));
+		try {
+			const registryPath = join(policyDir, "project-registry.json");
+			writeFileSync(
+				registryPath,
+				JSON.stringify({
+					projection_policy: {
+						schema_version: REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
+						notion_title_aliases: {
+							"DesktopPEt-ready": "DesktopPEt",
+						},
+						notion_projection_only_rows: {
+							"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
+						},
+					},
+				}),
+			);
+
+			expect(loadRepoMappingProjectionPolicy(registryPath)).toEqual({
+				schemaVersion: REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
+				notionTitleAliases: {
+					"DesktopPEt-ready": "DesktopPEt",
+				},
+				notionProjectionOnlyRows: {
+					"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
+				},
+			});
+
+			const unversionedPath = join(policyDir, "unversioned-registry.json");
+			writeFileSync(
+				unversionedPath,
+				JSON.stringify({
+					projection_policy: {
+						notion_title_aliases: {
+							"Wrong-alias": "Wrong",
+						},
+						notion_projection_only_rows: {},
+					},
+				}),
+			);
+
+			expect(loadRepoMappingProjectionPolicy(unversionedPath)).not.toEqual(
+				expect.objectContaining({
+					notionTitleAliases: {
+						"Wrong-alias": "Wrong",
+					},
+				}),
+			);
+		} finally {
+			rmSync(policyDir, { recursive: true, force: true });
 		}
 	});
 

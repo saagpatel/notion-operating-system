@@ -38,6 +38,7 @@ export interface RepoMappingAuditCommandOptions {
 }
 
 export interface RepoMappingProjectionPolicy {
+	schemaVersion?: typeof REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION;
 	notionTitleAliases: Record<string, string>;
 	notionProjectionOnlyRows: Record<string, string>;
 }
@@ -108,7 +109,11 @@ const DEFAULT_PROJECT_REGISTRY_CONFIG_PATH = join(
 	"Projects/GithubRepoAuditor/config/project-registry-overrides.json",
 );
 
+export const REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION =
+	"notion_projection_policy.v1";
+
 const DEFAULT_REPO_MAPPING_PROJECTION_POLICY: RepoMappingProjectionPolicy = {
+	schemaVersion: REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
 	notionTitleAliases: {
 		"DesktopPEt-ready": "DesktopPEt",
 		"EarthPulse-readiness": "EarthPulse",
@@ -157,12 +162,18 @@ function readProjectionPolicyFromJson(
 		if (!isRecord(policySource)) {
 			return undefined;
 		}
+		const schemaVersion =
+			policySource.schema_version ?? policySource.notion_projection_policy_schema_version;
+		if (schemaVersion !== REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION) {
+			return undefined;
+		}
 		const titleAliases = policySource.notion_title_aliases;
 		const projectionOnlyRows = policySource.notion_projection_only_rows;
 		if (!isStringRecord(titleAliases) || !isStringRecord(projectionOnlyRows)) {
 			return undefined;
 		}
 		return {
+			schemaVersion: REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
 			notionTitleAliases: titleAliases,
 			notionProjectionOnlyRows: projectionOnlyRows,
 		};
