@@ -71,6 +71,10 @@ const OPERATIONAL_PROJECT_ALIASES = new Map<string, OperationalProjectAlias>([
 		"portfolio-dep-security",
 		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
 	],
+	[
+		"portfoliocommandcenter",
+		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
+	],
 ]);
 
 // ---------------------------------------------------------------------------

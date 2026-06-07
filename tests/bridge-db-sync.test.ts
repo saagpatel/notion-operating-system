@@ -338,6 +338,37 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		});
 	});
 
+	test("links PortfolioCommandCenter operational rows to GitHub Repo Auditor", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 793,
+				project_name: "PortfolioCommandCenter",
+				summary: "Completed Portfolio Command Center automation hardening.",
+				source: "cc",
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "project-github-auditor" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 793,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[CC] PortfolioCommandCenter — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
+
 	test("skips known operational aliases when the target Project Portfolio row is missing", async () => {
 		bridgeSyncMocks.projectPortfolioPages = [];
 		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
