@@ -7,6 +7,7 @@ const bridgeSyncMocks = vi.hoisted(() => {
 		confirmShippedSync: vi.fn(),
 		markProcessed: vi.fn(),
 		logActivity: vi.fn(),
+		assertSchemaCompatible: vi.fn(),
 		close: vi.fn(),
 	};
 	return {
@@ -124,11 +125,15 @@ function resetBridgeSyncMocks(): void {
 	bridgeSyncMocks.session.confirmShippedSync.mockResolvedValue(undefined);
 	bridgeSyncMocks.session.markProcessed.mockResolvedValue(undefined);
 	bridgeSyncMocks.session.logActivity.mockResolvedValue(undefined);
+	bridgeSyncMocks.session.assertSchemaCompatible.mockResolvedValue(5);
 	bridgeSyncMocks.session.close.mockResolvedValue(undefined);
-	bridgeSyncMocks.retrieveDataSource.mockImplementation(async (dataSourceId: string) => ({
-		id: dataSourceId,
-		titlePropertyName: dataSourceId === "projects-ds" ? "Project Name" : "Name",
-	}));
+	bridgeSyncMocks.retrieveDataSource.mockImplementation(
+		async (dataSourceId: string) => ({
+			id: dataSourceId,
+			titlePropertyName:
+				dataSourceId === "projects-ds" ? "Project Name" : "Name",
+		}),
+	);
 	bridgeSyncMocks.createPageWithMarkdown.mockResolvedValue({
 		id: "build-log-page-123",
 	});
@@ -161,7 +166,9 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
 			expect.objectContaining({
 				parent: { data_source_id: "build-log-ds" },
-				markdown: expect.stringContaining("Shipped receipt-backed bridge sync."),
+				markdown: expect.stringContaining(
+					"Shipped receipt-backed bridge sync.",
+				),
 			}),
 		);
 		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
@@ -440,6 +447,22 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 				opsOnly: true,
 			}),
 		).rejects.toThrow("--shipped-only and --ops-only cannot be used together.");
+	});
+
+	test("aborts before any Notion write when the bridge-db schema is incompatible (F4)", async () => {
+		bridgeSyncMocks.session.assertSchemaCompatible.mockRejectedValue(
+			new Error(
+				"bridge-db schema_version 3 is incompatible: Notion OS requires >= 4.",
+			),
+		);
+
+		await expect(runBridgeDbSyncCommand({ live: true })).rejects.toThrow(
+			/incompatible/,
+		);
+
+		// Preflight short-circuits: no rows read, no Notion pages created.
+		expect(bridgeSyncMocks.session.getShippedEvents).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
 	});
 });
 

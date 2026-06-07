@@ -18,6 +18,18 @@ export interface ShippedEvent {
 	tags?: string | string[] | null;
 }
 
+/**
+ * Minimum bridge-db schema version Notion OS is compatible with (F4).
+ *
+ * Notion's shipped-event sync depends on the `shipped_sync_receipts` table added in
+ * schema v4 (via confirm_shipped_sync). Reading a bus older than this means the
+ * receipt contract is absent, so the sync would silently misbehave rather than fail.
+ * We assert `>=` (not exact equality) so additive schema bumps — v5 added a nullable
+ * canonical_key column, future versions may add more — stay compatible without code
+ * changes; only a too-old bus is rejected.
+ */
+export const MIN_BRIDGE_DB_SCHEMA_VERSION = 4;
+
 export interface BridgeDbStatus {
 	ok: boolean;
 	db_path: string;
@@ -72,10 +84,7 @@ export function parseBridgeDbToolResult(result: unknown): unknown {
 		throw new Error(`MCP tool returned error: ${errorText}`);
 	}
 
-	if (
-		r?.structuredContent &&
-		Object.prototype.hasOwnProperty.call(r.structuredContent, "result")
-	) {
+	if (r?.structuredContent && Object.hasOwn(r.structuredContent, "result")) {
 		return r.structuredContent.result;
 	}
 
@@ -172,6 +181,24 @@ export class BridgeDbMcpSession {
 		return parsed as BridgeDbStatus;
 	}
 
+	/**
+	 * Assert the live bridge-db is a schema this consumer understands (F4), then
+	 * return the version. Throws a clear error when the bus is older than
+	 * MIN_BRIDGE_DB_SCHEMA_VERSION so a breaking-schema bus fails loud instead of
+	 * silently producing malformed sync output. Use as a preflight before reads.
+	 */
+	async assertSchemaCompatible(): Promise<number> {
+		const status = await this.getStatus();
+		const version = status.schema_version;
+		if (typeof version !== "number" || version < MIN_BRIDGE_DB_SCHEMA_VERSION) {
+			throw new Error(
+				`bridge-db schema_version ${version} is incompatible: Notion OS requires ` +
+					`>= ${MIN_BRIDGE_DB_SCHEMA_VERSION}. Upgrade bridge-db before syncing.`,
+			);
+		}
+		return version;
+	}
+
 	async logActivity(summary: string, count: number): Promise<void> {
 		try {
 			await this.client.callTool({
@@ -230,5 +257,4 @@ export class BridgeDbMcpSession {
 	async close(): Promise<void> {
 		await this.client.close();
 	}
-
 }

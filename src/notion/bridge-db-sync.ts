@@ -1,6 +1,4 @@
 import { homedir } from "node:os";
-
-import { createNotionSdkClient } from "./notion-sdk.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { losAngelesToday } from "../utils/date.js";
@@ -20,6 +18,7 @@ import {
 	relationValue,
 } from "./local-portfolio-control-tower-live.js";
 import { toIntelligenceProjectRecord } from "./local-portfolio-intelligence-live.js";
+import { createNotionSdkClient } from "./notion-sdk.js";
 
 export interface BridgeDbSyncOptions {
 	live?: boolean;
@@ -100,6 +99,15 @@ export async function runBridgeDbSyncCommand(
 	}
 	const processShipped = !options.opsOnly;
 	const processOps = !options.shippedOnly;
+
+	// Preflight: fail loud before doing any Notion work if the bridge-db bus is an
+	// incompatible (too-old) schema, rather than silently producing malformed rows (F4).
+	const preflight = await BridgeDbMcpSession.open({ dbPath });
+	try {
+		await preflight.assertSchemaCompatible();
+	} finally {
+		await preflight.close();
+	}
 
 	const sdk = createNotionSdkClient(token);
 	const api = new DirectNotionClient(token);
@@ -570,7 +578,10 @@ function resolveBuildLogProjectTarget(
 		return { id: localProjectId, relationProperty: "Local Project" };
 	}
 
-	const portfolioProjectId = resolveProjectId(projectName, projectPortfolioIndex);
+	const portfolioProjectId = resolveProjectId(
+		projectName,
+		projectPortfolioIndex,
+	);
 	if (portfolioProjectId) {
 		return { id: portfolioProjectId, relationProperty: "Project" };
 	}
