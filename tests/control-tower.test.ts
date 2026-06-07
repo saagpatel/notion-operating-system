@@ -380,6 +380,60 @@ describe("local portfolio control tower rules", () => {
 		]);
 	});
 
+	test("uses shared projection policy for alias rows and projection-only rows", () => {
+		const projectsRoot = mkdtempSync(join(tmpdir(), "notion-os-policy-repos-"));
+		try {
+			mkdirSync(join(projectsRoot, "DesktopPEt", ".git"), { recursive: true });
+			const result = buildRepoMappingAudit({
+				today: TODAY,
+				projectsRoot,
+				includeAllGaps: true,
+				projectionPolicy: {
+					notionTitleAliases: {
+						"DesktopPEt-ready": "DesktopPEt",
+					},
+					notionProjectionOnlyRows: {
+						"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
+					},
+				},
+				projectPages: [
+					projectPage({
+						id: "desktop-ready",
+						title: "DesktopPEt-ready",
+						currentState: "Needs Decision",
+					}),
+					projectPage({
+						id: "sandbox",
+						title: "Sandbox Local Portfolio Project",
+						currentState: "Active Build",
+					}),
+				],
+				sources: [
+					githubSource({
+						localProjectIds: ["desktop-ready"],
+						status: "Active",
+						identifier: "saagpatel/DesktopPEt-ready",
+						sourceUrl: "https://github.com/saagpatel/DesktopPEt-ready",
+					}),
+				],
+			});
+
+			expect(result.decisionQueueCount).toBe(1);
+			expect(result.localMappingGapCount).toBe(0);
+			expect(result.githubMappingGapCount).toBe(0);
+			expect(result.attentionCount).toBe(1);
+			expect(result.projects.map((project) => project.title)).toEqual([
+				"DesktopPEt-ready",
+			]);
+			expect(result.projects[0]?.localMappingStatus).toBe("inferred");
+			expect(result.projects[0]?.recommendedLocalPath).toBe("DesktopPEt");
+			expect(result.projects[0]?.projectionPolicyStatus).toBe("alias");
+			expect(result.projects[0]?.projectionPolicyTarget).toBe("DesktopPEt");
+		} finally {
+			rmSync(projectsRoot, { recursive: true, force: true });
+		}
+	});
+
 	test("counts only the rows whose derived properties actually changed", async () => {
 		const config = await loadConfig();
 		const previousProjects = [

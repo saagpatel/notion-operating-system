@@ -805,6 +805,13 @@ export const cliRegistry: CliCommandDefinition[] = [
 					valueName: "path",
 				},
 				{
+					name: "project-registry-path",
+					description:
+						"GithubRepoAuditor generated project-registry.json to load projection policy from.",
+					type: "string",
+					valueName: "path",
+				},
+				{
 					name: "limit",
 					description: "Maximum number of attention rows to include.",
 					type: "number",
@@ -831,6 +838,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						positionals: parsed.positionals,
 					}),
 					projectsRoot: asString(parsed.options["projects-root"]),
+					projectRegistryPath: asString(parsed.options["project-registry-path"]),
 					limit: asNumber(parsed.options.limit),
 					includeAllGaps: asBoolean(parsed.options["include-all-gaps"]),
 					liveNormalizeLocalPaths: asBoolean(

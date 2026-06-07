@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -31,9 +31,15 @@ export interface RepoMappingAuditCommandOptions {
 	today?: string;
 	config?: string;
 	projectsRoot?: string;
+	projectRegistryPath?: string;
 	limit?: number;
 	includeAllGaps?: boolean;
 	liveNormalizeLocalPaths?: boolean;
+}
+
+export interface RepoMappingProjectionPolicy {
+	notionTitleAliases: Record<string, string>;
+	notionProjectionOnlyRows: Record<string, string>;
 }
 
 export type LocalRepoMappingStatus =
@@ -74,6 +80,9 @@ export interface RepoMappingAuditProject {
 		identifier: string;
 		sourceUrl: string;
 	}>;
+	projectionPolicyStatus: "none" | "alias" | "projection-only";
+	projectionPolicyTarget: string;
+	projectionPolicyReason: string;
 	nextOperatorMove: string;
 }
 
@@ -87,6 +96,88 @@ export interface RepoMappingAuditResult {
 	attentionCount: number;
 	projects: RepoMappingAuditProject[];
 	markdown: string;
+}
+
+const DEFAULT_PROJECT_REGISTRY_PATH = join(
+	homedir(),
+	"Projects/GithubRepoAuditor/output/project-registry.json",
+);
+
+const DEFAULT_PROJECT_REGISTRY_CONFIG_PATH = join(
+	homedir(),
+	"Projects/GithubRepoAuditor/config/project-registry-overrides.json",
+);
+
+const DEFAULT_REPO_MAPPING_PROJECTION_POLICY: RepoMappingProjectionPolicy = {
+	notionTitleAliases: {
+		"DesktopPEt-ready": "DesktopPEt",
+		"EarthPulse-readiness": "EarthPulse",
+		"GithubRepoAuditor-public": "GithubRepoAuditor",
+		"Notion Operating System": "Notion",
+		"OrbitForge (staging)": "OrbitForge",
+		"Personal Ops": "operator-os-docs",
+		"PomGambler-prod": "PomGambler",
+	},
+	notionProjectionOnlyRows: {
+		app: "local runtime/app shell placeholder; not a portfolio-truth repo",
+		"claude-code-harness": "local agent harness projection; outside repo-root truth",
+		"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
+		SecondBrain: "knowledge vault under /Users/d/Documents; not a /Users/d/Projects repo",
+	},
+};
+
+export function loadRepoMappingProjectionPolicy(
+	projectRegistryPath = process.env.NOTION_REPO_MAPPING_PROJECT_REGISTRY_PATH ??
+		DEFAULT_PROJECT_REGISTRY_PATH,
+): RepoMappingProjectionPolicy {
+	const registryPolicy = readProjectionPolicyFromJson(projectRegistryPath, "projection_policy");
+	if (registryPolicy) {
+		return registryPolicy;
+	}
+	const configPolicy = readProjectionPolicyFromJson(
+		DEFAULT_PROJECT_REGISTRY_CONFIG_PATH,
+		undefined,
+	);
+	return configPolicy ?? DEFAULT_REPO_MAPPING_PROJECTION_POLICY;
+}
+
+function readProjectionPolicyFromJson(
+	filePath: string,
+	containerKey: "projection_policy" | undefined,
+): RepoMappingProjectionPolicy | undefined {
+	if (!existsSync(filePath)) {
+		return undefined;
+	}
+	try {
+		const raw = JSON.parse(readFileSync(filePath, "utf8")) as unknown;
+		const policySource =
+			containerKey && isRecord(raw) && isRecord(raw[containerKey])
+				? raw[containerKey]
+				: raw;
+		if (!isRecord(policySource)) {
+			return undefined;
+		}
+		const titleAliases = policySource.notion_title_aliases;
+		const projectionOnlyRows = policySource.notion_projection_only_rows;
+		if (!isStringRecord(titleAliases) || !isStringRecord(projectionOnlyRows)) {
+			return undefined;
+		}
+		return {
+			notionTitleAliases: titleAliases,
+			notionProjectionOnlyRows: projectionOnlyRows,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+	return isRecord(value) &&
+		Object.values(value).every((entry) => typeof entry === "string");
 }
 
 export async function runRepoMappingAuditCommand(
@@ -108,11 +199,13 @@ export async function runRepoMappingAuditCommand(
 		? await fetchExternalSignalSourcePages(api, config)
 		: [];
 	const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
+	const projectionPolicy = loadRepoMappingProjectionPolicy(options.projectRegistryPath);
 	const initialResult = buildRepoMappingAudit({
 		today,
 		projectPages,
 		sources,
 		projectsRoot: options.projectsRoot ?? "/Users/d/Projects",
+		projectionPolicy,
 		limit: options.limit ?? 50,
 		includeAllGaps: options.includeAllGaps ?? false,
 		externalSignalsConfigured: Boolean(config.phase5ExternalSignals?.sources),
@@ -142,6 +235,7 @@ export async function runRepoMappingAuditCommand(
 				),
 				sources,
 				projectsRoot: options.projectsRoot ?? "/Users/d/Projects",
+				projectionPolicy,
 				limit: options.limit ?? 50,
 				includeAllGaps: options.includeAllGaps ?? false,
 				externalSignalsConfigured: Boolean(config.phase5ExternalSignals?.sources),
@@ -179,6 +273,7 @@ export function buildRepoMappingAudit(input: {
 	projectPages: DataSourcePageRef[];
 	sources?: ExternalSignalSourceRecord[];
 	projectsRoot?: string;
+	projectionPolicy?: RepoMappingProjectionPolicy;
 	limit?: number;
 	includeAllGaps?: boolean;
 	externalSignalsConfigured?: boolean;
@@ -186,12 +281,14 @@ export function buildRepoMappingAudit(input: {
 	const projectsRoot = resolve(input.projectsRoot ?? "/Users/d/Projects");
 	const repoIndex = buildLocalRepoIndex(projectsRoot);
 	const sources = input.sources ?? [];
+	const projectionPolicy = input.projectionPolicy ?? DEFAULT_REPO_MAPPING_PROJECTION_POLICY;
 	const allProjects = input.projectPages.map((page) =>
 		buildRepoMappingAuditProject({
 			page,
 			repoIndex,
 			projectsRoot,
 			sources,
+			projectionPolicy,
 			externalSignalsConfigured: input.externalSignalsConfigured ?? true,
 		}),
 	);
@@ -224,6 +321,7 @@ function buildRepoMappingAuditProject(input: {
 	repoIndex: LocalRepoIndex;
 	projectsRoot: string;
 	sources: ExternalSignalSourceRecord[];
+	projectionPolicy: RepoMappingProjectionPolicy;
 	externalSignalsConfigured: boolean;
 }): RepoMappingAuditProject {
 	const localPath = textValue(input.page.properties["Local Path"]);
@@ -239,6 +337,7 @@ function buildRepoMappingAuditProject(input: {
 		projectsRoot: input.projectsRoot,
 		repoIndex: input.repoIndex,
 		githubSources,
+		projectionPolicy: input.projectionPolicy,
 	});
 	const githubSourceStatus = classifyGithubSourceStatus(
 		githubSources,
@@ -266,6 +365,7 @@ function buildRepoMappingAuditProject(input: {
 			identifier: source.identifier,
 			sourceUrl: source.sourceUrl,
 		})),
+		...classifyProjectionPolicy(input.page.title, input.projectionPolicy),
 		nextOperatorMove: "",
 	};
 	return {
@@ -320,6 +420,7 @@ function resolveLocalRepoMapping(input: {
 	projectsRoot: string;
 	repoIndex: LocalRepoIndex;
 	githubSources?: ExternalSignalSourceRecord[];
+	projectionPolicy: RepoMappingProjectionPolicy;
 }): {
 	status: LocalRepoMappingStatus;
 	resolvedRepoPath: string;
@@ -359,6 +460,19 @@ function resolveLocalRepoMapping(input: {
 				candidates: [],
 			};
 		}
+		const aliasMatch = findProjectionAliasRepoMatch(
+			input.title,
+			input.projectionPolicy,
+			input.repoIndex,
+		);
+		if (aliasMatch) {
+			return {
+				status: "needs-normalization",
+				resolvedRepoPath: aliasMatch,
+				recommendedLocalPath: toRecommendedLocalPath(aliasMatch, input.projectsRoot),
+				candidates: [],
+			};
+		}
 		const candidates = findRepoCandidates(input.title, input.repoIndex.repoPaths).slice(0, 5);
 		return {
 			status: "path-missing",
@@ -384,6 +498,19 @@ function resolveLocalRepoMapping(input: {
 			candidates: exactMatches,
 		};
 	}
+	const aliasMatch = findProjectionAliasRepoMatch(
+		input.title,
+		input.projectionPolicy,
+		input.repoIndex,
+	);
+	if (aliasMatch) {
+		return {
+			status: "inferred",
+			resolvedRepoPath: aliasMatch,
+			recommendedLocalPath: toRecommendedLocalPath(aliasMatch, input.projectsRoot),
+			candidates: [],
+		};
+	}
 	const sourceMatch = findSourceRepoMatch(input.githubSources ?? [], input.repoIndex);
 	if (sourceMatch) {
 		return {
@@ -397,6 +524,59 @@ function resolveLocalRepoMapping(input: {
 	return candidates.length > 0
 		? { status: "ambiguous", resolvedRepoPath: "", recommendedLocalPath: "", candidates }
 		: { status: "missing", resolvedRepoPath: "", recommendedLocalPath: "", candidates: [] };
+}
+
+function findProjectionAliasRepoMatch(
+	title: string,
+	projectionPolicy: RepoMappingProjectionPolicy,
+	repoIndex: LocalRepoIndex,
+): string | undefined {
+	const aliases = normalizedStringRecord(projectionPolicy.notionTitleAliases);
+	const canonicalTitle = aliases.get(normalizeProjectKey(title));
+	if (!canonicalTitle) {
+		return undefined;
+	}
+	const matches = repoIndex.byKey.get(normalizeProjectKey(canonicalTitle)) ?? [];
+	return matches.length === 1 ? matches[0] : undefined;
+}
+
+function classifyProjectionPolicy(
+	title: string,
+	projectionPolicy: RepoMappingProjectionPolicy,
+): Pick<
+	RepoMappingAuditProject,
+	"projectionPolicyStatus" | "projectionPolicyTarget" | "projectionPolicyReason"
+> {
+	const normalizedTitle = normalizeProjectKey(title);
+	const aliases = normalizedStringRecord(projectionPolicy.notionTitleAliases);
+	const projectionOnlyRows = normalizedStringRecord(projectionPolicy.notionProjectionOnlyRows);
+	const aliasTarget = aliases.get(normalizedTitle);
+	if (aliasTarget) {
+		return {
+			projectionPolicyStatus: "alias",
+			projectionPolicyTarget: aliasTarget,
+			projectionPolicyReason: "",
+		};
+	}
+	const projectionReason = projectionOnlyRows.get(normalizedTitle);
+	if (projectionReason) {
+		return {
+			projectionPolicyStatus: "projection-only",
+			projectionPolicyTarget: "",
+			projectionPolicyReason: projectionReason,
+		};
+	}
+	return {
+		projectionPolicyStatus: "none",
+		projectionPolicyTarget: "",
+		projectionPolicyReason: "",
+	};
+}
+
+function normalizedStringRecord(values: Record<string, string>): Map<string, string> {
+	return new Map(
+		Object.entries(values).map(([key, value]) => [normalizeProjectKey(key), value]),
+	);
 }
 
 function findRepoCandidates(title: string, repoPaths: string[]): string[] {
@@ -479,7 +659,9 @@ function hasLocalMappingGap(project: RepoMappingAuditProject): boolean {
 }
 
 function hasActionableLocalMappingGap(project: RepoMappingAuditProject): boolean {
-	return hasLocalMappingGap(project) && !isDocumentedNonRepoPosture(project);
+	return hasLocalMappingGap(project) &&
+		project.projectionPolicyStatus !== "projection-only" &&
+		!isDocumentedNonRepoPosture(project);
 }
 
 function isDocumentedNonRepoPosture(project: RepoMappingAuditProject): boolean {
@@ -490,10 +672,16 @@ function isDocumentedNonRepoPosture(project: RepoMappingAuditProject): boolean {
 }
 
 function hasGithubMappingGap(project: RepoMappingAuditProject): boolean {
+	if (project.projectionPolicyStatus === "projection-only") {
+		return false;
+	}
 	return ["missing", "needs-mapping", "needs-review"].includes(project.githubSourceStatus);
 }
 
 function buildRepoMappingNextMove(project: RepoMappingAuditProject): string {
+	if (project.projectionPolicyStatus === "projection-only") {
+		return `No repo mapping needed: ${project.projectionPolicyReason}`;
+	}
 	if (project.localMappingStatus === "needs-normalization") {
 		return `Update Local Path to ${project.recommendedLocalPath || project.resolvedRepoPath}.`;
 	}
@@ -514,6 +702,9 @@ function buildRepoMappingNextMove(project: RepoMappingAuditProject): string {
 	}
 	if (project.githubSourceStatus === "needs-review") {
 		return "Review the existing GitHub source row before using it for telemetry.";
+	}
+	if (project.projectionPolicyStatus === "alias" && project.projectionPolicyTarget) {
+		return `Treat as projection alias for ${project.projectionPolicyTarget}; verify mappings stay attached to the canonical row.`;
 	}
 	if (isDecisionQueueProject(project)) {
 		return "Make the project decision: continue, park, archive, merge into another row, or schedule the next build.";
