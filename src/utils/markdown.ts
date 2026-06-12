@@ -182,8 +182,15 @@ function findManagedSectionBounds(
 }
 
 function markerCandidates(marker: string): string[] {
-  const escaped = escapeManagedMarker(marker);
-  return escaped === marker ? [marker] : [marker, escaped];
+  const escapedAngles = escapeManagedMarker(marker);
+  const escapedColons = marker.replace(/:/g, "\\:");
+  const escapedAnglesAndColons = escapeManagedMarker(escapedColons);
+  return uniqueStrings([
+    marker,
+    escapedAngles,
+    escapedColons,
+    escapedAnglesAndColons,
+  ]);
 }
 
 function escapeManagedMarker(marker: string): string {
@@ -191,7 +198,10 @@ function escapeManagedMarker(marker: string): string {
 }
 
 function normalizeManagedMarkers(markdown: string): string {
-  return markdown.replace(/\\<!--/g, "<!--").replace(/--\\>/g, "-->");
+  return markdown
+    .replace(/\\<!--/g, "<!--")
+    .replace(/--\\>/g, "-->")
+    .replace(/\\:/g, ":");
 }
 
 function normalizeComparisonMarkdown(markdown: string): string {

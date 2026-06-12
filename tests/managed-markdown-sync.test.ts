@@ -65,6 +65,38 @@ describe("managed markdown sync", () => {
 		).toBe(true);
 	});
 
+	test("normalizes Notion-escaped colons in managed comment markers", () => {
+		const expected = [
+			"# Local Portfolio Command Center",
+			"",
+			"<!-- codex:notion-freshness-command-center:start -->",
+			"## Freshness By Layer",
+			"- Weekly refresh: 2026-06-11 (completed)",
+			"<!-- codex:notion-freshness-command-center:end -->",
+		].join("\n");
+		const actual = [
+			"<!-- codex\\:notion-freshness-command-center\\:start -->",
+			"## Freshness By Layer",
+			"- Weekly refresh: 2026-06-11 (completed)",
+			"<!-- codex\\:notion-freshness-command-center\\:end -->",
+		].join("\n");
+
+		expect(
+			pageMarkdownMatches({
+				expectedMarkdown: expected,
+				actualMarkdown: actual,
+				title: "Local Portfolio Command Center",
+			}),
+		).toBe(true);
+		expect(
+			extractManagedSection(
+				actual,
+				"<!-- codex:notion-freshness-command-center:start -->",
+				"<!-- codex:notion-freshness-command-center:end -->",
+			),
+		).toContain("Freshness By Layer");
+	});
+
 	test("normalizes Notion app page links that are canonicalized during read-back", () => {
 		const id = "326c21f1caf0815d8d77d44b03d8daa6";
 		const expected = [
