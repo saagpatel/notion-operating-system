@@ -8,6 +8,7 @@ import {
 	buildWeeklyRefreshRecoveryPlan,
 	buildWeeklyRefreshTimingSummary,
 	expandExternalSignalLiveProjectBatches,
+	shouldPersistWeeklyRefreshState,
 } from "../src/notion/weekly-refresh.js";
 
 describe("weekly refresh fast workflow guidance", () => {
@@ -26,6 +27,35 @@ describe("weekly refresh fast workflow guidance", () => {
 		expect(
 			buildWeeklyRefreshChildEnv({}, true).NOTION_WEEKLY_PROGRESS,
 		).toBe("1");
+	});
+
+	test("persists weekly freshness only for full live runs", () => {
+		expect(
+			shouldPersistWeeklyRefreshState({
+				live: true,
+				only: [],
+				skip: [],
+			}),
+		).toBe(true);
+		expect(
+			shouldPersistWeeklyRefreshState({
+				live: true,
+				only: ["control-tower-sync"],
+				skip: [],
+			}),
+		).toBe(false);
+		expect(
+			shouldPersistWeeklyRefreshState({
+				live: true,
+				only: [],
+				skip: ["external-signals"],
+			}),
+		).toBe(false);
+		expect(
+			shouldPersistWeeklyRefreshState({
+				live: false,
+			}),
+		).toBe(false);
 	});
 
 	test("classifies weekend catch-up after missed weekday runs", () => {

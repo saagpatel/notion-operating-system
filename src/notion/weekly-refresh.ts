@@ -156,6 +156,11 @@ export async function runWeeklyRefreshCommand(
     ),
   };
   validateWeeklyRefreshFlags(flags);
+  const shouldPersistFullRunState = shouldPersistWeeklyRefreshState({
+    live: flags.live,
+    only: flags.only,
+    skip: flags.skip,
+  });
   if (flags.live && !flags.confirmFullLive) {
     throw new Error(
       [
@@ -221,7 +226,7 @@ export async function runWeeklyRefreshCommand(
     needsLiveWrite,
     liveExecuted,
   });
-  if (flags.live) {
+  if (shouldPersistFullRunState) {
     freshness = await persistWeeklyRefreshState({
       configPath: flags.config,
       today: flags.today,
@@ -231,8 +236,10 @@ export async function runWeeklyRefreshCommand(
       catchUp,
       preflightSummary,
       liveSummary: liveRun?.summary,
-      allowCommandCenterReplacement: !flags.only?.length && !flags.skip?.length,
+      allowCommandCenterReplacement: true,
     });
+  } else if (flags.live) {
+    logHumanMessage("Targeted live refresh completed without rewriting full-run weekly freshness state.");
   }
 
   const output: WeeklyRefreshOutput = {
@@ -1061,6 +1068,14 @@ export function buildWeeklyRefreshRecoveryPlan(
     }
   }
   return plan;
+}
+
+export function shouldPersistWeeklyRefreshState(input: {
+  live: boolean;
+  only?: string[];
+  skip?: string[];
+}): boolean {
+  return input.live && !input.only?.length && !input.skip?.length;
 }
 
 async function persistWeeklyRefreshState(input: {
