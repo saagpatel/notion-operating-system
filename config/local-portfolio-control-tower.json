@@ -214,7 +214,7 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-06-05",
+    "lastSyncAt": "2026-06-11",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 0,
@@ -223,8 +223,8 @@
       "blockedTasks": 7,
       "overdueTasks": 0,
       "backlogOverdueTasks": 45,
-      "tasksCompletedThisWeek": 19,
-      "packetsCompletedThisWeek": 4,
+      "tasksCompletedThisWeek": 0,
+      "packetsCompletedThisWeek": 1,
       "rolloverPackets": 1,
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
@@ -787,34 +787,43 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-06-06",
+    "lastSyncAt": "2026-06-11",
     "lastSyncMetrics": {
-      "totalProjects": 119,
+      "totalProjects": 138,
       "queueCounts": {
-        "Shipped": 10,
+        "Shipped": 18,
         "Needs Review": 16,
         "Needs Decision": 0,
         "Worth Finishing": 29,
-        "Resume Now": 44,
-        "Cold Storage": 12,
-        "Watch": 8
+        "Resume Now": 54,
+        "Cold Storage": 14,
+        "Watch": 7
       },
-      "overdueReviews": 62,
-      "missingNextMove": 0,
-      "missingLastActive": 0,
+      "overdueReviews": 80,
+      "missingNextMove": 1,
+      "missingLastActive": 1,
       "staleActiveProjects": 0,
-      "orphanedProjects": 2,
-      "recentBuildSessions": 39
+      "orphanedProjects": 21,
+      "recentBuildSessions": 19
     },
     "lastClosedPhase": 9
   },
   "weeklyMaintenance": {
-    "supportMaintenanceLastSyncAt": "2026-06-06",
-    "weeklyRefreshLastRunAt": "2026-06-06",
+    "supportMaintenanceLastSyncAt": "2026-06-11",
+    "weeklyRefreshLastRunAt": "2026-06-11",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
       "liveExecuted": "yes",
+      "previousRunAt": "2026-06-11",
+      "gapDays": 0,
+      "missedRunDays": 0,
+      "missedWeekdays": 0,
+      "catchUpMode": "none",
+      "staleDataThresholdDays": 2,
+      "staleBeforeRun": "no",
+      "catchUpRecovered": "no",
+      "catchUpSummary": "No missed run days since the previous refresh.",
       "preflightTotalSteps": 1,
       "preflightCleanSteps": 0,
       "preflightDriftSteps": 1,
@@ -830,6 +839,6 @@
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-06-06"
+    "weeklyReviewLastPublishedAt": "2026-06-11"
   }
 }
