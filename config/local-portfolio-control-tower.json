@@ -498,14 +498,14 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-06-05",
+    "lastSyncAt": "2026-06-12",
     "lastSyncMetrics": {
-      "mappedProjects": 119,
+      "mappedProjects": 138,
       "projectsNeedingMapping": 0,
-      "activeSources": 119,
+      "activeSources": 136,
       "riskEvents": 742,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 20,
+      "failedWorkflowRuns": 17,
       "contradictionProjects": 1
     }
   },
