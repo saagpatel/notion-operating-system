@@ -45,6 +45,7 @@ export interface OrphanClassificationResult {
 	reason: string;
 	existingKickoffPacketId?: string;
 	existingKickoffPacketTitle?: string;
+	existingKickoffPacketStatus?: string;
 }
 
 export interface OrphanClassificationCommandOptions {
@@ -53,6 +54,7 @@ export interface OrphanClassificationCommandOptions {
 	requestApproval?: boolean;
 	approve?: boolean;
 	createApprovedPackets?: boolean;
+	projectTitles?: string[];
 	today?: string;
 	config?: string;
 }
@@ -161,6 +163,9 @@ export function getGovernedOrphanAction(
 	result: OrphanClassificationResult,
 ): string {
 	if (result.existingKickoffPacketId) {
+		if (result.existingKickoffPacketStatus === "Done") {
+			return "Kickoff proof accepted; no duplicate packet";
+		}
 		return "Work existing kickoff packet before creating another";
 	}
 	if (result.disposition === "already_parked") {
@@ -179,7 +184,6 @@ export function attachExistingKickoffPackets(
 	const kickoffByProject = new Map<string, WorkPacketRecord>();
 	for (const packet of packets) {
 		if (!packet.title.startsWith("Kickoff: ")) continue;
-		if (isClosedPacketStatus(packet.status)) continue;
 		for (const projectId of packet.localProjectIds) {
 			if (!kickoffByProject.has(projectId)) {
 				kickoffByProject.set(projectId, packet);
@@ -194,19 +198,63 @@ export function attachExistingKickoffPackets(
 			...result,
 			existingKickoffPacketId: packet.id,
 			existingKickoffPacketTitle: packet.title,
+			existingKickoffPacketStatus: packet.status,
 		};
 	});
+}
+
+function normalizeProjectTitleFilters(projectTitles?: string[]): string[] {
+	const uniqueTitles: string[] = [];
+	const seen = new Set<string>();
+	for (const title of projectTitles ?? []) {
+		const trimmed = title.trim();
+		if (trimmed.length === 0 || seen.has(trimmed)) continue;
+		seen.add(trimmed);
+		uniqueTitles.push(trimmed);
+	}
+	return uniqueTitles;
+}
+
+export function filterOrphanResultsByProjectTitles(
+	results: OrphanClassificationResult[],
+	projectTitles?: string[],
+): OrphanClassificationResult[] {
+	const requestedTitles = normalizeProjectTitleFilters(projectTitles);
+	if (requestedTitles.length === 0) {
+		return results;
+	}
+
+	const resultTitleSet = new Set(results.map((result) => result.projectTitle));
+	const missingTitles = requestedTitles.filter(
+		(title) => !resultTitleSet.has(title),
+	);
+	if (missingTitles.length > 0) {
+		throw new Error(
+			`No orphan classification result matched --project-title: ${missingTitles.join(", ")}`,
+		);
+	}
+
+	const requestedTitleSet = new Set(requestedTitles);
+	return results.filter((result) => requestedTitleSet.has(result.projectTitle));
 }
 
 function renderMarkdownTable(
 	results: OrphanClassificationResult[],
 	today: string,
+	projectTitles?: string[],
 ): string {
 	const visible = results.filter((r) => r.disposition !== "already_parked");
+	const requestedTitles = normalizeProjectTitleFilters(projectTitles);
 
 	const lines: string[] = [
 		`## Orphan Classification — ${today}`,
 		"",
+		...(requestedTitles.length > 0
+			? [
+				`Scope: ${requestedTitles.map((title) => `"${title}"`).join(", ")}`,
+				"",
+			]
+			: []),
 		"| Project | Category | Portfolio Call | Last Active | Disposition | Reason | Governed Action |",
 		"|---|---|---|---|---|---|---|",
 	];
@@ -233,11 +281,20 @@ function renderMarkdownTable(
 		"",
 		"### Governed Next Commands",
 		"",
-		"- Request approvals: `npm run governance:orphan-classify -- --live --request-approval`",
-		"- Create approved kickoff packets: `npm run governance:orphan-classify -- --live --create-approved-packets`",
+		`- Request approvals: ` + "`" + `npm run governance:orphan-classify -- --live --request-approval${renderProjectTitleFlags(requestedTitles)}` + "`" + ``,
+		`- Create approved kickoff packets: ` + "`" + `npm run governance:orphan-classify -- --live --create-approved-packets${renderProjectTitleFlags(requestedTitles)}` + "`" + ``,
 	);
 
 	return lines.join("\n");
+}
+
+function renderProjectTitleFlags(projectTitles: string[]): string {
+	return projectTitles
+		.map(
+			(title) =>
+				` --project-title "${title.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`,
+		)
+		.join("");
 }
 
 export function buildKickoffPacketDraft(
@@ -449,6 +506,9 @@ export async function runOrphanClassificationCommand(
 			packetPages.map((page) => toWorkPacketRecord(page)),
 		);
 	}
+	const projectTitleFilters = normalizeProjectTitleFilters(options.projectTitles);
+	const allOrphanCount = results.length;
+	results = filterOrphanResultsByProjectTitles(results, projectTitleFilters);
 
 	const alreadyParked = results.filter(
 		(r) => r.disposition === "already_parked",
@@ -463,7 +523,7 @@ export async function runOrphanClassificationCommand(
 		(r) => !r.existingKickoffPacketId,
 	);
 
-	const markdown = renderMarkdownTable(results, today);
+	const markdown = renderMarkdownTable(results, today, projectTitleFilters);
 
 	let packetsCreated = 0;
 	let approvalRequestsUpserted = 0;
@@ -622,7 +682,13 @@ export async function runOrphanClassificationCommand(
 		live,
 		today,
 		totalProjects: projects.length,
-		orphanCount: orphans.length,
+		orphanCount: results.length,
+		...(projectTitleFilters.length > 0
+			? {
+					projectTitleFilters,
+					allOrphanCount,
+				}
+			: {}),
 		alreadyParked,
 		archiveCandidates: archiveCandidates.length,
 		viableNeedsKickoff: viableNeedsKickoff.length,
