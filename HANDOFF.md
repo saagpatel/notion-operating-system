@@ -6,7 +6,7 @@ Latest checkpoint: 2026-06-13.
 
 The real checkout is `/Users/d/Projects/Notion`. The historical `/Users/d/Notion` path is a hollow stub containing only a `.git/hooks/reference-transaction` tripwire hook; `git status` there fails with `fatal: not a git repository`. Do not write into `/Users/d/Notion`.
 
-The repo is on `main` tracking `origin/main`. At this checkpoint the working tree has repo-owned maintenance/config/doc updates from the June 13 Notion refresh; check `git status --short --branch` before acting.
+The repo is on `main` tracking `origin/main`; do not treat this file as the source of truth for the current branch or working tree. Check `git status --short --branch` before acting.
 
 The active operating phase remains Phase 12: managed write reliability and daily-driver hardening. One repo-model caveat: `config/local-portfolio-control-tower.json` still has `phaseState.currentPhase = 10`, while the hand-maintained roadmap and operating docs are on Phase 12. Do not bump that config number without extending `src/notion/local-portfolio-roadmap.ts`, which currently renders generated phases only through Phase 10.
 
