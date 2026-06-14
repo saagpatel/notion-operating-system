@@ -2,55 +2,59 @@
 
 ## Current state
 
-Latest checkpoint: 2026-05-31.
+Latest checkpoint: 2026-06-13.
 
-The repo is on `main` and currently matches `origin/main`. The active operating phase is Phase 12: managed write reliability and daily-driver hardening.
+The real checkout is `/Users/d/Projects/Notion`. The historical `/Users/d/Notion` path is a hollow stub containing only a `.git/hooks/reference-transaction` tripwire hook; `git status` there fails with `fatal: not a git repository`. Do not write into `/Users/d/Notion`.
 
-Repo-state note: do not treat this file as the source of truth for the current branch or working tree. Check `git status --short --branch` before acting on branch state.
+The repo is on `main` tracking `origin/main`. At this checkpoint the working tree has repo-owned maintenance/config/doc updates from the June 13 Notion refresh; check `git status --short --branch` before acting.
 
-The May 31 targeted maintenance pass repaired the only live weekly operating drift without running a broad weekly live refresh:
-
-- The initial May 31 weekly fast preflight found 5 clean lanes and 1 drift lane: `intelligence-sync`.
-- `npm run maintenance:weekly-refresh -- --today 2026-05-31 --only intelligence-sync --fast --live --confirm-full-live --step-timeout-minutes 5 --max-project-pages 119 --project-concurrency 2` updated exactly 1 recommendation brief.
-- The matching `intelligence-sync` dry-run returned clean afterward.
-- Final weekly fast preflight for 2026-05-31 reports 6 clean lanes, 0 drift, 0 failed/partial steps, and `needsLiveWrite=false`.
-- The current weekly page is `Week of 2026-05-25`, page ID `370c21f1-caf0-8145-b44b-ff0a118fea31`.
-- Daily Focus dry-run is clean for 2026-05-31 and points at DevToolsTranslator, JobCommandCenter, and Nocturne as the top Now items.
-- `control-tower:managed-section-audit` finds the Daily Focus managed markers on the current weekly page and keeps the recommended write mode on markdown REST until block replacement is rollback-safe.
-- Operator brief for 2026-05-31 reports 0 overdue reviews, 0 stale active projects, 0 orphan kickoff gaps, 6 stale-task packets, and 6 at-risk packets.
-- Weekly managed-section preservation is now centralized in `WEEKLY_REVIEW_MANAGED_SECTIONS`, including External Signals, Morning Brief, Trend Analysis, and Daily Focus.
-- Advisory context zip `/Users/d/Documents/Codex/2026-05-31/in-app-browser-the-user-has/outputs/chatgpt-advisory-context-2026-05-31.zip` was reviewed as evidence only. It reinforces the boundary that ChatGPT is advisory, Codex verifies local truth, Drive is not source of truth, and compact receipts should precede any consultation schema.
+The active operating phase remains Phase 12: managed write reliability and daily-driver hardening. One repo-model caveat: `config/local-portfolio-control-tower.json` still has `phaseState.currentPhase = 10`, while the hand-maintained roadmap and operating docs are on Phase 12. Do not bump that config number without extending `src/notion/local-portfolio-roadmap.ts`, which currently renders generated phases only through Phase 10.
 
 ## Verified today
 
-- `npm ci` completed and ran the prepare/build step successfully.
-- `npm run typecheck` passed.
-- `npm test` passed with 59 test files and 403 tests.
 - `npm run governance:health-report` reports healthy governance and actuation posture with no warnings.
-- `npm run control-tower:operator-brief -- --today 2026-05-31 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 0 actionable orphans, and 6 at-risk packets.
-- `npm run control-tower:packet-follow-through -- --today 2026-05-31 --limit 12` surfaces 8 follow-through packets from 9 open packets: 3 blocked and 6 overdue.
-- `npm run control-tower:today -- --today 2026-05-31 --limit 5` reports `weeklyReviewWouldChange=false`.
-- `npm run control-tower:managed-section-audit -- --today 2026-05-31` finds a 19-block Daily Focus marker span and still recommends markdown REST managed-section writes.
-- `npm run maintenance:weekly-refresh -- --today 2026-05-31 --fast --summary-first --step-timeout-minutes 5 --max-project-pages 119 --project-concurrency 2` reports 6 clean lanes and `needsLiveWrite=false` after the targeted intelligence repair.
-- `gh pr list --state open` returns no open PRs.
-- GitHub CI for the latest main merge commit is green. The Dependabot advisory workflow still fails on the accepted `exceljs -> uuid` path.
+- `npm run control-tower:schema-report` fetched 138 Local Portfolio Projects rows and confirmed the intended manual/derived/legacy field split; count fields remain stale because relation counts are not rollups.
+- `npm run control-tower:repo-mapping-audit -- --include-all-gaps --live-normalize-local-paths` applied 5 Local Path normalizations: BattleGrid, IncidentWorkbench, LegalDocsReview, OrbitForge (staging), and Relay. Follow-up state is 0 local mapping gaps and 0 GitHub mapping gaps.
+- `npm run control-tower:review-recovery -- --today 2026-06-13 --include-metadata-gaps --limit 120 --live` applied 85 review-recovery updates, clearing overdue reviews, missing Next Move, and missing Last Active to 0.
+- `npm run control-tower:operator-brief -- --today 2026-06-13 --packet-stale-days 14` now reports 0 overdue reviews, 0 stale active projects, 14 orphans needing first kickoff, 6 orphans already routed to kickoff packets, 0 stale-task packets, and 0 at-risk packets.
+- `governance:orphan-classify` now supports repeatable exact `--project-title` filters; focused tests and `npm run typecheck` pass for the selector path.
+- Scoped live orphan-classify passes approved the 4 active-infra kickoff requests and created 4 kickoff work packets: cost-tracker, cross-system-smoke, portfolio-health, and PortfolioCommandCenter. They published scoped Build Log classification reports and did not touch the other orphan candidates.
+- A scoped live Execution Tasks pass created one concrete first task for each of those kickoff packets: `Kickoff proof: cost-tracker local checks`, `Kickoff proof: cross-system-smoke read-only plan`, `Kickoff proof: portfolio-health dev checks`, and `Kickoff proof: PortfolioCommandCenter typecheck`.
+- The four approved active-infra kickoff proof tasks were worked from live local repo evidence on 2026-06-13 and marked Done. A linked Build Log proof row, `Kickoff proof batch: active-infra local checks (2026-06-13)`, records the exact passing checks for cost-tracker, portfolio-health, cross-system-smoke, and PortfolioCommandCenter. The four kickoff packets were accepted and marked Done; orphan accounting now treats completed kickoff packets as handled evidence so they do not re-enter the kickoff-creation queue.
+- DevToolsTranslator's release blocker lane was rechecked from live local repo evidence. The `0.1.0-beta.14` dry-run release manifests were regenerated for macOS, Windows, Linux, and the Chrome public extension; promotion readiness now passes `manual_smoke_marker` and `release_manifests_present`, and staged-public prerelease dry-run succeeds. The packet remains blocked on `cws_credentials_missing` and `updater_signature_missing`; updater feed/controller proof still reports `signature_verified=false` / `signature_invalid` until `UPDATER_SIGNATURE` is provided.
+- JobCommandCenter's bot-detection smoke lane was rechecked from live local repo evidence. The LinkedIn adapter/session tests pass (`python3 -m pytest tests/test_linkedin.py tests/test_playwright_base.py -q` => 16 passed), but `/Users/d/.jcc/playwright_data/linkedin` currently contains 0 files, so no persisted logged-in LinkedIn browser session exists for a truthful live Easy Apply smoke. The existing execution task remains Blocked with 2026-06-20 due date; targeted `execution-sync` refreshed the single generated project brief and the follow-up dry-run is clean.
+- Nocturne's geospatial sync proof lane was rechecked from live local repo evidence. The repo has real camera, CoreLocation, local GRDB persistence, Supabase upload/heatmap, and validation test surfaces, but no physical-device capture/GPS/share artifact was found. Local `xcodebuild` proof is blocked because this machine's active developer directory is Command Line Tools, not full Xcode. The existing execution task remains Blocked with 2026-06-20 due date; targeted `execution-sync` refreshed the single generated project brief and the follow-up dry-run is clean.
+- The stale-task queue was recovered for Nocturne, JobCommandCenter, and Afterimage by updating the existing evidence-backed tasks, not by creating placeholder work. Nocturne and JobCommandCenter are now blocked with current proof blockers and 2026-06-20 due dates; Afterimage is Ready with a current physical-device proof plan and a 2026-06-20 due date. Targeted `execution-sync` refreshed the 3 generated project execution briefs, and the follow-up dry-run is clean.
+- Targeted live weekly repairs were run lane-by-lane, not as a broad live refresh: Control Tower, Execution Sync, Intelligence Sync, External Signals, Weekly Review Packet, then a final Control Tower refresh.
+- Full generated brief coverage was refreshed during the landscape pass, and the review-recovery follow-through refreshed 85 execution briefs plus 21 recommendation briefs affected by the review metadata changes.
+- The current weekly review page is `Week of 2026-06-08`, page ID `37dc21f1-caf0-81a8-8a97-e5c23dfa35cf`.
+- Final integrated fast preflight for 2026-06-13 reports 6 clean lanes, 0 drift, 0 failed/partial steps, and `needsLiveWrite=false`.
+- Post-packet, first-task, stale-task, and active-infra proof checks converged cleanly: repo mapping has 0 local and GitHub gaps, review recovery has 0 eligible updates, targeted execution-sync repaired the expected generated brief drift from the 4 kickoff packets, the 4 first tasks, the 3 stale-task updates, and the 4 proof completions, and final weekly fast preflight is back to 6 clean lanes with `needsLiveWrite=false`.
+
+## Landscape notes
+
+- Notion Local Portfolio Projects currently has 138 rows. Latest control-tower metrics: 18 Shipped, 16 Needs Review, 0 Needs Decision, 29 Worth Finishing, 54 Resume Now, 14 Cold Storage, and 7 Watch.
+- Latest local portfolio truth from `/Users/d/Projects/GithubRepoAuditor/output/portfolio-truth-latest.json` was generated 2026-06-12 and indexes 135 projects: 13 active-infra, 4 active-product, 2 decision-needed, 90 manual-only, 16 archived, 8 experiment, and 2 parked.
+- Current attention items from that local truth are active-product: AIWorkFlow, ApplyKit, ComplianceKit, JobCommandCenter; active-infra includes GithubRepoAuditor, MCPAudit, PortfolioCommandCenter, agent-bridge, cost-tracker, cross-system-smoke, portfolio-health, and related operating repos; decision-needed items are cross-provider-egress-guard and fable-outputs.
+- Many recently touched repos are still `manual-only` under the portfolio attention contract. Do not promote them just because docs or generated evidence changed.
+- External Signal sync emitted several soft `Stored external signal brief property patch failed` messages during live batches, but the full follow-up dry-run returned clean with 0 brief drift. Treat the noisy patch path as a maintainability risk if it reappears.
 
 ## Active follow-up
 
-1. Use `npm run control-tower:operator-brief -- --today 2026-05-31 --packet-stale-days 14` to pick the next real product follow-through packet.
-2. Current packet staleness remains the main operator queue: 6 stale packets and 6 at-risk packets, led by Nocturne, JobCommandCenter, Afterimage, bridge-db, and ModelColosseum; Daily Focus ranks DevToolsTranslator highest overall.
-3. Use targeted lane repair commands for narrow drift. Do not use broad weekly live refresh as the default repair tool.
-4. Use `npm run sandbox:smoke` before risky advanced workflow changes that touch control-tower, signals, governance, rollout, or profile portability paths.
-5. Treat the consulted-node advisory workflow as external process guidance until 5-10 real consultations justify schema or repo integration.
-
-## Cross-repo operator reminders
-
-The current Daily Focus queue points at DevToolsTranslator, JobCommandCenter, Nocturne, IncidentWorkbench, and ModelColosseum. Re-check those repos directly before acting; this file is only a pointer, not live truth for other workspaces.
+1. Review recovery is clear for now: follow-up dry-run reports 0 eligible projects, 0 planned updates, 0 overdue reviews, 0 missing Next Move, and 0 missing Last Active.
+2. Orphan kickoff improved from 18 actionable orphans / 0 kickoff packets to 14 actionable orphans / 6 routed or completed kickoff packets. The four active-infra packets `Kickoff: cost-tracker`, `Kickoff: cross-system-smoke`, `Kickoff: portfolio-health`, and `Kickoff: PortfolioCommandCenter` each have a completed proof task, a linked Build Log proof row, and are now Done.
+3. The remaining orphan candidates should not be promoted automatically: most are manual-only, `evals` and `hermes-harness-foundation` are experiments, and `GithubRepoAuditor-public` is unsafe title drift against the real `/Users/d/Projects/GithubRepoAuditor` repo.
+4. Packet staleness is clear. Packet follow-through now excludes the accepted active-infra kickoff packets: open packets dropped to 4, `orphanKickoffPackets=0`, `unworkedPackets=0`, and the blocked-proof queue is led by DevToolsTranslator, JobCommandCenter, and Nocturne. DevToolsTranslator is narrowed to release secrets, JobCommandCenter is narrowed to operator LinkedIn login/session proof before a safe Easy Apply dry-run, and Nocturne is narrowed to full-Xcode plus physical iOS camera/location/sync proof.
+5. If touching roadmap phase config, first extend the generated roadmap phase model beyond Phase 10; otherwise leave `phaseState.currentPhase` alone.
+6. Use targeted lane repair commands for narrow drift. Do not use broad weekly live refresh as the default repair tool.
+7. Use `npm run sandbox:smoke` before risky advanced workflow changes that touch control-tower, signals, governance, rollout, or profile portability paths.
 
 ## Restart order
 
 1. `AGENTS.md`
 2. `HANDOFF.md`
-3. `docs/notion-roadmap.md`
-4. `README.md`
-5. `npm run control-tower:operator-brief -- --today 2026-05-31 --packet-stale-days 14`
+3. `docs/weekly-notion-maintenance-operating-model.md`
+4. `docs/notion-roadmap.md`
+5. `README.md`
+6. `git status --short --branch`
+7. `npm run maintenance:weekly-refresh -- --today 2026-06-13 --fast --summary-first`

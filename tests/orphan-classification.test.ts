@@ -5,6 +5,7 @@ import {
 	buildKickoffApprovalRequestDraft,
 	buildKickoffPacketDraft,
 	classifyOrphan,
+	filterOrphanResultsByProjectTitles,
 	getGovernedOrphanAction,
 } from "../src/notion/orphan-classification.js";
 import type { WorkPacketRecord } from "../src/notion/local-portfolio-execution.js";
@@ -168,6 +169,44 @@ describe("getGovernedOrphanAction", () => {
 	});
 });
 
+describe("filterOrphanResultsByProjectTitles", () => {
+	test("returns all orphan results when no title filters are supplied", () => {
+		const results = [
+			classifyOrphan(baseProject({ id: "proj-one", title: "Project One" }), TODAY),
+			classifyOrphan(baseProject({ id: "proj-two", title: "Project Two" }), TODAY),
+		];
+
+		expect(filterOrphanResultsByProjectTitles(results)).toBe(results);
+	});
+
+	test("filters to exact matching project titles after trimming filter input", () => {
+		const results = [
+			classifyOrphan(baseProject({ id: "proj-one", title: "Project One" }), TODAY),
+			classifyOrphan(baseProject({ id: "proj-two", title: "Project Two" }), TODAY),
+			classifyOrphan(baseProject({ id: "proj-three", title: "Project Three" }), TODAY),
+		];
+
+		expect(
+			filterOrphanResultsByProjectTitles(results, [
+				" Project Two ",
+				"Project Three",
+			]).map((result) => result.projectTitle),
+		).toEqual(["Project Two", "Project Three"]);
+	});
+
+	test("fails loudly when a requested title does not match an orphan result", () => {
+		const results = [
+			classifyOrphan(baseProject({ id: "proj-one", title: "Project One" }), TODAY),
+		];
+
+		expect(() =>
+			filterOrphanResultsByProjectTitles(results, ["project one"]),
+		).toThrow(
+			"No orphan classification result matched --project-title: project one",
+		);
+	});
+});
+
 describe("attachExistingKickoffPackets", () => {
 	test("marks viable orphans that already have an open kickoff packet", () => {
 		const [result] = attachExistingKickoffPackets(
@@ -197,7 +236,7 @@ describe("attachExistingKickoffPackets", () => {
 		);
 	});
 
-	test("ignores closed kickoff packets", () => {
+	test("treats completed kickoff packets as handled orphan evidence", () => {
 		const [result] = attachExistingKickoffPackets(
 			[classifyOrphan(baseProject({ id: "proj-closed" }), TODAY)],
 			[
@@ -210,7 +249,11 @@ describe("attachExistingKickoffPackets", () => {
 			],
 		);
 
-		expect(result?.existingKickoffPacketId).toBeUndefined();
+		expect(result?.existingKickoffPacketId).toBe("packet-closed");
+		expect(result?.existingKickoffPacketStatus).toBe("Done");
+		expect(getGovernedOrphanAction(result!)).toBe(
+			"Kickoff proof accepted; no duplicate packet",
+		);
 	});
 });
 
