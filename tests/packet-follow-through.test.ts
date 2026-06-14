@@ -92,6 +92,56 @@ describe("packet follow-through", () => {
 		expect(report.items[0]?.nextAction).toContain("Verify the external repair");
 	});
 
+	test("does not count reviewed kickoff proof packets as unworked", () => {
+		const report = buildPacketFollowThroughReport({
+			today: TODAY,
+			projects: [
+				project({
+					id: "project-cost-tracker",
+					title: "cost-tracker",
+					operatingQueue: "Resume Now",
+				}),
+			],
+			packets: [
+				packet({
+					id: "packet-kickoff",
+					title: "Kickoff: cost-tracker",
+					localProjectIds: ["project-cost-tracker"],
+					status: "Review",
+					priority: "Later",
+					executionTaskIds: ["task-proof"],
+					buildLogSessionIds: ["build-log-proof"],
+				}),
+			],
+			tasks: [
+				task({
+					id: "task-proof",
+					title: "Kickoff proof: cost-tracker local checks",
+					status: "Done",
+					workPacketIds: ["packet-kickoff"],
+					localProjectIds: ["project-cost-tracker"],
+					completedOn: TODAY,
+				}),
+			],
+		});
+
+		expect(report.orphanKickoffPackets).toBe(1);
+		expect(report.unworkedPackets).toBe(0);
+		expect(report.items[0]).toMatchObject<Partial<PacketFollowThroughItem>>({
+			packetTitle: "Kickoff: cost-tracker",
+			projectTitle: "cost-tracker",
+			lane: "orphan-kickoff",
+			state: "Needs review",
+			openTaskCount: 0,
+			completedTaskCount: 1,
+			buildLogSessionCount: 1,
+			nextAction:
+				"Accept the linked kickoff proof and close or narrow the packet.",
+		});
+		expect(report.items[0]?.evidence).toContain("1 completed tasks");
+		expect(report.items[0]?.evidence).toContain("1 build log sessions");
+	});
+
 	test("can include every open packet when requested", () => {
 		const report = buildPacketFollowThroughReport({
 			today: TODAY,
@@ -204,4 +254,3 @@ function task(overrides: Partial<ExecutionTaskRecord>): ExecutionTaskRecord {
 		...overrides,
 	};
 }
-

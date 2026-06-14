@@ -67,6 +67,8 @@ export interface PacketFollowThroughItem {
 	priority: string;
 	targetFinish: string;
 	openTaskCount: number;
+	completedTaskCount: number;
+	buildLogSessionCount: number;
 	blockedTaskCount: number;
 	overdueTaskCount: number;
 	nextAction: string;
@@ -280,7 +282,7 @@ export function buildPacketFollowThroughReport(input: {
 		).length,
 		blockedPackets: allItems.filter((item) => item.blockedTaskCount > 0).length,
 		overduePackets: allItems.filter((item) => item.overdueTaskCount > 0).length,
-		unworkedPackets: allItems.filter((item) => item.openTaskCount === 0).length,
+		unworkedPackets: allItems.filter(isPacketMissingOperatingEvidence).length,
 		items,
 		markdown,
 	};
@@ -295,6 +297,7 @@ function buildFollowThroughItem(input: {
 	const openTasks = input.tasks.filter(
 		(task) => !isExecutionTaskClosed(task.status),
 	);
+	const completedTasks = input.tasks.filter((task) => task.status === "Done");
 	const blockedTasks = openTasks.filter((task) => task.status === "Blocked");
 	const overdueTasks = openTasks.filter(
 		(task) => task.dueDate && task.dueDate < input.today,
@@ -305,6 +308,8 @@ function buildFollowThroughItem(input: {
 		blockedTaskCount: blockedTasks.length,
 		overdueTaskCount: overdueTasks.length,
 		openTaskCount: openTasks.length,
+		completedTaskCount: completedTasks.length,
+		buildLogSessionCount: input.packet.buildLogSessionIds.length,
 		today: input.today,
 	});
 	const state = classifyPacketState({
@@ -312,6 +317,8 @@ function buildFollowThroughItem(input: {
 		blockedTaskCount: blockedTasks.length,
 		overdueTaskCount: overdueTasks.length,
 		openTaskCount: openTasks.length,
+		completedTaskCount: completedTasks.length,
+		buildLogSessionCount: input.packet.buildLogSessionIds.length,
 		today: input.today,
 	});
 	const score = scorePacketFollowThrough({
@@ -322,6 +329,8 @@ function buildFollowThroughItem(input: {
 		blockedTaskCount: blockedTasks.length,
 		overdueTaskCount: overdueTasks.length,
 		openTaskCount: openTasks.length,
+		completedTaskCount: completedTasks.length,
+		buildLogSessionCount: input.packet.buildLogSessionIds.length,
 		today: input.today,
 	});
 
@@ -339,6 +348,8 @@ function buildFollowThroughItem(input: {
 		priority: input.packet.priority,
 		targetFinish: input.packet.targetFinish,
 		openTaskCount: openTasks.length,
+		completedTaskCount: completedTasks.length,
+		buildLogSessionCount: input.packet.buildLogSessionIds.length,
 		blockedTaskCount: blockedTasks.length,
 		overdueTaskCount: overdueTasks.length,
 		nextAction: buildPacketNextAction({
@@ -347,6 +358,7 @@ function buildFollowThroughItem(input: {
 			state,
 			lane,
 			openTasks,
+			completedTasks,
 			blockedTasks,
 			overdueTasks,
 		}),
@@ -354,6 +366,8 @@ function buildFollowThroughItem(input: {
 			packet: input.packet,
 			project: input.project,
 			openTaskCount: openTasks.length,
+			completedTaskCount: completedTasks.length,
+			buildLogSessionCount: input.packet.buildLogSessionIds.length,
 			blockedTaskCount: blockedTasks.length,
 			overdueTaskCount: overdueTasks.length,
 			today: input.today,
@@ -367,6 +381,8 @@ function classifyPacketLane(input: {
 	blockedTaskCount: number;
 	overdueTaskCount: number;
 	openTaskCount: number;
+	completedTaskCount: number;
+	buildLogSessionCount: number;
 	today: string;
 }): PacketFollowThroughLane {
 	const title = input.packet.title.toLowerCase();
@@ -388,7 +404,11 @@ function classifyPacketLane(input: {
 	if (input.packet.priority === "Now" || input.packet.status === "In Progress") {
 		return "active-packet";
 	}
-	if (input.openTaskCount === 0) {
+	if (
+		input.openTaskCount === 0 &&
+		input.completedTaskCount === 0 &&
+		input.buildLogSessionCount === 0
+	) {
 		return "unworked-packet";
 	}
 	return "active-packet";
@@ -399,6 +419,8 @@ function classifyPacketState(input: {
 	blockedTaskCount: number;
 	overdueTaskCount: number;
 	openTaskCount: number;
+	completedTaskCount: number;
+	buildLogSessionCount: number;
 	today: string;
 }): string {
 	if (input.packet.status === "Blocked" || input.blockedTaskCount > 0) {
@@ -416,7 +438,11 @@ function classifyPacketState(input: {
 	if (input.packet.status === "In Progress") {
 		return "In progress";
 	}
-	if (input.openTaskCount === 0) {
+	if (
+		input.openTaskCount === 0 &&
+		input.completedTaskCount === 0 &&
+		input.buildLogSessionCount === 0
+	) {
 		return "Needs first task";
 	}
 	if (input.packet.status === "Ready") {
@@ -433,6 +459,8 @@ function scorePacketFollowThrough(input: {
 	blockedTaskCount: number;
 	overdueTaskCount: number;
 	openTaskCount: number;
+	completedTaskCount: number;
+	buildLogSessionCount: number;
 	today: string;
 }): number {
 	let score = 0;
@@ -446,7 +474,13 @@ function scorePacketFollowThrough(input: {
 	if (input.packet.status === "Review") score += 12;
 	if (input.blockedTaskCount > 0) score += input.blockedTaskCount * 8;
 	if (input.overdueTaskCount > 0) score += input.overdueTaskCount * 6;
-	if (input.openTaskCount === 0) score += 10;
+	if (
+		input.openTaskCount === 0 &&
+		input.completedTaskCount === 0 &&
+		input.buildLogSessionCount === 0
+	) {
+		score += 10;
+	}
 	if (input.project?.operatingQueue === "Resume Now") score += 8;
 	if (input.project?.operatingQueue === "Worth Finishing") score += 6;
 	if (input.packet.targetFinish && input.packet.targetFinish < input.today) {
@@ -461,6 +495,7 @@ function buildPacketNextAction(input: {
 	state: string;
 	lane: PacketFollowThroughLane;
 	openTasks: ExecutionTaskRecord[];
+	completedTasks: ExecutionTaskRecord[];
 	blockedTasks: ExecutionTaskRecord[];
 	overdueTasks: ExecutionTaskRecord[];
 }): string {
@@ -471,6 +506,13 @@ function buildPacketNextAction(input: {
 		return "Check the external repair proof, then update the packet with the verified outcome.";
 	}
 	if (input.lane === "orphan-kickoff") {
+		if (
+			input.packet.status === "Review" &&
+			input.completedTasks.length > 0 &&
+			input.packet.buildLogSessionIds.length > 0
+		) {
+			return "Accept the linked kickoff proof and close or narrow the packet.";
+		}
 		return "Work this existing kickoff packet: add first operating evidence or explicitly defer the project.";
 	}
 	if (input.blockedTasks[0]) {
@@ -492,6 +534,8 @@ function buildPacketEvidence(input: {
 	packet: WorkPacketRecord;
 	project?: ControlTowerProjectRecord;
 	openTaskCount: number;
+	completedTaskCount: number;
+	buildLogSessionCount: number;
 	blockedTaskCount: number;
 	overdueTaskCount: number;
 	today: string;
@@ -501,6 +545,12 @@ function buildPacketEvidence(input: {
 		`priority ${input.packet.priority || "unset"}`,
 		`${input.openTaskCount} open tasks`,
 	];
+	if (input.completedTaskCount > 0) {
+		evidence.push(`${input.completedTaskCount} completed tasks`);
+	}
+	if (input.buildLogSessionCount > 0) {
+		evidence.push(`${input.buildLogSessionCount} build log sessions`);
+	}
 	if (input.blockedTaskCount > 0) {
 		evidence.push(`${input.blockedTaskCount} blocked tasks`);
 	}
@@ -552,7 +602,7 @@ function renderPacketFollowThroughMarkdown(input: {
 		"### Operator Rule",
 		"- Work existing kickoff packets before creating new ones.",
 		"- Treat signal-risk repair packets as external-proof follow-through: verify the repo or provider result, then close or narrow the packet.",
-		"- Convert packets with no open task into one concrete task or close them.",
+		"- Convert packets with no operating evidence into one concrete task or close them.",
 		"",
 		"### Next Commands",
 		"- `npm run control-tower:packet-follow-through -- --today " +
@@ -680,6 +730,14 @@ function comparePacketFollowThroughItems(
 		return left.targetFinish.localeCompare(right.targetFinish);
 	}
 	return left.packetTitle.localeCompare(right.packetTitle);
+}
+
+function isPacketMissingOperatingEvidence(item: PacketFollowThroughItem): boolean {
+	return (
+		item.openTaskCount === 0 &&
+		item.completedTaskCount === 0 &&
+		item.buildLogSessionCount === 0
+	);
 }
 
 function peopleValue(userId?: string): { people: Array<{ id: string }> } {

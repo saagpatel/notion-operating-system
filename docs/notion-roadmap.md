@@ -1,6 +1,6 @@
 # Notion Operating Roadmap
 
-Updated: 2026-05-31
+Updated: 2026-06-13
 
 ## Current Phase
 - Phase: 12 - Managed Write Reliability and Daily Driver Hardening
@@ -8,6 +8,23 @@ Updated: 2026-05-31
 - Objective: Make the daily driver durable now that Phase 11 can rank, publish, and audit the work queue.
 
 ## Repo State Snapshot
+- The June 13 landscape refresh reconciled path drift: `/Users/d/Projects/Notion` is the real checkout, while `/Users/d/Notion` is a hollow non-worktree stub and must not receive writes.
+- The June 13 dry-run-first refresh found 5 drifting weekly lanes and no failed or partial lanes; repairs used targeted live lane commands, not a broad live weekly refresh.
+- The June 13 review-recovery follow-through applied 85 narrow Local Portfolio Project property updates and cleared overdue reviews, missing Next Move, and missing Last Active to 0.
+- Final weekly fast preflight for 2026-06-13 reports 6 clean lanes, 0 drift, no failed or partial steps, and `needsLiveWrite=false`.
+- The repo-mapping audit normalized 5 stale Local Path values and now reports 0 local mapping gaps and 0 GitHub mapping gaps.
+- Operator brief now reports 0 overdue reviews, 0 stale active projects, 14 actionable kickoff orphans, 6 orphans with routed or completed kickoff packets, 0 stale-task packets, and 0 at-risk packets.
+- The orphan-classify command now has repeatable exact `--project-title` filters so dry-runs, approval requests, and packet creation can be scoped to evidence-backed projects instead of sweeping every viable orphan.
+- Scoped live orphan approval and approved-packet passes created 4 kickoff work packets for active-infra projects only: cost-tracker, cross-system-smoke, portfolio-health, and PortfolioCommandCenter. The other orphan candidates were left untouched under the portfolio attention contract.
+- A scoped live Execution Tasks pass created one concrete first task for each of those four kickoff packets, moving packet follow-through from 4 unworked kickoff packets to 0 unworked packets and 4 `Ready to start` orphan-kickoff packets.
+- The four active-infra kickoff proof tasks were worked from local repo evidence on 2026-06-13. A linked Build Log row, `Kickoff proof batch: active-infra local checks (2026-06-13)`, records the passing cost-tracker, portfolio-health, cross-system-smoke, and PortfolioCommandCenter checks; the four tasks are Done and the four kickoff packets have been accepted as Done.
+- DevToolsTranslator release-blocker follow-through regenerated the missing `0.1.0-beta.14` dry-run release manifests and confirmed staged-public prerelease dry-run success. Promotion readiness is now narrowed to `cws_credentials_missing` and `updater_signature_missing`; updater rollout remains blocked on `signature_invalid` until `UPDATER_SIGNATURE` is available and `signature_verified=true` is proven.
+- JobCommandCenter bot-detection follow-through confirmed the LinkedIn adapter/session tests pass, but the persisted LinkedIn Playwright profile has no session files. The existing task remains Blocked until the operator logs in through the visible browser, confirms session data, and runs one safe Easy Apply dry-run against an operator-selected listing.
+- Nocturne geospatial sync follow-through confirmed the app has camera, location, local persistence, Supabase upload, and validation-test surfaces, but no physical-device camera/GPS/share proof artifact exists yet. Local `xcodebuild` proof is blocked until full Xcode is selected instead of Command Line Tools, so the task remains Blocked pending real-device proof.
+- The June 13 stale-task pass updated the existing Nocturne, JobCommandCenter, and Afterimage execution tasks with fresh evidence-backed blockers or proof plans, then refreshed exactly 3 generated project execution briefs through targeted `execution-sync`. No broad live weekly refresh was used.
+- Review-recovery downstream drift was repaired through targeted lanes only: 85 Control Tower derived row updates plus Command Center refresh, 85 execution briefs, 21 recommendation briefs, and the existing `Week of 2026-06-08` review packet.
+- External-signal live batches emitted soft stored-brief property patch failures, but the full follow-up dry-run returned clean. Treat repeated patch noise as a maintainability risk rather than current portfolio drift.
+- Config phase-state caveat: the hand-maintained roadmap and docs are on Phase 12, but `phaseState.currentPhase` in `config/local-portfolio-control-tower.json` remains at legacy Phase 10 until the generated roadmap phase model is extended beyond Phase 10.
 - The May 31 targeted maintenance pass cleared the only current live Notion drift without using broad weekly live refresh as a repair tool.
 - The first May 31 weekly fast preflight found 5 clean lanes and 1 drift lane, `intelligence-sync`; the targeted live repair updated exactly 1 recommendation brief, and the matching follow-up dry-run returned clean.
 - Final weekly fast preflight for 2026-05-31 reports 6 clean lanes, 0 drift, no failed or partial steps, and `needsLiveWrite=false`.
@@ -49,6 +66,16 @@ Updated: 2026-05-31
 - Current focus should be Phase 12 managed write convergence and packet follow-through, not another repo-wide cleanup campaign.
 
 ## Fresh Verification Snapshot
+- `npm run governance:health-report` reports healthy governance and actuation posture with no warnings on 2026-06-13.
+- `npm run control-tower:schema-report` fetched 138 Local Portfolio Projects rows and confirmed the intended manual, derived, related, and legacy field model; 383 stale relation/count mismatches remain because count fields are not Notion rollups.
+- `npm run control-tower:repo-mapping-audit -- --include-all-gaps --live-normalize-local-paths` applied 5 supported Local Path normalizations, and the follow-up audit reports 0 local mapping gaps and 0 GitHub mapping gaps.
+- `npm run control-tower:review-recovery -- --today 2026-06-13 --include-metadata-gaps --limit 120 --live` applied 85 updates; the follow-up dry-run reports 0 eligible projects, 0 planned updates, 0 overdue reviews, 0 missing Next Move, and 0 missing Last Active.
+- `npm run control-tower:operator-brief -- --today 2026-06-13 --packet-stale-days 14` reports 0 overdue reviews, 0 stale active projects, 14 actionable orphans, 6 orphans with routed or completed kickoff evidence, 0 stale-task packets, and 0 at-risk packets.
+- Targeted live refreshes for `control-tower-sync`, `execution-sync`, `intelligence-sync`, `external-signals`, and `review-packet` completed on 2026-06-13; full-scope follow-up dry-runs are clean for Control Tower, execution, intelligence, review packet, and external-signal generated briefs.
+- Final `npm run maintenance:weekly-refresh -- --today 2026-06-13 --fast --summary-first` completed with 6 clean lanes, 0 drift lanes, no failed or partial steps, and `needsLiveWrite=false`.
+- `npm test -- tests/orphan-classification.test.ts` and `npm run typecheck` passed after adding the scoped orphan title filter.
+- `npm run governance:orphan-classify -- --today 2026-06-13 --live --request-approval --approve --project-title cost-tracker --project-title cross-system-smoke --project-title portfolio-health --project-title PortfolioCommandCenter` approved 4 scoped requests, and the matching `--create-approved-packets` command created 4 kickoff packets.
+- Post-packet, first-task, stale-task, active-infra proof, and accepted-kickoff semantics checks converged: operator brief reports 14 actionable orphans, 6 orphans with routed or completed kickoff evidence, 0 stale-task packets, and 0 at-risk packets. Packet follow-through reports `orphanKickoffPackets=0` and `unworkedPackets=0`; completed kickoff packets no longer re-enter the kickoff-creation queue. Targeted control-tower, execution, intelligence, and review-packet repairs converged, and final weekly fast preflight is 6 clean lanes with `needsLiveWrite=false`.
 - `npm ci` completed on 2026-05-31 and ran the prepare/build step successfully.
 - `npm run typecheck` passed on 2026-05-31.
 - `npm test` passed on 2026-05-31 with 59 test files and 403 tests.
@@ -162,13 +189,13 @@ Updated: 2026-05-31
 - Recent build sessions: 5
 
 ## Latest Metrics
-- Total projects: 117
+- Total projects: 138
 - Overdue reviews: 0
 - Missing next moves: 0
 - Missing last active: 0
 - Stale active projects: 0
-- Orphaned projects: 6
-- Recent build sessions: 2
+- Orphaned projects: 21
+- Recent build sessions: 20
 
 ## Phase Transition Memory
 - Transition: Phase 9 closed into Phase 10
@@ -381,6 +408,6 @@ Phase 12 - Managed Write Reliability and Daily Driver Hardening
 
 Make the daily driver more durable now that Phase 11 can rank, publish, and audit the work queue.
 
-Immediate next implementation step: follow the packet queue into DevToolsTranslator or the stale-task queue into Nocturne, then rerun `control-tower:operator-brief` to verify packet pressure moves.
+Immediate next implementation step: return to the blocked packet queue for DevToolsTranslator, JobCommandCenter, or Nocturne, then rerun `control-tower:packet-follow-through` plus `control-tower:operator-brief`.
 
-Immediate operating step: recover the top stale packet in its project repo, starting with Nocturne or DevToolsTranslator, then rerun `control-tower:operator-brief` to verify the packet-staleness signal moves for real.
+Immediate operating step: work one real proof item from the blocked packet queue, starting with DevToolsTranslator's release secrets, JobCommandCenter's LinkedIn session/dry-run proof, or Nocturne's physical geospatial verification.

@@ -1464,6 +1464,13 @@ export const cliRegistry: CliCommandDefinition[] = [
 				commonOptions.today,
 				commonOptions.config,
 				{
+					name: "project-title",
+					description:
+						"Repeatable exact Local Portfolio Project title filter for orphan dry-runs and live writes.",
+					type: "string-array",
+					valueName: "title",
+				},
+				{
 					name: "create-packets",
 					description:
 						"Create work_packets rows for viable_needs_kickoff projects (requires --live).",
@@ -1497,6 +1504,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						positionals: parsed.positionals,
 					}),
 					createPackets: asBoolean(parsed.options["create-packets"]),
+					projectTitles: asStringArray(parsed.options["project-title"]),
 					requestApproval: asBoolean(parsed.options["request-approval"]),
 					approve: asBoolean(parsed.options.approve),
 					createApprovedPackets: asBoolean(
