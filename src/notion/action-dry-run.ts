@@ -45,6 +45,7 @@ import {
 } from "./local-portfolio-actuation.js";
 import { toExternalActionExecutionRecord } from "./local-portfolio-actuation-live.js";
 import { AppError } from "../utils/errors.js";
+import { UNTRUSTED_CONTENT_NOTICE, untrustedMarkdownEvidence } from "./untrusted-content.js";
 
 const ACTUATION_PACKET_START = "<!-- codex:notion-actuation-packet:start -->";
 const ACTUATION_PACKET_END = "<!-- codex:notion-actuation-packet:end -->";
@@ -237,7 +238,7 @@ export function buildActionDryRunOperatorSummary(input: {
   safetyNotes: string[];
 } {
   const target = input.preparation.target
-    ? `${input.preparation.target.source.provider}: ${input.preparation.target.source.title}`
+    ? `${input.preparation.target.source.provider}: ${input.preparation.target.source.id}`
     : "unresolved target";
   if (input.validationNotes.length > 0) {
     return {
@@ -267,6 +268,98 @@ export function buildActionDryRunOperatorSummary(input: {
       "Execute through governance action-runner only; do not mutate the provider manually.",
     ],
   };
+}
+
+export function buildActionDryRunExecutionMarkdown(input: {
+  request: ActionRequestRecord;
+  policy: ActionPolicyRecord;
+  actionKey: ActuationActionKey;
+  preparation: ActionDryRunPreparation;
+  operatorSummary: ReturnType<typeof buildActionDryRunOperatorSummary>;
+  validationNotes: string[];
+  preflightNotes: string[];
+  payload: ActionDryRunPreparation["payload"];
+  executionTitle: string;
+  executedAt: string;
+}): string {
+  const target = input.preparation.target;
+  const evidenceLines = [
+    ...untrustedMarkdownEvidence("Action request title", input.request.title),
+    ...(target
+      ? [
+          ...untrustedMarkdownEvidence("Target source title", target.source.title),
+          ...untrustedMarkdownEvidence("Target source identifier", target.source.identifier),
+        ]
+      : []),
+    ...(input.payload?.provider === "GitHub"
+      ? [
+          ...untrustedMarkdownEvidence("Payload title", input.payload.title, "(comment only)"),
+          ...untrustedMarkdownEvidence("Payload body preview", input.payload.body, "(empty)"),
+        ]
+      : []),
+  ];
+
+  return [
+    `# ${input.executionTitle}`,
+    "",
+    `- Action request: [request page](${input.request.url})`,
+    `- Policy: ${input.policy.title}`,
+    `- Mode: Dry Run`,
+    `- Status: ${input.validationNotes.length > 0 ? "Failed" : "Succeeded"}`,
+    `- Executed at: ${input.executedAt}`,
+    "",
+    "## Operator Summary",
+    `- Status: ${input.operatorSummary.status}`,
+    `- Target: ${input.operatorSummary.target}`,
+    `- Next step: ${input.operatorSummary.nextStep}`,
+    ...(input.operatorSummary.safetyNotes.length > 0
+      ? input.operatorSummary.safetyNotes.map((note) => `- Safety: ${note}`)
+      : []),
+    "",
+    "## Validation Notes",
+    ...(input.validationNotes.length > 0 ? input.validationNotes.map((note) => `- ${note}`) : ["- Dry run succeeded."]),
+    ...(input.preflightNotes.length > 0
+      ? [
+          "",
+          `## ${input.payload?.provider === "Vercel" ? "Vercel" : "GitHub"} Preflight`,
+          UNTRUSTED_CONTENT_NOTICE,
+          ...input.preflightNotes.flatMap((note, index) => untrustedMarkdownEvidence(`Preflight note ${index + 1}`, note)),
+        ]
+      : []),
+    "",
+    "## Payload Preview",
+    ...(input.payload
+      ? input.payload.provider === "GitHub"
+        ? [
+            `- Repo: ${input.payload.owner}/${input.payload.repo}`,
+            `- Title: see quoted payload title below`,
+            `- Body length: ${input.payload.body?.length ?? 0}`,
+          ]
+        : input.payload.actionKey === "vercel.redeploy"
+          ? [
+              `- Project: ${input.payload.projectName}`,
+              `- Environment: ${input.payload.targetEnvironment}`,
+              `- Deployment basis: ${input.payload.deploymentId}`,
+            ]
+          : input.payload.actionKey === "vercel.promote"
+            ? [
+                `- Project: ${input.payload.projectName}`,
+                `- Environment: ${input.payload.targetEnvironment}`,
+                `- Current deployment: ${input.payload.currentDeploymentId}`,
+                `- Promote target: ${input.payload.promoteDeploymentId}`,
+              ]
+            : [
+                `- Project: ${input.payload.projectName}`,
+                `- Environment: ${input.payload.targetEnvironment}`,
+                `- Current deployment: ${input.payload.currentDeploymentId}`,
+                `- Rollback target: ${input.payload.rollbackDeploymentId}`,
+              ]
+      : ["- Payload preview unavailable."]),
+    "",
+    "## Quoted Untrusted Evidence",
+    UNTRUSTED_CONTENT_NOTICE,
+    ...evidenceLines,
+  ].join("\n");
 }
 
 export interface ActionDryRunCommandOptions {
@@ -366,53 +459,19 @@ export async function runActionDryRunCommand(
       validationNotes,
       readyForLive: readiness.readyForLive,
     });
-    const executionTitle = `Dry run - ${request.title} - ${now.slice(0, 19)}`;
-    const markdown = [
-      `# ${executionTitle}`,
-      "",
-      `- Action request: [${request.title}](${request.url})`,
-      `- Policy: ${policy.title}`,
-      `- Mode: Dry Run`,
-      `- Status: ${validationNotes.length > 0 ? "Failed" : "Succeeded"}`,
-      `- Executed at: ${now}`,
-      "",
-      "## Operator Summary",
-      `- Status: ${operatorSummary.status}`,
-      `- Target: ${operatorSummary.target}`,
-      `- Next step: ${operatorSummary.nextStep}`,
-      ...(operatorSummary.safetyNotes.length > 0
-        ? operatorSummary.safetyNotes.map((note) => `- Safety: ${note}`)
-        : []),
-      "",
-      "## Validation Notes",
-      ...(validationNotes.length > 0 ? validationNotes.map((note) => `- ${note}`) : ["- Dry run succeeded."]),
-      ...(preflightNotes.length > 0 ? ["", `## ${payload?.provider === "Vercel" ? "Vercel" : "GitHub"} Preflight`, ...preflightNotes.map((note) => `- ${note}`)] : []),
-      "",
-      "## Payload Preview",
-      ...(payload
-        ? payload.provider === "GitHub"
-          ? [`- Repo: ${payload.owner}/${payload.repo}`, `- Title: ${payload.title || "(comment only)"}`, `- Body length: ${payload.body?.length ?? 0}`]
-          : payload.actionKey === "vercel.redeploy"
-            ? [
-              `- Project: ${payload.projectName}`,
-              `- Environment: ${payload.targetEnvironment}`,
-              `- Deployment basis: ${payload.deploymentId}`,
-            ]
-            : payload.actionKey === "vercel.promote"
-              ? [
-                  `- Project: ${payload.projectName}`,
-                  `- Environment: ${payload.targetEnvironment}`,
-                  `- Current deployment: ${payload.currentDeploymentId}`,
-                  `- Promote target: ${payload.promoteDeploymentId}`,
-                ]
-            : [
-                `- Project: ${payload.projectName}`,
-                `- Environment: ${payload.targetEnvironment}`,
-                `- Current deployment: ${payload.currentDeploymentId}`,
-                `- Rollback target: ${payload.rollbackDeploymentId}`,
-              ]
-        : ["- Payload preview unavailable."]),
-    ].join("\n");
+    const executionTitle = `Dry run - ${request.id} - ${now.slice(0, 19)}`;
+    const markdown = buildActionDryRunExecutionMarkdown({
+      request,
+      policy,
+      actionKey,
+      preparation,
+      operatorSummary,
+      validationNotes,
+      preflightNotes,
+      payload,
+      executionTitle,
+      executedAt: now,
+    });
 
     const created = await api.createPageWithMarkdown({
       parent: { data_source_id: phase7.executions.dataSourceId },

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -83,6 +83,47 @@ describe("package surface", () => {
     );
 
     expect(directNotionScripts).toEqual([]);
+  });
+
+  test("active operator surfaces do not point agents at the historical checkout stub", async () => {
+    const activeSurfaces = [
+      "AGENTS.md",
+      "docs/claude-code-handoff.md",
+      "docs/audit-prompt-templates.md",
+      "docs/personal-ops-coordination-ingestion.md",
+      "src/notion/repo-mapping-audit.ts",
+    ];
+
+    for (const file of activeSurfaces) {
+      const content = await readFile(path.join(repoRoot, file), "utf8");
+      expect(content, file).not.toContain("/Users/d/Notion");
+    }
+  });
+
+  test("environment example documents the active runtime env surface", async () => {
+    const envExample = await readFile(path.join(repoRoot, ".env.example"), "utf8");
+    const expectedKeys = [
+      "NOTION_PROFILE",
+      "NOTION_TOKEN",
+      "NOTION_LOG_DIR",
+      "NOTION_RETRY_MAX_ATTEMPTS",
+      "NOTION_HTTP_TIMEOUT_MS",
+      "NOTION_DESTINATIONS_PATH",
+      "GITHUB_TOKEN",
+      "VERCEL_TOKEN",
+      "GOOGLE_CALENDAR_TOKEN",
+      "GITHUB_APP_ID",
+      "GITHUB_APP_PRIVATE_KEY_PEM",
+      "GITHUB_APP_WEBHOOK_SECRET",
+      "VERCEL_WEBHOOK_SECRET",
+      "GITHUB_BREAK_GLASS_TOKEN",
+      "VERCEL_BREAK_GLASS_TOKEN",
+    ];
+
+    for (const key of expectedKeys) {
+      expect(envExample, key).toContain(`${key}=`);
+    }
+    expect(envExample).not.toContain("secret_xxx");
   });
 
   test("preferred and legacy npm aliases both work for representative durable workflows", async () => {
@@ -202,7 +243,69 @@ describe("package surface", () => {
       expect(result.stderr).toBe("");
     }
   }, 20_000);
+
+  test("local source has no unreviewed LLM generation callsites", async () => {
+    const sourceFiles = await walkTsFiles("src");
+    const generationPatterns = [
+      /\/api\/generate/,
+      /chat\.completions/,
+      /responses\.create/,
+      /openai\.chat/,
+      /generateText\(/,
+    ];
+    const matches: string[] = [];
+
+    for (const file of sourceFiles) {
+      const content = await readFile(path.join(repoRoot, file), "utf8");
+      if (generationPatterns.some((pattern) => pattern.test(content))) {
+        matches.push(file);
+      }
+    }
+
+    expect(matches).toEqual([]);
+  });
+
+  test("agent-readable Notion renderers keep untrusted-content wrappers", async () => {
+    const guardedFiles = [
+      "src/notion/action-dry-run.ts",
+      "src/notion/coordination-snapshot-ingest.ts",
+      "src/notion/operational-rollout.ts",
+    ];
+
+    for (const file of guardedFiles) {
+      const content = await readFile(path.join(repoRoot, file), "utf8");
+      expect(content, file).toContain("untrustedMarkdownEvidence");
+    }
+  });
+
+  test("live mutation surfaces keep explicit dry-run and confirmation gates", async () => {
+    const actionRunner = await readFile(path.join(repoRoot, "src/notion/action-runner.ts"), "utf8");
+    const cliRegistry = await readFile(path.join(repoRoot, "src/cli/registry.ts"), "utf8");
+
+    expect(actionRunner).toContain('const mode = options.mode ?? "dry-run";');
+    expect(cliRegistry).toContain('defaultValue: "dry-run"');
+    expect(cliRegistry).toContain('name: "write-scope"');
+    expect(cliRegistry).toContain('name: "confirm-live"');
+    expect(cliRegistry).toContain('name: "confirm-full-live"');
+  });
 });
+
+async function walkTsFiles(relativeDir: string): Promise<string[]> {
+  const root = path.join(repoRoot, relativeDir);
+  const entries = await readdir(root, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const relativePath = path.join(relativeDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await walkTsFiles(relativePath)));
+    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      files.push(relativePath);
+    }
+  }
+
+  return files;
+}
 
 async function runNpmScript(
   scriptName: string,

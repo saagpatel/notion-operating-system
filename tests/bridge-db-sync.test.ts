@@ -75,6 +75,7 @@ vi.mock("../src/utils/notification-hub.js", () => ({
 }));
 
 import {
+	assertDataSourceSchemaProperties,
 	type BridgeDbRow,
 	buildBuildLogTitle,
 	buildProjectNameIndex,
@@ -135,6 +136,22 @@ function resetBridgeSyncMocks(): void {
 			id: dataSourceId,
 			titlePropertyName:
 				dataSourceId === "projects-ds" ? "Project Name" : "Name",
+			properties:
+				dataSourceId === "projects-ds"
+					? {
+							"Project Name": { name: "Project Name", type: "title", writable: true },
+						}
+					: dataSourceId === "35e04e4d-bcd8-45c0-b783-238edef210f7"
+						? {
+								"Project Name": { name: "Project Name", type: "title", writable: true },
+							}
+						: {
+								Name: { name: "Name", type: "title", writable: true },
+								"Session Date": { name: "Session Date", type: "date", writable: true },
+								"Local Project": { name: "Local Project", type: "relation", writable: true },
+								Project: { name: "Project", type: "relation", writable: true },
+								Tags: { name: "Tags", type: "multi_select", writable: true },
+							},
 		}),
 	);
 	bridgeSyncMocks.createPageWithMarkdown.mockResolvedValue({
@@ -557,6 +574,36 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
 	});
 
+	test("aborts before any Notion write when the Build Log schema drifts", async () => {
+		bridgeSyncMocks.retrieveDataSource.mockImplementation(
+			async (dataSourceId: string) => ({
+				id: dataSourceId,
+				titlePropertyName:
+					dataSourceId === "projects-ds" ? "Project Name" : "Name",
+				properties:
+					dataSourceId === "projects-ds" ||
+					dataSourceId === "35e04e4d-bcd8-45c0-b783-238edef210f7"
+						? {
+								"Project Name": { name: "Project Name", type: "title", writable: true },
+							}
+						: {
+								Name: { name: "Name", type: "title", writable: true },
+								"Session Date": { name: "Session Date", type: "rich_text", writable: true },
+								"Local Project": { name: "Local Project", type: "relation", writable: true },
+								Project: { name: "Project", type: "relation", writable: true },
+								Tags: { name: "Tags", type: "multi_select", writable: true },
+							},
+			}),
+		);
+
+		await expect(runBridgeDbSyncCommand({ live: true })).rejects.toThrow(
+			/Build Log schema drift/,
+		);
+
+		expect(bridgeSyncMocks.session.getShippedEvents).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
+	});
+
 	test("escalates to warn and reports the unrouted count when a row matches no project (F9)", async () => {
 		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
 			baseRow({
@@ -785,5 +832,29 @@ describe("buildProjectNameIndex", () => {
 		]);
 		expect(index.get("mcpaudit")).toBe("proj-4");
 		expect(index.get("githubrepoauditor")).toBe("proj-5");
+	});
+});
+
+describe("assertDataSourceSchemaProperties", () => {
+	test("describes every missing or mismatched schema property", () => {
+		expect(() =>
+			assertDataSourceSchemaProperties(
+				"Build Log",
+				{
+					titlePropertyName: "Name",
+					properties: {
+						Name: { type: "title" },
+						Tags: { type: "rich_text" },
+					},
+				},
+				[
+					{ name: "Name", type: "title" },
+					{ name: "Tags", type: "multi_select" },
+					{ name: "Session Date", type: "date" },
+				],
+			),
+		).toThrow(
+			"Build Log schema drift blocks bridge-db sync: Tags expected multi_select, got rich_text; Session Date expected date, got missing",
+		);
 	});
 });

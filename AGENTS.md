@@ -94,12 +94,12 @@ Only stop for:
 - Use `npm run maintenance:weekly-refresh` only when the user explicitly wants the portfolio-wide weekly refresh sequence.
 - Use targeted shared-CLI commands such as `npm run portfolio-audit:control-tower-sync` when the user asks for a narrower portfolio-wide refresh.
 - Do not use portfolio-wide refresh commands as the default follow-up after publishing or wiring a single project. For single-project pushes, follow the scoped rule above and set the project fields directly.
-- Saved view definitions live in `/Users/d/Notion/config/local-portfolio-views.json`.
+- Saved view definitions live in `/Users/d/Projects/Notion/config/local-portfolio-views.json`.
 - The view config now also stores the live Notion view IDs for the target eight views.
 - Use `npm run portfolio-audit:views-plan` to print the exact saved-view plan for future sessions.
 - Use `npm run portfolio-audit:views-validate` to confirm the config still matches the live data source schema before an MCP view sync.
 - Preferred view-sync strategy: direct REST for data, Notion MCP for saved views, Playwright only as fallback if MCP auth is unavailable.
-- Phase-one control-tower rules and mutable phase state live in `/Users/d/Notion/config/local-portfolio-control-tower.json`.
+- Phase-one control-tower rules and mutable phase state live in `/Users/d/Projects/Notion/config/local-portfolio-control-tower.json`.
 - `portfolio-audit:control-tower-sync` should stay dry-run by default and only write live when `--live` is explicit.
 - Do not run `portfolio-audit:control-tower-sync` or `portfolio-audit:external-signal-sync` as the default final step for a single-project push. Save those commands for explicit portfolio-wide refresh requests.
 - `portfolio-audit:review-packet` should publish the current weekly review from build-log and project state rather than manual reconstruction.

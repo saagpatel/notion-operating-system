@@ -37,6 +37,10 @@ import {
 	toActionPolicyRecord,
 	toActionRequestRecord,
 } from "./local-portfolio-governance-live.js";
+import {
+	UNTRUSTED_CONTENT_NOTICE,
+	untrustedMarkdownEvidence,
+} from "./untrusted-content.js";
 
 export type OperationalRolloutClassification =
 	| "keep Notion-only"
@@ -1160,6 +1164,10 @@ export function renderGitHubActionRequestMarkdown(input: {
 		input.actionKey === "github.create_issue"
 			? "## Requested issue"
 			: "## Requested change";
+	const requestedChange =
+		input.requestedChange ||
+		input.projectNextMove ||
+		"Create a first tracked next step for the project.";
 	return [
 		`# ${input.title}`,
 		"",
@@ -1170,12 +1178,12 @@ export function renderGitHubActionRequestMarkdown(input: {
 		input.targetNumber ? `- Target issue: #${input.targetNumber}` : "",
 		"",
 		requestedHeading,
-		input.requestedChange ||
-			input.projectNextMove ||
-			"Create a first tracked next step for the project.",
+		UNTRUSTED_CONTENT_NOTICE,
+		...untrustedMarkdownEvidence("Requested action text", requestedChange),
 		"",
 		"## Purpose",
-		input.purpose,
+		UNTRUSTED_CONTENT_NOTICE,
+		...untrustedMarkdownEvidence("Purpose text", input.purpose),
 	]
 		.filter(Boolean)
 		.join("\n");

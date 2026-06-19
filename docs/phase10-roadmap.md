@@ -68,8 +68,8 @@ Three projects on this machine already produce the data the Notion OS needs. Non
 
 ### bridge-db (`/Users/d/Projects/bridge-db`)
 
-- **What it is:** SQLite-backed MCP server (WAL mode). Shared state bus between Claude.ai, Claude Code, and Codex. 16 typed MCP tools across 6 modules.
-- **Tools:** `activity` (log_activity, get_recent_activity, get_shipped_events, confirm_shipped_sync, mark_shipped_processed), `handoffs` (create_handoff, get_pending_handoffs, pick_up_handoff, clear_handoff), `context` (update_section, get_section, get_all_sections), `snapshots` (save_snapshot, get_latest_snapshot), `cost` (record_cost, get_cost_history), `export` (export_bridge_markdown → `~/.claude/projects/-Users-d/memory/claude_ai_context.md`).
+- **What it is:** SQLite-backed MCP server (WAL mode). Shared state bus between Claude.ai, Claude Code, and Codex. Verify the current MCP surface from `/Users/d/Projects/bridge-db` source before copying tool counts.
+- **Tools:** `activity` (log_activity, get_recent_activity, get_shipped_events, confirm_shipped_sync, record_shipped_event_disposition, mark_shipped_processed for non-shipped operational rows only), `handoffs` (create_handoff, get_pending_handoffs, pick_up_handoff, clear_handoff), `context` (update_section, get_section, get_all_sections), `snapshots` (save_snapshot, get_latest_snapshot), `cost` (record_cost, get_cost_history), `export` (export_bridge_markdown → `~/.claude/projects/-Users-d/memory/claude_ai_context.md`).
 - **Data it owns:** SQLite at `~/.local/share/bridge-db/bridge.db` — activity log, handoffs queue, context sections, snapshots, cost history.
 - **The gap:** `get_shipped_events` + `confirm_shipped_sync` is a natural polling target. Anything an agent marks "shipped" should propagate to `build_log` with a durable Notion receipt. Pending handoffs could become `work_packets` rows. Cost history is a signal row. No Notion writer exists yet.
 
