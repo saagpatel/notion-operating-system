@@ -15,10 +15,11 @@ import {
 export const DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH =
 	"./config/local-portfolio-control-tower.json";
 
-
 // Type declarations now live in ./control-tower/types.ts — re-exported so existing
 // importers are unaffected, and re-imported below for this module's internal use.
 export * from "./control-tower/types.js";
+
+import { addDays, compareIsoDate, diffDays } from "./control-tower/dates.js";
 import type {
 	ControlTowerBuildSessionRecord,
 	ControlTowerMetrics,
@@ -30,6 +31,8 @@ import type {
 	StaleActiveRescueItem,
 	StaleActiveRescueReason,
 } from "./control-tower/types.js";
+
+export { addDays, compareIsoDate, diffDays } from "./control-tower/dates.js";
 
 export async function loadLocalPortfolioControlTowerConfig(
 	filePath = loadRuntimeConfig().paths.controlTowerConfigPath,
@@ -369,7 +372,10 @@ function classifyStaleActiveReason(
 	if (!project.lastActive.trim()) {
 		return "missing-last-active";
 	}
-	if (project.nextReviewDate && compareIsoDate(project.nextReviewDate, today) <= 0) {
+	if (
+		project.nextReviewDate &&
+		compareIsoDate(project.nextReviewDate, today) <= 0
+	) {
 		return "overdue-review";
 	}
 	if (project.buildSessionCount === 0) {
@@ -433,13 +439,26 @@ function buildStaleActiveEvidence(
 ): string[] {
 	const evidence: string[] = [];
 	evidence.push(`freshness=${project.evidenceFreshness ?? "Stale"}`);
-	evidence.push(project.lastActive ? `lastActive=${project.lastActive}` : "lastActive=missing");
-	evidence.push(project.nextReviewDate ? `nextReviewDate=${project.nextReviewDate}` : "nextReviewDate=missing");
-	if (project.nextReviewDate && compareIsoDate(project.nextReviewDate, today) <= 0) {
+	evidence.push(
+		project.lastActive
+			? `lastActive=${project.lastActive}`
+			: "lastActive=missing",
+	);
+	evidence.push(
+		project.nextReviewDate
+			? `nextReviewDate=${project.nextReviewDate}`
+			: "nextReviewDate=missing",
+	);
+	if (
+		project.nextReviewDate &&
+		compareIsoDate(project.nextReviewDate, today) <= 0
+	) {
 		evidence.push("review=overdue");
 	}
 	evidence.push(`buildSessions=${project.buildSessionCount}`);
-	evidence.push(`supportLinks=${project.relatedResearchCount + project.supportingSkillsCount + project.linkedToolCount}`);
+	evidence.push(
+		`supportLinks=${project.relatedResearchCount + project.supportingSkillsCount + project.linkedToolCount}`,
+	);
 	if (project.evidenceConfidence) {
 		evidence.push(`confidence=${project.evidenceConfidence}`);
 	}
@@ -493,11 +512,12 @@ export function renderCommandCenterMarkdown(input: {
 		),
 	).slice(0, 8);
 	const staleActive = sortProjectsByRecent(
-		input.projects.filter(
-			(project) => isStaleActiveProject(project),
-		),
+		input.projects.filter((project) => isStaleActiveProject(project)),
 	).slice(0, 8);
-	const staleRescueItems = buildStaleActiveRescueItems(input.projects, input.today);
+	const staleRescueItems = buildStaleActiveRescueItems(
+		input.projects,
+		input.today,
+	);
 	const orphaned = sortProjectsByRecent(
 		input.projects.filter(
 			(project) =>
@@ -804,7 +824,10 @@ function renderStaleActiveRescueSummary(
 	const counts = summarizeStaleActiveRescue(items);
 	const activeCounts = Object.entries(counts)
 		.filter(([, count]) => count > 0)
-		.map(([reason, count]) => `${formatStaleReason(reason as StaleActiveRescueReason)} ${count}`);
+		.map(
+			([reason, count]) =>
+				`${formatStaleReason(reason as StaleActiveRescueReason)} ${count}`,
+		);
 	return [
 		`- Rescue queue: ${items.length} active projects with stale evidence.`,
 		`- Main reasons: ${activeCounts.join("; ")}.`,
@@ -3203,37 +3226,6 @@ function newestIsoDate(values: string[]): string {
 			.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
 			.sort((left, right) => right.localeCompare(left))[0] ?? ""
 	);
-}
-
-export function addDays(date: string, days: number): string {
-	const parsed = new Date(`${date}T00:00:00Z`);
-	if (Number.isNaN(parsed.getTime())) {
-		return "";
-	}
-	parsed.setUTCDate(parsed.getUTCDate() + days);
-	return parsed.toISOString().slice(0, 10);
-}
-
-export function diffDays(fromDate: string, toDate: string): number {
-	const from = new Date(`${fromDate}T00:00:00Z`);
-	const to = new Date(`${toDate}T00:00:00Z`);
-	if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-		return Number.MAX_SAFE_INTEGER;
-	}
-	return Math.floor((to.getTime() - from.getTime()) / 86_400_000);
-}
-
-export function compareIsoDate(left: string, right: string): number {
-	if (!left && !right) {
-		return 0;
-	}
-	if (!left) {
-		return -1;
-	}
-	if (!right) {
-		return 1;
-	}
-	return left.localeCompare(right);
 }
 
 function formatProjectBullets(
