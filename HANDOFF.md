@@ -10,6 +10,14 @@ The repo is on `main` tracking `origin/main`; do not treat this file as the sour
 
 The active operating phase remains Phase 12: managed write reliability and daily-driver hardening. One repo-model caveat: `config/local-portfolio-control-tower.json` still has `phaseState.currentPhase = 10`, while the hand-maintained roadmap and operating docs are on Phase 12. Do not bump that config number without extending `src/notion/local-portfolio-roadmap.ts`, which currently renders generated phases only through Phase 10.
 
+## Local closeout note - 2026-06-14
+
+- Safe local cleanup restored `.env.example` to the active runtime environment surface with blank secret values, including `GITHUB_TOKEN`, `NOTION_PROFILE`, `NOTION_HTTP_TIMEOUT_MS`, `GOOGLE_CALENDAR_TOKEN`, `VERCEL_WEBHOOK_SECRET`, and break-glass token placeholders. Bridge-db auth placeholders were not kept because this repo source does not currently parse them.
+- `tests/package-surface.test.ts` now guards the `.env.example` runtime surface, active-path cleanup, untrusted-content wrappers for agent-readable Notion markdown, absence of local LLM generation callsites, and explicit dry-run/live confirmation gates.
+- Local verification after the cleanup: `git diff --check`, `npm run typecheck`, targeted changed-surface tests, full `npm test`, and `npm run build` all passed.
+- Read-only/dry-run operational verification on 2026-06-14: `npm run governance:health-report` returned healthy with 0 warnings, and `npm run maintenance:weekly-refresh -- --today 2026-06-14 --fast --summary-first` returned 6 clean lanes, 0 drift, 0 failed/partial steps, and `needsLiveWrite=false`; no live Notion writes were run.
+- `config/local-portfolio-control-tower.json` still has local generated metric drift for 2026-06-14 (`overdueReviews=14`, `recentBuildSessions=17`, `weeklyReviewLastPublishedAt=2026-06-14`). Treat that file as an operational-state split/defer candidate unless a later session intentionally lands a generated-state checkpoint.
+
 ## Verified today
 
 - `npm run governance:health-report` reports healthy governance and actuation posture with no warnings.
@@ -34,8 +42,9 @@ The active operating phase remains Phase 12: managed write reliability and daily
 ## Landscape notes
 
 - Notion Local Portfolio Projects currently has 138 rows. Latest control-tower metrics: 18 Shipped, 16 Needs Review, 0 Needs Decision, 29 Worth Finishing, 54 Resume Now, 14 Cold Storage, and 7 Watch.
-- Latest local portfolio truth from `/Users/d/Projects/GithubRepoAuditor/output/portfolio-truth-latest.json` was generated 2026-06-12 and indexes 135 projects: 13 active-infra, 4 active-product, 2 decision-needed, 90 manual-only, 16 archived, 8 experiment, and 2 parked.
-- Current attention items from that local truth are active-product: AIWorkFlow, ApplyKit, ComplianceKit, JobCommandCenter; active-infra includes GithubRepoAuditor, MCPAudit, PortfolioCommandCenter, agent-bridge, cost-tracker, cross-system-smoke, portfolio-health, and related operating repos; decision-needed items are cross-provider-egress-guard and fable-outputs.
+- Latest local portfolio truth lives at `/Users/d/Projects/GithubRepoAuditor/output/portfolio-truth-latest.json`. It regenerates frequently, so do not copy counts or active-project sets from this handoff. Re-query the JSON before using portfolio counts in another doc:
+  `jq '{generated_at,total:(.projects|length),counts:.source_summary.attention_state_counts}' /Users/d/Projects/GithubRepoAuditor/output/portfolio-truth-latest.json`.
+- For current active-product or active-infra membership, inspect `.projects[].derived.attention_state` in that JSON instead of trusting an inlined list. Do not inline the full decision-needed set; inspect the JSON when that lane matters.
 - Many recently touched repos are still `manual-only` under the portfolio attention contract. Do not promote them just because docs or generated evidence changed.
 - External Signal sync emitted several soft `Stored external signal brief property patch failed` messages during live batches, but the full follow-up dry-run returned clean with 0 brief drift. Treat the noisy patch path as a maintainability risk if it reappears.
 

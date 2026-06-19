@@ -13,7 +13,7 @@ Always apply this database split during audits:
 ## Full Portfolio Audit And Remediation Prompt
 
 ```text
-Plan mode. Same workspace as the other chats: /Users/d/Notion.
+Plan mode. Same workspace as the other chats: /Users/d/Projects/Notion.
 
 All project batches have now been completed. This chat is for a full end-to-end audit of the entire in-scope portfolio, followed by an implementation plan for fixing anything that is still wrong.
 
@@ -41,7 +41,7 @@ What “done” means:
 - Any remaining gaps, drift, duplication, or inconsistencies are identified and turned into actionable repair work.
 
 Please inspect the current state across:
-- the Notion repo at /Users/d/Notion
+- the Notion repo at /Users/d/Projects/Notion
 - the local project folders under /Users/d/Projects
 - the current Notion control-tower/project state
 - Git/GitHub wiring and remotes where relevant

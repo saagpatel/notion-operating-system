@@ -399,6 +399,7 @@ describe("local portfolio control tower rules", () => {
 					notionProjectionOnlyRows: {
 						"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
 					},
+					notionTruthShadowRows: {},
 				},
 				projectPages: [
 					projectPage({
@@ -453,6 +454,9 @@ describe("local portfolio control tower rules", () => {
 						notion_projection_only_rows: {
 							"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
 						},
+						notion_truth_shadow_rows: {
+							"PortfolioCommandCenter-public": "PortfolioCommandCenter",
+						},
 					},
 				}),
 			);
@@ -465,6 +469,9 @@ describe("local portfolio control tower rules", () => {
 				notionProjectionOnlyRows: {
 					"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
 				},
+				notionTruthShadowRows: {
+					"PortfolioCommandCenter-public": "PortfolioCommandCenter",
+				},
 			});
 
 			const unversionedPath = join(policyDir, "unversioned-registry.json");
@@ -476,6 +483,7 @@ describe("local portfolio control tower rules", () => {
 							"Wrong-alias": "Wrong",
 						},
 						notion_projection_only_rows: {},
+						notion_truth_shadow_rows: {},
 					},
 				}),
 			);

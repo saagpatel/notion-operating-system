@@ -197,6 +197,67 @@ describe("external signal sync hardening", () => {
 		]);
 	});
 
+	test("falls back to hash properties when stored external signal brief metadata patch is rejected", async () => {
+		const calls: string[] = [];
+		const briefsDataSourceId = "11111111-1111-4111-8111-111111111111";
+		let updateAttempts = 0;
+		const api = {
+			searchPage: async () => ({
+				id: "existing-brief",
+				url: "https://www.notion.so/existing-brief",
+				title: "Project - External Signal Brief - 2026-06-06",
+			}),
+			retrievePage: async () => ({
+				id: "existing-brief",
+				url: "https://www.notion.so/existing-brief",
+				title: "Project - External Signal Brief - 2026-06-06",
+				parent: { data_source_id: briefsDataSourceId },
+			}),
+			updatePageProperties: async (input: { pageId: string; properties: Record<string, unknown> }) => {
+				updateAttempts += 1;
+				calls.push(
+					`update:${input.pageId}:${Object.keys(input.properties).sort().join(",")}`,
+				);
+				if (updateAttempts === 1) {
+					throw new AppError("Notion rejected full metadata patch", {
+						status: 400,
+					});
+				}
+			},
+			createPageWithMarkdown: async () => {
+				calls.push("create");
+				return {
+					id: "created-brief",
+					url: "https://www.notion.so/created-brief",
+					title: "Project - External Signal Brief - 2026-06-06",
+				};
+			},
+			patchPageMarkdown: async (input: { pageId: string }) => {
+				calls.push(`patch:${input.pageId}`);
+			},
+		};
+
+		await upsertExternalSignalBriefPage({
+			api: api as never,
+			dataSourceId: briefsDataSourceId,
+			titlePropertyName: "Name",
+			title: "Project - External Signal Brief - 2026-06-06",
+			properties: {
+				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
+				"Brief Date": { date: { start: "2026-06-06" } },
+				"Brief Hash": { rich_text: [{ type: "text", text: { content: "hash" } }] },
+				"Storage Version": { rich_text: [{ type: "text", text: { content: "v1" } }] },
+			},
+			markdown: "External brief",
+		});
+
+		expect(calls).toEqual([
+			"update:existing-brief:Brief Date,Brief Hash,Name,Storage Version",
+			"update:existing-brief:Brief Hash,Storage Version",
+			"patch:existing-brief",
+		]);
+	});
+
 	test("retries transient stored external signal brief markdown patches", async () => {
 		const calls: string[] = [];
 		const briefsDataSourceId = "11111111-1111-4111-8111-111111111111";

@@ -1,8 +1,17 @@
 # Weekly Refresh Orchestrator: Phase 2 Handoff
 
+> Superseded historical handoff.
+>
+> This file is April 2026 evidence history for the weekly-refresh orchestrator.
+> It is not the current restart source. For live continuation, start with
+> `/Users/d/Projects/Notion/HANDOFF.md`, `AGENTS.md`, and
+> `git status --short --branch`. The real checkout is
+> `/Users/d/Projects/Notion`; any historical `/Users/d/Notion` reference is only
+> a stub and must not be used for repo work.
+
 This file is the full handoff context for the next chat window.
 
-Use it as the single source of truth for:
+Use it as historical context for:
 
 - what has already been built
 - what is already complete
@@ -12,11 +21,11 @@ Use it as the single source of truth for:
 
 ---
 
-## 1. Current Snapshot
+## 1. Historical Snapshot
 
 - Repo: `notion-operating-system`
-- Working directory: `/Users/d/Notion`
-- Current branch: `codex/weekly-refresh-orchestrator`
+- Working directory: `/Users/d/Projects/Notion`
+- Current branch at the time: `codex/weekly-refresh-orchestrator`
 - Latest local commit: `c350420 feat(notion): add weekly refresh orchestrator`
 - Working tree status at handoff: clean
 - Date of this handoff: `2026-04-07`

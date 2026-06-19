@@ -15,6 +15,7 @@ import {
 	type NotionPageProperty,
 } from "./local-portfolio-control-tower-live.js";
 import { requirePhase5ExternalSignals } from "./local-portfolio-external-signals.js";
+import { UNTRUSTED_CONTENT_NOTICE, untrustedMarkdownEvidence } from "./untrusted-content.js";
 
 export const COORDINATION_NOTION_EXPORT_SCHEMA_VERSION = "personal_ops.coordination_notion_export.v1" as const;
 export const COORDINATION_NOTION_SIGNAL_SCHEMA_VERSION = "personal_ops.coordination_notion_signal.v1" as const;
@@ -415,9 +416,11 @@ export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapsh
 	}
 	lines.push("");
 	lines.push("Signals");
+	lines.push(UNTRUSTED_CONTENT_NOTICE);
 	for (const item of plan.items) {
-		lines.push(`- ${item.severity}: ${item.title} (${item.status})`);
-		lines.push(`  ${item.summary}`);
+		lines.push(`- ${item.severity}: signal ${item.dedupe_key} (${item.status})`);
+		lines.push(...untrustedMarkdownEvidence("Title", item.title));
+		lines.push(...untrustedMarkdownEvidence("Summary", item.summary));
 	}
 	lines.push("");
 	lines.push("Next Actions");
@@ -438,8 +441,9 @@ export function formatCoordinationSnapshotDisplayModel(model: CoordinationSnapsh
 			lines.push("- none");
 		} else {
 			for (const item of section.items) {
-				lines.push(`- ${item.severity}: ${item.title} (${item.status})`);
-				lines.push(`  ${item.summary}`);
+				lines.push(`- ${item.severity}: signal ${item.dedupe_key} (${item.status})`);
+				lines.push(...untrustedMarkdownEvidence("Title", item.title));
+				lines.push(...untrustedMarkdownEvidence("Summary", item.summary));
 			}
 		}
 		lines.push("");
@@ -737,7 +741,7 @@ function renderCoordinationEventMarkdown(
 	row: PersonalOpsCoordinationSignalRow,
 ): string {
 	return [
-		`# ${item.title}`,
+		`# Coordination Signal ${row.dedupe_key}`,
 		"",
 		`- Provider: Personal Ops`,
 		`- Signal type: Audit`,
@@ -747,13 +751,15 @@ function renderCoordinationEventMarkdown(
 		`- Snapshot: ${row.snapshot_id}`,
 		`- Dedupe key: ${row.dedupe_key}`,
 		"",
-		"## Summary",
-		row.summary,
+		"## Quoted Source Evidence",
+		UNTRUSTED_CONTENT_NOTICE,
+		...untrustedMarkdownEvidence("Signal title", item.title),
+		...untrustedMarkdownEvidence("Summary", row.summary),
 		"",
-		"## Evidence",
-		...row.evidence_refs.map((ref) => `- ${ref}`),
+		"## Evidence References",
+		...row.evidence_refs.flatMap((ref, index) => untrustedMarkdownEvidence(`Evidence reference ${index + 1}`, ref)),
 		"",
 		"## Raw Excerpt",
-		row.raw_excerpt || "No raw excerpt captured.",
+		...untrustedMarkdownEvidence("Raw excerpt", row.raw_excerpt, "No raw excerpt captured."),
 	].join("\n");
 }

@@ -56,6 +56,11 @@ interface BuildLogProjectTarget {
 	relationProperty: BuildLogProjectRelation;
 }
 
+export interface RequiredDataSourceProperty {
+	name: string;
+	type: string;
+}
+
 interface OperationalProjectAlias {
 	targetTitle: string;
 	relationProperty: BuildLogProjectRelation;
@@ -121,9 +126,23 @@ export async function runBridgeDbSyncCommand(
 	const api = new DirectNotionClient(token);
 
 	// Fetch project lists and build log schema
-	const [projectSchema, buildSchema] = await Promise.all([
+	const [projectSchema, projectPortfolioSchema, buildSchema] = await Promise.all([
 		api.retrieveDataSource(config.database.dataSourceId),
+		api.retrieveDataSource(PROJECT_PORTFOLIO_DATA_SOURCE_ID),
 		api.retrieveDataSource(config.relatedDataSources.buildLogId),
+	]);
+	assertDataSourceSchemaProperties("Local Portfolio Projects", projectSchema, [
+		{ name: projectSchema.titlePropertyName, type: "title" },
+	]);
+	assertDataSourceSchemaProperties("Project Portfolio", projectPortfolioSchema, [
+		{ name: PROJECT_PORTFOLIO_TITLE_PROPERTY, type: "title" },
+	]);
+	assertDataSourceSchemaProperties("Build Log", buildSchema, [
+		{ name: buildSchema.titlePropertyName, type: "title" },
+		{ name: "Session Date", type: "date" },
+		{ name: "Local Project", type: "relation" },
+		{ name: "Project", type: "relation" },
+		{ name: "Tags", type: "multi_select" },
 	]);
 
 	const [projectPages, projectPortfolioPages] = await Promise.all([
@@ -484,6 +503,30 @@ export async function confirmShippedRowSynced(
 		});
 	} finally {
 		await session.close();
+	}
+}
+
+export function assertDataSourceSchemaProperties(
+	label: string,
+	schema: {
+		titlePropertyName: string;
+		properties?: Record<string, { type?: string }>;
+	},
+	required: RequiredDataSourceProperty[],
+): void {
+	const missingOrMismatched = required.flatMap((property) => {
+		const actual = schema.properties?.[property.name]?.type;
+		if (actual === property.type) {
+			return [];
+		}
+		return [
+			`${property.name} expected ${property.type}, got ${actual ?? "missing"}`,
+		];
+	});
+	if (missingOrMismatched.length > 0) {
+		throw new Error(
+			`${label} schema drift blocks bridge-db sync: ${missingOrMismatched.join("; ")}`,
+		);
 	}
 }
 

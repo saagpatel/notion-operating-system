@@ -1284,16 +1284,17 @@ export async function upsertExternalSignalBriefPage(input: {
 				}),
 		});
 	} catch (error) {
-		logLiveStage(true, "Stored external signal brief property patch failed", {
-			pageId: existing.id,
-			title: input.title,
-			error: toErrorMessage(error),
-		});
-		await updateExternalSignalBriefHashProperties({
+		const hashFallbackUpdated = await updateExternalSignalBriefHashProperties({
 			api: input.api,
 			pageId: existing.id,
 			title: input.title,
 			properties: input.properties,
+		});
+		logLiveStage(true, "Stored external signal brief property patch used hash fallback", {
+			pageId: existing.id,
+			title: input.title,
+			hashFallbackUpdated,
+			error: toErrorMessage(error),
 		});
 	}
 
@@ -1355,16 +1356,17 @@ async function createExternalSignalBriefPage(input: {
 					}),
 			});
 		} catch (error) {
-			logLiveStage(true, "Stored external signal brief property patch failed", {
-				pageId: created.id,
-				title: input.title,
-				error: toErrorMessage(error),
-			});
-			await updateExternalSignalBriefHashProperties({
+			const hashFallbackUpdated = await updateExternalSignalBriefHashProperties({
 				api: input.api,
 				pageId: created.id,
 				title: input.title,
 				properties: input.properties,
+			});
+			logLiveStage(true, "Stored external signal brief property patch used hash fallback", {
+				pageId: created.id,
+				title: input.title,
+				hashFallbackUpdated,
+				error: toErrorMessage(error),
 			});
 		}
 	}
@@ -1375,14 +1377,14 @@ async function updateExternalSignalBriefHashProperties(input: {
 	pageId: string;
 	title: string;
 	properties: Record<string, unknown>;
-}): Promise<void> {
+}): Promise<boolean> {
 	const minimalProperties = Object.fromEntries(
 		["Storage Version", "Brief Hash"]
 			.map((name) => [name, input.properties[name]])
 			.filter((entry): entry is [string, unknown] => entry[1] !== undefined),
 	);
 	if (Object.keys(minimalProperties).length === 0) {
-		return;
+		return false;
 	}
 	try {
 		await retryStoredExternalSignalBriefWrite({
@@ -1395,12 +1397,14 @@ async function updateExternalSignalBriefHashProperties(input: {
 					properties: minimalProperties,
 				}),
 		});
+		return true;
 	} catch (error) {
 		logLiveStage(true, "Stored external signal brief hash patch failed", {
 			pageId: input.pageId,
 			title: input.title,
 			error: toErrorMessage(error),
 		});
+		return false;
 	}
 }
 
