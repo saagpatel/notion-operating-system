@@ -41,6 +41,7 @@ export interface RepoMappingProjectionPolicy {
 	schemaVersion?: typeof REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION;
 	notionTitleAliases: Record<string, string>;
 	notionProjectionOnlyRows: Record<string, string>;
+	notionTruthShadowRows: Record<string, string>;
 }
 
 export type LocalRepoMappingStatus =
@@ -110,7 +111,7 @@ const DEFAULT_PROJECT_REGISTRY_CONFIG_PATH = join(
 );
 
 export const REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION =
-	"notion_projection_policy.v1";
+	"notion_projection_policy.v2";
 
 const DEFAULT_REPO_MAPPING_PROJECTION_POLICY: RepoMappingProjectionPolicy = {
 	schemaVersion: REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
@@ -128,6 +129,10 @@ const DEFAULT_REPO_MAPPING_PROJECTION_POLICY: RepoMappingProjectionPolicy = {
 		"claude-code-harness": "local agent harness projection; outside repo-root truth",
 		"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
 		SecondBrain: "knowledge vault under /Users/d/Documents; not a /Users/d/Projects repo",
+	},
+	notionTruthShadowRows: {
+		"agent-bridge-launch": "agent-bridge",
+		"PortfolioCommandCenter-public": "PortfolioCommandCenter",
 	},
 };
 
@@ -169,13 +174,19 @@ function readProjectionPolicyFromJson(
 		}
 		const titleAliases = policySource.notion_title_aliases;
 		const projectionOnlyRows = policySource.notion_projection_only_rows;
-		if (!isStringRecord(titleAliases) || !isStringRecord(projectionOnlyRows)) {
+		const truthShadowRows = policySource.notion_truth_shadow_rows;
+		if (
+			!isStringRecord(titleAliases) ||
+			!isStringRecord(projectionOnlyRows) ||
+			!isStringRecord(truthShadowRows)
+		) {
 			return undefined;
 		}
 		return {
 			schemaVersion: REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
 			notionTitleAliases: titleAliases,
 			notionProjectionOnlyRows: projectionOnlyRows,
+			notionTruthShadowRows: truthShadowRows,
 		};
 	} catch {
 		return undefined;
@@ -396,7 +407,7 @@ function buildLocalRepoIndex(projectsRoot: string): LocalRepoIndex {
 	}
 	const repoPaths = [
 		...repoDirsUnder(projectsRoot),
-		...["/Users/d/Notion", "/Users/d/.local/share/personal-ops"].filter(
+		...["/Users/d/.local/share/personal-ops"].filter(
 			(repoPath) => existsSync(join(repoPath, ".git")),
 		),
 	];

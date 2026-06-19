@@ -134,6 +134,7 @@
 		"portfolio-audit:review-packet": "tsx src/cli.ts control-tower review-packet",
 		"portfolio-audit:phase-closeout": "tsx src/cli.ts control-tower phase-closeout",
 		"portfolio-audit:github-notion-catch-up": "tsx src/internal/notion-maintenance/github-notion-catch-up.ts",
+		"portfolio-audit:create-local-project-rows-from-truth": "tsx src/internal/notion-maintenance/create-local-project-rows-from-truth.ts",
 		"portfolio-audit:notion-hygiene-pass": "tsx src/internal/notion-maintenance/notion-hygiene-pass.ts",
 		"portfolio-audit:fill-empty-local-project-fields": "tsx src/internal/notion-maintenance/fill-empty-local-project-fields.ts",
 		"portfolio-audit:github-knowledge-audit": "tsx src/internal/notion-maintenance/github-knowledge-audit.ts",
