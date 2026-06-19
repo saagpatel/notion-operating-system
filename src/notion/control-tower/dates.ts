@@ -1,6 +1,6 @@
 // Shared ISO-date helpers for the control-tower module (addDays, diffDays,
-// compareIsoDate). Extracted from local-portfolio-control-tower.ts (T3-4) so the
-// config-parse and render/state-build seams can both depend on them.
+// compareIsoDate, newestIsoDate). Extracted from local-portfolio-control-tower.ts
+// (T3-4) so the config-parse and render/state-build seams can both depend on them.
 
 export function addDays(date: string, days: number): string {
 	const parsed = new Date(`${date}T00:00:00Z`);
@@ -31,4 +31,12 @@ export function compareIsoDate(left: string, right: string): number {
 		return 1;
 	}
 	return left.localeCompare(right);
+}
+
+export function newestIsoDate(values: string[]): string {
+	return (
+		[...values]
+			.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
+			.sort((left, right) => right.localeCompare(left))[0] ?? ""
+	);
 }
