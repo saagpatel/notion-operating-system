@@ -1,3 +1,6 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
 	getDefaultEnvironment,
@@ -146,7 +149,7 @@ export class BridgeDbMcpSession {
 			args: [
 				"run",
 				"--directory",
-				"/Users/d/Projects/bridge-db",
+				join(homedir(), "Projects", "bridge-db"),
 				"python",
 				"-m",
 				"bridge_db",

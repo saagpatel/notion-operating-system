@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
@@ -12,8 +13,8 @@ import {
 	buildStaleActiveRescueItems,
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
 	loadLocalPortfolioControlTowerConfig,
-	summarizeStaleActiveRescue,
 	type StaleActiveRescueItem,
+	summarizeStaleActiveRescue,
 } from "./local-portfolio-control-tower.js";
 import {
 	datePropertyValue,
@@ -58,7 +59,9 @@ export interface StaleActiveRescueUpdatePlan {
 export async function runStaleActiveRescueCommand(
 	options: StaleActiveRescueCommandOptions = {},
 ): Promise<void> {
-	const token = resolveRequiredNotionToken("NOTION_TOKEN is required for stale active rescue");
+	const token = resolveRequiredNotionToken(
+		"NOTION_TOKEN is required for stale active rescue",
+	);
 	const config = await loadLocalPortfolioControlTowerConfig(
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
 	);
@@ -66,7 +69,11 @@ export async function runStaleActiveRescueCommand(
 	const live = options.live ?? false;
 	const api = new DirectNotionClient(token);
 	const schema = await api.retrieveDataSource(config.database.dataSourceId);
-	const projectPages = await fetchAllPages(api, config.database.dataSourceId, schema.titlePropertyName);
+	const projectPages = await fetchAllPages(
+		api,
+		config.database.dataSourceId,
+		schema.titlePropertyName,
+	);
 	const projects = projectPages
 		.map((page) => toControlTowerProjectRecord(page))
 		.map((project) => applyDerivedSignals(project, config, today));
@@ -91,7 +98,11 @@ export async function runStaleActiveRescueCommand(
 		}
 	}
 	const afterProjectPages = live
-		? await fetchAllPages(api, config.database.dataSourceId, schema.titlePropertyName)
+		? await fetchAllPages(
+				api,
+				config.database.dataSourceId,
+				schema.titlePropertyName,
+			)
 		: projectPages;
 	const afterProjects = afterProjectPages
 		.map((page) => toControlTowerProjectRecord(page))
@@ -107,14 +118,17 @@ export async function runStaleActiveRescueCommand(
 		returnedProjects: items.length,
 		reasonCounts: summarizeStaleActiveRescue(allItems),
 		nextOperatorMove: buildNextOperatorMove(allItems),
-		updateMode: options.missingReposOnly ? "missing-repos-only" : "top-stale-active",
+		updateMode: options.missingReposOnly
+			? "missing-repos-only"
+			: "top-stale-active",
 		plannedUpdates: updatePlans.map(serializeStaleActiveUpdatePlan),
 		appliedUpdates: live ? updatePlans.length : 0,
 		projects: items.map(serializeStaleActiveItem),
 		markdown: renderStaleActiveRescueMarkdown({
 			today,
 			totalCount: allItems.length,
-			highPriorityCount: allItems.filter((item) => item.priority === "high").length,
+			highPriorityCount: allItems.filter((item) => item.priority === "high")
+				.length,
 			items,
 		}),
 	};
@@ -138,7 +152,7 @@ export function buildStaleActiveRescueUpdatePlans(input: {
 	reviewCadenceDays: Record<string, number>;
 	projectsRoot?: string;
 }): StaleActiveRescueUpdatePlan[] {
-	const projectsRoot = input.projectsRoot ?? "/Users/d/Projects";
+	const projectsRoot = input.projectsRoot ?? join(homedir(), "Projects");
 	return input.items.map((item) =>
 		buildStaleActiveRescueUpdatePlan({
 			item,
@@ -156,10 +170,14 @@ export function buildStaleActiveRescueUpdatePlan(input: {
 	projectsRoot?: string;
 }): StaleActiveRescueUpdatePlan {
 	const project = input.item.project;
-	const repo = findLocalRepoEvidence(project.title, input.projectsRoot ?? "/Users/d/Projects");
+	const repo = findLocalRepoEvidence(
+		project.title,
+		input.projectsRoot ?? join(homedir(), "Projects"),
+	);
 	const nextReviewDate = addDays(
 		input.today,
-		input.reviewCadenceDays[repo ? project.currentState : "Needs Decision"] ?? 7,
+		input.reviewCadenceDays[repo ? project.currentState : "Needs Decision"] ??
+			7,
 	);
 
 	if (!repo) {
@@ -182,7 +200,9 @@ export function buildStaleActiveRescueUpdatePlan(input: {
 		};
 	}
 
-	const lastActive = newestIsoDate([project.lastActive, repo.lastCommitDate]) || project.lastActive;
+	const lastActive =
+		newestIsoDate([project.lastActive, repo.lastCommitDate]) ||
+		project.lastActive;
 	const evidenceFreshness = classifyFreshness(lastActive, input.today);
 	const nextMove = buildRepoBackedNextMove(repo);
 	return {
@@ -231,7 +251,9 @@ export function renderStaleActiveRescueMarkdown(input: {
 	return lines.join("\n");
 }
 
-function serializeStaleActiveItem(item: StaleActiveRescueItem): Record<string, unknown> {
+function serializeStaleActiveItem(
+	item: StaleActiveRescueItem,
+): Record<string, unknown> {
 	return {
 		projectId: item.project.id,
 		title: item.project.title,
@@ -243,7 +265,9 @@ function serializeStaleActiveItem(item: StaleActiveRescueItem): Record<string, u
 	};
 }
 
-function serializeStaleActiveUpdatePlan(plan: StaleActiveRescueUpdatePlan): Record<string, unknown> {
+function serializeStaleActiveUpdatePlan(
+	plan: StaleActiveRescueUpdatePlan,
+): Record<string, unknown> {
 	return {
 		projectId: plan.projectId,
 		title: plan.title,
@@ -277,7 +301,10 @@ function buildNextOperatorMove(
 	return `Review ${totalCount} stale active project(s) in order and refresh evidence before changing portfolio calls.`;
 }
 
-function findLocalRepoEvidence(title: string, projectsRoot: string): LocalRepoEvidence | undefined {
+function findLocalRepoEvidence(
+	title: string,
+	projectsRoot: string,
+): LocalRepoEvidence | undefined {
 	if (!existsSync(projectsRoot)) {
 		return undefined;
 	}
@@ -294,7 +321,13 @@ function findLocalRepoEvidence(title: string, projectsRoot: string): LocalRepoEv
 		return undefined;
 	}
 	const branch = git(repoPath, ["branch", "--show-current"]) || "(detached)";
-	const upstream = git(repoPath, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]) || "(no-upstream)";
+	const upstream =
+		git(repoPath, [
+			"rev-parse",
+			"--abbrev-ref",
+			"--symbolic-full-name",
+			"@{u}",
+		]) || "(no-upstream)";
 	const dirtyCount = git(repoPath, ["status", "--short"])
 		.split("\n")
 		.filter((line) => line.trim().length > 0).length;
@@ -326,7 +359,8 @@ function git(cwd: string, args: string[]): string {
 }
 
 function buildRepoBackedNextMove(repo: LocalRepoEvidence): string {
-	const branchNeedsDecision = repo.upstream === "(no-upstream)" || repo.branch === "(detached)";
+	const branchNeedsDecision =
+		repo.upstream === "(no-upstream)" || repo.branch === "(detached)";
 	const worktreeNeedsReview = repo.dirtyCount > 0;
 	if (branchNeedsDecision && worktreeNeedsReview) {
 		return `Review local branch/worktree: ${repo.branch} has no upstream and ${repo.dirtyCount} dirty file(s); decide publish, park, merge, or clean up.`;
@@ -361,7 +395,10 @@ function newestIsoDate(values: string[]): string {
 	return values.filter(Boolean).sort().at(-1) ?? "";
 }
 
-function classifyFreshness(date: string, today: string): "Fresh" | "Aging" | "Stale" {
+function classifyFreshness(
+	date: string,
+	today: string,
+): "Fresh" | "Aging" | "Stale" {
 	if (!date) {
 		return "Stale";
 	}
