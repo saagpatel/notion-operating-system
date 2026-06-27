@@ -720,7 +720,9 @@ export function renderExternalSignalCommandCenterSection(
 				right.recentFailedWorkflowRuns - left.recentFailedWorkflowRuns,
 		)
 		.slice(0, 5);
-	const latestRun = [...input.syncRuns].sort(compareSyncRuns)[0];
+	const latestRun = sortSyncRunsByStartedAtPreservingInputOrder(
+		input.syncRuns,
+	)[0];
 
 	return [
 		"<!-- codex:notion-external-signal-command-center:start -->",
@@ -781,7 +783,9 @@ export function renderWeeklyExternalSignalsSection(input: {
 		.filter((summary) => summary.recentFailedWorkflowRuns > 0)
 		.sort(compareFailures)
 		.slice(0, 5);
-	const latestSyncRuns = [...input.syncRuns].sort(compareSyncRuns).slice(0, 5);
+	const latestSyncRuns = sortSyncRunsByStartedAtPreservingInputOrder(
+		input.syncRuns,
+	).slice(0, 5);
 
 	return [
 		"<!-- codex:notion-weekly-external-signals:start -->",
@@ -894,15 +898,17 @@ function compareContradictionSummaries(
 	);
 }
 
-function compareSyncRuns(
-	left: ExternalSignalSyncRunRecord,
-	right: ExternalSignalSyncRunRecord,
-): number {
-	return (
-		compareDescending(left.startedAt, right.startedAt) ||
-		compareDescending(left.url, right.url) ||
-		compareDescending(left.id, right.id)
-	);
+function sortSyncRunsByStartedAtPreservingInputOrder(
+	syncRuns: ExternalSignalSyncRunRecord[],
+): ExternalSignalSyncRunRecord[] {
+	return syncRuns
+		.map((syncRun, index) => ({ index, syncRun }))
+		.sort(
+			(left, right) =>
+				compareDescending(left.syncRun.startedAt, right.syncRun.startedAt) ||
+				left.index - right.index,
+		)
+		.map((entry) => entry.syncRun);
 }
 
 function compareDescending(left: string, right: string): number {

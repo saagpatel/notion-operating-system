@@ -557,7 +557,7 @@ describe("local portfolio external signals", () => {
 		]);
 	});
 
-	test("renders latest sync runs in a stable order on identical dates", () => {
+	test("renders latest sync runs in caller order on identical dates", () => {
 		const markdown = renderWeeklyExternalSignalsSection({
 			summaries: [],
 			syncRuns: [
@@ -569,17 +569,17 @@ describe("local portfolio external signals", () => {
 				}),
 				baseSyncRun({
 					id: "run-b",
-					url: "https://notion.so/run-b",
+					url: "https://notion.so/run-z",
 					title: "GitHub sync - 2026-03-17",
 					startedAt: "2026-03-17",
 				}),
 			],
 		});
 
-		expect(markdown.indexOf("run-b")).toBeLessThan(markdown.indexOf("run-a"));
+		expect(markdown.indexOf("run-a")).toBeLessThan(markdown.indexOf("run-z"));
 	});
 
-	test("renders command center latest sync run with stable same-day tie-breakers", () => {
+	test("renders command center latest sync run from caller order on identical dates", () => {
 		const markdown = renderExternalSignalCommandCenterSection({
 			summaries: [],
 			projects: [],
@@ -592,7 +592,7 @@ describe("local portfolio external signals", () => {
 				}),
 				baseSyncRun({
 					id: "run-b",
-					url: "https://notion.so/run-b",
+					url: "https://notion.so/run-z",
 					title: "GitHub sync - 2026-03-17",
 					startedAt: "2026-03-17",
 				}),
@@ -600,7 +600,7 @@ describe("local portfolio external signals", () => {
 		});
 
 		expect(markdown).toContain(
-			"- Latest sync run: [GitHub sync - 2026-03-17](https://notion.so/run-b)",
+			"- Latest sync run: [GitHub sync - 2026-03-17](https://notion.so/run-a)",
 		);
 	});
 });
