@@ -720,9 +720,7 @@ export function renderExternalSignalCommandCenterSection(
 				right.recentFailedWorkflowRuns - left.recentFailedWorkflowRuns,
 		)
 		.slice(0, 5);
-	const latestRun = [...input.syncRuns].sort((left, right) =>
-		right.startedAt.localeCompare(left.startedAt),
-	)[0];
+	const latestRun = [...input.syncRuns].sort(compareSyncRuns)[0];
 
 	return [
 		"<!-- codex:notion-external-signal-command-center:start -->",

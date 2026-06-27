@@ -15,6 +15,7 @@ import {
 	parseLocalPortfolioExternalSignalSourceConfig,
 	parseLocalPortfolioExternalSignalViewPlan,
 	renderExternalSignalBriefSection,
+	renderExternalSignalCommandCenterSection,
 	renderWeeklyExternalSignalsSection,
 	validateLocalPortfolioExternalSignalViewPlanAgainstSchemas,
 } from "../src/notion/local-portfolio-external-signals.js";
@@ -576,6 +577,31 @@ describe("local portfolio external signals", () => {
 		});
 
 		expect(markdown.indexOf("run-b")).toBeLessThan(markdown.indexOf("run-a"));
+	});
+
+	test("renders command center latest sync run with stable same-day tie-breakers", () => {
+		const markdown = renderExternalSignalCommandCenterSection({
+			summaries: [],
+			projects: [],
+			syncRuns: [
+				baseSyncRun({
+					id: "run-a",
+					url: "https://notion.so/run-a",
+					title: "GitHub sync - 2026-03-17",
+					startedAt: "2026-03-17",
+				}),
+				baseSyncRun({
+					id: "run-b",
+					url: "https://notion.so/run-b",
+					title: "GitHub sync - 2026-03-17",
+					startedAt: "2026-03-17",
+				}),
+			],
+		});
+
+		expect(markdown).toContain(
+			"- Latest sync run: [GitHub sync - 2026-03-17](https://notion.so/run-b)",
+		);
 	});
 });
 
