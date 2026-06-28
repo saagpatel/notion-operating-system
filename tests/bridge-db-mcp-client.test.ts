@@ -328,6 +328,22 @@ describe("bridge-db MCP result parsing", () => {
 			vi.unstubAllEnvs();
 		}
 	});
+
+	test("threads bridge-db auth credentials into the MCP subprocess", () => {
+		// Without this, enforced/warn channel auth never reaches the bridge-db
+		// subprocess because getDefaultEnvironment() filters non-standard vars.
+		vi.stubEnv("BRIDGE_DB_PRINCIPAL_TOKEN", " tok-secret ");
+		vi.stubEnv("BRIDGE_DB_AUTH_MODE", " warn ");
+
+		try {
+			const env = buildBridgeDbMcpEnvironment();
+
+			expect(env["BRIDGE_DB_PRINCIPAL_TOKEN"]).toBe("tok-secret");
+			expect(env["BRIDGE_DB_AUTH_MODE"]).toBe("warn");
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------
