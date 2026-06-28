@@ -84,7 +84,12 @@ export function buildBridgeDbMcpEnvironment(
 	if (dbPath) {
 		env["BRIDGE_DB_PATH"] = dbPath;
 	}
-	for (const key of ["BRIDGE_FILE_PATH", "BRIDGE_DB_AUDIT_LOG_PATH"] as const) {
+	for (const key of [
+		"BRIDGE_FILE_PATH",
+		"BRIDGE_DB_AUDIT_LOG_PATH",
+		"BRIDGE_DB_PRINCIPAL_TOKEN",
+		"BRIDGE_DB_AUTH_MODE",
+	] as const) {
 		const value = process.env[key]?.trim();
 		if (value) {
 			env[key] = value;
