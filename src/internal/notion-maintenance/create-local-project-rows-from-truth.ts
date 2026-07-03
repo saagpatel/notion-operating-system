@@ -1,11 +1,11 @@
 import "../../config/load-default-env.js";
 
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 import { recordCommandOutputSummary } from "../../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../../cli/context.js";
-import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
-import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
 	loadLocalPortfolioControlTowerConfig,
@@ -17,11 +17,21 @@ import {
 	selectPropertyValue,
 	titleValue,
 } from "../../notion/local-portfolio-control-tower-live.js";
+import { createNotionSdkClient } from "../../notion/notion-sdk.js";
 import { losAngelesToday } from "../../utils/date.js";
 import { AppError } from "../../utils/errors.js";
+import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 
+const PROJECTS_ROOT =
+	process.env["PROJECTS_ROOT"] ?? join(homedir(), "Projects");
 const DEFAULT_TRUTH_PATH =
-	"/Users/d/Projects/GithubRepoAuditor/output/portfolio-truth-latest.json";
+	process.env["PORTFOLIO_TRUTH_PATH"] ??
+	join(
+		PROJECTS_ROOT,
+		"GithubRepoAuditor",
+		"output",
+		"portfolio-truth-latest.json",
+	);
 
 interface Flags {
 	live: boolean;
@@ -101,7 +111,9 @@ function requireValue(argv: string[], index: number, flag: string): string {
 }
 
 function loadTruthProjects(path: string): Map<string, TruthProject> {
-	const payload = JSON.parse(readFileSync(path, "utf8")) as { projects?: TruthProject[] };
+	const payload = JSON.parse(readFileSync(path, "utf8")) as {
+		projects?: TruthProject[];
+	};
 	const byTitle = new Map<string, TruthProject>();
 	for (const project of payload.projects ?? []) {
 		const title = project.identity?.display_name?.trim();
@@ -121,8 +133,8 @@ function collapseWhitespace(value: string | undefined): string {
 }
 
 function localPath(project: TruthProject): string {
-	const path = project.identity?.path?.trim();
-	return path ? `/Users/d/Projects/${path}` : "/Users/d/Projects";
+	const relPath = project.identity?.path?.trim();
+	return relPath ? join(PROJECTS_ROOT, relPath) : PROJECTS_ROOT;
 }
 
 function buildMarkdown(project: TruthProject, today: string): string {
@@ -154,10 +166,22 @@ async function main(): Promise<void> {
 					"npm run portfolio-audit:create-local-project-rows-from-truth -- --project-title <title> [--project-title <title> ...] [--live]",
 				options: [
 					{ flag: "--live", description: "Create missing rows in Notion." },
-					{ flag: "--today <date>", description: "Override the YYYY-MM-DD date anchor." },
-					{ flag: "--config <path>", description: "Path to the control-tower config file." },
-					{ flag: "--truth-path <path>", description: "Path to portfolio-truth-latest.json." },
-					{ flag: "--project-title <title>", description: "Repeatable exact truth display name to create." },
+					{
+						flag: "--today <date>",
+						description: "Override the YYYY-MM-DD date anchor.",
+					},
+					{
+						flag: "--config <path>",
+						description: "Path to the control-tower config file.",
+					},
+					{
+						flag: "--truth-path <path>",
+						description: "Path to portfolio-truth-latest.json.",
+					},
+					{
+						flag: "--project-title <title>",
+						description: "Repeatable exact truth display name to create.",
+					},
 				],
 			}),
 		);
@@ -171,8 +195,14 @@ async function main(): Promise<void> {
 	const config = await loadLocalPortfolioControlTowerConfig(flags.config);
 	const sdk = createNotionSdkClient(token);
 	const truthProjects = loadTruthProjects(flags.truthPath);
-	const existingPages = await fetchAllPages(sdk, config.database.dataSourceId, "Name");
-	const existingTitles = new Map(existingPages.map((page) => [page.title, page]));
+	const existingPages = await fetchAllPages(
+		sdk,
+		config.database.dataSourceId,
+		"Name",
+	);
+	const existingTitles = new Map(
+		existingPages.map((page) => [page.title, page]),
+	);
 
 	const plans = flags.projectTitles.map((title) => {
 		const project = truthProjects.get(title);
@@ -182,7 +212,11 @@ async function main(): Promise<void> {
 		const existing = existingTitles.get(title);
 		return {
 			title,
-			action: existing ? "skip-existing" : flags.live ? "create" : "would-create",
+			action: existing
+				? "skip-existing"
+				: flags.live
+					? "create"
+					: "would-create",
 			existingId: existing?.id ?? null,
 			existingUrl: existing?.url ?? null,
 			project,
@@ -217,13 +251,20 @@ async function main(): Promise<void> {
 						"Start Here": richTextValue(localPath(project)),
 						"Local Path": richTextValue(localPath(project)),
 						"Last Active": datePropertyValue(
-							dateOnly(project.derived?.last_meaningful_activity_at, flags.today),
+							dateOnly(
+								project.derived?.last_meaningful_activity_at,
+								flags.today,
+							),
 						),
 					},
 					children: markdownToBlocks(buildMarkdown(project, flags.today)),
 				},
 			})) as { id: string; url: string };
-			created.push({ title: plan.title, id: createdPage.id, url: createdPage.url });
+			created.push({
+				title: plan.title,
+				id: createdPage.id,
+				url: createdPage.url,
+			});
 		}
 	}
 

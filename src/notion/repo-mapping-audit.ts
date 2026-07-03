@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -9,23 +9,19 @@ import { losAngelesToday } from "../utils/date.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
-	loadLocalPortfolioControlTowerConfig,
 	type LocalPortfolioControlTowerConfig,
+	loadLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import {
+	type DataSourcePageRef,
 	dateValue,
 	fetchAllPages,
 	richTextValue,
 	selectValue,
 	textValue,
-	type DataSourcePageRef,
 } from "./local-portfolio-control-tower-live.js";
-import {
-	toExternalSignalSourceRecord,
-} from "./local-portfolio-external-signals-live.js";
-import type {
-	ExternalSignalSourceRecord,
-} from "./local-portfolio-external-signals.js";
+import type { ExternalSignalSourceRecord } from "./local-portfolio-external-signals.js";
+import { toExternalSignalSourceRecord } from "./local-portfolio-external-signals-live.js";
 
 export interface RepoMappingAuditCommandOptions {
 	today?: string;
@@ -126,9 +122,10 @@ const DEFAULT_REPO_MAPPING_PROJECTION_POLICY: RepoMappingProjectionPolicy = {
 	},
 	notionProjectionOnlyRows: {
 		app: "local runtime/app shell placeholder; not a portfolio-truth repo",
-		"claude-code-harness": "local agent harness projection; outside repo-root truth",
+		"claude-code-harness":
+			"local agent harness projection; outside repo-root truth",
 		"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
-		SecondBrain: "knowledge vault under /Users/d/Documents; not a /Users/d/Projects repo",
+		SecondBrain: "knowledge vault under ~/Documents; not a ~/Projects repo",
 	},
 	notionTruthShadowRows: {
 		"agent-bridge-launch": "agent-bridge",
@@ -140,7 +137,10 @@ export function loadRepoMappingProjectionPolicy(
 	projectRegistryPath = process.env.NOTION_REPO_MAPPING_PROJECT_REGISTRY_PATH ??
 		DEFAULT_PROJECT_REGISTRY_PATH,
 ): RepoMappingProjectionPolicy {
-	const registryPolicy = readProjectionPolicyFromJson(projectRegistryPath, "projection_policy");
+	const registryPolicy = readProjectionPolicyFromJson(
+		projectRegistryPath,
+		"projection_policy",
+	);
 	if (registryPolicy) {
 		return registryPolicy;
 	}
@@ -168,7 +168,8 @@ function readProjectionPolicyFromJson(
 			return undefined;
 		}
 		const schemaVersion =
-			policySource.schema_version ?? policySource.notion_projection_policy_schema_version;
+			policySource.schema_version ??
+			policySource.notion_projection_policy_schema_version;
 		if (schemaVersion !== REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION) {
 			return undefined;
 		}
@@ -198,20 +199,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
-	return isRecord(value) &&
-		Object.values(value).every((entry) => typeof entry === "string");
+	return (
+		isRecord(value) &&
+		Object.values(value).every((entry) => typeof entry === "string")
+	);
 }
 
 export async function runRepoMappingAuditCommand(
 	options: RepoMappingAuditCommandOptions = {},
 ): Promise<void> {
-	const token = resolveRequiredNotionToken("NOTION_TOKEN is required for repo mapping audit");
+	const token = resolveRequiredNotionToken(
+		"NOTION_TOKEN is required for repo mapping audit",
+	);
 	const config = await loadLocalPortfolioControlTowerConfig(
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
 	);
 	const today = options.today ?? losAngelesToday();
 	const api = new DirectNotionClient(token);
-	const projectSchema = await api.retrieveDataSource(config.database.dataSourceId);
+	const projectSchema = await api.retrieveDataSource(
+		config.database.dataSourceId,
+	);
 	const projectPages = await fetchAllPages(
 		api,
 		config.database.dataSourceId,
@@ -221,12 +228,14 @@ export async function runRepoMappingAuditCommand(
 		? await fetchExternalSignalSourcePages(api, config)
 		: [];
 	const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
-	const projectionPolicy = loadRepoMappingProjectionPolicy(options.projectRegistryPath);
+	const projectionPolicy = loadRepoMappingProjectionPolicy(
+		options.projectRegistryPath,
+	);
 	const initialResult = buildRepoMappingAudit({
 		today,
 		projectPages,
 		sources,
-		projectsRoot: options.projectsRoot ?? "/Users/d/Projects",
+		projectsRoot: options.projectsRoot ?? join(homedir(), "Projects"),
 		projectionPolicy,
 		limit: options.limit ?? 50,
 		includeAllGaps: options.includeAllGaps ?? false,
@@ -256,38 +265,53 @@ export async function runRepoMappingAuditCommand(
 					projectSchema.titlePropertyName,
 				),
 				sources,
-				projectsRoot: options.projectsRoot ?? "/Users/d/Projects",
+				projectsRoot: options.projectsRoot ?? join(homedir(), "Projects"),
 				projectionPolicy,
 				limit: options.limit ?? 50,
 				includeAllGaps: options.includeAllGaps ?? false,
-				externalSignalsConfigured: Boolean(config.phase5ExternalSignals?.sources),
+				externalSignalsConfigured: Boolean(
+					config.phase5ExternalSignals?.sources,
+				),
 			})
 		: initialResult;
-	recordCommandOutputSummary({ ...result }, {
-		status: result.attentionCount > 0 ? "warning" : "completed",
-		warningCategories: result.attentionCount > 0 ? ["stale_data"] : undefined,
-		metadata: {
-			decisionQueueCount: result.decisionQueueCount,
-			localMappingGapCount: result.localMappingGapCount,
-			githubMappingGapCount: result.githubMappingGapCount,
-			attentionCount: result.attentionCount,
-			plannedNormalizations: normalizationPlans.length,
-			appliedNormalizations: options.liveNormalizeLocalPaths ? normalizationPlans.length : 0,
+	recordCommandOutputSummary(
+		{ ...result },
+		{
+			status: result.attentionCount > 0 ? "warning" : "completed",
+			warningCategories: result.attentionCount > 0 ? ["stale_data"] : undefined,
+			metadata: {
+				decisionQueueCount: result.decisionQueueCount,
+				localMappingGapCount: result.localMappingGapCount,
+				githubMappingGapCount: result.githubMappingGapCount,
+				attentionCount: result.attentionCount,
+				plannedNormalizations: normalizationPlans.length,
+				appliedNormalizations: options.liveNormalizeLocalPaths
+					? normalizationPlans.length
+					: 0,
+			},
 		},
-	});
-	console.log(JSON.stringify({
-		ok: true,
-		status: result.attentionCount > 0 ? "attention_needed" : "clean",
-		liveNormalizeLocalPaths: options.liveNormalizeLocalPaths ?? false,
-		plannedNormalizations: normalizationPlans.map((project) => ({
-			projectId: project.projectId,
-			title: project.title,
-			from: project.localPath,
-			to: project.recommendedLocalPath,
-		})),
-		appliedNormalizations: options.liveNormalizeLocalPaths ? normalizationPlans.length : 0,
-		...result,
-	}, null, 2));
+	);
+	console.log(
+		JSON.stringify(
+			{
+				ok: true,
+				status: result.attentionCount > 0 ? "attention_needed" : "clean",
+				liveNormalizeLocalPaths: options.liveNormalizeLocalPaths ?? false,
+				plannedNormalizations: normalizationPlans.map((project) => ({
+					projectId: project.projectId,
+					title: project.title,
+					from: project.localPath,
+					to: project.recommendedLocalPath,
+				})),
+				appliedNormalizations: options.liveNormalizeLocalPaths
+					? normalizationPlans.length
+					: 0,
+				...result,
+			},
+			null,
+			2,
+		),
+	);
 }
 
 export function buildRepoMappingAudit(input: {
@@ -300,10 +324,13 @@ export function buildRepoMappingAudit(input: {
 	includeAllGaps?: boolean;
 	externalSignalsConfigured?: boolean;
 }): RepoMappingAuditResult {
-	const projectsRoot = resolve(input.projectsRoot ?? "/Users/d/Projects");
+	const projectsRoot = resolve(
+		input.projectsRoot ?? join(homedir(), "Projects"),
+	);
 	const repoIndex = buildLocalRepoIndex(projectsRoot);
 	const sources = input.sources ?? [];
-	const projectionPolicy = input.projectionPolicy ?? DEFAULT_REPO_MAPPING_PROJECTION_POLICY;
+	const projectionPolicy =
+		input.projectionPolicy ?? DEFAULT_REPO_MAPPING_PROJECTION_POLICY;
 	const allProjects = input.projectPages.map((page) =>
 		buildRepoMappingAuditProject({
 			page,
@@ -326,7 +353,8 @@ export function buildRepoMappingAudit(input: {
 		projectsRoot,
 		totalProjects: allProjects.length,
 		decisionQueueCount: allProjects.filter(isDecisionQueueProject).length,
-		localMappingGapCount: allProjects.filter(hasActionableLocalMappingGap).length,
+		localMappingGapCount: allProjects.filter(hasActionableLocalMappingGap)
+			.length,
 		githubMappingGapCount: allProjects.filter(hasGithubMappingGap).length,
 		attentionCount: attentionProjects.length,
 		projects,
@@ -407,8 +435,8 @@ function buildLocalRepoIndex(projectsRoot: string): LocalRepoIndex {
 	}
 	const repoPaths = [
 		...repoDirsUnder(projectsRoot),
-		...["/Users/d/.local/share/personal-ops"].filter(
-			(repoPath) => existsSync(join(repoPath, ".git")),
+		...[join(homedir(), ".local", "share", "personal-ops")].filter((repoPath) =>
+			existsSync(join(repoPath, ".git")),
 		),
 	];
 	const byKey = new Map<string, string[]>();
@@ -427,7 +455,9 @@ function repoDirsUnder(projectsRoot: string): string[] {
 		.filter((entry) => entry.isDirectory())
 		.flatMap((entry) => {
 			const firstLevel = join(projectsRoot, entry.name);
-			const firstLevelRepo = existsSync(join(firstLevel, ".git")) ? [firstLevel] : [];
+			const firstLevelRepo = existsSync(join(firstLevel, ".git"))
+				? [firstLevel]
+				: [];
 			const secondLevelRepos = readdirSync(firstLevel, { withFileTypes: true })
 				.filter((child) => child.isDirectory())
 				.map((child) => join(firstLevel, child.name))
@@ -465,20 +495,32 @@ function resolveLocalRepoMapping(input: {
 			normalizeLocalPathText(input.localPath),
 			input.projectsRoot,
 		);
-		if (normalizedPath !== repoPath && existsSync(join(normalizedPath, ".git"))) {
+		if (
+			normalizedPath !== repoPath &&
+			existsSync(join(normalizedPath, ".git"))
+		) {
 			return {
 				status: "needs-normalization",
 				resolvedRepoPath: normalizedPath,
-				recommendedLocalPath: toRecommendedLocalPath(normalizedPath, input.projectsRoot),
+				recommendedLocalPath: toRecommendedLocalPath(
+					normalizedPath,
+					input.projectsRoot,
+				),
 				candidates: [],
 			};
 		}
-		const sourceMatch = findSourceRepoMatch(input.githubSources ?? [], input.repoIndex);
+		const sourceMatch = findSourceRepoMatch(
+			input.githubSources ?? [],
+			input.repoIndex,
+		);
 		if (sourceMatch) {
 			return {
 				status: "needs-normalization",
 				resolvedRepoPath: sourceMatch,
-				recommendedLocalPath: toRecommendedLocalPath(sourceMatch, input.projectsRoot),
+				recommendedLocalPath: toRecommendedLocalPath(
+					sourceMatch,
+					input.projectsRoot,
+				),
 				candidates: [],
 			};
 		}
@@ -491,11 +533,17 @@ function resolveLocalRepoMapping(input: {
 			return {
 				status: "needs-normalization",
 				resolvedRepoPath: aliasMatch,
-				recommendedLocalPath: toRecommendedLocalPath(aliasMatch, input.projectsRoot),
+				recommendedLocalPath: toRecommendedLocalPath(
+					aliasMatch,
+					input.projectsRoot,
+				),
 				candidates: [],
 			};
 		}
-		const candidates = findRepoCandidates(input.title, input.repoIndex.repoPaths).slice(0, 5);
+		const candidates = findRepoCandidates(
+			input.title,
+			input.repoIndex.repoPaths,
+		).slice(0, 5);
 		return {
 			status: "path-missing",
 			resolvedRepoPath: repoPath,
@@ -503,12 +551,16 @@ function resolveLocalRepoMapping(input: {
 			candidates,
 		};
 	}
-	const exactMatches = input.repoIndex.byKey.get(normalizeProjectKey(input.title)) ?? [];
+	const exactMatches =
+		input.repoIndex.byKey.get(normalizeProjectKey(input.title)) ?? [];
 	if (exactMatches.length === 1) {
 		return {
 			status: "inferred",
 			resolvedRepoPath: exactMatches[0] ?? "",
-			recommendedLocalPath: toRecommendedLocalPath(exactMatches[0] ?? "", input.projectsRoot),
+			recommendedLocalPath: toRecommendedLocalPath(
+				exactMatches[0] ?? "",
+				input.projectsRoot,
+			),
 			candidates: [],
 		};
 	}
@@ -529,23 +581,45 @@ function resolveLocalRepoMapping(input: {
 		return {
 			status: "inferred",
 			resolvedRepoPath: aliasMatch,
-			recommendedLocalPath: toRecommendedLocalPath(aliasMatch, input.projectsRoot),
+			recommendedLocalPath: toRecommendedLocalPath(
+				aliasMatch,
+				input.projectsRoot,
+			),
 			candidates: [],
 		};
 	}
-	const sourceMatch = findSourceRepoMatch(input.githubSources ?? [], input.repoIndex);
+	const sourceMatch = findSourceRepoMatch(
+		input.githubSources ?? [],
+		input.repoIndex,
+	);
 	if (sourceMatch) {
 		return {
 			status: "inferred",
 			resolvedRepoPath: sourceMatch,
-			recommendedLocalPath: toRecommendedLocalPath(sourceMatch, input.projectsRoot),
+			recommendedLocalPath: toRecommendedLocalPath(
+				sourceMatch,
+				input.projectsRoot,
+			),
 			candidates: [],
 		};
 	}
-	const candidates = findRepoCandidates(input.title, input.repoIndex.repoPaths).slice(0, 5);
+	const candidates = findRepoCandidates(
+		input.title,
+		input.repoIndex.repoPaths,
+	).slice(0, 5);
 	return candidates.length > 0
-		? { status: "ambiguous", resolvedRepoPath: "", recommendedLocalPath: "", candidates }
-		: { status: "missing", resolvedRepoPath: "", recommendedLocalPath: "", candidates: [] };
+		? {
+				status: "ambiguous",
+				resolvedRepoPath: "",
+				recommendedLocalPath: "",
+				candidates,
+			}
+		: {
+				status: "missing",
+				resolvedRepoPath: "",
+				recommendedLocalPath: "",
+				candidates: [],
+			};
 }
 
 function findProjectionAliasRepoMatch(
@@ -558,7 +632,8 @@ function findProjectionAliasRepoMatch(
 	if (!canonicalTitle) {
 		return undefined;
 	}
-	const matches = repoIndex.byKey.get(normalizeProjectKey(canonicalTitle)) ?? [];
+	const matches =
+		repoIndex.byKey.get(normalizeProjectKey(canonicalTitle)) ?? [];
 	return matches.length === 1 ? matches[0] : undefined;
 }
 
@@ -571,7 +646,9 @@ function classifyProjectionPolicy(
 > {
 	const normalizedTitle = normalizeProjectKey(title);
 	const aliases = normalizedStringRecord(projectionPolicy.notionTitleAliases);
-	const projectionOnlyRows = normalizedStringRecord(projectionPolicy.notionProjectionOnlyRows);
+	const projectionOnlyRows = normalizedStringRecord(
+		projectionPolicy.notionProjectionOnlyRows,
+	);
 	const aliasTarget = aliases.get(normalizedTitle);
 	if (aliasTarget) {
 		return {
@@ -595,9 +672,14 @@ function classifyProjectionPolicy(
 	};
 }
 
-function normalizedStringRecord(values: Record<string, string>): Map<string, string> {
+function normalizedStringRecord(
+	values: Record<string, string>,
+): Map<string, string> {
 	return new Map(
-		Object.entries(values).map(([key, value]) => [normalizeProjectKey(key), value]),
+		Object.entries(values).map(([key, value]) => [
+			normalizeProjectKey(key),
+			value,
+		]),
 	);
 }
 
@@ -611,12 +693,17 @@ function findRepoCandidates(title: string, repoPaths: string[]): string[] {
 			const repoName = repoPath.split("/").at(-1) ?? repoPath;
 			const repoTokens = tokenizeProjectName(repoName);
 			const score = titleTokens.filter((token) =>
-				repoTokens.some((repoToken) => repoToken.includes(token) || token.includes(repoToken)),
+				repoTokens.some(
+					(repoToken) => repoToken.includes(token) || token.includes(repoToken),
+				),
 			).length;
 			return { repoPath, score };
 		})
 		.filter((entry) => entry.score > 0)
-		.sort((left, right) => right.score - left.score || left.repoPath.localeCompare(right.repoPath))
+		.sort(
+			(left, right) =>
+				right.score - left.score || left.repoPath.localeCompare(right.repoPath),
+		)
 		.map((entry) => entry.repoPath);
 }
 
@@ -631,7 +718,10 @@ function classifyGithubSourceStatus(
 		return "missing";
 	}
 	const activeSource = sources.find(
-		(source) => source.status === "Active" && source.identifier.trim() && source.sourceUrl.trim(),
+		(source) =>
+			source.status === "Active" &&
+			source.identifier.trim() &&
+			source.sourceUrl.trim(),
 	);
 	if (activeSource) {
 		return "active";
@@ -642,7 +732,12 @@ function classifyGithubSourceStatus(
 	if (sources.every((source) => source.status === "Paused")) {
 		return "paused";
 	}
-	if (sources.some((source) => source.status === "Needs Mapping" || !source.identifier.trim())) {
+	if (
+		sources.some(
+			(source) =>
+				source.status === "Needs Mapping" || !source.identifier.trim(),
+		)
+	) {
 		return "needs-mapping";
 	}
 	return "needs-review";
@@ -659,7 +754,9 @@ function needsRepoMappingAttention(
 		return true;
 	}
 	if (includeAllGaps) {
-		return hasActionableLocalMappingGap(project) || hasGithubMappingGap(project);
+		return (
+			hasActionableLocalMappingGap(project) || hasGithubMappingGap(project)
+		);
 	}
 	return (
 		isActivePortfolioProject(project) &&
@@ -668,22 +765,35 @@ function needsRepoMappingAttention(
 }
 
 function isDecisionQueueProject(project: RepoMappingAuditProject): boolean {
-	return project.currentState === "Needs Decision" || project.operatingQueue === "Needs Decision";
+	return (
+		project.currentState === "Needs Decision" ||
+		project.operatingQueue === "Needs Decision"
+	);
 }
 
 function isActivePortfolioProject(project: RepoMappingAuditProject): boolean {
-	return ["Active Build", "Ready to Demo", "Needs Decision"].includes(project.currentState) ||
-		["Resume Now", "Worth Finishing", "Needs Decision"].includes(project.operatingQueue);
+	return (
+		["Active Build", "Ready to Demo", "Needs Decision"].includes(
+			project.currentState,
+		) ||
+		["Resume Now", "Worth Finishing", "Needs Decision"].includes(
+			project.operatingQueue,
+		)
+	);
 }
 
 function hasLocalMappingGap(project: RepoMappingAuditProject): boolean {
 	return !["mapped", "inferred"].includes(project.localMappingStatus);
 }
 
-function hasActionableLocalMappingGap(project: RepoMappingAuditProject): boolean {
-	return hasLocalMappingGap(project) &&
+function hasActionableLocalMappingGap(
+	project: RepoMappingAuditProject,
+): boolean {
+	return (
+		hasLocalMappingGap(project) &&
 		project.projectionPolicyStatus !== "projection-only" &&
-		!isDocumentedNonRepoPosture(project);
+		!isDocumentedNonRepoPosture(project)
+	);
 }
 
 function isDocumentedNonRepoPosture(project: RepoMappingAuditProject): boolean {
@@ -697,7 +807,9 @@ function hasGithubMappingGap(project: RepoMappingAuditProject): boolean {
 	if (project.projectionPolicyStatus === "projection-only") {
 		return false;
 	}
-	return ["missing", "needs-mapping", "needs-review"].includes(project.githubSourceStatus);
+	return ["missing", "needs-mapping", "needs-review"].includes(
+		project.githubSourceStatus,
+	);
 }
 
 function buildRepoMappingNextMove(project: RepoMappingAuditProject): string {
@@ -725,7 +837,10 @@ function buildRepoMappingNextMove(project: RepoMappingAuditProject): string {
 	if (project.githubSourceStatus === "needs-review") {
 		return "Review the existing GitHub source row before using it for telemetry.";
 	}
-	if (project.projectionPolicyStatus === "alias" && project.projectionPolicyTarget) {
+	if (
+		project.projectionPolicyStatus === "alias" &&
+		project.projectionPolicyTarget
+	) {
 		return `Treat as projection alias for ${project.projectionPolicyTarget}; verify mappings stay attached to the canonical row.`;
 	}
 	if (isDecisionQueueProject(project)) {
@@ -738,7 +853,10 @@ function compareRepoMappingAuditProjects(
 	left: RepoMappingAuditProject,
 	right: RepoMappingAuditProject,
 ): number {
-	return priorityScore(right) - priorityScore(left) || left.title.localeCompare(right.title);
+	return (
+		priorityScore(right) - priorityScore(left) ||
+		left.title.localeCompare(right.title)
+	);
 }
 
 function priorityScore(project: RepoMappingAuditProject): number {
@@ -754,7 +872,9 @@ function priorityScore(project: RepoMappingAuditProject): number {
 	return score;
 }
 
-function renderRepoMappingAuditMarkdown(input: Omit<RepoMappingAuditResult, "markdown">): string {
+function renderRepoMappingAuditMarkdown(
+	input: Omit<RepoMappingAuditResult, "markdown">,
+): string {
 	const lines = [
 		`# Decision Queue and Repo Mapping Audit - ${input.today}`,
 		"",
@@ -810,7 +930,10 @@ function resolveLocalPath(
 	return join(projectsRoot, normalized);
 }
 
-function toRecommendedLocalPath(repoPath: string, projectsRoot: string): string {
+function toRecommendedLocalPath(
+	repoPath: string,
+	projectsRoot: string,
+): string {
 	if (!repoPath) {
 		return "";
 	}
@@ -825,7 +948,11 @@ function findSourceRepoMatch(
 	repoIndex: LocalRepoIndex,
 ): string | undefined {
 	const sourceRepoKeys = sources
-		.map((source) => repoNameFromIdentifier(source.identifier) || repoNameFromUrl(source.sourceUrl))
+		.map(
+			(source) =>
+				repoNameFromIdentifier(source.identifier) ||
+				repoNameFromUrl(source.sourceUrl),
+		)
 		.filter((value): value is string => Boolean(value))
 		.map(normalizeProjectKey);
 	for (const key of sourceRepoKeys) {
@@ -850,7 +977,10 @@ function repoKeys(repoPath: string): string[] {
 	const repoName = repoPath.split("/").at(-1) ?? repoPath;
 	return [
 		...new Set(
-			[normalizeProjectKey(repoName), normalizeProjectKey(remoteRepoName(repoPath))].filter(Boolean),
+			[
+				normalizeProjectKey(repoName),
+				normalizeProjectKey(remoteRepoName(repoPath)),
+			].filter(Boolean),
 		),
 	];
 }

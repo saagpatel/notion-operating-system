@@ -545,7 +545,7 @@ export async function runExternalSignalSyncCommand(
 				result,
 			});
 			createdSyncRunCount += 1;
-			existingSyncRuns.push(syncRun);
+			existingSyncRuns.unshift(syncRun);
 
 			for (const event of result.events) {
 				const created = await createSignalEventPage({
