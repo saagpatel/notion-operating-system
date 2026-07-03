@@ -214,7 +214,7 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-06-11",
+    "lastSyncAt": "2026-06-26",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 0,
@@ -222,9 +222,9 @@
       "blockedPackets": 1,
       "blockedTasks": 7,
       "overdueTasks": 0,
-      "backlogOverdueTasks": 45,
+      "backlogOverdueTasks": 48,
       "tasksCompletedThisWeek": 0,
-      "packetsCompletedThisWeek": 1,
+      "packetsCompletedThisWeek": 0,
       "rolloverPackets": 1,
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
@@ -304,16 +304,16 @@
       "proposedLinkSuggestions": 0,
       "acceptedLinkSuggestions": 0
     },
-    "lastSyncAt": "2026-06-05",
+    "lastSyncAt": "2026-06-26",
     "lastSyncMetrics": {
-      "totalProjects": 119,
-      "resumeCandidates": 49,
+      "totalProjects": 143,
+      "resumeCandidates": 51,
       "finishCandidates": 30,
       "investigateCandidates": 0,
-      "deferCandidates": 32,
-      "monitorProjects": 8,
-      "orphanedProjects": 10,
-      "supportGapProjects": 10,
+      "deferCandidates": 44,
+      "monitorProjects": 18,
+      "orphanedProjects": 34,
+      "supportGapProjects": 34,
       "proposedLinkSuggestions": 63,
       "acceptedLinkSuggestions": 55
     }
@@ -498,15 +498,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-06-12",
+    "lastSyncAt": "2026-06-26",
     "lastSyncMetrics": {
       "mappedProjects": 138,
-      "projectsNeedingMapping": 0,
+      "projectsNeedingMapping": 5,
       "activeSources": 136,
-      "riskEvents": 742,
+      "riskEvents": 576,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 17,
-      "contradictionProjects": 1
+      "failedWorkflowRuns": 158,
+      "contradictionProjects": 19
     }
   },
   "phase6Governance": {
@@ -787,58 +787,58 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-06-14",
+    "lastSyncAt": "2026-06-26",
     "lastSyncMetrics": {
-      "totalProjects": 138,
+      "totalProjects": 143,
       "queueCounts": {
         "Shipped": 18,
         "Needs Review": 16,
         "Needs Decision": 0,
         "Worth Finishing": 29,
-        "Resume Now": 54,
+        "Resume Now": 59,
         "Cold Storage": 14,
         "Watch": 7
       },
-      "overdueReviews": 14,
+      "overdueReviews": 82,
       "missingNextMove": 0,
       "missingLastActive": 0,
       "staleActiveProjects": 0,
-      "orphanedProjects": 21,
-      "recentBuildSessions": 17
+      "orphanedProjects": 26,
+      "recentBuildSessions": 0
     },
     "lastClosedPhase": 9
   },
   "weeklyMaintenance": {
-    "supportMaintenanceLastSyncAt": "2026-06-11",
-    "weeklyRefreshLastRunAt": "2026-06-11",
+    "supportMaintenanceLastSyncAt": "2026-06-26",
+    "weeklyRefreshLastRunAt": "2026-06-26",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
       "liveExecuted": "yes",
       "previousRunAt": "2026-06-11",
-      "gapDays": 0,
-      "missedRunDays": 0,
-      "missedWeekdays": 0,
-      "catchUpMode": "none",
+      "gapDays": 15,
+      "missedRunDays": 14,
+      "missedWeekdays": 10,
+      "catchUpMode": "weekend_catch_up",
       "staleDataThresholdDays": 2,
-      "staleBeforeRun": "no",
-      "catchUpRecovered": "no",
-      "catchUpSummary": "No missed run days since the previous refresh.",
-      "preflightTotalSteps": 1,
-      "preflightCleanSteps": 0,
-      "preflightDriftSteps": 1,
+      "staleBeforeRun": "yes",
+      "catchUpRecovered": "yes",
+      "catchUpSummary": "weekend catch-up: 14 missed run day(s), 10 missed weekday(s), stale before this run; recovered.",
+      "preflightTotalSteps": 6,
+      "preflightCleanSteps": 1,
+      "preflightDriftSteps": 5,
       "preflightCompletedSteps": 0,
       "preflightPartialSteps": 0,
       "preflightFailedSteps": 0,
       "preflightSkippedSteps": 0,
-      "liveTotalSteps": 1,
-      "liveCleanSteps": 0,
+      "liveTotalSteps": 6,
+      "liveCleanSteps": 1,
       "liveDriftSteps": 0,
-      "liveCompletedSteps": 1,
+      "liveCompletedSteps": 5,
       "livePartialSteps": 0,
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-06-14"
+    "weeklyReviewLastPublishedAt": "2026-06-26"
   }
 }
