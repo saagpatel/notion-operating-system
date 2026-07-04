@@ -758,6 +758,49 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 		expect(bridgeSyncMocks.updatePageProperties).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
 	});
+
+	test("syncs no-target disposition rows once canonical routing becomes ready", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 804,
+				project_name: "cost-tracker",
+				summary: "Registry mapping was repaired after disposition.",
+				source: "codex",
+				notion_sync: {
+					state: "ready",
+					reason: "canonical project has explicit notion_local_page_id",
+					canonical_key: "saagpatel/cost-tracker",
+					notion_page_id: "project-cost-tracker",
+					notion_title: "cost-tracker",
+				},
+				policy_disposition: {
+					disposition_type: "no_durable_target",
+					reason: "No safe Notion Build Log target before registry repair.",
+					policy_ref: "bridge-sync Step 4.5",
+				},
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
+			pageId: "build-log-page-123",
+			properties: expect.objectContaining({
+				"Local Project": { relation: [{ id: "project-cost-tracker" }] },
+			}),
+		});
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
+			activityId: 804,
+			downstreamRef: "build-log-page-123",
+			notes:
+				'Created Build Log page "[Codex] cost-tracker — 2026-04-14" with Session Date 2026-04-14',
+		});
+	});
 });
 
 // ---------------------------------------------------------------------------
