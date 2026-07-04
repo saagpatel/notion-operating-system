@@ -214,7 +214,7 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-06-26",
+    "lastSyncAt": "2026-07-03",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 0,
@@ -304,16 +304,16 @@
       "proposedLinkSuggestions": 0,
       "acceptedLinkSuggestions": 0
     },
-    "lastSyncAt": "2026-06-26",
+    "lastSyncAt": "2026-07-03",
     "lastSyncMetrics": {
-      "totalProjects": 143,
-      "resumeCandidates": 51,
+      "totalProjects": 146,
+      "resumeCandidates": 47,
       "finishCandidates": 30,
       "investigateCandidates": 0,
-      "deferCandidates": 44,
-      "monitorProjects": 18,
-      "orphanedProjects": 34,
-      "supportGapProjects": 34,
+      "deferCandidates": 46,
+      "monitorProjects": 23,
+      "orphanedProjects": 37,
+      "supportGapProjects": 37,
       "proposedLinkSuggestions": 63,
       "acceptedLinkSuggestions": 55
     }
@@ -498,15 +498,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-06-26",
+    "lastSyncAt": "2026-07-03",
     "lastSyncMetrics": {
       "mappedProjects": 138,
-      "projectsNeedingMapping": 5,
+      "projectsNeedingMapping": 8,
       "activeSources": 136,
-      "riskEvents": 576,
+      "riskEvents": 512,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 158,
-      "contradictionProjects": 19
+      "failedWorkflowRuns": 209,
+      "contradictionProjects": 18
     }
   },
   "phase6Governance": {
@@ -787,43 +787,43 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-06-26",
+    "lastSyncAt": "2026-07-03",
     "lastSyncMetrics": {
-      "totalProjects": 143,
+      "totalProjects": 146,
       "queueCounts": {
-        "Shipped": 18,
-        "Needs Review": 16,
+        "Shipped": 23,
+        "Needs Review": 17,
         "Needs Decision": 0,
         "Worth Finishing": 29,
-        "Resume Now": 59,
+        "Resume Now": 56,
         "Cold Storage": 14,
         "Watch": 7
       },
-      "overdueReviews": 82,
+      "overdueReviews": 86,
       "missingNextMove": 0,
       "missingLastActive": 0,
       "staleActiveProjects": 0,
-      "orphanedProjects": 26,
+      "orphanedProjects": 29,
       "recentBuildSessions": 0
     },
     "lastClosedPhase": 9
   },
   "weeklyMaintenance": {
-    "supportMaintenanceLastSyncAt": "2026-06-26",
-    "weeklyRefreshLastRunAt": "2026-06-26",
+    "supportMaintenanceLastSyncAt": "2026-07-03",
+    "weeklyRefreshLastRunAt": "2026-07-03",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
       "needsLiveWrite": "yes",
       "liveExecuted": "yes",
-      "previousRunAt": "2026-06-11",
-      "gapDays": 15,
-      "missedRunDays": 14,
-      "missedWeekdays": 10,
+      "previousRunAt": "2026-06-26",
+      "gapDays": 7,
+      "missedRunDays": 6,
+      "missedWeekdays": 4,
       "catchUpMode": "weekend_catch_up",
       "staleDataThresholdDays": 2,
       "staleBeforeRun": "yes",
       "catchUpRecovered": "yes",
-      "catchUpSummary": "weekend catch-up: 14 missed run day(s), 10 missed weekday(s), stale before this run; recovered.",
+      "catchUpSummary": "weekend catch-up: 6 missed run day(s), 4 missed weekday(s), stale before this run; recovered.",
       "preflightTotalSteps": 6,
       "preflightCleanSteps": 1,
       "preflightDriftSteps": 5,
@@ -839,6 +839,6 @@
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-06-26"
+    "weeklyReviewLastPublishedAt": "2026-07-03"
   }
 }
