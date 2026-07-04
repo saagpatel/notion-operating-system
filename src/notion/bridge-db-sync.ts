@@ -201,12 +201,18 @@ export async function runBridgeDbSyncCommand(
 	}
 
 	for (const row of entries) {
-		if (row.policy_disposition) {
+		const disposition = row.policy_disposition;
+		if (disposition && shouldSkipPolicyDisposition(row)) {
 			result.rowsSkipped += 1;
 			result.notes.push(
-				`Skipped row ${row.id}: policy disposition "${row.policy_disposition.disposition_type}" already recorded (${row.policy_disposition.reason}).`,
+				`Skipped row ${row.id}: policy disposition "${disposition.disposition_type}" already recorded (${disposition.reason}).`,
 			);
 			continue;
+		}
+		if (disposition) {
+			result.notes.push(
+				`Row ${row.id}: policy disposition "${disposition.disposition_type}" is superseded by ready canonical Notion routing.`,
+			);
 		}
 
 		const projectTarget = resolveShippedProjectTarget(
@@ -631,6 +637,17 @@ function resolveProjectId(
 		if (projectId) return projectId;
 	}
 	return undefined;
+}
+
+function shouldSkipPolicyDisposition(row: ShippedEvent): boolean {
+	if (!row.policy_disposition) {
+		return false;
+	}
+	return !(
+		row.policy_disposition.disposition_type === "no_durable_target" &&
+		row.notion_sync?.state === "ready" &&
+		Boolean(row.notion_sync.notion_page_id)
+	);
 }
 
 /**
