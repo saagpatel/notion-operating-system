@@ -267,6 +267,63 @@ describe("weekly refresh fast workflow guidance", () => {
 		]);
 	});
 
+	test("recommends full-scope loop for external signal source backlog drift", () => {
+		const summary = buildWeeklyRefreshQuickSummary({
+			ok: true,
+			liveRequested: false,
+			liveExecuted: false,
+			needsLiveWrite: true,
+			status: "completed",
+			today: "2026-07-03",
+			config: "config/local-portfolio-control-tower.json",
+			preflight: {
+				summary: {
+					totalSteps: 1,
+					cleanSteps: 0,
+					driftSteps: 1,
+					completedSteps: 0,
+					partialSteps: 0,
+					failedSteps: 0,
+					skippedSteps: 0,
+				},
+				steps: [
+					{
+						key: "external-signals",
+						title: "External Signal Sync",
+						durationMs: 75_000,
+						live: false,
+						wouldChange: true,
+						status: "drift",
+						summaryCounts: {
+							projectExternalSignalBriefsWouldChange: 15,
+							projectRefreshLimit: 0,
+							evaluatedProjectCount: 15,
+							syncedSourceCount: 15,
+						},
+						warnings: ["49 event(s) skipped: event key already exists in Notion."],
+					},
+				],
+			},
+		});
+
+		expect(summary.recommendedNextCommands).toEqual([
+			"npm run maintenance:weekly-refresh -- --today 2026-07-03 --only external-signals --live --confirm-full-live",
+			"npm run maintenance:weekly-refresh -- --today 2026-07-03 --only external-signals --summary-first --stream-child-output",
+		]);
+		expect(summary.recoveryPlan).toEqual([
+			{
+				step: "external-signals",
+				reason:
+					"External Signal Sync is in a full-scope provider/source backlog; run this lane live without --fast, then repeat the same full-scope dry-run until it reports clean.",
+				command:
+					"npm run maintenance:weekly-refresh -- --today 2026-07-03 --only external-signals --live --confirm-full-live",
+			},
+		]);
+		expect(summary.operatorNotes).toEqual([
+			"External Signal Sync is processing a full-scope provider/source window: 15 project brief(s) would change across 15 evaluated project(s) and 15 source(s). Use the full-scope targeted live/dry-run loop, not --fast, until the lane reports clean.",
+		]);
+	});
+
 	test("recommends targeted fast dry-runs for partial or failed lanes", () => {
 		const summary = buildWeeklyRefreshQuickSummary({
 			ok: true,

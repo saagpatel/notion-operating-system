@@ -833,6 +833,7 @@ export function buildWeeklyRefreshQuickSummary(output: WeeklyRefreshOutput): Rec
     failedSteps,
     partialSteps,
     slowSteps,
+    operatorNotes: buildWeeklyRefreshOperatorNotes(output),
     catchUp: output.catchUp,
     recoveryPlan: buildWeeklyRefreshRecoveryPlan(output, failedSteps, partialSteps),
     recommendedNextCommands: deriveWeeklyRefreshNextCommands(output, failedSteps, partialSteps),
@@ -1027,10 +1028,12 @@ function deriveWeeklyRefreshNextCommands(
   if (commands.length === 0 && output.needsLiveWrite) {
     const driftSteps = output.preflight.steps
       .filter((step) => step.status === "drift" || step.wouldChange)
-      .map((step) => step.key)
       .slice(0, 3);
     for (const step of driftSteps) {
-      commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --fast --live --confirm-full-live`);
+      commands.push(buildWeeklyRefreshLiveRepairCommand(output.today, step));
+      if (isExternalSignalFullScopeBacklogDrift(step)) {
+        commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step.key} --summary-first --stream-child-output`);
+      }
     }
     if (commands.length === 0) {
       commands.push(`npm run maintenance:weekly-refresh -- --today ${output.today} --fast`);
@@ -1057,17 +1060,44 @@ export function buildWeeklyRefreshRecoveryPlan(
   if (plan.length === 0 && output.needsLiveWrite) {
     const driftSteps = output.preflight.steps
       .filter((step) => step.status === "drift" || step.wouldChange)
-      .map((step) => step.key)
       .slice(0, 3);
     for (const step of driftSteps) {
       plan.push({
-        step,
-        reason: "Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
-        command: `npm run maintenance:weekly-refresh -- --today ${output.today} --only ${step} --fast --live --confirm-full-live`,
+        step: step.key,
+        reason: isExternalSignalFullScopeBacklogDrift(step)
+          ? "External Signal Sync is in a full-scope provider/source backlog; run this lane live without --fast, then repeat the same full-scope dry-run until it reports clean."
+          : "Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
+        command: buildWeeklyRefreshLiveRepairCommand(output.today, step),
       });
     }
   }
   return plan;
+}
+
+function buildWeeklyRefreshLiveRepairCommand(today: string, step: WeeklyRefreshStepResult): string {
+  const fastFlag = isExternalSignalFullScopeBacklogDrift(step) ? "" : " --fast";
+  return `npm run maintenance:weekly-refresh -- --today ${today} --only ${step.key}${fastFlag} --live --confirm-full-live`;
+}
+
+function buildWeeklyRefreshOperatorNotes(output: WeeklyRefreshOutput): string[] {
+  return output.preflight.steps
+    .filter(isExternalSignalFullScopeBacklogDrift)
+    .map((step) => {
+      const changed = step.summaryCounts.projectExternalSignalBriefsWouldChange ?? 0;
+      const evaluated = step.summaryCounts.evaluatedProjectCount ?? step.summaryCounts.targetProjectCount ?? 0;
+      const sources = step.summaryCounts.syncedSourceCount ?? step.summaryCounts.targetProjectCount ?? 0;
+      return `External Signal Sync is processing a full-scope provider/source window: ${changed} project brief(s) would change across ${evaluated} evaluated project(s) and ${sources} source(s). Use the full-scope targeted live/dry-run loop, not --fast, until the lane reports clean.`;
+    });
+}
+
+function isExternalSignalFullScopeBacklogDrift(step: WeeklyRefreshStepResult): boolean {
+  if (step.key !== "external-signals" || !(step.status === "drift" || step.wouldChange)) {
+    return false;
+  }
+  const changedBriefs = step.summaryCounts.projectExternalSignalBriefsWouldChange ?? 0;
+  const projectLimit = step.summaryCounts.projectRefreshLimit ?? 0;
+  const syncedSources = step.summaryCounts.syncedSourceCount ?? 0;
+  return changedBriefs > 0 && projectLimit === 0 && syncedSources > 0;
 }
 
 export function shouldPersistWeeklyRefreshState(input: {
