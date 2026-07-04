@@ -99,6 +99,7 @@ function baseRow(overrides: Partial<BridgeDbRow> = {}): BridgeDbRow {
 		tags: overrides.tags ?? '["SHIPPED"]',
 		canonical_key: overrides.canonical_key,
 		notion_sync: overrides.notion_sync,
+		policy_disposition: overrides.policy_disposition,
 	};
 }
 
@@ -722,6 +723,40 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 				"Local Project": { relation: [{ id: "project-ghost" }] },
 			}),
 		});
+	});
+
+	test("skips rows with an explicit bridge-db policy disposition before fuzzy matching", async () => {
+		bridgeSyncMocks.session.getShippedEvents.mockResolvedValue([
+			baseRow({
+				id: 803,
+				project_name: "Ghost Routes",
+				summary: "Already classified as no durable target.",
+				source: "cc",
+				notion_sync: {
+					state: "no_notion_target",
+					reason: "canonical project has no notion_local_page_id",
+					canonical_key: "ghost-routes",
+					notion_page_id: null,
+					notion_title: "Ghost Routes",
+				},
+				policy_disposition: {
+					disposition_type: "no_durable_target",
+					reason: "No safe Notion Build Log target.",
+					policy_ref: "bridge-sync Step 4.5",
+				},
+			}),
+		]);
+
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.updatePageProperties).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
 	});
 });
 

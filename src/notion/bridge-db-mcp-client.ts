@@ -37,6 +37,14 @@ export interface ShippedEvent {
 	tags?: string | string[] | null;
 	canonical_key?: string | null;
 	notion_sync?: NotionSyncInfo;
+	policy_disposition?: {
+		disposition_type: string;
+		reason: string;
+		policy_ref?: string | null;
+		notes?: string | null;
+		decided_by?: string | null;
+		decided_at?: string | null;
+	} | null;
 }
 
 /**

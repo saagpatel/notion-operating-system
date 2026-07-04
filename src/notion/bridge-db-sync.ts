@@ -201,6 +201,14 @@ export async function runBridgeDbSyncCommand(
 	}
 
 	for (const row of entries) {
+		if (row.policy_disposition) {
+			result.rowsSkipped += 1;
+			result.notes.push(
+				`Skipped row ${row.id}: policy disposition "${row.policy_disposition.disposition_type}" already recorded (${row.policy_disposition.reason}).`,
+			);
+			continue;
+		}
+
 		const projectTarget = resolveShippedProjectTarget(
 			row,
 			projectIndex,
