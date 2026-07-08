@@ -29,15 +29,15 @@ This shows live action-request coverage, execution status, dry-run staleness, an
 Use the install path that matches how much control you want:
 
 - **GitHub ref install**: install directly from a tagged GitHub ref
-- **GitHub release tarball install**: most locked-down verified artifact
+- **GitHub release tarball install**: future most locked-down verified artifact once a real release exists
 - **local repo development**: working on the repo itself, source-first workflow
 
 ```bash
 # GitHub ref install
 npm install github:saagpatel/notion-operating-system#v0.2.0
 
-# GitHub release tarball install
-npm install https://github.com/saagpatel/notion-operating-system/releases/download/v0.2.0/notion-operating-system-0.2.0.tgz
+# GitHub release tarball install (not available until a GitHub release is cut)
+# npm install https://github.com/saagpatel/notion-operating-system/releases/download/v0.2.0/notion-operating-system-0.2.0.tgz
 
 # local repo development
 npm ci
