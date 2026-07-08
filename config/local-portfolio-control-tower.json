@@ -214,7 +214,7 @@
       "projectsWithExecutionDrift": 0,
       "wipViolations": []
     },
-    "lastSyncAt": "2026-07-03",
+    "lastSyncAt": "2026-07-07",
     "lastSyncMetrics": {
       "openDecisions": 0,
       "nowPackets": 0,
@@ -498,15 +498,15 @@
       "failedWorkflowRuns": 0,
       "contradictionProjects": 0
     },
-    "lastSyncAt": "2026-07-03",
+    "lastSyncAt": "2026-07-07",
     "lastSyncMetrics": {
       "mappedProjects": 138,
-      "projectsNeedingMapping": 8,
+      "projectsNeedingMapping": 12,
       "activeSources": 136,
-      "riskEvents": 512,
+      "riskEvents": 482,
       "successfulDeployments": 0,
-      "failedWorkflowRuns": 209,
-      "contradictionProjects": 18
+      "failedWorkflowRuns": 173,
+      "contradictionProjects": 13
     }
   },
   "phase6Governance": {
@@ -787,29 +787,29 @@
       "orphanedProjects": 50,
       "recentBuildSessions": 5
     },
-    "lastSyncAt": "2026-07-03",
+    "lastSyncAt": "2026-07-07",
     "lastSyncMetrics": {
-      "totalProjects": 146,
+      "totalProjects": 150,
       "queueCounts": {
-        "Shipped": 23,
+        "Shipped": 26,
         "Needs Review": 17,
         "Needs Decision": 0,
         "Worth Finishing": 29,
         "Resume Now": 56,
-        "Cold Storage": 14,
+        "Cold Storage": 15,
         "Watch": 7
       },
-      "overdueReviews": 86,
+      "overdueReviews": 88,
       "missingNextMove": 0,
       "missingLastActive": 0,
       "staleActiveProjects": 0,
-      "orphanedProjects": 29,
-      "recentBuildSessions": 0
+      "orphanedProjects": 33,
+      "recentBuildSessions": 29
     },
     "lastClosedPhase": 9
   },
   "weeklyMaintenance": {
-    "supportMaintenanceLastSyncAt": "2026-07-03",
+    "supportMaintenanceLastSyncAt": "2026-07-07",
     "weeklyRefreshLastRunAt": "2026-07-03",
     "weeklyRefreshLastStatus": "completed",
     "weeklyRefreshLastSummary": {
@@ -839,6 +839,6 @@
       "liveFailedSteps": 0,
       "liveSkippedSteps": 0
     },
-    "weeklyReviewLastPublishedAt": "2026-07-03"
+    "weeklyReviewLastPublishedAt": "2026-07-07"
   }
 }
