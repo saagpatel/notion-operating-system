@@ -27,7 +27,8 @@ export interface ProjectSnapshot {
 	evidenceFreshness: string;
 	recommendationScore: number;
 	buildSessionCount: number;
-	openPrCount: number;
+	/** `null` means unknown/not-yet-captured — must not be confused with a confirmed 0. */
+	openPrCount: number | null;
 }
 
 type SnapshotInput = {
@@ -37,9 +38,24 @@ type SnapshotInput = {
 	evidenceFreshness: string;
 	recommendationScore?: number;
 	buildSessionCount: number;
-	openPrCount?: number;
+	openPrCount?: number | null;
 };
 
+/** `(projectId, snapshotDate)` composite key used for same-day idempotency. */
+function snapshotIdentityKey(snapshot: {
+	projectId: string;
+	snapshotDate: string;
+}): string {
+	return `${snapshot.projectId}::${snapshot.snapshotDate}`;
+}
+
+/**
+ * Appends one snapshot row per project for `today`, skipping any
+ * `(projectId, today)` pair that is already present on disk. Running the
+ * same batch twice in a day is then a no-op on the second run instead of a
+ * double-write — trend analysis and consecutive-staleness detection stay
+ * accurate under retries.
+ */
 export async function appendSnapshotBatch(
 	projects: SnapshotInput[],
 	today: string,
@@ -48,24 +64,47 @@ export async function appendSnapshotBatch(
 	const dir = path.dirname(snapshotPath);
 	await mkdir(dir, { recursive: true });
 
-	const lines = projects.map((p): string => {
-		const snapshot: ProjectSnapshot = {
-			snapshotDate: today,
-			projectId: p.id,
-			projectTitle: p.title,
-			operatingQueue: p.operatingQueue,
-			evidenceFreshness: p.evidenceFreshness,
-			recommendationScore: p.recommendationScore ?? 0,
-			buildSessionCount: p.buildSessionCount,
-			openPrCount: p.openPrCount ?? 0,
-		};
-		return JSON.stringify(snapshot);
-	});
+	const existingKeysToday = new Set(
+		(await readAllSnapshots())
+			.filter((snapshot) => snapshot.snapshotDate === today)
+			.map((snapshot) => snapshotIdentityKey(snapshot)),
+	);
+
+	const lines = projects
+		.filter(
+			(p) =>
+				!existingKeysToday.has(
+					snapshotIdentityKey({ projectId: p.id, snapshotDate: today }),
+				),
+		)
+		.map((p): string => {
+			const snapshot: ProjectSnapshot = {
+				snapshotDate: today,
+				projectId: p.id,
+				projectTitle: p.title,
+				operatingQueue: p.operatingQueue,
+				evidenceFreshness: p.evidenceFreshness,
+				recommendationScore: p.recommendationScore ?? 0,
+				buildSessionCount: p.buildSessionCount,
+				openPrCount: p.openPrCount ?? null,
+			};
+			return JSON.stringify(snapshot);
+		});
+
+	if (lines.length === 0) {
+		return;
+	}
 
 	const content = lines.join("\n") + "\n";
 	await appendFile(snapshotPath, content, "utf8");
 }
 
+/**
+ * Reads every snapshot line and dedupes by `(projectId, snapshotDate)`,
+ * keeping the last occurrence (append order = write order, so "last" is
+ * "most recently written"). This heals any historical duplicates left by a
+ * pre-idempotency double-run in addition to protecting fresh reads.
+ */
 export async function readAllSnapshots(): Promise<ProjectSnapshot[]> {
 	const snapshotPath = DEFAULT_SNAPSHOT_PATH;
 	let raw: string;
@@ -78,20 +117,21 @@ export async function readAllSnapshots(): Promise<ProjectSnapshot[]> {
 		throw err;
 	}
 
-	const snapshots: ProjectSnapshot[] = [];
+	const byIdentityKey = new Map<string, ProjectSnapshot>();
 	for (const line of raw.split("\n")) {
 		const trimmed = line.trim();
 		if (!trimmed) continue;
 		try {
 			const parsed: unknown = JSON.parse(trimmed);
-			snapshots.push(parseSnapshot(parsed));
+			const snapshot = parseSnapshot(parsed);
+			byIdentityKey.set(snapshotIdentityKey(snapshot), snapshot);
 		} catch {
 			console.warn(
 				`[snapshot-history] Skipping malformed snapshot line: ${trimmed.slice(0, 80)}`,
 			);
 		}
 	}
-	return snapshots;
+	return [...byIdentityKey.values()];
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
@@ -111,7 +151,7 @@ function parseSnapshot(raw: unknown): ProjectSnapshot {
 		evidenceFreshness: requireString(obj, "evidenceFreshness"),
 		recommendationScore: requireNumber(obj, "recommendationScore"),
 		buildSessionCount: requireNumber(obj, "buildSessionCount"),
-		openPrCount: requireNumber(obj, "openPrCount"),
+		openPrCount: requireNumberOrNull(obj, "openPrCount"),
 	};
 }
 
@@ -127,6 +167,21 @@ function requireNumber(obj: Record<string, unknown>, key: string): number {
 	const val = obj[key];
 	if (typeof val !== "number") {
 		throw new Error(`Snapshot field "${key}" must be a number`);
+	}
+	return val;
+}
+
+/** Like `requireNumber`, but a stored `null` (unknown/not-yet-captured) is valid. */
+function requireNumberOrNull(
+	obj: Record<string, unknown>,
+	key: string,
+): number | null {
+	const val = obj[key];
+	if (val === null || val === undefined) {
+		return null;
+	}
+	if (typeof val !== "number") {
+		throw new Error(`Snapshot field "${key}" must be a number or null`);
 	}
 	return val;
 }
@@ -247,12 +302,21 @@ export function renderTrendReport(
 			`| Stale evidence | ${movement.previous.staleEvidence} | ${movement.latest.staleEvidence} | ${formatDelta(movement.latest.staleEvidence - movement.previous.staleEvidence)} |`,
 		);
 		lines.push(
-			`| Open PRs | ${movement.previous.openPrs} | ${movement.latest.openPrs} | ${formatDelta(movement.latest.openPrs - movement.previous.openPrs)} |`,
+			`| Open PRs | ${formatOpenPrCell(movement.previous)} | ${formatOpenPrCell(movement.latest)} | ${formatDelta(movement.latest.openPrs - movement.previous.openPrs)} |`,
 		);
 		lines.push(
 			`| Average recommendation score | ${movement.previous.averageRecommendationScore.toFixed(1)} | ${movement.latest.averageRecommendationScore.toFixed(1)} | ${formatDelta(movement.latest.averageRecommendationScore - movement.previous.averageRecommendationScore, 1)} |`,
 		);
 		lines.push("");
+		if (
+			movement.previous.openPrUnknownCount > 0 ||
+			movement.latest.openPrUnknownCount > 0
+		) {
+			lines.push(
+				"*Open PRs total excludes projects where Open PR Count has not yet been captured — see (unknown) counts above.*",
+			);
+			lines.push("");
+		}
 	}
 
 	if (queueChanges.length > 0) {
@@ -289,7 +353,15 @@ interface SnapshotDateSummary {
 	date: string;
 	projectsTracked: number;
 	staleEvidence: number;
+	/**
+	 * Sum over projects with a known Open PR Count. `null` entries contribute
+	 * nothing to this total — see `openPrUnknownCount` for how many were
+	 * excluded, so the total is never mistaken for "confirmed zero across
+	 * the board".
+	 */
 	openPrs: number;
+	/** Count of projects on this date whose Open PR Count is unknown (`null`). */
+	openPrUnknownCount: number;
 	averageRecommendationScore: number;
 }
 
@@ -301,7 +373,9 @@ interface PortfolioMovementSummary {
 function buildPortfolioMovement(
 	snapshots: ProjectSnapshot[],
 ): PortfolioMovementSummary | undefined {
-	const distinctDates = [...new Set(snapshots.map((s) => s.snapshotDate))].sort();
+	const distinctDates = [
+		...new Set(snapshots.map((s) => s.snapshotDate)),
+	].sort();
 	if (distinctDates.length < 2) return undefined;
 	const latestDate = distinctDates[distinctDates.length - 1];
 	const previousDate = distinctDates[distinctDates.length - 2];
@@ -332,12 +406,20 @@ function summarizeSnapshotDate(
 		staleEvidence: dateSnapshots.filter((s) => s.evidenceFreshness === "Stale")
 			.length,
 		openPrs: dateSnapshots.reduce(
-			(total, snapshot) => total + snapshot.openPrCount,
+			(total, snapshot) => total + (snapshot.openPrCount ?? 0),
 			0,
 		),
+		openPrUnknownCount: dateSnapshots.filter((s) => s.openPrCount === null)
+			.length,
 		averageRecommendationScore:
 			dateSnapshots.length > 0 ? recommendationTotal / dateSnapshots.length : 0,
 	};
+}
+
+function formatOpenPrCell(summary: SnapshotDateSummary): string {
+	return summary.openPrUnknownCount > 0
+		? `${summary.openPrs} (${summary.openPrUnknownCount} unknown)`
+		: `${summary.openPrs}`;
 }
 
 function formatDelta(value: number, precision = 0): string {

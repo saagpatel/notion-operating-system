@@ -1,5 +1,3 @@
-import { createNotionSdkClient } from "./notion-sdk.js";
-
 import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DestinationRegistry } from "../config/destination-registry.js";
@@ -12,8 +10,9 @@ import {
 	preserveManagedSections,
 	stripLeadingMarkdownTitle,
 } from "../utils/markdown.js";
-import { extractNotionIdFromUrl } from "../utils/notion-id.js";
 import { postNotificationHubEvent } from "../utils/notification-hub.js";
+import { extractNotionIdFromUrl } from "../utils/notion-id.js";
+import { isMarkdownPatchTransportError } from "./command-center-replacement.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	applyDerivedSignals,
@@ -39,12 +38,12 @@ import {
 	validateLocalPortfolioViewPlanAgainstSchema,
 } from "./local-portfolio-views.js";
 import { COMMAND_CENTER_MANAGED_SECTIONS } from "./managed-markdown-sections.js";
+import { createNotionSdkClient } from "./notion-sdk.js";
 import { appendSnapshotBatch } from "./snapshot-history.js";
 import {
 	buildWeeklyStepContract,
 	mapWeeklyStepStatusToCommandStatus,
 } from "./weekly-refresh-contract.js";
-import { isMarkdownPatchTransportError } from "./command-center-replacement.js";
 
 export interface ControlTowerSyncCommandOptions {
 	live?: boolean;
@@ -178,17 +177,7 @@ export async function runControlTowerSyncCommand(
 	});
 
 	if (live) {
-		await appendSnapshotBatch(
-			derivedProjects.map((p) => ({
-				id: p.id,
-				title: p.title,
-				operatingQueue: p.operatingQueue ?? "",
-				evidenceFreshness: p.evidenceFreshness ?? "",
-				buildSessionCount: p.buildSessionCount,
-				openPrCount: 0,
-			})),
-			today,
-		);
+		await appendSnapshotBatch(buildSnapshotBatchInput(derivedProjects), today);
 
 		const finalConfig = {
 			...nextConfig,
@@ -277,9 +266,13 @@ async function publishCommandCenter(input: {
 		};
 	}
 
-	const parentPageId = extractNotionIdFromUrl(input.config.commandCenter.parentPageUrl);
+	const parentPageId = extractNotionIdFromUrl(
+		input.config.commandCenter.parentPageUrl,
+	);
 	if (!parentPageId) {
-		throw new AppError("Control tower command center parentPageUrl is not a Notion page URL");
+		throw new AppError(
+			"Control tower command center parentPageUrl is not a Notion page URL",
+		);
 	}
 
 	if (input.config.commandCenter.pageId) {
@@ -316,6 +309,26 @@ async function publishCommandCenter(input: {
 		pageId: created.id,
 		pageUrl: created.url,
 	};
+}
+
+/**
+ * Maps derived project records onto the shape `appendSnapshotBatch` expects.
+ * Open PR Count is owned by external-signal-sync, not control-tower-sync —
+ * when that lane hasn't run yet the field is `undefined`, and that
+ * "unknown" state must be recorded as `null`, not coerced into a confirmed
+ * 0 (spec P5 — see snapshot-history.ts `ProjectSnapshot`).
+ */
+export function buildSnapshotBatchInput(
+	projects: ControlTowerProjectRecord[],
+): Parameters<typeof appendSnapshotBatch>[0] {
+	return projects.map((p) => ({
+		id: p.id,
+		title: p.title,
+		operatingQueue: p.operatingQueue ?? "",
+		evidenceFreshness: p.evidenceFreshness ?? "",
+		buildSessionCount: p.buildSessionCount,
+		openPrCount: p.openPrCount ?? null,
+	}));
 }
 
 export function buildDerivedPropertyUpdates(

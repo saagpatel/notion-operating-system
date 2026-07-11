@@ -1,12 +1,13 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { describe, expect, test } from "vitest";
 import {
 	buildDerivedPropertyUpdates,
 	buildNextControlTowerPhaseState,
+	buildSnapshotBatchInput,
 	countControlTowerChangedRows,
 } from "../src/notion/control-tower-sync.js";
 import {
@@ -23,24 +24,27 @@ import {
 	renderFreshnessByLayerSection,
 	renderWeeklyReviewMarkdown,
 } from "../src/notion/local-portfolio-control-tower.js";
-import { buildStaleActiveRescueUpdatePlan } from "../src/notion/stale-active-rescue.js";
 import {
-	buildRepoMappingAudit,
-	loadRepoMappingProjectionPolicy,
-	REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
-} from "../src/notion/repo-mapping-audit.js";
-import type { DataSourcePageRef } from "../src/notion/local-portfolio-control-tower-live.js";
+	type DataSourcePageRef,
+	toControlTowerProjectRecord,
+} from "../src/notion/local-portfolio-control-tower-live.js";
 import type { ExternalSignalSourceRecord } from "../src/notion/local-portfolio-external-signals.js";
+import {
+	buildRoadmapPhases,
+	renderLocalPortfolioAdrMarkdown,
+	renderNotionRoadmapMarkdown,
+} from "../src/notion/local-portfolio-roadmap.js";
 import {
 	ACTUATION_COMMAND_CENTER_SECTION,
 	COMMAND_CENTER_MANAGED_SECTIONS,
 	GOVERNANCE_COMMAND_CENTER_SECTION,
 } from "../src/notion/managed-markdown-sections.js";
 import {
-	buildRoadmapPhases,
-	renderLocalPortfolioAdrMarkdown,
-	renderNotionRoadmapMarkdown,
-} from "../src/notion/local-portfolio-roadmap.js";
+	buildRepoMappingAudit,
+	loadRepoMappingProjectionPolicy,
+	REPO_MAPPING_PROJECTION_POLICY_SCHEMA_VERSION,
+} from "../src/notion/repo-mapping-audit.js";
+import { buildStaleActiveRescueUpdatePlan } from "../src/notion/stale-active-rescue.js";
 
 const TODAY = "2026-03-17";
 
@@ -245,8 +249,12 @@ describe("local portfolio control tower rules", () => {
 	test("builds the decision queue and repo mapping audit packet", () => {
 		const projectsRoot = mkdtempSync(join(tmpdir(), "notion-repo-audit-"));
 		try {
-			mkdirSync(join(projectsRoot, "MappedProject", ".git"), { recursive: true });
-			mkdirSync(join(projectsRoot, "ScreenshottoDataSelect", ".git"), { recursive: true });
+			mkdirSync(join(projectsRoot, "MappedProject", ".git"), {
+				recursive: true,
+			});
+			mkdirSync(join(projectsRoot, "ScreenshottoDataSelect", ".git"), {
+				recursive: true,
+			});
 
 			const result = buildRepoMappingAudit({
 				today: TODAY,
@@ -293,10 +301,16 @@ describe("local portfolio control tower rules", () => {
 				"Missing Local Repo",
 			]);
 			expect(result.projects[0]?.localMappingStatus).toBe("ambiguous");
-			expect(result.projects[0]?.repoCandidates[0]).toContain("ScreenshottoDataSelect");
-			expect(result.projects[1]?.localMappingStatus).toBe("needs-normalization");
+			expect(result.projects[0]?.repoCandidates[0]).toContain(
+				"ScreenshottoDataSelect",
+			);
+			expect(result.projects[1]?.localMappingStatus).toBe(
+				"needs-normalization",
+			);
 			expect(result.projects[1]?.recommendedLocalPath).toBe("MappedProject");
-			expect(result.markdown).toContain("Decision Queue and Repo Mapping Audit");
+			expect(result.markdown).toContain(
+				"Decision Queue and Repo Mapping Audit",
+			);
 		} finally {
 			rmSync(projectsRoot, { recursive: true, force: true });
 		}
@@ -452,7 +466,8 @@ describe("local portfolio control tower rules", () => {
 							"DesktopPEt-ready": "DesktopPEt",
 						},
 						notion_projection_only_rows: {
-							"Sandbox Local Portfolio Project": "actuation sandbox fixture row",
+							"Sandbox Local Portfolio Project":
+								"actuation sandbox fixture row",
 						},
 						notion_truth_shadow_rows: {
 							"PortfolioCommandCenter-public": "PortfolioCommandCenter",
@@ -576,6 +591,43 @@ describe("local portfolio control tower rules", () => {
 		});
 
 		expect(buildDerivedPropertyUpdates(stable, { ...stable })).toEqual({});
+	});
+
+	test("reads Open PR Count as a real number once external-signal-sync has populated it (P5)", () => {
+		const page = projectPage({
+			id: "project-1",
+			title: "Sample",
+			currentState: "Active Build",
+		});
+		page.properties["Open PR Count"] = { type: "number", number: 3 };
+
+		expect(toControlTowerProjectRecord(page).openPrCount).toBe(3);
+	});
+
+	test("leaves Open PR Count undefined, not 0, when external-signal-sync has never run (P5)", () => {
+		const page = projectPage({
+			id: "project-1",
+			title: "Sample",
+			currentState: "Active Build",
+		});
+
+		expect(toControlTowerProjectRecord(page).openPrCount).toBeUndefined();
+	});
+
+	test("threads a project's real Open PR Count into the snapshot batch input (P5)", () => {
+		const project = baseProject({ id: "project-1", openPrCount: 4 });
+
+		expect(buildSnapshotBatchInput([project])).toEqual([
+			expect.objectContaining({ id: "project-1", openPrCount: 4 }),
+		]);
+	});
+
+	test("records null, not a fabricated 0, when a project has no Open PR Count yet (P5)", () => {
+		const project = baseProject({ id: "project-1", openPrCount: undefined });
+
+		expect(buildSnapshotBatchInput([project])).toEqual([
+			expect.objectContaining({ id: "project-1", openPrCount: null }),
+		]);
 	});
 
 	test("keeps changed-row counting stable when multiple fields change on one row", () => {
@@ -820,6 +872,7 @@ function baseProject(
 		operatingQueue: overrides.operatingQueue,
 		nextReviewDate: overrides.nextReviewDate,
 		evidenceFreshness: overrides.evidenceFreshness,
+		openPrCount: overrides.openPrCount,
 	};
 }
 
@@ -835,10 +888,15 @@ function projectPage(overrides: {
 		url: `https://notion.so/${overrides.id}`,
 		title: overrides.title,
 		properties: {
-			"Current State": { type: "select", select: { name: overrides.currentState } },
+			"Current State": {
+				type: "select",
+				select: { name: overrides.currentState },
+			},
 			"Operating Queue": {
 				type: "select",
-				select: overrides.operatingQueue ? { name: overrides.operatingQueue } : null,
+				select: overrides.operatingQueue
+					? { name: overrides.operatingQueue }
+					: null,
 			},
 			"Portfolio Call": { type: "select", select: { name: "Finish" } },
 			"Next Move": {
@@ -847,7 +905,9 @@ function projectPage(overrides: {
 			},
 			"Local Path": {
 				type: "rich_text",
-				rich_text: overrides.localPath ? [{ plain_text: overrides.localPath }] : [],
+				rich_text: overrides.localPath
+					? [{ plain_text: overrides.localPath }]
+					: [],
 			},
 			"Last Active": { type: "date", date: { start: "2026-03-12" } },
 			"Evidence Freshness": { type: "select", select: { name: "Fresh" } },
