@@ -19,6 +19,7 @@ import {
 	syncNotificationHubSources,
 	syncProviders,
 	syncRepoAuditorSources,
+	updateSignalEventPage,
 	upsertExternalSignalBriefPage,
 	validateExternalSignalSyncOptions,
 } from "../src/notion/external-signal-sync.js";
@@ -560,6 +561,54 @@ describe("external signal sync hardening", () => {
 		expect(calls[2]?.filter).toBeUndefined();
 	});
 
+	test("last-resort full scan is exhaustive — finds a key beyond 5000 rows (no result cap)", async () => {
+		// maxResults never reaches the Notion payload — it truncates
+		// client-side pagination — so the contract is locked behaviorally:
+		// the requested key lives on the 51st unfiltered page (rows 5001+),
+		// which any capped scan (e.g. a 5000-row maxResults) would never
+		// reach. Dedup correctness requires the scan to be exhaustive; a
+		// truncated scan makes an existing key look absent and causes a
+		// duplicate create.
+		const pageSize = 100;
+		const totalPages = 51;
+		const targetKey = "github::workflow::beyond-the-cap";
+		let unfilteredCalls = 0;
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				if (body.filter) {
+					throw new Error("event key filter rejected");
+				}
+				unfilteredCalls += 1;
+				const pageIndex = unfilteredCalls; // 1-based
+				const isLast = pageIndex === totalPages;
+				return {
+					results: Array.from({ length: pageSize }, (_, i) => {
+						const rowNumber = (pageIndex - 1) * pageSize + i;
+						const isTarget = isLast && i === pageSize - 1;
+						return eventPage(
+							`00000000-0000-4000-8000-${String(rowNumber).padStart(12, "0")}`,
+							`Event ${rowNumber}`,
+							isTarget ? targetKey : `github::workflow::filler-${rowNumber}`,
+						);
+					}),
+					has_more: !isLast,
+					next_cursor: isLast ? null : `cursor-${pageIndex}`,
+				};
+			},
+		};
+
+		const result = await fetchExistingExternalSignalEventKeys({
+			client: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			eventKeys: [targetKey],
+		});
+
+		expect(result.mode).toBe("full_scan_fallback");
+		expect(unfilteredCalls).toBe(totalPages); // paginated past row 5000
+		expect(result.eventKeys.has(targetKey)).toBe(true);
+	});
+
 	test("recovers on the retried attempt without ever reaching the full scan (P3)", async () => {
 		const calls: Array<Record<string, unknown>> = [];
 		let attempt = 0;
@@ -876,6 +925,100 @@ describe("external signal sync hardening", () => {
 			"vercel::deployment::source-1::uid-b",
 		]);
 		expect(result[0]?.updates ?? []).toHaveLength(0);
+	});
+
+	test("Vercel status upsert patches every status-derived property, not just Status (P4)", async () => {
+		const patches: Array<{
+			pageId: string;
+			properties: Record<string, unknown>;
+		}> = [];
+		const api = {
+			updatePageProperties: async (input: {
+				pageId: string;
+				properties: Record<string, unknown>;
+			}) => {
+				patches.push(input);
+				return undefined as never;
+			},
+		};
+
+		const event = vercelIdentityEvent(
+			"vercel::deployment::source-1::abc123",
+			"READY",
+			{
+				occurredAt: "2026-06-07",
+				severity: "Info",
+				sourceUrl: "https://my-app.vercel.app",
+				rawExcerpt: "readyState=READY, target=production",
+			},
+		);
+
+		await updateSignalEventPage({
+			api,
+			pageId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+			event,
+			syncRunId: "run-page-2",
+		});
+
+		expect(patches).toHaveLength(1);
+		expect(patches[0]?.pageId).toBe("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+		// A partial patch leaves the row self-contradictory: Status=READY while
+		// Raw Excerpt still says readyState=BUILDING, and Sync Run pointing at
+		// the run that created the row rather than the one that landed the
+		// latest status. The patch must carry the full status-derived set.
+		expect(patches[0]?.properties).toEqual({
+			Status: {
+				rich_text: [{ type: "text", text: { content: "READY" } }],
+			},
+			"Occurred At": { date: { start: "2026-06-07" } },
+			Severity: { select: { name: "Info" } },
+			Summary: {
+				rich_text: [
+					{
+						type: "text",
+						text: { content: "Deployment status is ready for source-1." },
+					},
+				],
+			},
+			"Raw Excerpt": {
+				rich_text: [
+					{
+						type: "text",
+						text: { content: "readyState=READY, target=production" },
+					},
+				],
+			},
+			"Source URL": { url: "https://my-app.vercel.app" },
+			"Sync Run": { relation: [{ id: "run-page-2" }] },
+		});
+	});
+
+	test("Vercel status upsert clears Source URL when the deployment reports none (P4)", async () => {
+		const patches: Array<{ properties: Record<string, unknown> }> = [];
+		const api = {
+			updatePageProperties: async (input: {
+				pageId: string;
+				properties: Record<string, unknown>;
+			}) => {
+				patches.push(input);
+				return undefined as never;
+			},
+		};
+
+		await updateSignalEventPage({
+			api,
+			pageId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+			event: vercelIdentityEvent(
+				"vercel::deployment::source-1::abc123",
+				"ERROR",
+				{
+					sourceUrl: "",
+				},
+			),
+			syncRunId: "run-page-3",
+		});
+
+		expect(patches[0]?.properties["Source URL"]).toEqual({ url: null });
 	});
 
 	test("derives scoped write plans without crossing provider/page boundaries", () => {

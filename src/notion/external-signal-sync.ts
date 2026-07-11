@@ -594,6 +594,7 @@ export async function runExternalSignalSyncCommand(
 					api,
 					pageId: update.pageId,
 					event: update.event,
+					syncRunId: syncRun.id,
 				});
 				const existingIndex = existingEvents.findIndex(
 					(existingEvent) => existingEvent.id === update.pageId,
@@ -605,6 +606,9 @@ export async function runExternalSignalSyncCommand(
 						occurredAt: update.event.occurredAt,
 						severity: update.event.severity,
 						summary: update.event.summary,
+						rawExcerpt: update.event.rawExcerpt,
+						sourceUrl: update.event.sourceUrl,
+						syncRunIds: [syncRun.id],
 					};
 				}
 			}
@@ -3538,12 +3542,17 @@ async function createSignalEventPage(input: {
 /**
  * P4: patches an existing identity-keyed event row (e.g. a Vercel
  * deployment) in place after a status change, instead of appending a new
- * row for the same underlying deployment.
+ * row for the same underlying deployment. Patches every status-derived
+ * property the create path writes — Status, Occurred At, Severity, Summary,
+ * Raw Excerpt (encodes readyState and would otherwise contradict Status
+ * forever), Source URL, and the Sync Run relation (audit trail must point
+ * at the run that landed the latest status, not the creating run).
  */
-async function updateSignalEventPage(input: {
-	api: DirectNotionClient;
+export async function updateSignalEventPage(input: {
+	api: Pick<DirectNotionClient, "updatePageProperties">;
 	pageId: string;
 	event: NormalizedSignalEvent;
+	syncRunId: string;
 }): Promise<void> {
 	await input.api.updatePageProperties({
 		pageId: input.pageId,
@@ -3552,6 +3561,11 @@ async function updateSignalEventPage(input: {
 			"Occurred At": { date: { start: input.event.occurredAt } },
 			Severity: selectPropertyValue(input.event.severity),
 			Summary: richTextValue(input.event.summary),
+			"Raw Excerpt": richTextValue(input.event.rawExcerpt),
+			"Source URL": input.event.sourceUrl
+				? { url: input.event.sourceUrl }
+				: { url: null },
+			"Sync Run": relationValue([input.syncRunId]),
 		},
 	});
 }

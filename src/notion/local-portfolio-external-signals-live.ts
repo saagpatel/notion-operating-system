@@ -28,9 +28,6 @@ import type {
 
 export const RECENT_EXTERNAL_SIGNAL_EVENTS_PER_PROJECT = 25;
 export const RECENT_EXTERNAL_SIGNAL_EVENT_FETCH_CONCURRENCY = 3;
-// P3 fallback hardening: a full-DB scan is a performance cliff on a large
-// events database, so cap it even though it is already the last resort.
-export const FULL_SCAN_FALLBACK_MAX_RESULTS = 5000;
 
 export interface RecentExternalSignalEventPageFetchResult {
 	pages: DataSourcePageRef[];
@@ -594,8 +591,13 @@ export async function fetchRecentExternalSignalEventPagesByProject(input: {
 /**
  * Shared core for "look up event pages by Event Key" queries: batches the
  * OR-filter lookup, retries the batch once on failure (transient Notion
- * errors are common under load), and only concedes to a capped full-DB scan
- * if the retry also fails (P3 fallback hardening).
+ * errors are common under load), and only concedes to a full-DB scan if the
+ * retry also fails (P3 fallback hardening). The last-resort scan is
+ * deliberately UNBOUNDED (no maxResults): dedup correctness requires an
+ * exhaustive scan — a truncated scan would make an existing key look absent
+ * and cause a duplicate create (or, for identity-keyed providers, a
+ * duplicate row instead of a status patch). It is rare by construction:
+ * reached only after two failed filtered attempts.
  */
 async function fetchEventPagesByKeyWithFallback(input: {
 	client: Client | DirectNotionClient;
@@ -639,7 +641,6 @@ async function fetchEventPagesByKeyWithFallback(input: {
 				input.client,
 				input.dataSourceId,
 				input.titlePropertyName,
-				{ maxResults: FULL_SCAN_FALLBACK_MAX_RESULTS },
 			);
 			return {
 				pages: pages.filter((page) =>
