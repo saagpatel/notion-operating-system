@@ -219,6 +219,8 @@ describe("Publisher write verification wiring", () => {
 			expect(error).toBeInstanceOf(AppError);
 			const appError = error as AppError;
 			expect(appError.details?.destinationAlias).toBe(destination.alias);
+			expect(appError.details?.pageId).toBe("page-1");
+			expect(appError.details?.pageUrl).toBe("https://notion.so/page-1");
 			expect(appError.details?.verification).toMatchObject({
 				status: "diverged",
 			});

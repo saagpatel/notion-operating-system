@@ -99,10 +99,15 @@ function verifyContainsUpdates(
 			continue;
 		}
 
+		// When the search text is a substring of the replacement (the ordinary
+		// append/annotate edit, e.g. "TODO" -> "TODO: done"), the readback
+		// legitimately still contains the search text inside the replacement —
+		// that is not a leftover. Only flag when the search text could not be
+		// explained by the replacement itself.
 		const normalizedSearch = normalizeMarkdown(update.oldStr);
 		const searchStillPresent =
 			normalizedSearch.length > 0 &&
-			normalizedSearch !== normalizedReplacement &&
+			!normalizedReplacement.includes(normalizedSearch) &&
 			normalizedReadback.includes(normalizedSearch);
 
 		if (searchStillPresent) {

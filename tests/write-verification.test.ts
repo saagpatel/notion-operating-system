@@ -129,6 +129,44 @@ describe("verifyPublishedContent — contains-check", () => {
 		}
 	});
 
+	test("append-edit where the search text is a substring of the replacement verifies", () => {
+		const result = verifyPublishedContent({
+			readbackMarkdown: "# Log\n\nTODO: done\n\nOwner: Saagar",
+			title: "Log",
+			expectation: {
+				kind: "contains",
+				updates: [
+					{ oldStr: "TODO", newStr: "TODO: done", replaceAllMatches: false },
+				],
+			},
+		});
+
+		expect(result).toEqual({ status: "verified" });
+	});
+
+	test("genuine leftover outside the replacement (search not a substring of replacement) still diverges", () => {
+		const result = verifyPublishedContent({
+			readbackMarkdown:
+				"# Log\n\nStatus: Complete\n\nElsewhere: Status: Pending",
+			title: "Log",
+			expectation: {
+				kind: "contains",
+				updates: [
+					{
+						oldStr: "Status: Pending",
+						newStr: "Status: Complete",
+						replaceAllMatches: false,
+					},
+				],
+			},
+		});
+
+		expect(result.status).toBe("diverged");
+		if (result.status === "diverged") {
+			expect(result.detail).toContain("still present alongside replacement");
+		}
+	});
+
 	test("an empty updates list vacuously verifies", () => {
 		const result = verifyPublishedContent({
 			readbackMarkdown: "# Log\n\nUnchanged content.",

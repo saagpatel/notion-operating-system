@@ -172,6 +172,8 @@ export class Publisher {
 
 		const verification = await this.verifyWrite({
 			destination,
+			pageId: page.id,
+			pageUrl: page.url,
 			readbackMarkdown: readback.markdown,
 			title,
 			expectation: { kind: "full", markdown: parsedBody },
@@ -298,6 +300,8 @@ export class Publisher {
 
 		const verification = await this.verifyWrite({
 			destination,
+			pageId: targetPage.id,
+			pageUrl: targetPage.url,
 			readbackMarkdown: readback.markdown,
 			title,
 			expectation,
@@ -410,6 +414,8 @@ export class Publisher {
 
 			const verification = await this.verifyWrite({
 				destination,
+				pageId: page.id,
+				pageUrl: page.url,
 				readbackMarkdown: readback.markdown,
 				title,
 				expectation,
@@ -515,6 +521,8 @@ export class Publisher {
 
 		const verification = await this.verifyWrite({
 			destination,
+			pageId: targetPage.id,
+			pageUrl: targetPage.url,
 			readbackMarkdown: readback.markdown,
 			title,
 			expectation,
@@ -581,12 +589,16 @@ export class Publisher {
 	 */
 	private async verifyWrite({
 		destination,
+		pageId,
+		pageUrl,
 		readbackMarkdown,
 		title,
 		expectation,
 		warnings,
 	}: {
 		destination: DestinationConfig;
+		pageId: string;
+		pageUrl?: string;
 		readbackMarkdown: string;
 		title?: string;
 		expectation: WriteExpectation;
@@ -613,16 +625,25 @@ export class Publisher {
 			if (mode === "fail") {
 				await this.logger.error("write_verification_diverged", {
 					destinationAlias: destination.alias,
+					pageId,
+					pageUrl,
 					detail: result.detail,
 				});
 				throw new AppError(
 					`Write verification failed for destination "${destination.alias}": ${result.detail}`,
-					{ destinationAlias: destination.alias, verification: result },
+					{
+						destinationAlias: destination.alias,
+						pageId,
+						pageUrl,
+						verification: result,
+					},
 				);
 			}
 
 			await this.logger.warn("write_verification_diverged", {
 				destinationAlias: destination.alias,
+				pageId,
+				pageUrl,
 				detail: result.detail,
 			});
 			warnings.push(`Write verification diverged: ${result.detail}`);
