@@ -4,6 +4,17 @@
 
 *Fable 5 exploration session, started 2026-07-10. Discovery → proposals → public material for saagarpatel.dev.*
 
+## Integration reconciliation — 2026-07-11
+
+- The four feature branches described below are now locally integrated on `docs/fable-explore-session`; closeout documentation is being reconciled on `codex/fable-integration-closeout-20260711` from that head.
+- `main` and `origin/main` remain unchanged by this lane. Nothing has been pushed or merged to `main`.
+- `fable-explore/` is tracked in the integration history; the historical untracked-material warning below is retained as incident provenance, not current branch state.
+- `npm run verify` passes on the integrated head with 64 test files and 526 tests, followed by all build and install smoke checks. The earlier package-surface timeout did not reproduce.
+- A direct read-only check confirms the live Build Log `Sync Key` property exists as `rich_text` and the remaining required properties match the integrated schema contract.
+- No `bridge-db sync` dry-run or live run was performed during closeout. BridgeDB currently has zero actionable unprocessed shipped rows, and the command emits a Notification Hub event even in dry-run mode.
+
+The detailed sections below preserve the pre-integration exploration, review, and incident record. For current operator actions, use HANDOFF.md.
+
 ## Ground rules
 - Public-safe = architecture + reasoning only; never real project/workspace contents.
 - Code changes are drafted as proposals only — nothing pushed, no live Notion mutations.
