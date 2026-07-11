@@ -92,6 +92,149 @@ describe("readAllSnapshots", () => {
 		expect(result).toHaveLength(1);
 		expect(result[0]?.projectId).toBe("proj-ok");
 	});
+
+	test("duplicate (projectId, snapshotDate) rows on disk → dedupes to the last-written one (P5)", async () => {
+		const stale = makeSnap({
+			projectId: "proj-1",
+			operatingQueue: "Cold Storage",
+		});
+		const fresh = makeSnap({
+			projectId: "proj-1",
+			operatingQueue: "Resume Now",
+		});
+		await writeFile(
+			snapshotPath,
+			[JSON.stringify(stale), JSON.stringify(fresh)].join("\n") + "\n",
+			"utf8",
+		);
+		const readAllSnapshots = await importReadAllSnapshots(snapshotPath);
+		const result = await readAllSnapshots();
+		expect(result).toHaveLength(1);
+		expect(result[0]?.operatingQueue).toBe("Resume Now");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// appendSnapshotBatch — same-day idempotency (P5)
+// ---------------------------------------------------------------------------
+
+describe("appendSnapshotBatch", () => {
+	let tmpDir: string;
+	let snapshotPath: string;
+
+	beforeEach(async () => {
+		tmpDir = await mkdtemp(path.join(os.tmpdir(), "snapshot-append-test-"));
+		snapshotPath = path.join(tmpDir, "snapshots.jsonl");
+	});
+
+	afterEach(async () => {
+		vi.resetModules();
+		await rm(tmpDir, { recursive: true, force: true });
+	});
+
+	async function importSnapshotHistory(envPath: string) {
+		vi.stubEnv("NOTION_OS_SNAPSHOT_PATH", envPath);
+		vi.resetModules();
+		const mod = await import("../src/notion/snapshot-history.js");
+		vi.unstubAllEnvs();
+		return mod;
+	}
+
+	test("running the same batch twice in a day writes exactly one row per project (P5)", async () => {
+		const { appendSnapshotBatch, readAllSnapshots } =
+			await importSnapshotHistory(snapshotPath);
+		const batch = [
+			{
+				id: "proj-1",
+				title: "Alpha",
+				operatingQueue: "Worth Finishing",
+				evidenceFreshness: "Fresh",
+				buildSessionCount: 2,
+				openPrCount: 1,
+			},
+		];
+
+		await appendSnapshotBatch(batch, "2026-04-10");
+		await appendSnapshotBatch(batch, "2026-04-10");
+
+		const result = await readAllSnapshots();
+		expect(result).toHaveLength(1);
+		expect(result[0]?.projectId).toBe("proj-1");
+	});
+
+	test("a same-day rerun still appends genuinely new projects (P5)", async () => {
+		const { appendSnapshotBatch, readAllSnapshots } =
+			await importSnapshotHistory(snapshotPath);
+		const first = [
+			{
+				id: "proj-1",
+				title: "Alpha",
+				operatingQueue: "Worth Finishing",
+				evidenceFreshness: "Fresh",
+				buildSessionCount: 2,
+			},
+		];
+		const second = [
+			...first,
+			{
+				id: "proj-2",
+				title: "Beta",
+				operatingQueue: "Resume Now",
+				evidenceFreshness: "Stale",
+				buildSessionCount: 5,
+			},
+		];
+
+		await appendSnapshotBatch(first, "2026-04-10");
+		await appendSnapshotBatch(second, "2026-04-10");
+
+		const result = await readAllSnapshots();
+		expect(result.map((s) => s.projectId).sort()).toEqual(["proj-1", "proj-2"]);
+	});
+
+	test("a different day's batch is not treated as a duplicate (P5)", async () => {
+		const { appendSnapshotBatch, readAllSnapshots } =
+			await importSnapshotHistory(snapshotPath);
+		const batch = [
+			{
+				id: "proj-1",
+				title: "Alpha",
+				operatingQueue: "Worth Finishing",
+				evidenceFreshness: "Fresh",
+				buildSessionCount: 2,
+			},
+		];
+
+		await appendSnapshotBatch(batch, "2026-04-10");
+		await appendSnapshotBatch(batch, "2026-04-11");
+
+		const result = await readAllSnapshots();
+		expect(result).toHaveLength(2);
+		expect(result.map((s) => s.snapshotDate).sort()).toEqual([
+			"2026-04-10",
+			"2026-04-11",
+		]);
+	});
+
+	test("an unset Open PR Count is persisted as null, not fabricated as 0 (P5)", async () => {
+		const { appendSnapshotBatch, readAllSnapshots } =
+			await importSnapshotHistory(snapshotPath);
+		const batch = [
+			{
+				id: "proj-1",
+				title: "Alpha",
+				operatingQueue: "Worth Finishing",
+				evidenceFreshness: "Fresh",
+				buildSessionCount: 2,
+				openPrCount: null,
+			},
+		];
+
+		await appendSnapshotBatch(batch, "2026-04-10");
+
+		const result = await readAllSnapshots();
+		expect(result[0]?.openPrCount).toBeNull();
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -169,7 +312,9 @@ describe("renderTrendReport", () => {
 		expect(report).toContain("| Projects tracked | 1 | 2 | +1 |");
 		expect(report).toContain("| Stale evidence | 0 | 1 | +1 |");
 		expect(report).toContain("| Open PRs | 0 | 1 | +1 |");
-		expect(report).toContain("| Average recommendation score | 2.0 | 5.0 | +3.0 |");
+		expect(report).toContain(
+			"| Average recommendation score | 2.0 | 5.0 | +3.0 |",
+		);
 	});
 
 	test("3 consecutive stale entries → sustained stale section appears", () => {
@@ -249,5 +394,41 @@ describe("renderTrendReport", () => {
 		expect(report).toContain("Queue Changes");
 		expect(report).toContain("Sustained Stale Evidence");
 		expect(report).not.toContain("No anomalies detected.");
+	});
+
+	test("unknown Open PR Count renders as an annotated cell, never a fabricated 0 (P5)", () => {
+		const snaps = [
+			makeSnap({
+				projectId: "proj-1",
+				snapshotDate: "2026-04-09",
+				openPrCount: 2,
+			}),
+			makeSnap({
+				projectId: "proj-1",
+				snapshotDate: "2026-04-10",
+				openPrCount: 2,
+			}),
+			makeSnap({
+				projectId: "proj-2",
+				projectTitle: "Second Project",
+				snapshotDate: "2026-04-10",
+				openPrCount: null,
+			}),
+		];
+		const report = renderTrendReport(snaps, TODAY);
+		expect(report).toContain("| Open PRs | 2 | 2 (1 unknown) |");
+		expect(report).toContain(
+			"Open PRs total excludes projects where Open PR Count has not yet been captured",
+		);
+	});
+
+	test("all-known Open PR Counts render as a plain number, matching pre-P5 output", () => {
+		const snaps = [
+			makeSnap({ snapshotDate: "2026-04-09", openPrCount: 0 }),
+			makeSnap({ snapshotDate: "2026-04-10", openPrCount: 1 }),
+		];
+		const report = renderTrendReport(snaps, TODAY);
+		expect(report).toContain("| Open PRs | 0 | 1 | +1 |");
+		expect(report).not.toContain("unknown");
 	});
 });

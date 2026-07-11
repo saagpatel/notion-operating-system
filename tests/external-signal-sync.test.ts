@@ -12,9 +12,9 @@ import {
 	filterProviderResultsAgainstExistingEventKeys,
 	isRetryableStoredBriefWriteError,
 	normalizeProviderName,
+	type ProviderSyncResult,
 	selectProjectRefreshBatch,
 	syncExternalSignalProjectBrief,
-	type ProviderSyncResult,
 	syncGithubSources,
 	syncNotificationHubSources,
 	syncProviders,
@@ -22,14 +22,16 @@ import {
 	upsertExternalSignalBriefPage,
 	validateExternalSignalSyncOptions,
 } from "../src/notion/external-signal-sync.js";
-import {
-	fetchExistingExternalSignalEventKeys,
-	fetchRecentExternalSignalEventPagesByProject,
-} from "../src/notion/local-portfolio-external-signals-live.js";
 import type {
 	ExternalSignalProviderPlan,
 	ExternalSignalSourceRecord,
 } from "../src/notion/local-portfolio-external-signals.js";
+import {
+	fetchExistingExternalSignalEventKeys,
+	fetchExistingExternalSignalEventsByKey,
+	fetchRecentExternalSignalEventPagesByProject,
+} from "../src/notion/local-portfolio-external-signals-live.js";
+import type { SignalWatermark } from "../src/notion/signal-watermarks.js";
 import { AppError } from "../src/utils/errors.js";
 
 describe("external signal sync hardening", () => {
@@ -56,7 +58,9 @@ describe("external signal sync hardening", () => {
 				writeScope: "full",
 				projectLimit: 10,
 			}),
-		).toThrow("--project-limit and --project-offset require --write-scope project-pages");
+		).toThrow(
+			"--project-limit and --project-offset require --write-scope project-pages",
+		);
 		expect(() =>
 			validateExternalSignalSyncOptions({
 				writeScope: "project-pages",
@@ -86,12 +90,9 @@ describe("external signal sync hardening", () => {
 				offset: 1,
 			}).map((project) => project.id),
 		).toEqual(["p-2", "p-4"]);
-		expect(selectProjectRefreshBatch({ projects }).map((project) => project.id)).toEqual([
-			"p-1",
-			"p-2",
-			"p-4",
-			"p-3",
-		]);
+		expect(
+			selectProjectRefreshBatch({ projects }).map((project) => project.id),
+		).toEqual(["p-1", "p-2", "p-4", "p-3"]);
 	});
 
 	test("does not update a stored external signal brief found outside the target data source", async () => {
@@ -132,7 +133,14 @@ describe("external signal sync hardening", () => {
 			titlePropertyName: "Name",
 			title: "Project - External Signal Brief - 2026-06-06",
 			properties: {
-				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
+				Name: {
+					title: [
+						{
+							type: "text",
+							text: { content: "Project - External Signal Brief - 2026-06-06" },
+						},
+					],
+				},
 			},
 			markdown: "External brief",
 		});
@@ -160,9 +168,12 @@ describe("external signal sync hardening", () => {
 				updateAttempts += 1;
 				calls.push(`update:${input.pageId}:${updateAttempts}`);
 				if (updateAttempts === 1) {
-					throw new AppError("Notion request timed out after 1 attempt(s) for PATCH /pages/existing-brief", {
-						classification: "timeout_exhausted",
-					});
+					throw new AppError(
+						"Notion request timed out after 1 attempt(s) for PATCH /pages/existing-brief",
+						{
+							classification: "timeout_exhausted",
+						},
+					);
 				}
 			},
 			createPageWithMarkdown: async () => {
@@ -184,8 +195,17 @@ describe("external signal sync hardening", () => {
 			titlePropertyName: "Name",
 			title: "Project - External Signal Brief - 2026-06-06",
 			properties: {
-				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
-				"Brief Hash": { rich_text: [{ type: "text", text: { content: "hash" } }] },
+				Name: {
+					title: [
+						{
+							type: "text",
+							text: { content: "Project - External Signal Brief - 2026-06-06" },
+						},
+					],
+				},
+				"Brief Hash": {
+					rich_text: [{ type: "text", text: { content: "hash" } }],
+				},
 			},
 			markdown: "External brief",
 		});
@@ -213,7 +233,10 @@ describe("external signal sync hardening", () => {
 				title: "Project - External Signal Brief - 2026-06-06",
 				parent: { data_source_id: briefsDataSourceId },
 			}),
-			updatePageProperties: async (input: { pageId: string; properties: Record<string, unknown> }) => {
+			updatePageProperties: async (input: {
+				pageId: string;
+				properties: Record<string, unknown>;
+			}) => {
 				updateAttempts += 1;
 				calls.push(
 					`update:${input.pageId}:${Object.keys(input.properties).sort().join(",")}`,
@@ -243,10 +266,21 @@ describe("external signal sync hardening", () => {
 			titlePropertyName: "Name",
 			title: "Project - External Signal Brief - 2026-06-06",
 			properties: {
-				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
+				Name: {
+					title: [
+						{
+							type: "text",
+							text: { content: "Project - External Signal Brief - 2026-06-06" },
+						},
+					],
+				},
 				"Brief Date": { date: { start: "2026-06-06" } },
-				"Brief Hash": { rich_text: [{ type: "text", text: { content: "hash" } }] },
-				"Storage Version": { rich_text: [{ type: "text", text: { content: "v1" } }] },
+				"Brief Hash": {
+					rich_text: [{ type: "text", text: { content: "hash" } }],
+				},
+				"Storage Version": {
+					rich_text: [{ type: "text", text: { content: "v1" } }],
+				},
 			},
 			markdown: "External brief",
 		});
@@ -289,9 +323,12 @@ describe("external signal sync hardening", () => {
 				markdownAttempts += 1;
 				calls.push(`patch:${input.pageId}:${markdownAttempts}`);
 				if (markdownAttempts === 1) {
-					throw new AppError("Notion request transport error after 1 attempt(s) for PATCH /pages/existing-brief/markdown", {
-						classification: "transport_error",
-					});
+					throw new AppError(
+						"Notion request transport error after 1 attempt(s) for PATCH /pages/existing-brief/markdown",
+						{
+							classification: "transport_error",
+						},
+					);
 				}
 			},
 		};
@@ -302,8 +339,17 @@ describe("external signal sync hardening", () => {
 			titlePropertyName: "Name",
 			title: "Project - External Signal Brief - 2026-06-06",
 			properties: {
-				Name: { title: [{ type: "text", text: { content: "Project - External Signal Brief - 2026-06-06" } }] },
-				"Brief Hash": { rich_text: [{ type: "text", text: { content: "hash" } }] },
+				Name: {
+					title: [
+						{
+							type: "text",
+							text: { content: "Project - External Signal Brief - 2026-06-06" },
+						},
+					],
+				},
+				"Brief Hash": {
+					rich_text: [{ type: "text", text: { content: "hash" } }],
+				},
 			},
 			markdown: "External brief",
 		});
@@ -318,9 +364,12 @@ describe("external signal sync hardening", () => {
 	test("classifies stored brief retryability narrowly", () => {
 		expect(
 			isRetryableStoredBriefWriteError(
-				new AppError("Notion request returned retryable error responses after 1 attempt(s) for PATCH /pages/example", {
-					classification: "unexpected_response",
-				}),
+				new AppError(
+					"Notion request returned retryable error responses after 1 attempt(s) for PATCH /pages/example",
+					{
+						classification: "unexpected_response",
+					},
+				),
 			),
 		).toBe(true);
 		expect(
@@ -335,13 +384,21 @@ describe("external signal sync hardening", () => {
 	test("fetches recent external signal events by project relation with bounded sorted queries", async () => {
 		const projectOne = "11111111-1111-4111-8111-111111111111";
 		const projectTwo = "22222222-2222-4222-8222-222222222222";
-		const eventOne = eventPage("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa", "Event One");
-		const eventTwo = eventPage("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb", "Event Two");
+		const eventOne = eventPage(
+			"aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+			"Event One",
+		);
+		const eventTwo = eventPage(
+			"bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+			"Event Two",
+		);
 		const calls: Array<Record<string, unknown>> = [];
 		const client = {
 			request: async ({ body }: { body: Record<string, unknown> }) => {
 				calls.push(body);
-				const filter = body.filter as { relation?: { contains?: string } } | undefined;
+				const filter = body.filter as
+					| { relation?: { contains?: string } }
+					| undefined;
 				const projectId = filter?.relation?.contains;
 				return {
 					results: projectId === projectOne ? [eventOne, eventTwo] : [eventTwo],
@@ -361,7 +418,10 @@ describe("external signal sync hardening", () => {
 		});
 
 		expect(result.mode).toBe("project_relation");
-		expect(result.pages.map((page) => page.id)).toEqual([eventOne.id, eventTwo.id]);
+		expect(result.pages.map((page) => page.id)).toEqual([
+			eventOne.id,
+			eventTwo.id,
+		]);
 		expect(calls).toHaveLength(2);
 		expect(calls[0]).toMatchObject({
 			page_size: 7,
@@ -377,7 +437,10 @@ describe("external signal sync hardening", () => {
 
 	test("falls back to a full event scan when project relation queries fail", async () => {
 		const projectOne = "11111111-1111-4111-8111-111111111111";
-		const fallbackEvent = eventPage("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "Fallback Event");
+		const fallbackEvent = eventPage(
+			"cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+			"Fallback Event",
+		);
 		const calls: Array<Record<string, unknown>> = [];
 		const client = {
 			request: async ({ body }: { body: Record<string, unknown> }) => {
@@ -438,8 +501,14 @@ describe("external signal sync hardening", () => {
 			page_size: 100,
 			filter: {
 				or: [
-					{ property: "Event Key", rich_text: { equals: "github::workflow::1" } },
-					{ property: "Event Key", rich_text: { equals: "github::workflow::2" } },
+					{
+						property: "Event Key",
+						rich_text: { equals: "github::workflow::1" },
+					},
+					{
+						property: "Event Key",
+						rich_text: { equals: "github::workflow::2" },
+					},
 				],
 			},
 		});
@@ -482,8 +551,130 @@ describe("external signal sync hardening", () => {
 		expect(result.mode).toBe("full_scan_fallback");
 		expect(result.fallbackError).toContain("event key filter rejected");
 		expect([...result.eventKeys]).toEqual(["github::workflow::1"]);
+		// P3 fallback hardening: the batched filter query is retried once
+		// before conceding to a full scan, so a persistent failure means two
+		// filtered attempts followed by the unfiltered full-scan call.
+		expect(calls).toHaveLength(3);
+		expect(calls[0]?.filter).toBeDefined();
+		expect(calls[1]?.filter).toBeDefined();
+		expect(calls[2]?.filter).toBeUndefined();
+	});
+
+	test("recovers on the retried attempt without ever reaching the full scan (P3)", async () => {
+		const calls: Array<Record<string, unknown>> = [];
+		let attempt = 0;
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				calls.push(body);
+				attempt += 1;
+				if (attempt === 1) {
+					throw new Error("transient error");
+				}
+				return {
+					results: [
+						eventPage(
+							"dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+							"Existing Event",
+							"github::workflow::1",
+						),
+					],
+					has_more: false,
+					next_cursor: null,
+				};
+			},
+		};
+
+		const result = await fetchExistingExternalSignalEventKeys({
+			client: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			eventKeys: ["github::workflow::1"],
+		});
+
+		expect(result.mode).toBe("event_key_filter");
+		expect(result.fallbackError).toBeUndefined();
+		expect([...result.eventKeys]).toEqual(["github::workflow::1"]);
 		expect(calls).toHaveLength(2);
-		expect(calls[1]?.filter).toBeUndefined();
+		expect(calls.every((call) => call.filter !== undefined)).toBe(true);
+	});
+
+	test("fetchExistingExternalSignalEventsByKey returns page id + status per matched key (P4)", async () => {
+		const client = {
+			request: async () => ({
+				results: [
+					eventPage(
+						"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+						"Deployment",
+						"vercel::deployment::source-1::abc123",
+						"BUILDING",
+					),
+				],
+				has_more: false,
+				next_cursor: null,
+			}),
+		};
+
+		const result = await fetchExistingExternalSignalEventsByKey({
+			client: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			eventKeys: ["vercel::deployment::source-1::abc123"],
+		});
+
+		expect(result.mode).toBe("event_key_filter");
+		expect(result.events.get("vercel::deployment::source-1::abc123")).toEqual({
+			pageId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+			status: "BUILDING",
+		});
+	});
+
+	test("watermark-covered events skip the Notion dedup query entirely (P3)", async () => {
+		let calls = 0;
+		const client = {
+			request: async () => {
+				calls += 1;
+				return { results: [], has_more: false, next_cursor: null };
+			},
+		};
+		const watermarks: SignalWatermark[] = [
+			{
+				provider: "GitHub",
+				sourceId: "source-1",
+				lastOccurredAt: "2026-06-10",
+			},
+		];
+
+		const result = await filterProviderResultsAgainstExistingEventKeys({
+			api: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			today: "2026-06-06",
+			watermarks,
+			providerResults: [
+				{
+					provider: "GitHub",
+					status: "Succeeded",
+					itemsSeen: 1,
+					itemsWritten: 1,
+					itemsDeduped: 0,
+					failures: 0,
+					notes: [],
+					cursor: "2026-06-06",
+					events: [
+						{
+							...normalizedEvent("github::workflow::stale"),
+							occurredAt: "2026-06-01", // before the watermark
+						},
+					],
+					syncedSourceIds: ["source-1"],
+					providerExercised: true,
+				},
+			],
+		});
+
+		expect(calls).toBe(0);
+		expect(result[0]?.events).toHaveLength(0);
+		expect(result[0]?.itemsDeduped).toBe(1);
 	});
 
 	test("filters provider results against existing Notion event keys before writes", async () => {
@@ -536,22 +727,179 @@ describe("external signal sync hardening", () => {
 		expect(result[0]?.notes[0]).toContain("already exists in Notion");
 	});
 
+	// -------------------------------------------------------------------------
+	// P4 — Vercel dedup-contract fix: identity key (no status) + upsert
+	// semantics instead of one row per status transition.
+	// -------------------------------------------------------------------------
+
+	test("Vercel identity dedup: an existing deployment with a changed status becomes an update, not a new row (P4)", async () => {
+		const client = {
+			request: async ({ body }: { body: Record<string, unknown> }) => {
+				expect(body.filter).toBeDefined();
+				return {
+					results: [
+						eventPage(
+							"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+							"Deployment",
+							"vercel::deployment::source-1::abc123",
+							"BUILDING",
+						),
+					],
+					has_more: false,
+					next_cursor: null,
+				};
+			},
+		};
+
+		const result = await filterProviderResultsAgainstExistingEventKeys({
+			api: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			today: "2026-06-06",
+			providerResults: [
+				{
+					provider: "Vercel",
+					status: "Succeeded",
+					itemsSeen: 1,
+					itemsWritten: 1,
+					itemsDeduped: 0,
+					failures: 0,
+					notes: [],
+					cursor: "2026-06-06",
+					events: [
+						vercelIdentityEvent(
+							"vercel::deployment::source-1::abc123",
+							"READY",
+						),
+					],
+					syncedSourceIds: ["source-1"],
+					providerExercised: true,
+				},
+			],
+		});
+
+		expect(result[0]?.events).toHaveLength(0);
+		expect(result[0]?.itemsWritten).toBe(0);
+		expect(result[0]?.itemsDeduped).toBe(0);
+		expect(result[0]?.updates).toHaveLength(1);
+		expect(result[0]?.updates?.[0]).toMatchObject({
+			pageId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+			event: expect.objectContaining({ status: "READY" }),
+		});
+		expect(result[0]?.notes.at(-1)).toContain("updated: status changed");
+	});
+
+	test("Vercel identity dedup: an existing deployment with the same status is a true duplicate, not re-created (P4)", async () => {
+		const client = {
+			request: async () => ({
+				results: [
+					eventPage(
+						"ffffffff-ffff-4fff-8fff-ffffffffffff",
+						"Deployment",
+						"vercel::deployment::source-1::abc123",
+						"READY",
+					),
+				],
+				has_more: false,
+				next_cursor: null,
+			}),
+		};
+
+		const result = await filterProviderResultsAgainstExistingEventKeys({
+			api: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			today: "2026-06-06",
+			providerResults: [
+				{
+					provider: "Vercel",
+					status: "Succeeded",
+					itemsSeen: 1,
+					itemsWritten: 1,
+					itemsDeduped: 0,
+					failures: 0,
+					notes: [],
+					cursor: "2026-06-06",
+					events: [
+						vercelIdentityEvent(
+							"vercel::deployment::source-1::abc123",
+							"READY",
+						),
+					],
+					syncedSourceIds: ["source-1"],
+					providerExercised: true,
+				},
+			],
+		});
+
+		expect(result[0]?.events).toHaveLength(0);
+		expect(result[0]?.updates ?? []).toHaveLength(0);
+		expect(result[0]?.itemsDeduped).toBe(1);
+	});
+
+	test("Vercel identity dedup: distinct deployment uids are kept as distinct rows (P4)", async () => {
+		const client = {
+			request: async () => ({
+				results: [],
+				has_more: false,
+				next_cursor: null,
+			}),
+		};
+
+		const result = await filterProviderResultsAgainstExistingEventKeys({
+			api: client as never,
+			dataSourceId: "33333333-3333-4333-8333-333333333333",
+			titlePropertyName: "Name",
+			today: "2026-06-06",
+			providerResults: [
+				{
+					provider: "Vercel",
+					status: "Succeeded",
+					itemsSeen: 2,
+					itemsWritten: 2,
+					itemsDeduped: 0,
+					failures: 0,
+					notes: [],
+					cursor: "2026-06-06",
+					events: [
+						vercelIdentityEvent("vercel::deployment::source-1::uid-a", "READY"),
+						vercelIdentityEvent("vercel::deployment::source-1::uid-b", "READY"),
+					],
+					syncedSourceIds: ["source-1"],
+					providerExercised: true,
+				},
+			],
+		});
+
+		expect(result[0]?.events.map((event) => event.eventKey)).toEqual([
+			"vercel::deployment::source-1::uid-a",
+			"vercel::deployment::source-1::uid-b",
+		]);
+		expect(result[0]?.updates ?? []).toHaveLength(0);
+	});
+
 	test("derives scoped write plans without crossing provider/page boundaries", () => {
-		expect(deriveExternalSignalSyncWritePlan({ writeScope: "project-pages" })).toEqual({
+		expect(
+			deriveExternalSignalSyncWritePlan({ writeScope: "project-pages" }),
+		).toEqual({
 			writeScope: "project-pages",
 			shouldRunProviders: false,
 			shouldEvaluateProjectPages: true,
 			shouldEvaluatePortfolioSections: false,
 			shouldPersistMetrics: false,
 		});
-		expect(deriveExternalSignalSyncWritePlan({ writeScope: "portfolio-sections" })).toEqual({
+		expect(
+			deriveExternalSignalSyncWritePlan({ writeScope: "portfolio-sections" }),
+		).toEqual({
 			writeScope: "portfolio-sections",
 			shouldRunProviders: false,
 			shouldEvaluateProjectPages: false,
 			shouldEvaluatePortfolioSections: true,
 			shouldPersistMetrics: true,
 		});
-		expect(deriveExternalSignalSyncWritePlan({ writeScope: "providers" })).toEqual({
+		expect(
+			deriveExternalSignalSyncWritePlan({ writeScope: "providers" }),
+		).toEqual({
 			writeScope: "providers",
 			shouldRunProviders: true,
 			shouldEvaluateProjectPages: false,
@@ -582,7 +930,9 @@ describe("external signal sync hardening", () => {
 				previousMarkdown: markdown,
 				nextMarkdown,
 			}),
-		).rejects.toThrow("External signal project brief did not converge after write");
+		).rejects.toThrow(
+			"External signal project brief did not converge after write",
+		);
 	});
 
 	test("fails safely when GitHub credentials are missing", async () => {
@@ -1336,6 +1686,167 @@ describe("notification hub sync", () => {
 
 		expect(result.events).toHaveLength(2);
 	});
+
+	// -------------------------------------------------------------------------
+	// P3 — durable watermarks: a burst bigger than maxEventsPerSource queues
+	// for the next run instead of the old tail-window silently dropping it.
+	// -------------------------------------------------------------------------
+
+	function notificationHubEventLine(index: number) {
+		return {
+			source: "cc",
+			level: "info",
+			title: `Event ${index}`,
+			body: `body ${index}`,
+			project: "my-project",
+			timestamp: `2026-04-14T10:0${index}:00Z`,
+			event_id: `wm${String(index).padStart(3, "0")}`,
+			received_at: `2026-04-14T10:0${index}:01Z`,
+			classified_level: "info",
+		};
+	}
+
+	test("a burst of 2x window-size events is fully written across two runs, none dropped (P3)", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+		const allEvents = [1, 2, 3, 4, 5, 6].map(notificationHubEventLine);
+		await writeFile(
+			logPath,
+			allEvents.map((e) => JSON.stringify(e)).join("\n"),
+			"utf8",
+		);
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+
+		const maxEventsPerSource = 3;
+		const projects = [{ id: "project-abc", title: "my-project" }];
+
+		// Run 1: no watermark yet — behaves like a fresh sync.
+		const run1 = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			maxEventsPerSource,
+			"2026-04-14",
+			new Set(),
+			projects,
+			false,
+			[],
+			[],
+		);
+		expect(run1.events.map((e) => e.sourceIdValue)).toEqual([
+			"wm001",
+			"wm002",
+			"wm003",
+		]);
+		expect(run1.nextWatermark).toMatchObject({
+			provider: "Notification Hub",
+			sourceId: "nh-source-1",
+			lastEventId: "wm003",
+		});
+
+		// Run 2: carries the persisted watermark forward — must pick up
+		// exactly the events run 1 didn't reach, not re-deliver run 1's or
+		// silently drop the tail.
+		const run2 = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			maxEventsPerSource,
+			"2026-04-14",
+			new Set(),
+			projects,
+			false,
+			[],
+			[run1.nextWatermark!],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(run2.events.map((e) => e.sourceIdValue)).toEqual([
+			"wm004",
+			"wm005",
+			"wm006",
+		]);
+
+		const allWrittenIds = [...run1.events, ...run2.events].map(
+			(e) => e.sourceIdValue,
+		);
+		expect(allWrittenIds).toEqual([
+			"wm001",
+			"wm002",
+			"wm003",
+			"wm004",
+			"wm005",
+			"wm006",
+		]);
+	});
+
+	test("an absent watermark behaves identically to pre-P3 sync (backward compatible)", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+		await writeFile(
+			logPath,
+			[1, 2]
+				.map(notificationHubEventLine)
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+			"utf8",
+		);
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+
+		const withoutWatermarksArg = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "my-project" }],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(withoutWatermarksArg.events.map((e) => e.sourceIdValue)).toEqual([
+			"wm001",
+			"wm002",
+		]);
+	});
+
+	test("a watermark pointing at a rotated-away event id fails open instead of returning nothing forever (P3)", async () => {
+		tmpDir = await mkdtemp(join(tmpdir(), "nh-test-"));
+		const logPath = join(tmpDir, "events.jsonl");
+		// Simulates external log rotation: the log no longer contains the
+		// event id the watermark points at.
+		await writeFile(
+			logPath,
+			[4, 5]
+				.map(notificationHubEventLine)
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+			"utf8",
+		);
+		process.env["NOTIFICATION_HUB_LOG_PATH"] = logPath;
+
+		const result = await syncNotificationHubSources(
+			notificationHubProvider(),
+			[notificationHubSource()],
+			10,
+			"2026-04-14",
+			new Set(),
+			[{ id: "project-abc", title: "my-project" }],
+			false,
+			[],
+			[
+				{
+					provider: "Notification Hub",
+					sourceId: "nh-source-1",
+					lastEventId: "wm003",
+					lastOccurredAt: "2026-04-14",
+				},
+			],
+		);
+		delete process.env["NOTIFICATION_HUB_LOG_PATH"];
+
+		expect(result.events.map((e) => e.sourceIdValue)).toEqual([
+			"wm004",
+			"wm005",
+		]);
+	});
 });
 
 function notificationHubProvider(
@@ -1786,19 +2297,22 @@ describe("repo auditor sync", () => {
 	});
 });
 
-function eventPage(id: string, title: string, eventKey = "") {
+function eventPage(id: string, title: string, eventKey = "", status?: string) {
 	return {
 		id,
 		url: `https://notion.so/${id.replaceAll("-", "")}`,
 		properties: {
 			Name: {
 				type: "title",
-					title: [{ plain_text: title }],
+				title: [{ plain_text: title }],
 			},
 			"Event Key": {
 				type: "rich_text",
 				rich_text: eventKey ? [{ plain_text: eventKey }] : [],
 			},
+			...(status !== undefined
+				? { Status: { type: "rich_text", rich_text: [{ plain_text: status }] } }
+				: {}),
 		},
 	};
 }
@@ -1819,6 +2333,22 @@ function normalizedEvent(eventKey: string) {
 		eventKey,
 		summary: "Workflow run succeeded.",
 		rawExcerpt: "status=success",
+	};
+}
+
+function vercelIdentityEvent(
+	eventKey: string,
+	status: string,
+	overrides: Partial<ReturnType<typeof normalizedEvent>> = {},
+) {
+	return {
+		...normalizedEvent(eventKey),
+		provider: "Vercel" as const,
+		signalType: "Deployment" as const,
+		status,
+		summary: `Deployment status is ${status.toLowerCase()} for source-1.`,
+		dedupMode: "identity" as const,
+		...overrides,
 	};
 }
 

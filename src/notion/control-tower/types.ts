@@ -589,6 +589,13 @@ export interface ControlTowerProjectRecord {
 	operatingQueue?: OperatingQueue;
 	nextReviewDate?: string;
 	evidenceFreshness?: EvidenceFreshness;
+	/**
+	 * Owned by external-signal-sync, not control-tower-sync. `undefined` means
+	 * this run has no evidence for the field yet (e.g. external-signal-sync has
+	 * never populated "Open PR Count" on this row) — callers must not coerce
+	 * that into 0, which would misrepresent "unknown" as "confirmed zero".
+	 */
+	openPrCount?: number;
 }
 
 export interface ControlTowerBuildSessionRecord {
