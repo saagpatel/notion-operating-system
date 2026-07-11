@@ -10,6 +10,7 @@ import { readJsonFile } from "../../utils/files.js";
 import { losAngelesToday } from "../../utils/date.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import { WorkspaceIds } from "../../config/workspace-ids.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
@@ -42,10 +43,6 @@ const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
 const DEFAULT_OWNER = "saagpatel";
 const DEFAULT_REPO_LIMIT = 200;
-
-const CANONICAL_TOOL_PAGE_IDS = new Map<string, string>([
-  ["Ollama", "326c21f1-caf0-81f6-8558-ef78d04f60cb"],
-]);
 
 export interface GitHubKnowledgeAuditFlags {
   live: boolean;
@@ -663,6 +660,8 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
     "NOTION_TOKEN is required for the GitHub knowledge audit",
   );
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
+  const workspaceIds = await WorkspaceIds.load();
+  const canonicalToolPageIds = workspaceIds.canonicalToolPageIds;
   const sourceConfig = await readJsonFile<LocalPortfolioExternalSignalSourceConfig>(flags.sourceConfig);
   const api = new DirectNotionClient(token);
   if (!config.phase5ExternalSignals) {
@@ -759,7 +758,7 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
       nextMarkdownByTitle: toolMarkdownByTitle,
       currentMarkdownByPageId: toolMarkdownByPageId,
     }),
-    existingToolUpdates: summarizeExistingToolUpdates(toolPages, existingToolPlans, toolMarkdownByPageId),
+    existingToolUpdates: summarizeExistingToolUpdates(toolPages, existingToolPlans, toolMarkdownByPageId, canonicalToolPageIds),
     touchedProjects: summarizeTouchedProjects([
       ...resolvedSkillSeeds.flatMap((seed) => seed.projectTitles),
       ...resolvedResearchSeeds.flatMap((seed) => seed.projectTitles),
@@ -779,6 +778,7 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
     currentPages: toolPages,
     seeds: resolvedToolSeeds,
     today: flags.today,
+    canonicalToolPageIds,
   });
 
   const toolPagesAfterSeeds = await fetchAllPages(
@@ -802,6 +802,7 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
     toolPages: toolPagesAfterSeeds,
     seeds: resolvedResearchSeeds,
     today: flags.today,
+    canonicalToolPageIds,
   });
 
   const [toolPagesFinal, skillPagesFinal, researchPagesFinal] = await Promise.all([
@@ -815,6 +816,7 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
     toolPages: toolPagesFinal,
     plans: existingToolPlans,
     today: flags.today,
+    canonicalToolPageIds,
   });
 
   const relationPlans = buildProjectRelationPlans({
@@ -830,6 +832,7 @@ export async function runGitHubKnowledgeAudit(flags: GitHubKnowledgeAuditFlags):
     researchSeeds: resolvedResearchSeeds,
     toolSeeds: resolvedToolSeeds,
     existingToolPlans,
+    canonicalToolPageIds,
   });
   const projectUpdates = await updateProjectRelations({
     api,
@@ -1190,6 +1193,7 @@ async function upsertToolSeeds(input: {
   currentPages: DataSourcePageRef[];
   seeds: ResolvedToolSeed[];
   today: string;
+  canonicalToolPageIds: ReadonlyMap<string, string>;
 }): Promise<UpsertResult[]> {
   const currentPagesByTitle = buildExactTitleMap(input.currentPages);
   const results: UpsertResult[] = [];
@@ -1208,7 +1212,7 @@ async function upsertToolSeeds(input: {
     });
     if (existing) {
       const existingMarkdown = await input.api.readPageMarkdown(existing.id);
-      const currentPage = resolveToolPageByTitle(currentPagesByTitle, seed.definition.title);
+      const currentPage = resolveToolPageByTitle(currentPagesByTitle, seed.definition.title, input.canonicalToolPageIds);
       changedProperties = listChangedProperties(currentPage.properties, properties, ["Last Reviewed"]);
       markdownChanged =
         normalizeMarkdownForComparison(existingMarkdown.markdown) !==
@@ -1321,6 +1325,7 @@ async function upsertResearchSeeds(input: {
   toolPages: DataSourcePageRef[];
   seeds: ResolvedResearchSeed[];
   today: string;
+  canonicalToolPageIds: ReadonlyMap<string, string>;
 }): Promise<UpsertResult[]> {
   const currentPagesByTitle = buildExactTitleMap(input.currentPages);
   const toolPagesByTitle = buildExactTitleMap(input.toolPages);
@@ -1328,7 +1333,7 @@ async function upsertResearchSeeds(input: {
 
   for (const seed of input.seeds) {
     const toolIds = seed.definition.relatedToolTitles.map((title) =>
-      resolveToolPageByTitle(toolPagesByTitle, title).id,
+      resolveToolPageByTitle(toolPagesByTitle, title, input.canonicalToolPageIds).id,
     );
     const properties = {
       [input.titlePropertyName]: titleValue(seed.definition.title),
@@ -1391,6 +1396,7 @@ async function refreshExistingToolLinks(input: {
   toolPages: DataSourcePageRef[];
   plans: ExistingToolLinkPlan[];
   today: string;
+  canonicalToolPageIds: ReadonlyMap<string, string>;
 }): Promise<
   Array<{
     title: string;
@@ -1415,7 +1421,7 @@ async function refreshExistingToolLinks(input: {
   }> = [];
 
   for (const plan of input.plans) {
-    const page = resolveToolPageByTitle(toolPagesByTitle, plan.title);
+    const page = resolveToolPageByTitle(toolPagesByTitle, plan.title, input.canonicalToolPageIds);
     const existingIds = relationIds(page.properties["Linked Local Projects"]);
     const nextIds = unique([...existingIds, ...plan.projectIds]);
     const properties = buildExistingToolRefreshProperties(
@@ -1471,6 +1477,7 @@ function buildProjectRelationPlans(input: {
   researchSeeds: ResolvedResearchSeed[];
   toolSeeds: ResolvedToolSeed[];
   existingToolPlans: ExistingToolLinkPlan[];
+  canonicalToolPageIds: ReadonlyMap<string, string>;
 }): RelationUpdatePlan[] {
   const skillPagesByTitle = buildExactTitleMap(input.skillPages);
   const researchPagesByTitle = buildExactTitleMap(input.researchPages);
@@ -1508,14 +1515,14 @@ function buildProjectRelationPlans(input: {
   }
 
   for (const seed of input.toolSeeds) {
-    const page = resolveToolPageByTitle(toolPagesByTitle, seed.definition.title);
+    const page = resolveToolPageByTitle(toolPagesByTitle, seed.definition.title, input.canonicalToolPageIds);
     for (const projectId of seed.projectIds) {
       ensurePlan(requirePageById(input.projectPages, projectId)).toolIds.push(page.id);
     }
   }
 
   for (const plan of input.existingToolPlans) {
-    const page = resolveToolPageByTitle(toolPagesByTitle, plan.title);
+    const page = resolveToolPageByTitle(toolPagesByTitle, plan.title, input.canonicalToolPageIds);
     for (const projectId of plan.projectIds) {
       ensurePlan(requirePageById(input.projectPages, projectId)).toolIds.push(page.id);
     }
@@ -1746,6 +1753,7 @@ function summarizeExistingToolUpdates(
   toolPages: DataSourcePageRef[],
   plans: ExistingToolLinkPlan[],
   currentMarkdownByPageId: Map<string, string>,
+  canonicalToolPageIds: ReadonlyMap<string, string>,
 ): {
   totalPlanned: number;
   existing: number;
@@ -1773,7 +1781,7 @@ function summarizeExistingToolUpdates(
         refreshNeeded: true,
       };
     }
-    const page = resolveToolPageByTitle(pagesByTitle, plan.title);
+    const page = resolveToolPageByTitle(pagesByTitle, plan.title, canonicalToolPageIds);
     const existingIds = relationIds(page.properties["Linked Local Projects"]);
     const nextIds = unique([...existingIds, ...plan.projectIds]);
     const currentMarkdown = normalizeMarkdownForComparison(currentMarkdownByPageId.get(page.id) ?? "");
@@ -1818,12 +1826,13 @@ function buildExactTitleMap(pages: DataSourcePageRef[]): Map<string, DataSourceP
 function resolveToolPageByTitle(
   toolPagesByTitle: Map<string, DataSourcePageRef[]>,
   title: string,
+  canonicalToolPageIds: ReadonlyMap<string, string>,
 ): DataSourcePageRef {
   const exactMatches = toolPagesByTitle.get(title) ?? [];
   if (exactMatches.length === 0) {
     throw new AppError(`Could not find tool page titled "${title}"`);
   }
-  const canonicalId = CANONICAL_TOOL_PAGE_IDS.get(title);
+  const canonicalId = canonicalToolPageIds.get(title);
   if (canonicalId) {
     const canonical = exactMatches.find((page) => page.id === canonicalId);
     if (canonical) {

@@ -6,6 +6,7 @@ import { AppError, toErrorMessage } from "../../utils/errors.js";
 import { losAngelesToday } from "../../utils/date.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import { WorkspaceIds } from "../../config/workspace-ids.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
   loadLocalPortfolioControlTowerConfig,
@@ -20,18 +21,6 @@ import {
 } from "../../notion/local-portfolio-control-tower-live.js";
 
 const TODAY = losAngelesToday();
-
-const CANONICAL_SUPPORT_PAGE_IDS = new Map<string, string>([
-  ["tool:ollama", "326c21f1-caf0-81f6-8558-ef78d04f60cb"],
-]);
-
-const FORCED_NEAR_DUPLICATE_MERGES = [
-  {
-    kind: "skill" as const,
-    canonicalId: "32bc21f1-caf0-81fe-8451-de2e17ad29d1",
-    duplicateId: "326c21f1-caf0-81c6-8120-f91c4f82b6b1",
-  },
-];
 
 export interface SupportDatabaseHygieneFlags {
   live: boolean;
@@ -137,6 +126,7 @@ export async function runSupportDatabaseHygienePass(
     "NOTION_TOKEN is required for the support database hygiene pass",
   );
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
+  const workspaceIds = await WorkspaceIds.load();
   const api = new DirectNotionClient(token);
 
   const [projectSchema, researchSchema] = await Promise.all([
@@ -166,6 +156,7 @@ export async function runSupportDatabaseHygienePass(
     skillTitlePropertyName: skillSchema.titlePropertyName,
     toolPages,
     toolTitlePropertyName: toolSchema.titlePropertyName,
+    canonicalSupportPageIds: workspaceIds.canonicalSupportPageIds,
   });
   const duplicatePageIds = new Set(plans.flatMap((plan) => plan.duplicatePages.map((page) => page.id)));
   const lowRiskArchiveCandidates = buildLowRiskArchiveCandidates([
@@ -185,6 +176,7 @@ export async function runSupportDatabaseHygienePass(
     researchPages,
     skillPages,
     toolPages,
+    forcedNearDuplicateMerges: workspaceIds.forcedNearDuplicateMerges,
   });
 
   const projectById = new Map(projectPages.map((page) => [page.id, page]));
@@ -362,6 +354,7 @@ async function buildSupportGroupPlans(input: {
   skillTitlePropertyName: string;
   toolPages: DataSourcePageRef[];
   toolTitlePropertyName: string;
+  canonicalSupportPageIds: ReadonlyMap<string, string>;
 }): Promise<SupportGroupPlan[]> {
   const projectPages = input.projectPages;
   const plans: SupportGroupPlan[] = [];
@@ -373,6 +366,7 @@ async function buildSupportGroupPlans(input: {
       pages: input.researchPages,
       titlePropertyName: input.researchTitlePropertyName,
       projectPages,
+      canonicalSupportPageIds: input.canonicalSupportPageIds,
     })),
   );
   plans.push(
@@ -382,6 +376,7 @@ async function buildSupportGroupPlans(input: {
       pages: input.skillPages,
       titlePropertyName: input.skillTitlePropertyName,
       projectPages,
+      canonicalSupportPageIds: input.canonicalSupportPageIds,
     })),
   );
   plans.push(
@@ -391,6 +386,7 @@ async function buildSupportGroupPlans(input: {
       pages: input.toolPages,
       titlePropertyName: input.toolTitlePropertyName,
       projectPages,
+      canonicalSupportPageIds: input.canonicalSupportPageIds,
     })),
   );
 
@@ -403,6 +399,7 @@ async function buildPlansForKind(input: {
   pages: DataSourcePageRef[];
   titlePropertyName: string;
   projectPages: DataSourcePageRef[];
+  canonicalSupportPageIds: ReadonlyMap<string, string>;
 }): Promise<SupportGroupPlan[]> {
   const groups = findDuplicateGroups(input.pages);
   const projectPages = input.projectPages;
@@ -419,6 +416,7 @@ async function buildPlansForKind(input: {
       kind: input.kind,
       pages: group,
       markdownByPageId,
+      canonicalSupportPageIds: input.canonicalSupportPageIds,
     });
     const duplicatePages = group.filter((page) => page.id !== canonicalPage.id);
     const mergedProjectIds = uniqueIds(group.flatMap((page) => relationIds(page.properties[supportProjectProperty(input.kind)])));
@@ -457,6 +455,7 @@ async function buildForcedNearDuplicateMergePlans(input: {
   researchPages: DataSourcePageRef[];
   skillPages: DataSourcePageRef[];
   toolPages: DataSourcePageRef[];
+  forcedNearDuplicateMerges: Array<{ kind: SupportKind; canonicalId: string; duplicateId: string }>;
 }): Promise<ForcedNearDuplicateMergePlan[]> {
   const pagesByKind = {
     research: new Map(input.researchPages.map((page) => [page.id, page])),
@@ -466,7 +465,7 @@ async function buildForcedNearDuplicateMergePlans(input: {
 
   const plans: ForcedNearDuplicateMergePlan[] = [];
 
-  for (const rule of FORCED_NEAR_DUPLICATE_MERGES) {
+  for (const rule of input.forcedNearDuplicateMerges) {
     const pageMap = pagesByKind[rule.kind];
     const canonicalPage = pageMap.get(rule.canonicalId);
     const duplicatePage = pageMap.get(rule.duplicateId);
@@ -770,8 +769,9 @@ function chooseCanonicalPage(input: {
   kind: SupportKind;
   pages: DataSourcePageRef[];
   markdownByPageId: Map<string, string>;
+  canonicalSupportPageIds: ReadonlyMap<string, string>;
 }): DataSourcePageRef {
-  const canonicalId = CANONICAL_SUPPORT_PAGE_IDS.get(`${input.kind}:${normalizeKey(input.pages[0]?.title ?? "")}`);
+  const canonicalId = input.canonicalSupportPageIds.get(`${input.kind}:${normalizeKey(input.pages[0]?.title ?? "")}`);
   if (canonicalId) {
     const forced = input.pages.find((page) => page.id === canonicalId);
     if (forced) {

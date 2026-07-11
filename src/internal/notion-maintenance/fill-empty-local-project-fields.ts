@@ -54,8 +54,8 @@ import {
 	toToolMatrixRecord,
 } from "../../notion/local-portfolio-intelligence-live.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import { WorkspaceIds } from "../../config/workspace-ids.js";
 
-const LOCAL_PROJECTS_DATA_SOURCE_ID = "7858b551-4ce9-4bc3-ad1d-07b187d7117b";
 const TODAY = losAngelesToday();
 
 interface Flags {
@@ -180,6 +180,7 @@ async function main(): Promise<void> {
 	const api = new DirectNotionClient(token);
 	const sdk = createNotionSdkClient(token);
 	const config = await loadLocalPortfolioControlTowerConfig();
+	const workspaceIds = await WorkspaceIds.load();
 
 	const [
 		{ projects: intelligenceProjects },
@@ -195,7 +196,7 @@ async function main(): Promise<void> {
 		eventPages,
 	] = await Promise.all([
 		buildProjectIntelligenceDataset(),
-		fetchAllPages(sdk, LOCAL_PROJECTS_DATA_SOURCE_ID, "Name"),
+		fetchAllPages(sdk, workspaceIds.getDataSource("localProjects"), "Name"),
 		fetchAllPages(sdk, config.relatedDataSources.buildLogId, "Title"),
 		fetchAllPages(sdk, config.relatedDataSources.researchId, "Title"),
 		fetchAllPages(sdk, config.relatedDataSources.skillsId, "Title"),

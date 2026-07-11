@@ -34,11 +34,11 @@ import {
   type DataSourcePageRef,
 } from "../../notion/local-portfolio-control-tower-live.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import { WorkspaceIds } from "../../config/workspace-ids.js";
 
 const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
 const DEFAULT_OWNER = "saagpatel";
-const INTAKE_PROJECTS_DATA_SOURCE_ID = "35e04e4d-bcd8-45c0-b783-238edef210f7";
 
 interface Flags {
   live: boolean;
@@ -148,6 +148,7 @@ async function main(): Promise<void> {
   const flags = parseFlags(argv);
   const token = resolveRequiredNotionToken("NOTION_TOKEN is required for the Notion hygiene pass");
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
+  const workspaceIds = await WorkspaceIds.load();
   const sourceConfig = await readJsonFile<LocalPortfolioExternalSignalSourceConfig>(flags.sourceConfig);
   const sdk = createNotionSdkClient(token);
   const api = new DirectNotionClient(token);
@@ -155,7 +156,7 @@ async function main(): Promise<void> {
   const [repos, localProjects, intakeProjects, sourceRows] = await Promise.all([
     listGitHubRepos(flags.owner, flags.limit),
     fetchAllPages(sdk, config.database.dataSourceId, "Name"),
-    fetchAllPages(sdk, INTAKE_PROJECTS_DATA_SOURCE_ID, "Project Name"),
+    fetchAllPages(sdk, workspaceIds.getDataSource("intakeProjects"), "Project Name"),
     fetchAllPages(sdk, config.phase5ExternalSignals!.sources.dataSourceId, "Name"),
   ]);
 
