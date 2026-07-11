@@ -100,7 +100,7 @@ function verifyContainsUpdates(
 		}
 
 		// When the search text is a substring of the replacement (the ordinary
-		// append/annotate edit, e.g. "TODO" -> "TODO: done"), the readback
+		// append/annotate edit, e.g. "Draft" -> "Draft: reviewed"), the readback
 		// legitimately still contains the search text inside the replacement —
 		// that is not a leftover. Only flag when the search text could not be
 		// explained by the replacement itself.

@@ -131,12 +131,16 @@ describe("verifyPublishedContent — contains-check", () => {
 
 	test("append-edit where the search text is a substring of the replacement verifies", () => {
 		const result = verifyPublishedContent({
-			readbackMarkdown: "# Log\n\nTODO: done\n\nOwner: Saagar",
+			readbackMarkdown: "# Log\n\nDraft: reviewed\n\nOwner: Saagar",
 			title: "Log",
 			expectation: {
 				kind: "contains",
 				updates: [
-					{ oldStr: "TODO", newStr: "TODO: done", replaceAllMatches: false },
+					{
+						oldStr: "Draft",
+						newStr: "Draft: reviewed",
+						replaceAllMatches: false,
+					},
 				],
 			},
 		});
