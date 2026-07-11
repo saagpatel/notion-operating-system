@@ -19,6 +19,7 @@ import {
 } from "./local-portfolio-control-tower-live.js";
 import { toIntelligenceProjectRecord } from "./local-portfolio-intelligence-live.js";
 import { createNotionSdkClient } from "./notion-sdk.js";
+import { WorkspaceIds, type BuildLogProjectRelation } from "../config/workspace-ids.js";
 
 export interface BridgeDbSyncOptions {
 	live?: boolean;
@@ -46,10 +47,7 @@ export interface BridgeDbSyncResult {
 }
 
 const BRIDGE_DB_DEFAULT_PATH = `${homedir()}/.local/share/bridge-db/bridge.db`;
-const PROJECT_PORTFOLIO_DATA_SOURCE_ID = "35e04e4d-bcd8-45c0-b783-238edef210f7";
 const PROJECT_PORTFOLIO_TITLE_PROPERTY = "Project Name";
-
-type BuildLogProjectRelation = "Local Project" | "Project";
 
 interface BuildLogProjectTarget {
 	id: string;
@@ -66,29 +64,6 @@ interface OperationalProjectAlias {
 	relationProperty: BuildLogProjectRelation;
 }
 
-const OPERATIONAL_PROJECT_ALIASES = new Map<string, OperationalProjectAlias>([
-	[
-		"claude-md-lint",
-		{ targetTitle: "Machine Audits", relationProperty: "Project" },
-	],
-	[
-		"operator-os-docs",
-		{ targetTitle: "Machine Audits", relationProperty: "Project" },
-	],
-	[
-		"portfolio-docs-agent-contract-lane",
-		{ targetTitle: "Machine Audits", relationProperty: "Project" },
-	],
-	[
-		"portfolio-dep-security",
-		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
-	],
-	[
-		"portfoliocommandcenter",
-		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
-	],
-]);
-
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -104,6 +79,14 @@ export async function runBridgeDbSyncCommand(
 	const configPath =
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
 	const config = await loadLocalPortfolioControlTowerConfig(configPath);
+	const workspaceIds = await WorkspaceIds.load();
+	const projectPortfolioDataSourceId = workspaceIds.getDataSource("projectPortfolio");
+	const operationalProjectAliases = new Map<string, OperationalProjectAlias>(
+		workspaceIds.operationalAliases.map(({ repoKey, targetTitle, relationProperty }) => [
+			repoKey,
+			{ targetTitle, relationProperty },
+		]),
+	);
 	const dbPath =
 		options.dbPath ?? process.env["BRIDGE_DB_PATH"] ?? BRIDGE_DB_DEFAULT_PATH;
 	const limit = options.limit ?? 50;
@@ -128,7 +111,7 @@ export async function runBridgeDbSyncCommand(
 	// Fetch project lists and build log schema
 	const [projectSchema, projectPortfolioSchema, buildSchema] = await Promise.all([
 		api.retrieveDataSource(config.database.dataSourceId),
-		api.retrieveDataSource(PROJECT_PORTFOLIO_DATA_SOURCE_ID),
+		api.retrieveDataSource(projectPortfolioDataSourceId),
 		api.retrieveDataSource(config.relatedDataSources.buildLogId),
 	]);
 	assertDataSourceSchemaProperties("Local Portfolio Projects", projectSchema, [
@@ -153,7 +136,7 @@ export async function runBridgeDbSyncCommand(
 		),
 		fetchAllPages(
 			sdk,
-			PROJECT_PORTFOLIO_DATA_SOURCE_ID,
+			projectPortfolioDataSourceId,
 			PROJECT_PORTFOLIO_TITLE_PROPERTY,
 		),
 	]);
@@ -219,9 +202,10 @@ export async function runBridgeDbSyncCommand(
 			row,
 			projectIndex,
 			projectPortfolioIndex,
+			operationalProjectAliases,
 		);
 		if (!projectTarget) {
-			const alias = resolveOperationalProjectAlias(row.project_name);
+			const alias = resolveOperationalProjectAlias(row.project_name, operationalProjectAliases);
 			result.rowsSkipped += 1;
 			if (alias) {
 				result.notes.push(
@@ -306,6 +290,7 @@ export async function runBridgeDbSyncCommand(
 					row.project_name,
 					projectIndex,
 					projectPortfolioIndex,
+					operationalProjectAliases,
 				);
 				const sessionDate = row.timestamp?.slice(0, 10) ?? today;
 				const title = buildBuildLogTitle(row);
@@ -667,6 +652,7 @@ function resolveShippedProjectTarget(
 	row: ShippedEvent,
 	localProjectIndex: Map<string, string>,
 	projectPortfolioIndex: Map<string, string>,
+	operationalProjectAliases: ReadonlyMap<string, OperationalProjectAlias>,
 ): BuildLogProjectTarget | undefined {
 	const notionSync = row.notion_sync;
 	if (notionSync?.state === "ready" && notionSync.notion_page_id) {
@@ -680,6 +666,7 @@ function resolveShippedProjectTarget(
 		row.project_name,
 		localProjectIndex,
 		projectPortfolioIndex,
+		operationalProjectAliases,
 	);
 }
 
@@ -687,6 +674,7 @@ function resolveBuildLogProjectTarget(
 	projectName: string,
 	localProjectIndex: Map<string, string>,
 	projectPortfolioIndex: Map<string, string>,
+	operationalProjectAliases: ReadonlyMap<string, OperationalProjectAlias>,
 ): BuildLogProjectTarget | undefined {
 	const localProjectId = resolveProjectId(projectName, localProjectIndex);
 	if (localProjectId) {
@@ -701,7 +689,7 @@ function resolveBuildLogProjectTarget(
 		return { id: portfolioProjectId, relationProperty: "Project" };
 	}
 
-	const alias = resolveOperationalProjectAlias(projectName);
+	const alias = resolveOperationalProjectAlias(projectName, operationalProjectAliases);
 	if (!alias) {
 		return undefined;
 	}
@@ -720,9 +708,10 @@ function resolveBuildLogProjectTarget(
 
 function resolveOperationalProjectAlias(
 	projectName: string,
+	operationalProjectAliases: ReadonlyMap<string, OperationalProjectAlias>,
 ): OperationalProjectAlias | undefined {
 	for (const key of projectNameLookupKeys(projectName)) {
-		const alias = OPERATIONAL_PROJECT_ALIASES.get(key);
+		const alias = operationalProjectAliases.get(key);
 		if (alias) return alias;
 	}
 	return undefined;

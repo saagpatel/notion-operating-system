@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "dataSources": {
+    "projectPortfolio": "35e04e4d-bcd8-45c0-b783-238edef210f7",
+    "intakeProjects": "35e04e4d-bcd8-45c0-b783-238edef210f7",
+    "localProjects": "7858b551-4ce9-4bc3-ad1d-07b187d7117b"
+  },
+  "operationalAliases": [
+    { "repoKey": "claude-md-lint", "targetTitle": "Machine Audits", "relationProperty": "Project" },
+    { "repoKey": "operator-os-docs", "targetTitle": "Machine Audits", "relationProperty": "Project" },
+    { "repoKey": "portfolio-docs-agent-contract-lane", "targetTitle": "Machine Audits", "relationProperty": "Project" },
+    { "repoKey": "portfolio-dep-security", "targetTitle": "GitHub Repo Auditor", "relationProperty": "Local Project" },
+    { "repoKey": "portfoliocommandcenter", "targetTitle": "GitHub Repo Auditor", "relationProperty": "Local Project" }
+  ],
+  "canonicalSupportPageIds": {
+    "tool:ollama": "326c21f1-caf0-81f6-8558-ef78d04f60cb"
+  },
+  "canonicalToolPageIds": {
+    "Ollama": "326c21f1-caf0-81f6-8558-ef78d04f60cb"
+  },
+  "forcedNearDuplicateMerges": [
+    { "kind": "skill", "canonicalId": "32bc21f1-caf0-81fe-8451-de2e17ad29d1", "duplicateId": "326c21f1-caf0-81c6-8120-f91c4f82b6b1" }
+  ]
+}

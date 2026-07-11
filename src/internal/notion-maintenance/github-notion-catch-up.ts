@@ -34,6 +34,7 @@ import {
 	type ManualExternalSignalSeedPlan,
 } from "../../notion/local-portfolio-external-signals.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import { WorkspaceIds } from "../../config/workspace-ids.js";
 
 const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
@@ -230,6 +231,7 @@ async function main(): Promise<void> {
 		"NOTION_TOKEN is required for GitHub versus Notion catch-up",
 	);
 	const config = await loadLocalPortfolioControlTowerConfig(flags.config);
+	const workspaceIds = await WorkspaceIds.load();
 	const sourceConfig =
 		await readJsonFile<LocalPortfolioExternalSignalSourceConfig>(
 			flags.sourceConfig,
@@ -240,7 +242,7 @@ async function main(): Promise<void> {
 	const [repos, localProjects, intakeProjects, sourceRows] = await Promise.all([
 		listGitHubRepos(flags.owner, flags.limit),
 		fetchAllPages(sdk, config.database.dataSourceId, "Name"),
-		fetchAllPages(sdk, "35e04e4d-bcd8-45c0-b783-238edef210f7", "Project Name"),
+		fetchAllPages(sdk, workspaceIds.getDataSource("intakeProjects"), "Project Name"),
 		fetchAllPages(
 			sdk,
 			config.phase5ExternalSignals!.sources.dataSourceId,
