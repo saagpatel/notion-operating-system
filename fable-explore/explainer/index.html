@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>One Writer, No Lies — an interactive explainer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%2324566d'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,7 +16,11 @@
 
   <nav class="act-tabs" role="tablist" aria-label="Explainer acts">
     <button id="act-1-tab" class="act-tab" type="button" role="tab" aria-controls="simulation" aria-selected="true">Act 1 <span>the naive sync</span></button>
+    <button id="act-2-tab" class="act-tab" type="button" role="tab" aria-controls="simulation" aria-selected="false">Act 2 <span>one writer per field</span></button>
     <button id="act-3-tab" class="act-tab" type="button" role="tab" aria-controls="simulation" aria-selected="false">Act 3 <span>the outbox &amp; receipt</span></button>
+    <button id="act-4-tab" class="act-tab" type="button" role="tab" aria-controls="simulation" aria-selected="false">Act 4 <span>the ladder</span></button>
+    <button id="act-5-tab" class="act-tab" type="button" role="tab" aria-controls="simulation" aria-selected="false">Act 5 <span>drift and dry run</span></button>
+    <button id="act-6-tab" class="act-tab" type="button" role="tab" aria-controls="simulation" aria-selected="false">Act 6 <span>chaos mode</span></button>
   </nav>
 
   <div class="beat-status">
@@ -28,6 +33,7 @@
       <section class="panel panel-local" aria-label="LOCAL — the truth">
         <h2>LOCAL <span class="panel-sub">the truth</span></h2>
         <div id="project-cards" class="project-cards"></div>
+        <div id="special-local" class="special-panel"></div>
         <div class="outbox">
           <h3>outbox <span id="outbox-count">0 rows</span></h3>
           <ul id="outbox-list" class="outbox-list"></ul>
@@ -45,6 +51,7 @@
           <h3>record <span id="remote-count">0 pages</span></h3>
           <ul id="remote-list" class="remote-list"></ul>
         </div>
+        <div id="special-remote" class="special-panel"></div>
       </section>
     </div>
 
