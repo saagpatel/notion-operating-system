@@ -16,6 +16,7 @@ const bridgeSyncMocks = vi.hoisted(() => {
 		retrieveDataSource: vi.fn(),
 		createPageWithMarkdown: vi.fn(),
 		updatePageProperties: vi.fn(),
+		queryDataSourcePages: vi.fn(),
 		projectPages: [] as Array<{ id: string; title: string }>,
 		projectPortfolioPages: [] as Array<{ id: string; title: string }>,
 	};
@@ -34,6 +35,7 @@ vi.mock("../src/notion/direct-notion-client.js", () => ({
 		retrieveDataSource = bridgeSyncMocks.retrieveDataSource;
 		createPageWithMarkdown = bridgeSyncMocks.createPageWithMarkdown;
 		updatePageProperties = bridgeSyncMocks.updatePageProperties;
+		queryDataSourcePages = bridgeSyncMocks.queryDataSourcePages;
 	},
 }));
 
@@ -77,6 +79,7 @@ vi.mock("../src/utils/notification-hub.js", () => ({
 import {
 	assertDataSourceSchemaProperties,
 	type BridgeDbRow,
+	buildBuildLogSyncKey,
 	buildBuildLogTitle,
 	buildProjectNameIndex,
 	buildTagProperty,
@@ -140,18 +143,39 @@ function resetBridgeSyncMocks(): void {
 			properties:
 				dataSourceId === "projects-ds"
 					? {
-							"Project Name": { name: "Project Name", type: "title", writable: true },
+							"Project Name": {
+								name: "Project Name",
+								type: "title",
+								writable: true,
+							},
 						}
 					: dataSourceId === "35e04e4d-bcd8-45c0-b783-238edef210f7"
 						? {
-								"Project Name": { name: "Project Name", type: "title", writable: true },
+								"Project Name": {
+									name: "Project Name",
+									type: "title",
+									writable: true,
+								},
 							}
 						: {
 								Name: { name: "Name", type: "title", writable: true },
-								"Session Date": { name: "Session Date", type: "date", writable: true },
-								"Local Project": { name: "Local Project", type: "relation", writable: true },
+								"Session Date": {
+									name: "Session Date",
+									type: "date",
+									writable: true,
+								},
+								"Local Project": {
+									name: "Local Project",
+									type: "relation",
+									writable: true,
+								},
 								Project: { name: "Project", type: "relation", writable: true },
 								Tags: { name: "Tags", type: "multi_select", writable: true },
+								"Sync Key": {
+									name: "Sync Key",
+									type: "rich_text",
+									writable: true,
+								},
 							},
 		}),
 	);
@@ -161,6 +185,8 @@ function resetBridgeSyncMocks(): void {
 	bridgeSyncMocks.updatePageProperties.mockResolvedValue({
 		id: "build-log-page-123",
 	});
+	// No pre-existing Sync Key match by default — every row looks new (P1).
+	bridgeSyncMocks.queryDataSourcePages.mockResolvedValue({ results: [] });
 }
 
 beforeEach(() => {
@@ -176,7 +202,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
-	test("confirms shipped sync only after Notion create and property update succeed", async () => {
+	test("confirms shipped sync only after the single-call Notion create succeeds (P2)", async () => {
 		await runBridgeDbSyncCommand({
 			live: true,
 			dbPath: "/tmp/test-bridge.db",
@@ -184,22 +210,25 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
+		// Single-call creation (P2): every property rides the create payload, so a
+		// crash can never leave a dateless/relationless page behind.
 		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
 			expect.objectContaining({
 				parent: { data_source_id: "build-log-ds" },
+				properties: expect.objectContaining({
+					"Session Date": { date: { start: "2026-04-14" } },
+					"Local Project": { relation: [{ id: "project-ghost" }] },
+					Tags: { multi_select: [{ name: "cc" }] },
+					"Sync Key": {
+						rich_text: [{ text: { content: "bridge:cc:123" } }],
+					},
+				}),
 				markdown: expect.stringContaining(
 					"Shipped receipt-backed bridge sync.",
 				),
 			}),
 		);
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Session Date": { date: { start: "2026-04-14" } },
-				"Local Project": { relation: [{ id: "project-ghost" }] },
-				Tags: { multi_select: [{ name: "cc" }] },
-			}),
-		});
+		expect(bridgeSyncMocks.updatePageProperties).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 123,
 			downstreamRef: "build-log-page-123",
@@ -207,18 +236,18 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 				'Created Build Log page "[CC] Ghost Routes — 2026-04-14" with Session Date 2026-04-14',
 		});
 
-		const updateOrder =
-			bridgeSyncMocks.updatePageProperties.mock.invocationCallOrder[0];
+		const createOrder =
+			bridgeSyncMocks.createPageWithMarkdown.mock.invocationCallOrder[0];
 		const confirmOrder =
 			bridgeSyncMocks.session.confirmShippedSync.mock.invocationCallOrder[0];
-		expect(updateOrder).toBeDefined();
+		expect(createOrder).toBeDefined();
 		expect(confirmOrder).toBeDefined();
-		expect(updateOrder!).toBeLessThan(confirmOrder!);
+		expect(createOrder!).toBeLessThan(confirmOrder!);
 	});
 
-	test("does not confirm shipped sync when the Notion update fails", async () => {
-		bridgeSyncMocks.updatePageProperties.mockRejectedValueOnce(
-			new Error("Notion update failed"),
+	test("does not confirm shipped sync when the Notion create fails", async () => {
+		bridgeSyncMocks.createPageWithMarkdown.mockRejectedValueOnce(
+			new Error("Notion create failed"),
 		);
 
 		await runBridgeDbSyncCommand({
@@ -229,7 +258,6 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		});
 
 		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledOnce();
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledOnce();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
 	});
 
@@ -250,15 +278,16 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Session Date": { date: { start: "2026-04-14" } },
-				Project: { relation: [{ id: "project-machine-audits" }] },
-				Tags: { multi_select: [{ name: "cc" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Session Date": { date: { start: "2026-04-14" } },
+					Project: { relation: [{ id: "project-machine-audits" }] },
+					Tags: { multi_select: [{ name: "cc" }] },
+				}),
 			}),
-		});
-		expect(bridgeSyncMocks.updatePageProperties).not.toHaveBeenCalledWith(
+		);
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalledWith(
 			expect.objectContaining({
 				properties: expect.objectContaining({
 					"Local Project": expect.anything(),
@@ -296,19 +325,23 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledTimes(2);
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenNthCalledWith(1, {
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				Project: { relation: [{ id: "project-machine-audits" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledTimes(2);
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					Project: { relation: [{ id: "project-machine-audits" }] },
+				}),
 			}),
-		});
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenNthCalledWith(2, {
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				Project: { relation: [{ id: "project-machine-audits" }] },
+		);
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					Project: { relation: [{ id: "project-machine-audits" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 794,
 			downstreamRef: "build-log-page-123",
@@ -348,12 +381,13 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "project-registry-target" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "project-registry-target" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 796,
 			downstreamRef: "build-log-page-123",
@@ -379,12 +413,13 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "project-mcp-audit" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "project-mcp-audit" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 790,
 			downstreamRef: "build-log-page-123",
@@ -410,12 +445,13 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				Project: { relation: [{ id: "project-skill-forge" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					Project: { relation: [{ id: "project-skill-forge" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 791,
 			downstreamRef: "build-log-page-123",
@@ -441,12 +477,13 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "project-github-auditor" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "project-github-auditor" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 792,
 			downstreamRef: "build-log-page-123",
@@ -472,12 +509,13 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "project-github-auditor" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "project-github-auditor" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 793,
 			downstreamRef: "build-log-page-123",
@@ -585,12 +623,24 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 					dataSourceId === "projects-ds" ||
 					dataSourceId === "35e04e4d-bcd8-45c0-b783-238edef210f7"
 						? {
-								"Project Name": { name: "Project Name", type: "title", writable: true },
+								"Project Name": {
+									name: "Project Name",
+									type: "title",
+									writable: true,
+								},
 							}
 						: {
 								Name: { name: "Name", type: "title", writable: true },
-								"Session Date": { name: "Session Date", type: "rich_text", writable: true },
-								"Local Project": { name: "Local Project", type: "relation", writable: true },
+								"Session Date": {
+									name: "Session Date",
+									type: "rich_text",
+									writable: true,
+								},
+								"Local Project": {
+									name: "Local Project",
+									type: "relation",
+									writable: true,
+								},
 								Project: { name: "Project", type: "relation", writable: true },
 								Tags: { name: "Tags", type: "multi_select", writable: true },
 							},
@@ -657,12 +707,13 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "canonical-local-page-99" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "canonical-local-page-99" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith(
 			expect.objectContaining({ activityId: 800 }),
 		);
@@ -685,12 +736,13 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "project-ghost" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "project-ghost" }] },
+				}),
 			}),
-		});
+		);
 	});
 
 	test("falls back to fuzzy matching when notion_sync state is not ready", async () => {
@@ -717,12 +769,13 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "project-ghost" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "project-ghost" }] },
+				}),
 			}),
-		});
+		);
 	});
 
 	test("skips rows with an explicit bridge-db policy disposition before fuzzy matching", async () => {
@@ -788,18 +841,203 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 			today: "2026-04-14",
 		});
 
-		expect(bridgeSyncMocks.updatePageProperties).toHaveBeenCalledWith({
-			pageId: "build-log-page-123",
-			properties: expect.objectContaining({
-				"Local Project": { relation: [{ id: "project-cost-tracker" }] },
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				properties: expect.objectContaining({
+					"Local Project": { relation: [{ id: "project-cost-tracker" }] },
+				}),
 			}),
-		});
+		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 804,
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] cost-tracker — 2026-04-14" with Session Date 2026-04-14',
 		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// P1 — idempotency keys and crash-window recovery
+// ---------------------------------------------------------------------------
+
+describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
+	test("heals the create-succeeded-but-confirm-failed crash window without a duplicate page", async () => {
+		// Run 1: the Notion create succeeds but the bridge-db confirmation crashes,
+		// leaving the row unprocessed with its page already live.
+		bridgeSyncMocks.session.confirmShippedSync.mockRejectedValueOnce(
+			new Error("bridge-db locked"),
+		);
+		const firstRun = await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledOnce();
+		expect(firstRun.rowsWritten).toBe(0);
+		expect(firstRun.failures).toBe(1);
+
+		// Run 2: the sync-key lookup finds the page created in run 1.
+		bridgeSyncMocks.queryDataSourcePages.mockResolvedValue({
+			results: [{ id: "build-log-page-123", url: "https://notion.so/page" }],
+		});
+		const secondRun = await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		// Exactly one create across both runs — no duplicate Build Log page.
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledOnce();
+		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				activityId: 123,
+				downstreamRef: "build-log-page-123",
+			}),
+		);
+		expect(secondRun.rowsRecovered).toBe(1);
+		expect(secondRun.rowsWritten).toBe(0);
+		expect(secondRun.failures).toBe(0);
+	});
+
+	test("queries the Build Log by the row's Sync Key rich_text equals filter", async () => {
+		await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(bridgeSyncMocks.queryDataSourcePages).toHaveBeenCalledWith(
+			expect.objectContaining({
+				dataSourceId: "build-log-ds",
+				filter: {
+					property: "Sync Key",
+					rich_text: { equals: "bridge:cc:123" },
+				},
+			}),
+		);
+	});
+
+	test("recovers ops rows via markRowProcessed instead of confirmShippedSync", async () => {
+		bridgeSyncMocks.session.getPersonalOpsEvents.mockResolvedValue([
+			baseRow({
+				id: 456,
+				project_name: "Ghost Routes",
+				summary: "Personal ops task completed.",
+				source: "personal_ops",
+				tags: '["TASK_DONE"]',
+			}),
+		]);
+		bridgeSyncMocks.queryDataSourcePages.mockResolvedValue({
+			results: [{ id: "existing-ops-page", url: "https://notion.so/ops" }],
+		});
+
+		const result = await runBridgeDbSyncCommand({
+			live: true,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+			opsOnly: true,
+		});
+
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.markProcessed).toHaveBeenCalledWith(456);
+		expect(result.opsRowsRecovered).toBe(1);
+		expect(result.opsRowsWritten).toBe(0);
+	});
+
+	test("dry-run reports would-recover vs would-write accurately without mutating anything", async () => {
+		bridgeSyncMocks.queryDataSourcePages.mockResolvedValue({
+			results: [{ id: "build-log-page-123", url: "https://notion.so/page" }],
+		});
+
+		const result = await runBridgeDbSyncCommand({
+			live: false,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(result.rowsRecovered).toBe(1);
+		expect(result.rowsWritten).toBe(0);
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.session.markProcessed).not.toHaveBeenCalled();
+	});
+
+	test("aborts before any Notion write when the Build Log lacks the Sync Key property", async () => {
+		// Missing "Sync Key" is the intended deploy gate (P1): the live database must
+		// gain the rich_text property before sync may run.
+		bridgeSyncMocks.retrieveDataSource.mockImplementation(
+			async (dataSourceId: string) => ({
+				id: dataSourceId,
+				titlePropertyName:
+					dataSourceId === "projects-ds" ? "Project Name" : "Name",
+				properties:
+					dataSourceId === "projects-ds" ||
+					dataSourceId === "35e04e4d-bcd8-45c0-b783-238edef210f7"
+						? {
+								"Project Name": {
+									name: "Project Name",
+									type: "title",
+									writable: true,
+								},
+							}
+						: {
+								Name: { name: "Name", type: "title", writable: true },
+								"Session Date": {
+									name: "Session Date",
+									type: "date",
+									writable: true,
+								},
+								"Local Project": {
+									name: "Local Project",
+									type: "relation",
+									writable: true,
+								},
+								Project: { name: "Project", type: "relation", writable: true },
+								Tags: { name: "Tags", type: "multi_select", writable: true },
+							},
+			}),
+		);
+
+		await expect(runBridgeDbSyncCommand({ live: true })).rejects.toThrow(
+			/Build Log schema drift blocks bridge-db sync: Sync Key expected rich_text, got missing/,
+		);
+
+		expect(bridgeSyncMocks.session.getShippedEvents).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
+		expect(bridgeSyncMocks.queryDataSourcePages).not.toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// P1 — buildBuildLogSyncKey determinism
+// ---------------------------------------------------------------------------
+
+describe("buildBuildLogSyncKey", () => {
+	test("derives bridge:{source}:{rowId}", () => {
+		expect(buildBuildLogSyncKey(baseRow({ id: 1234, source: "cc" }))).toBe(
+			"bridge:cc:1234",
+		);
+	});
+
+	test("is deterministic for the same row across calls", () => {
+		const row = baseRow({ id: 42, source: "codex" });
+		expect(buildBuildLogSyncKey(row)).toBe(buildBuildLogSyncKey(baseRow(row)));
+	});
+
+	test("distinguishes rows and sources", () => {
+		const keys = new Set([
+			buildBuildLogSyncKey(baseRow({ id: 1, source: "cc" })),
+			buildBuildLogSyncKey(baseRow({ id: 2, source: "cc" })),
+			buildBuildLogSyncKey(baseRow({ id: 1, source: "codex" })),
+		]);
+		expect(keys.size).toBe(3);
 	});
 });
 
