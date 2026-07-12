@@ -11,7 +11,7 @@
 - `fable-explore/` is tracked in the integration history; the historical untracked-material warning below is retained as incident provenance, not current branch state.
 - `npm run verify` passes on the integrated head with 64 test files and 526 tests, followed by all build and install smoke checks. The earlier package-surface timeout did not reproduce.
 - A direct read-only check confirms the live Build Log `Sync Key` property exists as `rich_text` and the remaining required properties match the integrated schema contract.
-- No `bridge-db sync` dry-run or live run was performed during closeout. BridgeDB currently has zero actionable unprocessed shipped rows, and the command emits a Notification Hub event even in dry-run mode.
+- The first real bridge-db sync proof completed for TradeOffAtlas event `5655`: bounded dry-run planned one write, live mode created one Build Log page, readback confirmed the exact sync key and relation with complete markdown, and BridgeDB attached a Notion receipt and marked the row `PROCESSED`.
 
 The detailed sections below preserve the pre-integration exploration, review, and incident record. For current operator actions, use HANDOFF.md.
 

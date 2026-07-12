@@ -41,14 +41,14 @@ node fable-explore/explainer/check.mjs
 ## Operator decisions pending (blockers for the steps below)
 
 A. Approve or reject the local integration for `main`.
-B. Authorize or defer the smallest external proof. A direct read-only schema check confirms the live Build Log has `Sync Key` as `rich_text` plus the required title, date, relation, and tag properties. No bridge sync dry-run or live write has been run in this closeout.
+B. **Resolved.** The live Build Log schema has `Sync Key` as `rich_text`, and the bounded TradeOffAtlas event `5655` proof completed dry-run → live → readback with a receipt-backed `PROCESSED` state.
 C. Storyboard calls (file 11 §"Open calls"): standalone page vs embedded; entity naming (recommend "Project A/B/C" — already built that way); ship Acts 1+3 as Part I vs hold for all six.
 E. Supply the "why Notion specifically vs a local dashboard" sentence for the essay (file 12, Dim 3). **Do not invent this — it must be the operator's real answer.**
 
 ## Next steps, in order (all delegable, none needs Fable)
 
 1. **Review the local integration.** The required merge order has already been exercised locally and the full integrated verifier is green. Do not merge to `main` or push without operator approval.
-2. **Run the first external proof only after explicit authorization and an eligible row exists.** BridgeDB currently reports zero actionable unprocessed shipped rows. The `bridge-db sync` command also emits a Notification Hub event in dry-run mode, so the dry-run/live/readback sequence is not perfectly read-only. When authorized, use `--limit 1 --shipped-only`, record the created or recovered page, confirm the BridgeDB receipt, and read the page back before any broader drain.
+2. **Decide branch disposition.** The first external proof is complete: TradeOffAtlas event `5655` created one Build Log page with the correct sync key and relation, readback was complete, and BridgeDB recorded the receipt. Merge and push remain separately gated by operator approval.
 3. **Explainer QA.** (a) Interactive click-through of every beat in Acts 1 and 3 including predict-then-reveal and all three failure toggles; (b) mobile pass — MUST use Playwright with real device metrics (headless Chrome `--window-size` does not emulate mobile layout; known trap); (c) reduced-motion check (`prefers-reduced-motion` → packets teleport with fade). Serve over HTTP (`python3 -m http.server` in `explainer/`) — it's an ES module; file:// will not execute.
 4. **Explainer Acts 2, 4, 5, 6** per the storyboard (file 11): sessions 2-4 of its build order. Act 4 (the fallback ladder) is the second unclaimed visual and the priority. Same sim core; acts are config + copy + small rule additions. Keep the deterministic-reducer contract (no Date.now/Math.random in logic) and keep check.mjs growing with a scenario per act.
 5. **Diagram set** (file 08 §Piece 3, four diagrams) once the essay/explainer near shipping.

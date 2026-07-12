@@ -16,8 +16,8 @@ The active operating phase remains Phase 12: managed write reliability and daily
 - Full `npm run verify` passes with 64 test files and 526 tests plus all build and install smoke checks. The earlier package-surface timeout did not reproduce on the integrated head.
 - Governance health is healthy with zero warnings; governance audit, repo doctor, and read-only BridgeDB status pass.
 - A direct read-only schema check confirms the live Build Log `Sync Key` property exists as `rich_text` with all companion properties required by bridge-db sync.
-- No weekly refresh, GitHub action, public publication, bridge-db sync, or live Notion write ran in this closeout.
-- BridgeDB currently has zero actionable unprocessed shipped rows. The `bridge-db sync` dry-run also emits a Notification Hub event, so wait for explicit authorization and an eligible row before the smallest `--limit 1 --shipped-only` dry-run/live/readback proof.
+- No weekly refresh, GitHub action, deployment, or public publication ran in this closeout.
+- The first bounded bridge-db sync proof completed on 2026-07-11 with event `5655` for TradeOffAtlas: `--limit 1 --shipped-only` planned exactly one write, live mode created Build Log page `39bc21f1-caf0-8126-8e62-f28edd1183e2`, readback matched the sync key and Local Project relation with complete markdown, and BridgeDB recorded the receipt and marked the event `PROCESSED`.
 - The unrelated dirty `config/local-portfolio-control-tower.json` metrics refresh remains only in the original checkout and must stay out of feature or closeout commits.
 
 ## Local closeout note - 2026-06-14
