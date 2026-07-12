@@ -39,5 +39,5 @@ Spine reconstructs from the text without invented links (rented view → specifi
 
 1. Dim 5.1: superlative retracted ("most useful report" → the rule stated without the width).
 2. Dim 1.3: premise coda sharpened to its own beat instead of a rent-motif restatement.
-3. Dim 5.3: publish-time receipt requirement recorded as an inline HTML comment at the confession site (visible to editors, not readers).
-4. Dim 3 move: **left open for operator** — the "why Notion specifically" sentence must be Saagar's true answer.
+3. Dim 5.3: **resolved at publication prep** — the idempotency claim now links its public implementation commit.
+4. Dim 3 move: **resolved from operator input in draft 2** — Notion is the view because it is free, pleasant, familiar, available on mobile/browser/desktop, and immediately usable by both the operator and AI agents without building another product.

@@ -42,7 +42,7 @@ node fable-explore/explainer/check.mjs
 A. **Resolved.** The integration was approved, landed on `main`, pushed, and verified by the required remote checks.
 B. **Resolved.** The live Build Log schema has `Sync Key` as `rich_text`, and the bounded TradeOffAtlas event `5655` proof completed dry-run → live → readback with a receipt-backed `PROCESSED` state.
 C. Storyboard calls (file 11 §"Open calls"): standalone page vs embedded; entity naming (recommend "Project A/B/C" — already built that way); ship Acts 1+3 as Part I vs hold for all six.
-E. Supply the "why Notion specifically vs a local dashboard" sentence for the essay (file 12, Dim 3). **Do not invent this — it must be the operator's real answer.**
+E. **Resolved.** The operator supplied the real "why Notion" answer: it is free, pleasant, familiar, available across mobile/browser/desktop, and agent-addressable without a separate adoption or hosting project. Draft 2 now carries that answer and the public implementation receipt.
 
 ## Next steps, in order (all delegable, none needs Fable)
 
@@ -64,4 +64,4 @@ At 2026-07-11 00:02:28, an external `git reset --hard` + `git clean -fd` wiped e
 
 ## File map
 
-Everything lives in `/Users/d/Projects/Notion/fable-explore/`: `INDEX.md` (ledger — read second), `01`-`06` findings, `07` improvement proposals (P1-P11; P7/P9-P11 not yet implemented — future PR-5 material), `08` public-material plan, `09` web research, `10` essay draft 2, `11` explainer storyboard, `12` essay review, `13` PR-3 design spec, `explainer/` (the built interactive), and `diagrams/` (four standalone SVG source assets).
+Everything lives in `/Users/d/Projects/Notion/fable-explore/`: `INDEX.md` (ledger — read second), `01`-`06` findings, `07` improvement proposals (P1-P11, now implemented), `08` public-material plan, `09` web research, `10` essay draft 2, `11` explainer storyboard, `12` essay review, `13` PR-3 design spec, `explainer/` (the built interactive), and `diagrams/` (four standalone SVG source assets).

@@ -2,6 +2,14 @@
 
 Updated: 2026-07-11
 
+## July 11 Deferred Enhancement Closeout
+
+- P7 reads the Command Center back after a failed markdown acknowledgment, preserves a converged page, and archives the old page only after a genuine replacement is durably registered.
+- P9 rejects sole-requester self-approval, surfaces missing GitHub credentials during dry-run readiness, and marks break-glass policies audit-only because no emergency execution path exists.
+- P10 preserves longer lane timeout defaults, carries typed retryability, validates live/preflight step-plan parity, and separates dry-run `rowsWouldWrite` from actual writes.
+- P11 feeds actionable stale-support rows into packet follow-through while keeping intentional single-project support out of the action queue.
+- The essay's operator rationale and public idempotency receipt are recorded; publication remains a separate portfolio-site decision.
+
 ## July 11 Integration Checkpoint
 
 - The Fable exploration material and four reliability feature lines are merged into `main` from `codex/fable-integration-closeout-20260711`; verify `origin/main` live before relying on publication status.
