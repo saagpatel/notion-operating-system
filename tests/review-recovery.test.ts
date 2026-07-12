@@ -1,7 +1,10 @@
 import { describe, expect, test } from "vitest";
 
 import type { ControlTowerProjectRecord } from "../src/notion/local-portfolio-control-tower.js";
-import { buildReviewRecoveryPlans } from "../src/notion/review-recovery.js";
+import {
+	buildReviewRecoveryPlans,
+	filterReviewRecoveryPlansByProjectTitles,
+} from "../src/notion/review-recovery.js";
 
 describe("review recovery", () => {
 	test("plans overdue review rows in oldest-first order", () => {
@@ -62,6 +65,46 @@ describe("review recovery", () => {
 			"missing-last-active",
 		]);
 		expect(plans[0]?.properties).toHaveProperty("Next Move");
+	});
+
+	test("filters review recovery to exact project titles", () => {
+		const plans = buildReviewRecoveryPlans({
+			today: "2026-05-10",
+			reviewCadenceDays: { "Active Build": 7 },
+			projects: [
+				baseProject({ id: "one", title: "Project One" }),
+				baseProject({ id: "two", title: "Project Two" }),
+			],
+		});
+
+		expect(
+			filterReviewRecoveryPlansByProjectTitles(plans, [" Project Two "])
+				.map((plan) => plan.title),
+		).toEqual(["Project Two"]);
+	});
+
+	test("fails loudly when a requested project has no review recovery plan", () => {
+		const plans = buildReviewRecoveryPlans({
+			today: "2026-05-10",
+			reviewCadenceDays: { "Active Build": 7 },
+			projects: [baseProject({ title: "Project One" })],
+		});
+
+		expect(() =>
+			filterReviewRecoveryPlansByProjectTitles(plans, ["Missing Project"]),
+		).toThrow(
+			"No review recovery plan matched --project-title: Missing Project",
+		);
+	});
+
+	test("returns no plans when the requested project exists but is already clean", () => {
+		expect(
+			filterReviewRecoveryPlansByProjectTitles(
+				[],
+				["Clean Project"],
+				["Clean Project"],
+			),
+		).toEqual([]);
 	});
 });
 

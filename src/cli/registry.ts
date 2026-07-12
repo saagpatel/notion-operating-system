@@ -745,6 +745,13 @@ export const cliRegistry: CliCommandDefinition[] = [
 						"Also include rows missing Next Move or Last Active, even when they are not overdue.",
 					type: "boolean",
 				},
+				{
+					name: "project-title",
+					description:
+						"Repeatable exact Local Portfolio Project title filter for review-recovery dry-runs and live writes.",
+					type: "string-array",
+					valueName: "title",
+				},
 			],
 			({ parsed }) =>
 				runReviewRecoveryCommand({
@@ -758,6 +765,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 					includeMetadataGaps: asBoolean(
 						parsed.options["include-metadata-gaps"],
 					),
+					projectTitles: asStringArray(parsed.options["project-title"]),
 				}),
 		),
 		buildConfigCommand(

@@ -24,6 +24,7 @@ export interface ReviewRecoveryCommandOptions {
 	config?: string;
 	limit?: number;
 	includeMetadataGaps?: boolean;
+	projectTitles?: string[];
 }
 
 export interface ReviewRecoveryPlan {
@@ -89,7 +90,12 @@ export async function runReviewRecoveryCommand(
 		reviewCadenceDays: config.reviewCadenceDays,
 		includeMetadataGaps,
 	});
-	const plans = allPlans.slice(0, Math.max(0, limit));
+	const scopedPlans = filterReviewRecoveryPlansByProjectTitles(
+		allPlans,
+		options.projectTitles,
+		projects.map((project) => project.title),
+	);
+	const plans = scopedPlans.slice(0, Math.max(0, limit));
 
 	if (live) {
 		for (const plan of plans) {
@@ -121,6 +127,7 @@ export async function runReviewRecoveryCommand(
 		today,
 		limit,
 		includeMetadataGaps,
+		projectTitles: normalizeProjectTitleFilters(options.projectTitles),
 		totalEligibleProjects: allPlans.length,
 		plannedUpdates: plans.length,
 		appliedUpdates: live ? plans.length : 0,
@@ -167,6 +174,40 @@ export async function runReviewRecoveryCommand(
 		},
 	});
 	console.log(JSON.stringify(output, null, 2));
+}
+
+function normalizeProjectTitleFilters(projectTitles?: string[]): string[] {
+	const uniqueTitles: string[] = [];
+	const seen = new Set<string>();
+	for (const title of projectTitles ?? []) {
+		const trimmed = title.trim();
+		if (trimmed.length === 0 || seen.has(trimmed)) continue;
+		seen.add(trimmed);
+		uniqueTitles.push(trimmed);
+	}
+	return uniqueTitles;
+}
+
+export function filterReviewRecoveryPlansByProjectTitles(
+	plans: ReviewRecoveryPlan[],
+	projectTitles?: string[],
+	knownProjectTitles: string[] = plans.map((plan) => plan.title),
+): ReviewRecoveryPlan[] {
+	const requestedTitles = normalizeProjectTitleFilters(projectTitles);
+	if (requestedTitles.length === 0) return plans;
+
+	const knownProjectTitleSet = new Set(knownProjectTitles);
+	const missingTitles = requestedTitles.filter(
+		(title) => !knownProjectTitleSet.has(title),
+	);
+	if (missingTitles.length > 0) {
+		throw new Error(
+			`No review recovery plan matched --project-title: ${missingTitles.join(", ")}`,
+		);
+	}
+
+	const requestedTitleSet = new Set(requestedTitles);
+	return plans.filter((plan) => requestedTitleSet.has(plan.title));
 }
 
 export function buildReviewRecoveryPlans(input: {

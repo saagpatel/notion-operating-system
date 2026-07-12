@@ -148,6 +148,7 @@ describe("cli smoke tests", () => {
     expect(help.stdout).toContain("--live");
     expect(help.stdout).toContain("--limit <count>");
     expect(help.stdout).toContain("--include-metadata-gaps");
+	expect(help.stdout).toContain("--project-title <title>");
   });
 
   test("control tower exposes packet follow-through reporting", async () => {
