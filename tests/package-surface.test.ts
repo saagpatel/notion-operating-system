@@ -155,9 +155,17 @@ describe("package surface", () => {
       },
     ];
 
-    for (const check of checks) {
-      const preferred = await runNpmScript(check.preferred, ["--help"]);
-      const legacy = await runNpmScript(check.legacy, ["--help"]);
+    const results = await Promise.all(
+      checks.map(async (check) => ({
+        check,
+        executions: await Promise.all([
+          runNpmScript(check.preferred, ["--help"]),
+          runNpmScript(check.legacy, ["--help"]),
+        ]),
+      })),
+    );
+
+    for (const { check, executions: [preferred, legacy] } of results) {
 
       expect(preferred.exitCode).toBe(0);
       expect(preferred.stdout).toContain(check.expected);
