@@ -9,6 +9,10 @@ import { Publisher } from "../publishing/publisher.js";
 import { losAngelesToday } from "../utils/date.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
+	runStaleSupportAudit,
+	type StaleSupportCandidate,
+} from "../internal/notion-maintenance/stale-support-audit.js";
+import {
 	applyDerivedSignals,
 	addDays,
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -48,6 +52,7 @@ export interface PacketFollowThroughCommandOptions {
 export type PacketFollowThroughLane =
 	| "orphan-kickoff"
 	| "signal-risk-repair"
+	| "stale-support-review"
 	| "active-packet"
 	| "blocked-packet"
 	| "overdue-packet"
@@ -120,6 +125,13 @@ export async function runPacketFollowThroughCommand(
 		api.retrieveDataSource(config.phase2Execution.packets.dataSourceId),
 		api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId),
 	]);
+	const staleSupportAudit = await runStaleSupportAudit({
+		today,
+		config: options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+		limit,
+		weakProjectThreshold: 1,
+		classificationConfig: "config/stale-support-classifications.json",
+	});
 	const [projectPages, packetPages, taskPages] = await Promise.all([
 		fetchAllPages(
 			api,
@@ -148,6 +160,7 @@ export async function runPacketFollowThroughCommand(
 		projects,
 		packets,
 		tasks,
+		staleSupportReviewQueue: staleSupportAudit.actionableReviewQueue,
 		limit,
 		includeAllOpen: options.includeAllOpen ?? false,
 	});
@@ -177,6 +190,7 @@ export async function runPacketFollowThroughCommand(
 				projects,
 				packets,
 				tasks,
+				staleSupportReviewQueue: staleSupportAudit.actionableReviewQueue,
 				limit,
 				includeAllOpen: options.includeAllOpen ?? false,
 			});
@@ -246,13 +260,14 @@ export function buildPacketFollowThroughReport(input: {
 	tasks: ExecutionTaskRecord[];
 	limit?: number;
 	includeAllOpen?: boolean;
+	staleSupportReviewQueue?: StaleSupportCandidate[];
 }): PacketFollowThroughReport {
 	const projectById = new Map(input.projects.map((project) => [project.id, project]));
 	const tasksByPacketId = groupTasksByPacketId(input.tasks);
 	const openPackets = input.packets.filter(
 		(packet) => !isWorkPacketClosed(packet.status),
 	);
-	const allItems = openPackets
+	const packetItems = openPackets
 		.map((packet) =>
 			buildFollowThroughItem({
 				packet,
@@ -263,6 +278,10 @@ export function buildPacketFollowThroughReport(input: {
 		)
 		.filter((item) => input.includeAllOpen || item.score >= 20)
 		.sort(comparePacketFollowThroughItems);
+	const allItems = [
+		...(input.staleSupportReviewQueue ?? []).map(buildStaleSupportFollowThroughItem),
+		...packetItems,
+	].sort(comparePacketFollowThroughItems);
 	const items = allItems.slice(0, input.limit ?? 12);
 	const markdown = renderPacketFollowThroughMarkdown({
 		today: input.today,
@@ -285,6 +304,30 @@ export function buildPacketFollowThroughReport(input: {
 		unworkedPackets: allItems.filter(isPacketMissingOperatingEvidence).length,
 		items,
 		markdown,
+	};
+}
+
+function buildStaleSupportFollowThroughItem(candidate: StaleSupportCandidate): PacketFollowThroughItem {
+	return {
+		packetId: candidate.id,
+		packetTitle: candidate.title,
+		packetUrl: candidate.url,
+		projectId: "",
+		projectTitle: candidate.kind,
+		projectUrl: "",
+		lane: "stale-support-review",
+		state: "Needs review",
+		score: 90,
+		status: "Review",
+		priority: "Now",
+		targetFinish: "",
+		openTaskCount: 0,
+		completedTaskCount: 0,
+		buildLogSessionCount: 0,
+		blockedTaskCount: 0,
+		overdueTaskCount: 0,
+		nextAction: `Review ${candidate.reviewReason.toLowerCase()} and either relink, refresh, or classify it intentionally.`,
+		evidence: [candidate.reviewReason, candidate.classificationReason],
 	};
 }
 
@@ -589,6 +632,9 @@ function renderPacketFollowThroughMarkdown(input: {
 			input.allItems.filter((item) => item.lane === "signal-risk-repair")
 				.length
 		}`,
+		`- Stale support reviews: ${
+			input.allItems.filter((item) => item.lane === "stale-support-review").length
+		}`,
 		`- Blocked packets or packets with blocked tasks: ${
 			input.allItems.filter((item) => item.blockedTaskCount > 0).length
 		}`,
@@ -602,6 +648,7 @@ function renderPacketFollowThroughMarkdown(input: {
 		"### Operator Rule",
 		"- Work existing kickoff packets before creating new ones.",
 		"- Treat signal-risk repair packets as external-proof follow-through: verify the repo or provider result, then close or narrow the packet.",
+		"- Resolve stale support reviews by relinking, refreshing, or explicitly classifying the row.",
 		"- Convert packets with no operating evidence into one concrete task or close them.",
 		"",
 		"### Next Commands",

@@ -170,6 +170,34 @@ describe("packet follow-through", () => {
 		expect(report.reportedPackets).toBe(1);
 		expect(report.items[0]?.packetTitle).toBe("Small cleanup");
 	});
+
+	test("surfaces actionable stale support ahead of ordinary packet work", () => {
+		const report = buildPacketFollowThroughReport({
+			today: TODAY,
+			projects: [],
+			packets: [],
+			tasks: [],
+			staleSupportReviewQueue: [{
+				kind: "research",
+				title: "Old research note",
+				id: "support-1",
+				url: "https://notion.example/support-1",
+				linkedProjectCount: 0,
+				linkedProjectTitles: [],
+				reviewReason: "No linked local projects",
+				freshnessDate: "2026-01-01",
+				classification: "actionable",
+				classificationReason: "No intentional exception is recorded",
+			}],
+		});
+
+		expect(report.items[0]).toMatchObject({
+			packetTitle: "Old research note",
+			lane: "stale-support-review",
+			state: "Needs review",
+		});
+		expect(report.markdown).toContain("Stale support reviews: 1");
+	});
 });
 
 function project(

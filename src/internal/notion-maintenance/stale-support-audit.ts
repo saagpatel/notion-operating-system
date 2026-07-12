@@ -28,7 +28,7 @@ const DEFAULT_STALE_SUPPORT_CLASSIFICATION_PATH = "config/stale-support-classifi
 type SupportKind = "research" | "skill" | "tool";
 type CandidateClassification = "actionable" | "intentional_single_project";
 
-interface Flags {
+export interface StaleSupportAuditFlags {
   today: string;
   config: string;
   limit: number;
@@ -36,7 +36,7 @@ interface Flags {
   classificationConfig: string;
 }
 
-interface Candidate {
+export interface StaleSupportCandidate {
   kind: SupportKind;
   title: string;
   id: string;
@@ -55,7 +55,7 @@ interface ClassificationEntries {
   tool: Record<string, string>;
 }
 
-function parseFlags(argv: string[]): Flags {
+function parseFlags(argv: string[]): StaleSupportAuditFlags {
   let today = TODAY;
   let config = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
   let limit = 25;
@@ -139,7 +139,11 @@ async function main(): Promise<void> {
   }
 }
 
-export async function runStaleSupportAudit(flags: Flags): Promise<Record<string, unknown>> {
+export interface StaleSupportAuditOutput extends Record<string, unknown> {
+  actionableReviewQueue: StaleSupportCandidate[];
+}
+
+export async function runStaleSupportAudit(flags: StaleSupportAuditFlags): Promise<StaleSupportAuditOutput> {
   const token = resolveRequiredNotionToken("NOTION_TOKEN is required for the stale support audit");
   const config = await loadLocalPortfolioControlTowerConfig(flags.config);
   const classificationEntries = await loadClassificationEntries(flags.classificationConfig);
@@ -206,7 +210,7 @@ function collectCandidates(
   projectById: Map<string, DataSourcePageRef>,
   weakProjectThreshold: number,
   classificationEntries: ClassificationEntries,
-): Candidate[] {
+): StaleSupportCandidate[] {
   return pages
     .map((page) => {
       const linkedProjectIds = relationIds(page.properties[projectRelationProperty(kind)]);
@@ -264,7 +268,7 @@ function supportFreshnessDate(kind: SupportKind, page: DataSourcePageRef): strin
   );
 }
 
-function compareCandidates(left: Candidate, right: Candidate): number {
+function compareCandidates(left: StaleSupportCandidate, right: StaleSupportCandidate): number {
   const classificationRank = compareClassification(left.classification, right.classification);
   if (classificationRank !== 0) {
     return classificationRank;
@@ -284,7 +288,7 @@ function compareCandidates(left: Candidate, right: Candidate): number {
 }
 
 function summarizeByKind(
-  candidates: Candidate[],
+  candidates: StaleSupportCandidate[],
 ): Record<
   SupportKind,
   { total: number; orphaned: number; weak: number; actionable: number; intentionalSingleProject: number }
@@ -298,7 +302,7 @@ function summarizeByKind(
 
 function summarizeKind(
   kind: SupportKind,
-  candidates: Candidate[],
+  candidates: StaleSupportCandidate[],
 ): { total: number; orphaned: number; weak: number; actionable: number; intentionalSingleProject: number } {
   const rows = candidates.filter((candidate) => candidate.kind === kind);
   return {
