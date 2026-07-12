@@ -4,16 +4,15 @@
 
 ## Ground rules (inherited from the operator, still binding)
 
-1. **Nothing is pushed and nothing merges to `main` without the operator's explicit go.** The four feature lines are locally integrated only.
+1. **Nothing is pushed or merged without the operator's explicit go.** That approval was granted for the `main` landing; verify remote status live before relying on publication.
 2. **No live Notion writes** while working on this material. Dry-run is the repo default; keep it that way.
 3. Public material (essay/explainer) is architecture-and-reasoning only — never real project names, workspace contents, or personal data beyond what's already in the drafts.
 4. Review large diffs with `git diff main...HEAD -w` — a Biome format-on-save hook inflates raw diffs with whole-file re-indents.
 
 ## Current integration state
 
-- `main` and `origin/main` remain aligned before this work.
-- `docs/fable-explore-session` contains the Fable material plus all four feature lines in the required merge order.
-- Closeout work continues on `codex/fable-integration-closeout-20260711` in a dedicated worktree created from that integration head.
+- `main` contains the Fable material plus all four feature lines in the required merge order; verify `origin/main` live before relying on publication status.
+- The integration source branches are `docs/fable-explore-session` and `codex/fable-integration-closeout-20260711`.
 - The original checkout still owns the unrelated dirty `config/local-portfolio-control-tower.json` metrics refresh. That file is not part of the integration or closeout branch.
 - All four feature branch tips are ancestors of the integration head. Their worktrees and branches have not been pruned because the integration has not been approved for `main`.
 

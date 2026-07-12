@@ -4,8 +4,8 @@ Updated: 2026-07-11
 
 ## July 11 Integration Checkpoint
 
-- The Fable exploration material and four reliability feature lines are locally integrated on `docs/fable-explore-session`; closeout documentation continues on `codex/fable-integration-closeout-20260711` from that exact integration head.
-- `main` and `origin/main` remain unchanged. No push, `main` merge, GitHub action, deployment, public-material publication, or weekly refresh was performed in this closeout lane.
+- The Fable exploration material and four reliability feature lines are merged into `main` from `codex/fable-integration-closeout-20260711`; verify `origin/main` live before relying on publication status.
+- No GitHub action, deployment, public-material publication, or weekly refresh was performed in this closeout lane.
 - `npm run verify` passes with 64 test files and 526 tests, followed by build, built-CLI smoke, packed-install smoke, and git-install smoke.
 - Governance health reports healthy with zero warnings, governance audit passes, repo doctor passes against all 23 configured destinations, and BridgeDB status is healthy with schema version 13 and no actionable unprocessed shipped rows.
 - A direct read-only Notion schema check confirms the live Build Log has `Sync Key` as `rich_text`; its title, date, project relations, and tags also match the integrated schema gate.
