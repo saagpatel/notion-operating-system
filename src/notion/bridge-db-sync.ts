@@ -19,6 +19,7 @@ import {
 } from "./local-portfolio-control-tower-live.js";
 import { toIntelligenceProjectRecord } from "./local-portfolio-intelligence-live.js";
 import { createNotionSdkClient } from "./notion-sdk.js";
+import { WorkspaceIds, type BuildLogProjectRelation } from "../config/workspace-ids.js";
 
 export interface BridgeDbSyncOptions {
 	live?: boolean;
@@ -38,18 +39,20 @@ export interface BridgeDbSyncResult {
 	rowsFound: number;
 	rowsWritten: number;
 	rowsSkipped: number;
+	/** SHIPPED rows healed via an existing Sync Key match instead of a new page (P1). */
+	rowsRecovered: number;
 	failures: number;
 	opsRowsFound: number;
 	opsRowsWritten: number;
 	opsRowsSkipped: number;
+	/** Ops rows healed via an existing Sync Key match instead of a new page (P1). */
+	opsRowsRecovered: number;
 	notes: string[];
 }
 
 const BRIDGE_DB_DEFAULT_PATH = `${homedir()}/.local/share/bridge-db/bridge.db`;
-const PROJECT_PORTFOLIO_DATA_SOURCE_ID = "35e04e4d-bcd8-45c0-b783-238edef210f7";
 const PROJECT_PORTFOLIO_TITLE_PROPERTY = "Project Name";
-
-type BuildLogProjectRelation = "Local Project" | "Project";
+const BUILD_LOG_SYNC_KEY_PROPERTY = "Sync Key";
 
 interface BuildLogProjectTarget {
 	id: string;
@@ -66,36 +69,13 @@ interface OperationalProjectAlias {
 	relationProperty: BuildLogProjectRelation;
 }
 
-const OPERATIONAL_PROJECT_ALIASES = new Map<string, OperationalProjectAlias>([
-	[
-		"claude-md-lint",
-		{ targetTitle: "Machine Audits", relationProperty: "Project" },
-	],
-	[
-		"operator-os-docs",
-		{ targetTitle: "Machine Audits", relationProperty: "Project" },
-	],
-	[
-		"portfolio-docs-agent-contract-lane",
-		{ targetTitle: "Machine Audits", relationProperty: "Project" },
-	],
-	[
-		"portfolio-dep-security",
-		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
-	],
-	[
-		"portfoliocommandcenter",
-		{ targetTitle: "GitHub Repo Auditor", relationProperty: "Local Project" },
-	],
-]);
-
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
 export async function runBridgeDbSyncCommand(
 	options: BridgeDbSyncOptions = {},
-): Promise<void> {
+): Promise<BridgeDbSyncResult> {
 	const token = resolveRequiredNotionToken(
 		"NOTION_TOKEN is required for bridge-db sync",
 	);
@@ -104,6 +84,14 @@ export async function runBridgeDbSyncCommand(
 	const configPath =
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
 	const config = await loadLocalPortfolioControlTowerConfig(configPath);
+	const workspaceIds = await WorkspaceIds.load();
+	const projectPortfolioDataSourceId = workspaceIds.getDataSource("projectPortfolio");
+	const operationalProjectAliases = new Map<string, OperationalProjectAlias>(
+		workspaceIds.operationalAliases.map(({ repoKey, targetTitle, relationProperty }) => [
+			repoKey,
+			{ targetTitle, relationProperty },
+		]),
+	);
 	const dbPath =
 		options.dbPath ?? process.env["BRIDGE_DB_PATH"] ?? BRIDGE_DB_DEFAULT_PATH;
 	const limit = options.limit ?? 50;
@@ -128,21 +116,28 @@ export async function runBridgeDbSyncCommand(
 	// Fetch project lists and build log schema
 	const [projectSchema, projectPortfolioSchema, buildSchema] = await Promise.all([
 		api.retrieveDataSource(config.database.dataSourceId),
-		api.retrieveDataSource(PROJECT_PORTFOLIO_DATA_SOURCE_ID),
+		api.retrieveDataSource(projectPortfolioDataSourceId),
 		api.retrieveDataSource(config.relatedDataSources.buildLogId),
 	]);
 	assertDataSourceSchemaProperties("Local Portfolio Projects", projectSchema, [
 		{ name: projectSchema.titlePropertyName, type: "title" },
 	]);
-	assertDataSourceSchemaProperties("Project Portfolio", projectPortfolioSchema, [
-		{ name: PROJECT_PORTFOLIO_TITLE_PROPERTY, type: "title" },
-	]);
+	assertDataSourceSchemaProperties(
+		"Project Portfolio",
+		projectPortfolioSchema,
+		[{ name: PROJECT_PORTFOLIO_TITLE_PROPERTY, type: "title" }],
+	);
+	// "Sync Key" is a HARD requirement (P1): the idempotency lookup and the crash-window
+	// recovery below depend on it. If the live Build Log database lacks the property, this
+	// schema-drift error is the intended deploy gate — add the rich_text property to the
+	// database before running, rather than syncing without idempotency protection.
 	assertDataSourceSchemaProperties("Build Log", buildSchema, [
 		{ name: buildSchema.titlePropertyName, type: "title" },
 		{ name: "Session Date", type: "date" },
 		{ name: "Local Project", type: "relation" },
 		{ name: "Project", type: "relation" },
 		{ name: "Tags", type: "multi_select" },
+		{ name: BUILD_LOG_SYNC_KEY_PROPERTY, type: "rich_text" },
 	]);
 
 	const [projectPages, projectPortfolioPages] = await Promise.all([
@@ -153,7 +148,7 @@ export async function runBridgeDbSyncCommand(
 		),
 		fetchAllPages(
 			sdk,
-			PROJECT_PORTFOLIO_DATA_SOURCE_ID,
+			projectPortfolioDataSourceId,
 			PROJECT_PORTFOLIO_TITLE_PROPERTY,
 		),
 	]);
@@ -168,29 +163,33 @@ export async function runBridgeDbSyncCommand(
 		projectPortfolioPages.map((page) => ({ id: page.id, title: page.title })),
 	);
 
+	const result: BridgeDbSyncResult = {
+		rowsFound: 0,
+		rowsWritten: 0,
+		rowsSkipped: 0,
+		rowsRecovered: 0,
+		failures: 0,
+		opsRowsFound: 0,
+		opsRowsWritten: 0,
+		opsRowsSkipped: 0,
+		opsRowsRecovered: 0,
+		notes: [],
+	};
+
 	// Read unprocessed SHIPPED rows from bridge-db via MCP
 	let entries: ShippedEvent[] = [];
 	if (processShipped) {
 		try {
 			entries = await readShippedRows(dbPath, limit);
+			result.rowsFound = entries.length;
 		} catch (error) {
-			console.error(
-				`[bridge-db-sync] Failed to read bridge.db at ${dbPath}: ${toErrorMessage(error)}`,
-			);
-			return;
+			const message = `Failed to read bridge.db at ${dbPath}: ${toErrorMessage(error)}`;
+			console.error(`[bridge-db-sync] ${message}`);
+			result.failures = 1;
+			result.notes.push(message);
+			return result;
 		}
 	}
-
-	const result: BridgeDbSyncResult = {
-		rowsFound: entries.length,
-		rowsWritten: 0,
-		rowsSkipped: 0,
-		failures: 0,
-		opsRowsFound: 0,
-		opsRowsWritten: 0,
-		opsRowsSkipped: 0,
-		notes: [],
-	};
 
 	if (processShipped) {
 		console.log(
@@ -219,9 +218,10 @@ export async function runBridgeDbSyncCommand(
 			row,
 			projectIndex,
 			projectPortfolioIndex,
+			operationalProjectAliases,
 		);
 		if (!projectTarget) {
-			const alias = resolveOperationalProjectAlias(row.project_name);
+			const alias = resolveOperationalProjectAlias(row.project_name, operationalProjectAliases);
 			result.rowsSkipped += 1;
 			if (alias) {
 				result.notes.push(
@@ -237,33 +237,70 @@ export async function runBridgeDbSyncCommand(
 
 		const sessionDate = row.timestamp?.slice(0, 10) ?? today;
 		const title = buildBuildLogTitle(row);
-
-		if (!live) {
-			console.log(
-				`[bridge-db-sync] [dry-run] Would write: "${title}" → ${projectTarget.relationProperty} ${projectTarget.id}`,
-			);
-			result.rowsWritten += 1;
-			continue;
-		}
+		const syncKey = buildBuildLogSyncKey(row);
 
 		try {
+			// Idempotency lookup (P1): a page carrying this row's Sync Key already exists
+			// when a prior run created the page but crashed before confirming the row.
+			const existingPageId = await findBuildLogPageBySyncKey(
+				api,
+				config.relatedDataSources.buildLogId,
+				syncKey,
+			);
+
+			if (!live) {
+				if (existingPageId) {
+					console.log(
+						`[bridge-db-sync] [dry-run] Would recover: "${title}" → existing page ${existingPageId} (sync key ${syncKey})`,
+					);
+					result.rowsRecovered += 1;
+				} else {
+					console.log(
+						`[bridge-db-sync] [dry-run] Would write: "${title}" → ${projectTarget.relationProperty} ${projectTarget.id}`,
+					);
+					result.rowsWritten += 1;
+				}
+				continue;
+			}
+
+			if (existingPageId) {
+				// Heal the create-succeeded-but-confirm-failed crash window (P1): skip the
+				// duplicate create and confirm the row against the existing page.
+				try {
+					await confirmShippedRowSynced(dbPath, {
+						rowId: row.id,
+						downstreamRef: existingPageId,
+						notes: `Recovered existing Build Log page for sync key ${syncKey} — created by a prior run whose confirmation failed`,
+					});
+					result.rowsRecovered += 1;
+					console.log(
+						`[bridge-db-sync] Recovered: "${title}" already exists as ${existingPageId} (sync key ${syncKey}); row confirmed without a duplicate page.`,
+					);
+				} catch (markError) {
+					result.failures += 1;
+					result.notes.push(
+						`Found existing Build Log page ${existingPageId} for row ${row.id} but failed to confirm it in bridge-db — recovery will retry on next run: ${toErrorMessage(markError)}`,
+					);
+				}
+				continue;
+			}
+
+			// Single-call creation (P2): the /pages create payload carries the full
+			// properties map alongside the markdown body, so Session Date, the project
+			// relation, Tags, and the Sync Key land atomically with the page — no
+			// follow-up property patch, no half-written-page window.
 			const created = await api.createPageWithMarkdown({
 				parent: { data_source_id: config.relatedDataSources.buildLogId },
 				properties: {
 					[buildSchema.titlePropertyName]: {
 						title: [{ text: { content: title } }],
 					},
-				},
-				markdown: buildMarkdownBody(row),
-			});
-			// Set Session Date and Local Project relation after creation
-			await api.updatePageProperties({
-				pageId: created.id,
-				properties: {
 					"Session Date": { date: { start: sessionDate } },
 					[projectTarget.relationProperty]: relationValue([projectTarget.id]),
 					Tags: buildTagProperty(row),
+					[BUILD_LOG_SYNC_KEY_PROPERTY]: buildSyncKeyProperty(syncKey),
 				},
+				markdown: buildMarkdownBody(row),
 			});
 			try {
 				await confirmShippedRowSynced(dbPath, {
@@ -276,7 +313,7 @@ export async function runBridgeDbSyncCommand(
 			} catch (markError) {
 				result.failures += 1;
 				result.notes.push(
-					`Failed to confirm shipped row ${row.id} in bridge-db — it will be re-processed on next run: ${toErrorMessage(markError)}`,
+					`Failed to confirm shipped row ${row.id} in bridge-db — it will be recovered via sync key ${syncKey} on next run: ${toErrorMessage(markError)}`,
 				);
 			}
 		} catch (error) {
@@ -306,40 +343,70 @@ export async function runBridgeDbSyncCommand(
 					row.project_name,
 					projectIndex,
 					projectPortfolioIndex,
+					operationalProjectAliases,
 				);
 				const sessionDate = row.timestamp?.slice(0, 10) ?? today;
 				const title = buildBuildLogTitle(row);
-
-				if (!live) {
-					console.log(
-						`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${projectTarget ? ` → ${projectTarget.relationProperty} ${projectTarget.id}` : " (no project match)"}`,
-					);
-					result.opsRowsWritten += 1;
-					continue;
-				}
+				const syncKey = buildBuildLogSyncKey(row);
 
 				try {
-					const created = await api.createPageWithMarkdown({
-						parent: { data_source_id: config.relatedDataSources.buildLogId },
-						properties: {
-							[buildSchema.titlePropertyName]: {
-								title: [{ text: { content: title } }],
-							},
+					// Same idempotency lookup as the SHIPPED path (P1); ops recovery marks
+					// the row PROCESSED instead of confirming a shipped sync.
+					const existingPageId = await findBuildLogPageBySyncKey(
+						api,
+						config.relatedDataSources.buildLogId,
+						syncKey,
+					);
+
+					if (!live) {
+						if (existingPageId) {
+							console.log(
+								`[bridge-db-sync] [dry-run] Would recover ops event: "${title}" → existing page ${existingPageId} (sync key ${syncKey})`,
+							);
+							result.opsRowsRecovered += 1;
+						} else {
+							console.log(
+								`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${projectTarget ? ` → ${projectTarget.relationProperty} ${projectTarget.id}` : " (no project match)"}`,
+							);
+							result.opsRowsWritten += 1;
+						}
+						continue;
+					}
+
+					if (existingPageId) {
+						try {
+							await markRowProcessed(dbPath, row.id);
+							result.opsRowsRecovered += 1;
+							console.log(
+								`[bridge-db-sync] Recovered ops event: "${title}" already exists as ${existingPageId} (sync key ${syncKey}); row marked PROCESSED without a duplicate page.`,
+							);
+						} catch (markError) {
+							result.failures += 1;
+							result.notes.push(
+								`Found existing Build Log page ${existingPageId} for ops row ${row.id} but failed to mark it PROCESSED — recovery will retry on next run: ${toErrorMessage(markError)}`,
+							);
+						}
+						continue;
+					}
+
+					// Single-call creation (P2): all properties ride the create payload.
+					const createProps: Record<string, unknown> = {
+						[buildSchema.titlePropertyName]: {
+							title: [{ text: { content: title } }],
 						},
-						markdown: buildMarkdownBody(row),
-					});
-					const updateProps: Record<string, unknown> = {
 						"Session Date": { date: { start: sessionDate } },
 						Tags: buildTagProperty(row),
+						[BUILD_LOG_SYNC_KEY_PROPERTY]: buildSyncKeyProperty(syncKey),
 					};
 					if (projectTarget) {
-						updateProps[projectTarget.relationProperty] = relationValue([
+						createProps[projectTarget.relationProperty] = relationValue([
 							projectTarget.id,
 						]);
 					}
-					await api.updatePageProperties({
-						pageId: created.id,
-						properties: updateProps,
+					const created = await api.createPageWithMarkdown({
+						parent: { data_source_id: config.relatedDataSources.buildLogId },
+						properties: createProps,
+						markdown: buildMarkdownBody(row),
 					});
 					try {
 						await markRowProcessed(dbPath, row.id);
@@ -350,7 +417,7 @@ export async function runBridgeDbSyncCommand(
 					} catch (markError) {
 						result.failures += 1;
 						result.notes.push(
-							`Failed to mark ops row ${row.id} as PROCESSED: ${toErrorMessage(markError)}`,
+							`Failed to mark ops row ${row.id} as PROCESSED — it will be recovered via sync key ${syncKey} on next run: ${toErrorMessage(markError)}`,
 						);
 					}
 				} catch (error) {
@@ -391,8 +458,8 @@ export async function runBridgeDbSyncCommand(
 
 	const summary = [
 		`Bridge-db sync complete (live=${live}):`,
-		`  SHIPPED — Found: ${result.rowsFound}, Written: ${result.rowsWritten}, Skipped: ${result.rowsSkipped}`,
-		`  Ops     — Found: ${result.opsRowsFound}, Written: ${result.opsRowsWritten}, Skipped: ${result.opsRowsSkipped}`,
+		`  SHIPPED — Found: ${result.rowsFound}, Written: ${result.rowsWritten}, Recovered: ${result.rowsRecovered}, Skipped: ${result.rowsSkipped}`,
+		`  Ops     — Found: ${result.opsRowsFound}, Written: ${result.opsRowsWritten}, Recovered: ${result.opsRowsRecovered}, Skipped: ${result.opsRowsSkipped}`,
 		`  Failed:  ${result.failures}`,
 	];
 	if (result.notes.length > 0) {
@@ -414,6 +481,7 @@ export async function runBridgeDbSyncCommand(
 		title: "bridge-db-sync complete",
 		body: `${live ? "Live" : "Dry-run"}: SHIPPED ${result.rowsFound}→${result.rowsWritten}, Ops ${result.opsRowsFound}→${result.opsRowsWritten}, ${unrouted} unrouted, ${result.failures} failed`,
 	});
+	return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -545,6 +613,46 @@ export function assertDataSourceSchemaProperties(
 }
 
 // ---------------------------------------------------------------------------
+// Idempotency helpers (P1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic idempotency key for a bridge-db row's Build Log page (P1).
+ * Bridge row ids are stable and unique per source db, so `bridge:{source}:{rowId}`
+ * (e.g. `bridge:cc:1234`) identifies the row across runs without hashing.
+ */
+export function buildBuildLogSyncKey(row: ShippedEvent): string {
+	return `bridge:${row.source}:${row.id}`;
+}
+
+function buildSyncKeyProperty(syncKey: string): {
+	rich_text: Array<{ text: { content: string } }>;
+} {
+	return { rich_text: [{ text: { content: syncKey } }] };
+}
+
+/**
+ * Look up an existing Build Log page whose "Sync Key" rich-text equals the row's
+ * key (P1). Single equals filter per row — unconfirmed rows are rare, so the
+ * OR-filter batching used by fetchExistingExternalSignalEventKeys is unnecessary.
+ */
+async function findBuildLogPageBySyncKey(
+	api: DirectNotionClient,
+	dataSourceId: string,
+	syncKey: string,
+): Promise<string | undefined> {
+	const response = await api.queryDataSourcePages({
+		dataSourceId,
+		pageSize: 1,
+		filter: {
+			property: BUILD_LOG_SYNC_KEY_PROPERTY,
+			rich_text: { equals: syncKey },
+		},
+	});
+	return response.results?.[0]?.id;
+}
+
+// ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
@@ -667,6 +775,7 @@ function resolveShippedProjectTarget(
 	row: ShippedEvent,
 	localProjectIndex: Map<string, string>,
 	projectPortfolioIndex: Map<string, string>,
+	operationalProjectAliases: ReadonlyMap<string, OperationalProjectAlias>,
 ): BuildLogProjectTarget | undefined {
 	const notionSync = row.notion_sync;
 	if (notionSync?.state === "ready" && notionSync.notion_page_id) {
@@ -680,6 +789,7 @@ function resolveShippedProjectTarget(
 		row.project_name,
 		localProjectIndex,
 		projectPortfolioIndex,
+		operationalProjectAliases,
 	);
 }
 
@@ -687,6 +797,7 @@ function resolveBuildLogProjectTarget(
 	projectName: string,
 	localProjectIndex: Map<string, string>,
 	projectPortfolioIndex: Map<string, string>,
+	operationalProjectAliases: ReadonlyMap<string, OperationalProjectAlias>,
 ): BuildLogProjectTarget | undefined {
 	const localProjectId = resolveProjectId(projectName, localProjectIndex);
 	if (localProjectId) {
@@ -701,7 +812,7 @@ function resolveBuildLogProjectTarget(
 		return { id: portfolioProjectId, relationProperty: "Project" };
 	}
 
-	const alias = resolveOperationalProjectAlias(projectName);
+	const alias = resolveOperationalProjectAlias(projectName, operationalProjectAliases);
 	if (!alias) {
 		return undefined;
 	}
@@ -720,9 +831,10 @@ function resolveBuildLogProjectTarget(
 
 function resolveOperationalProjectAlias(
 	projectName: string,
+	operationalProjectAliases: ReadonlyMap<string, OperationalProjectAlias>,
 ): OperationalProjectAlias | undefined {
 	for (const key of projectNameLookupKeys(projectName)) {
-		const alias = OPERATIONAL_PROJECT_ALIASES.get(key);
+		const alias = operationalProjectAliases.get(key);
 		if (alias) return alias;
 	}
 	return undefined;

@@ -2,13 +2,23 @@
 
 ## Current state
 
-Latest checkpoint: 2026-06-13.
+Latest checkpoint: 2026-07-11.
 
 The real checkout is `/Users/d/Projects/Notion`. The historical `/Users/d/Notion` path is a hollow stub containing only a `.git/hooks/reference-transaction` tripwire hook; `git status` there fails with `fatal: not a git repository`. Do not write into `/Users/d/Notion`.
 
-The repo is on `main` tracking `origin/main`; do not treat this file as the source of truth for the current branch or working tree. Check `git status --short --branch` before acting.
+`main` and `origin/main` remain aligned before the Fable integration. The local integration branch is `docs/fable-explore-session`, and closeout documentation continues on `codex/fable-integration-closeout-20260711` from that integration head. Do not treat this file as the source of truth for the current branch or working tree; check `git status --short --branch` before acting.
 
 The active operating phase remains Phase 12: managed write reliability and daily-driver hardening. One repo-model caveat: `config/local-portfolio-control-tower.json` still has `phaseState.currentPhase = 10`, while the hand-maintained roadmap and operating docs are on Phase 12. Do not bump that config number without extending `src/notion/local-portfolio-roadmap.ts`, which currently renders generated phases only through Phase 10.
+
+## Local integration closeout note - 2026-07-11
+
+- Fable/public material, build-log idempotency, config eviction, signal watermarks, and publisher write verification are locally integrated but not merged to `main` or pushed.
+- Full `npm run verify` passes with 64 test files and 526 tests plus all build and install smoke checks. The earlier package-surface timeout did not reproduce on the integrated head.
+- Governance health is healthy with zero warnings; governance audit, repo doctor, and read-only BridgeDB status pass.
+- A direct read-only schema check confirms the live Build Log `Sync Key` property exists as `rich_text` with all companion properties required by bridge-db sync.
+- No weekly refresh, GitHub action, deployment, or public publication ran in this closeout.
+- The first bounded bridge-db sync proof completed on 2026-07-11 with event `5655` for TradeOffAtlas: `--limit 1 --shipped-only` planned exactly one write, live mode created Build Log page `39bc21f1-caf0-8126-8e62-f28edd1183e2`, readback matched the sync key and Local Project relation with complete markdown, and BridgeDB recorded the receipt and marked the event `PROCESSED`.
+- The unrelated dirty `config/local-portfolio-control-tower.json` metrics refresh remains only in the original checkout and must stay out of feature or closeout commits.
 
 ## Local closeout note - 2026-06-14
 
@@ -66,4 +76,4 @@ The active operating phase remains Phase 12: managed write reliability and daily
 4. `docs/notion-roadmap.md`
 5. `README.md`
 6. `git status --short --branch`
-7. `npm run maintenance:weekly-refresh -- --today 2026-06-13 --fast --summary-first`
+7. `npm run governance:health-report`

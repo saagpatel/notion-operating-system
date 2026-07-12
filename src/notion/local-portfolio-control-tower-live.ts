@@ -139,9 +139,12 @@ export async function fetchAllPages(
 				properties: (page.properties ?? {}) as Record<
 					string,
 					NotionPageProperty
-					>,
+				>,
 			});
-			if (options.maxResults !== undefined && pages.length >= options.maxResults) {
+			if (
+				options.maxResults !== undefined &&
+				pages.length >= options.maxResults
+			) {
 				return pages.slice(0, options.maxResults);
 			}
 		}
@@ -199,6 +202,7 @@ export function toControlTowerProjectRecord(
 		evidenceFreshness: selectValue(
 			page.properties["Evidence Freshness"],
 		) as ControlTowerProjectRecord["evidenceFreshness"],
+		openPrCount: optionalNumberValue(page.properties["Open PR Count"]),
 	};
 }
 
@@ -307,6 +311,18 @@ export function dateValue(property?: NotionPageProperty): string {
 
 export function numberValue(property?: NotionPageProperty): number {
 	return typeof property?.number === "number" ? property.number : 0;
+}
+
+/**
+ * Like `numberValue`, but preserves the absent/unset case as `undefined`
+ * instead of collapsing it to 0. Use for fields where "not yet computed" and
+ * "confirmed zero" are semantically different (e.g. Open PR Count before
+ * external-signal-sync has ever populated the row).
+ */
+export function optionalNumberValue(
+	property?: NotionPageProperty,
+): number | undefined {
+	return typeof property?.number === "number" ? property.number : undefined;
 }
 
 export function rollupCountValue(property?: NotionPageProperty): number {

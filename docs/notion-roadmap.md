@@ -1,6 +1,17 @@
 # Notion Operating Roadmap
 
-Updated: 2026-06-13
+Updated: 2026-07-11
+
+## July 11 Integration Checkpoint
+
+- The Fable exploration material and four reliability feature lines are locally integrated on `docs/fable-explore-session`; closeout documentation continues on `codex/fable-integration-closeout-20260711` from that exact integration head.
+- `main` and `origin/main` remain unchanged. No push, `main` merge, GitHub action, deployment, public-material publication, or weekly refresh was performed in this closeout lane.
+- `npm run verify` passes with 64 test files and 526 tests, followed by build, built-CLI smoke, packed-install smoke, and git-install smoke.
+- Governance health reports healthy with zero warnings, governance audit passes, repo doctor passes against all 23 configured destinations, and BridgeDB status is healthy with schema version 13 and no actionable unprocessed shipped rows.
+- A direct read-only Notion schema check confirms the live Build Log has `Sync Key` as `rich_text`; its title, date, project relations, and tags also match the integrated schema gate.
+- The external `--limit 1 --shipped-only` proof completed against real TradeOffAtlas event `5655`: dry-run planned one write with no skips or failures, live mode created one Build Log page, readback confirmed the sync key, relation, date, tags, and complete markdown, and BridgeDB attached a Notion receipt before marking the event `PROCESSED`.
+- The original checkout's dirty `config/local-portfolio-control-tower.json` metrics refresh remains preserved outside the integration and closeout branches.
+- All four feature branch tips are contained in the integration history. Their branches and worktrees remain available until the operator approves final branch disposition.
 
 ## Current Phase
 - Phase: 12 - Managed Write Reliability and Daily Driver Hardening

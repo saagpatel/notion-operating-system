@@ -1651,8 +1651,10 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "boolean",
 				},
 			],
-			({ parsed }) =>
-				runBridgeDbSyncCommand({
+			async ({ parsed }) => {
+				// Result is returned for programmatic callers/tests (P1); the CLI
+				// relies on the command's own console summary.
+				await runBridgeDbSyncCommand({
 					live: asBoolean(parsed.options.live),
 					today: asString(parsed.options.today),
 					config: resolveOptionalControlTowerConfigPath({
@@ -1663,7 +1665,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 					dbPath: asString(parsed.options["db-path"]),
 					shippedOnly: asBoolean(parsed.options["shipped-only"]),
 					opsOnly: asBoolean(parsed.options["ops-only"]),
-				}),
+				});
+			},
 		),
 		buildConfigCommand(
 			"status",
