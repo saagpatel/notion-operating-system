@@ -1,6 +1,6 @@
 # You Don't Own Your Database
 
-*Draft 1 — Fable, 2026-07-10. Target: saagarpatel.dev essay. Public-safe: mechanisms only, no workspace contents. Voice: Light & Warm per profile. Companion to the planned interactive explainer "One Writer, No Lies."*
+*Draft 2, final voice pass 2026-07-12 (Fable; why-Notion passage confirmed against operator's own words). Target: saagarpatel.dev essay. Public-safe: mechanisms only, no workspace contents. Voice: Light & Warm per profile. Companion explainer "One Writer, No Lies" is live at /authority.*
 
 ---
 
@@ -16,7 +16,7 @@ My project state lives on my machine. Build sessions, commits, audit results, "t
 
 Notion is where I read it. It holds a portfolio database, a build log, weekly review pages, dashboards. It's good at that job. It is where decisions actually happen, because a decision needs a surface you'll actually look at over coffee, and a terminal full of JSON is not that surface.
 
-The reason it's Notion is not technical. It was free, looked nice, and was as easy to start using as Excel. I can open it on my phone, in any browser, or in the desktop app, and I can point an AI agent at the same pleasant interface without first building, hosting, and maintaining another product. There were no trials, no hoops, no adoption project. It's simply a solid tool that is easy and fun to use.
+The reason it's Notion is not technical. It was free, looked nice, and was as easy to start using as Excel. I can open it on my phone, in any browser, or in the desktop app, and I can point an AI agent at the same pleasant interface without first building, hosting, and maintaining another product. There were no trials, no hoops, no adoption project. It's a solid product, and it's fun to use. That's the whole reason, and it's enough.
 
 So the architecture is one sentence: truth flows one way, from my machine into Notion, through a CLI that treats Notion as a materialized view it rents rather than a database it owns. The CLI is called Notion OS. The renting part is what this essay is about, because a landlord can change the locks, repaint the walls, and occasionally call security on your markdown, and none of that is allowed to make the build log wrong.
 
