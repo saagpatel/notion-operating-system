@@ -792,14 +792,14 @@
       "totalProjects": 150,
       "queueCounts": {
         "Shipped": 26,
-        "Needs Review": 17,
+        "Needs Review": 16,
         "Needs Decision": 0,
         "Worth Finishing": 29,
-        "Resume Now": 56,
+        "Resume Now": 57,
         "Cold Storage": 15,
         "Watch": 7
       },
-      "overdueReviews": 88,
+      "overdueReviews": 78,
       "missingNextMove": 0,
       "missingLastActive": 0,
       "staleActiveProjects": 0,
