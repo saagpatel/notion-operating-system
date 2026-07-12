@@ -1,6 +1,7 @@
 import { DestinationRegistry } from "../config/destination-registry.js";
 import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { extractNotionIdFromUrl } from "../utils/notion-id.js";
+import { pageMarkdownMatches } from "../utils/markdown.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -14,6 +15,24 @@ export async function replaceCommandCenterPageAfterPatchFailure(input: {
 	configPath?: string;
 	markdown: string;
 }): Promise<Awaited<ReturnType<typeof loadLocalPortfolioControlTowerConfig>>> {
+	const currentPageId = input.config.commandCenter.pageId;
+	if (currentPageId) {
+		try {
+			const current = await input.api.readPageMarkdown(currentPageId);
+			if (
+				pageMarkdownMatches({
+					expectedMarkdown: input.markdown,
+					actualMarkdown: current.markdown,
+					title: input.config.commandCenter.title,
+				})
+			) {
+				return input.config;
+			}
+		} catch {
+			// The original page is unreadable; replacement remains the recovery path.
+		}
+	}
+
 	const parentPageId = extractNotionIdFromUrl(
 		input.config.commandCenter.parentPageUrl,
 	);
@@ -58,6 +77,9 @@ export async function replaceCommandCenterPageAfterPatchFailure(input: {
 		resolvedId: created.id,
 		mode: "replace_full_content",
 	});
+	if (currentPageId) {
+		await input.api.archivePage(currentPageId);
+	}
 	return nextConfig;
 }
 
