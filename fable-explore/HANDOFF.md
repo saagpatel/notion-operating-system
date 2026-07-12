@@ -4,17 +4,17 @@
 
 ## Ground rules (inherited from the operator, still binding)
 
-1. **Nothing is pushed or merged without the operator's explicit go.** That approval was granted for the `main` landing; verify remote status live before relying on publication.
-2. **No live Notion writes** while working on this material. Dry-run is the repo default; keep it that way.
+1. **Nothing is pushed or merged without the operator's explicit go.** That approval was granted and the integration is now landed on `main`; verify remote status live before relying on publication.
+2. **No live Notion writes** while working on this material unless the operator separately authorizes a bounded operating repair. Dry-run remains the repo default.
 3. Public material (essay/explainer) is architecture-and-reasoning only — never real project names, workspace contents, or personal data beyond what's already in the drafts.
 4. Review large diffs with `git diff main...HEAD -w` — a Biome format-on-save hook inflates raw diffs with whole-file re-indents.
 
 ## Current integration state
 
-- `main` contains the Fable material plus all four feature lines in the required merge order; verify `origin/main` live before relying on publication status.
-- The integration source branches are `docs/fable-explore-session` and `codex/fable-integration-closeout-20260711`.
-- The original checkout still owns the unrelated dirty `config/local-portfolio-control-tower.json` metrics refresh. That file is not part of the integration or closeout branch.
-- All four feature branch tips are ancestors of the integration head. Their worktrees and branches have not been pruned because the integration has not been approved for `main`.
+- `main` and `origin/main` contain the Fable material, all four feature lines, the nested-link convergence fix, and exact-title review-recovery scoping.
+- The integration branches and dedicated feature worktrees were pruned only after their tips were proven contained; the canonical checkout is the only current worktree.
+- The formerly unrelated `config/local-portfolio-control-tower.json` metrics refresh was later landed as its own coherent commit and the checkout is clean.
+- Public Fable material remains unpublished. Its content and publication decisions are still separately gated.
 
 ## Verified deliverables
 
@@ -28,7 +28,7 @@
 
 PR-2 and PR-3 each went through an independent code review; 4 real findings total, all fixed and re-verified. Full finding details remain in INDEX.md.
 
-Current integrated verification: `npm run verify` passes with 64 test files and 526 tests, followed by build, built-CLI smoke, packed-install smoke, and git-install smoke. The earlier package-surface timeout note is historical and did not reproduce on the integrated head. Governance health is healthy with zero warnings, governance audit passes, repo doctor passes, and BridgeDB status is healthy.
+Current integrated verification: `npm run verify` passes with 64 test files and 530 tests, followed by build, built-CLI smoke, packed-install smoke, and git-install smoke. The earlier package-surface timeout note is historical and did not reproduce on the integrated head. Governance health is healthy with zero warnings, governance audit passes, repo doctor reaches all 23 configured destinations, and BridgeDB status is healthy.
 
 The explainer also passes its own build and six deterministic reducer scenarios:
 
@@ -39,15 +39,15 @@ node fable-explore/explainer/check.mjs
 
 ## Operator decisions pending (blockers for the steps below)
 
-A. Approve or reject the local integration for `main`.
+A. **Resolved.** The integration was approved, landed on `main`, pushed, and verified by the required remote checks.
 B. **Resolved.** The live Build Log schema has `Sync Key` as `rich_text`, and the bounded TradeOffAtlas event `5655` proof completed dry-run → live → readback with a receipt-backed `PROCESSED` state.
 C. Storyboard calls (file 11 §"Open calls"): standalone page vs embedded; entity naming (recommend "Project A/B/C" — already built that way); ship Acts 1+3 as Part I vs hold for all six.
 E. Supply the "why Notion specifically vs a local dashboard" sentence for the essay (file 12, Dim 3). **Do not invent this — it must be the operator's real answer.**
 
 ## Next steps, in order (all delegable, none needs Fable)
 
-1. **Review the local integration.** The required merge order has already been exercised locally and the full integrated verifier is green. Do not merge to `main` or push without operator approval.
-2. **Decide branch disposition.** The first external proof is complete: TradeOffAtlas event `5655` created one Build Log page with the correct sync key and relation, readback was complete, and BridgeDB recorded the receipt. Merge and push remain separately gated by operator approval.
+1. **Maintain the integrated operating lane.** The integration, bounded external proof, main landing, and branch/worktree disposition are complete. Future repairs should keep using exact dry-run → live → readback scopes.
+2. **Resolve freshness conflicts before review advancement.** Current review recovery deliberately leaves rows such as AIWorkFlow and PortfolioCommandCenter unresolved when newer repository or BridgeDB evidence conflicts with their stored Notion next moves.
 3. **Explainer QA.** (a) Interactive click-through of every beat in Acts 1 and 3 including predict-then-reveal and all three failure toggles; (b) mobile pass — MUST use Playwright with real device metrics (headless Chrome `--window-size` does not emulate mobile layout; known trap); (c) reduced-motion check (`prefers-reduced-motion` → packets teleport with fade). Serve over HTTP (`python3 -m http.server` in `explainer/`) — it's an ES module; file:// will not execute.
 4. **Explainer Acts 2, 4, 5, 6** per the storyboard (file 11): sessions 2-4 of its build order. Act 4 (the fallback ladder) is the second unclaimed visual and the priority. Same sim core; acts are config + copy + small rule additions. Keep the deterministic-reducer contract (no Date.now/Math.random in logic) and keep check.mjs growing with a scenario per act.
 5. **Diagram set** (file 08 §Piece 3, four diagrams) once the essay/explainer near shipping.

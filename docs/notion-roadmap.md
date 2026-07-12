@@ -6,12 +6,14 @@ Updated: 2026-07-11
 
 - The Fable exploration material and four reliability feature lines are merged into `main` from `codex/fable-integration-closeout-20260711`; verify `origin/main` live before relying on publication status.
 - No GitHub action, deployment, public-material publication, or weekly refresh was performed in this closeout lane.
-- `npm run verify` passes with 64 test files and 526 tests, followed by build, built-CLI smoke, packed-install smoke, and git-install smoke.
+- `npm run verify` passes with 64 test files and 530 tests, followed by build, built-CLI smoke, packed-install smoke, and git-install smoke.
 - Governance health reports healthy with zero warnings, governance audit passes, repo doctor passes against all 23 configured destinations, and BridgeDB status is healthy with schema version 13 and no actionable unprocessed shipped rows.
 - A direct read-only Notion schema check confirms the live Build Log has `Sync Key` as `rich_text`; its title, date, project relations, and tags also match the integrated schema gate.
 - The external `--limit 1 --shipped-only` proof completed against real TradeOffAtlas event `5655`: dry-run planned one write with no skips or failures, live mode created one Build Log page, readback confirmed the sync key, relation, date, tags, and complete markdown, and BridgeDB attached a Notion receipt before marking the event `PROCESSED`.
-- The original checkout's dirty `config/local-portfolio-control-tower.json` metrics refresh remains preserved outside the integration and closeout branches.
-- All four feature branch tips are contained in the integration history. Their branches and worktrees remain available until the operator approves final branch disposition.
+- The formerly unrelated `config/local-portfolio-control-tower.json` metrics refresh was preserved, reviewed, and later landed as its own coherent commit.
+- All four feature branch tips were proven contained before their dedicated branches and worktrees were pruned; the canonical checkout is the only current worktree.
+- Exact-title review recovery reduced the current overdue total from 88 to 80 across `cost-tracker`, `agent-bridge`, `cross-provider-egress-guard`, `GPT_RAG`, `knowledgecore`, `machine-control-tower`, `JobCommandCenter`, and `portfolio-health`. Matching readback dry-runs return zero work for all eight.
+- `AIWorkFlow` and `PortfolioCommandCenter` remain explicitly unresolved rather than auto-advanced because newer BridgeDB completion evidence conflicts with their stored Notion next moves. The other overdue rows are outside the active portfolio attention contract.
 
 ## Current Phase
 - Phase: 12 - Managed Write Reliability and Daily Driver Hardening
