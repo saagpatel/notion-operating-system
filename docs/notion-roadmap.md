@@ -12,8 +12,8 @@ Updated: 2026-07-11
 - The external `--limit 1 --shipped-only` proof completed against real TradeOffAtlas event `5655`: dry-run planned one write with no skips or failures, live mode created one Build Log page, readback confirmed the sync key, relation, date, tags, and complete markdown, and BridgeDB attached a Notion receipt before marking the event `PROCESSED`.
 - The formerly unrelated `config/local-portfolio-control-tower.json` metrics refresh was preserved, reviewed, and later landed as its own coherent commit.
 - All four feature branch tips were proven contained before their dedicated branches and worktrees were pruned; the canonical checkout is the only current worktree.
-- Exact-title review recovery reduced the current overdue total from 88 to 80 across `cost-tracker`, `agent-bridge`, `cross-provider-egress-guard`, `GPT_RAG`, `knowledgecore`, `machine-control-tower`, `JobCommandCenter`, and `portfolio-health`. Matching readback dry-runs return zero work for all eight.
-- `AIWorkFlow` and `PortfolioCommandCenter` remain explicitly unresolved rather than auto-advanced because newer BridgeDB completion evidence conflicts with their stored Notion next moves. The other overdue rows are outside the active portfolio attention contract.
+- Exact-title review recovery reduced the current overdue total from 88 to 78 across `cost-tracker`, `agent-bridge`, `cross-provider-egress-guard`, `GPT_RAG`, `knowledgecore`, `machine-control-tower`, `JobCommandCenter`, `portfolio-health`, `AIWorkFlow`, and `PortfolioCommandCenter`. Matching readback dry-runs return zero work for all ten.
+- AIWorkFlow and PortfolioCommandCenter were advanced only after current repo and BridgeDB evidence replaced their stale stored next moves. The other overdue rows are outside the active portfolio attention contract.
 
 ## Current Phase
 - Phase: 12 - Managed Write Reliability and Daily Driver Hardening
