@@ -38,12 +38,14 @@ export interface BridgeDbSyncOptions {
 export interface BridgeDbSyncResult {
 	rowsFound: number;
 	rowsWritten: number;
+	rowsWouldWrite: number;
 	rowsSkipped: number;
 	/** SHIPPED rows healed via an existing Sync Key match instead of a new page (P1). */
 	rowsRecovered: number;
 	failures: number;
 	opsRowsFound: number;
 	opsRowsWritten: number;
+	opsRowsWouldWrite: number;
 	opsRowsSkipped: number;
 	/** Ops rows healed via an existing Sync Key match instead of a new page (P1). */
 	opsRowsRecovered: number;
@@ -166,11 +168,13 @@ export async function runBridgeDbSyncCommand(
 	const result: BridgeDbSyncResult = {
 		rowsFound: 0,
 		rowsWritten: 0,
+		rowsWouldWrite: 0,
 		rowsSkipped: 0,
 		rowsRecovered: 0,
 		failures: 0,
 		opsRowsFound: 0,
 		opsRowsWritten: 0,
+		opsRowsWouldWrite: 0,
 		opsRowsSkipped: 0,
 		opsRowsRecovered: 0,
 		notes: [],
@@ -258,7 +262,7 @@ export async function runBridgeDbSyncCommand(
 					console.log(
 						`[bridge-db-sync] [dry-run] Would write: "${title}" → ${projectTarget.relationProperty} ${projectTarget.id}`,
 					);
-					result.rowsWritten += 1;
+					result.rowsWouldWrite += 1;
 				}
 				continue;
 			}
@@ -368,7 +372,7 @@ export async function runBridgeDbSyncCommand(
 							console.log(
 								`[bridge-db-sync] [dry-run] Would write ops event: "${title}"${projectTarget ? ` → ${projectTarget.relationProperty} ${projectTarget.id}` : " (no project match)"}`,
 							);
-							result.opsRowsWritten += 1;
+							result.opsRowsWouldWrite += 1;
 						}
 						continue;
 					}
@@ -458,8 +462,8 @@ export async function runBridgeDbSyncCommand(
 
 	const summary = [
 		`Bridge-db sync complete (live=${live}):`,
-		`  SHIPPED — Found: ${result.rowsFound}, Written: ${result.rowsWritten}, Recovered: ${result.rowsRecovered}, Skipped: ${result.rowsSkipped}`,
-		`  Ops     — Found: ${result.opsRowsFound}, Written: ${result.opsRowsWritten}, Recovered: ${result.opsRowsRecovered}, Skipped: ${result.opsRowsSkipped}`,
+		`  SHIPPED — Found: ${result.rowsFound}, Written: ${result.rowsWritten}, Would write: ${result.rowsWouldWrite}, Recovered: ${result.rowsRecovered}, Skipped: ${result.rowsSkipped}`,
+		`  Ops     — Found: ${result.opsRowsFound}, Written: ${result.opsRowsWritten}, Would write: ${result.opsRowsWouldWrite}, Recovered: ${result.opsRowsRecovered}, Skipped: ${result.opsRowsSkipped}`,
 		`  Failed:  ${result.failures}`,
 	];
 	if (result.notes.length > 0) {
@@ -479,7 +483,7 @@ export async function runBridgeDbSyncCommand(
 		source: "notion-os",
 		level: result.failures > 0 || unrouted > 0 ? "warn" : "info",
 		title: "bridge-db-sync complete",
-		body: `${live ? "Live" : "Dry-run"}: SHIPPED ${result.rowsFound}→${result.rowsWritten}, Ops ${result.opsRowsFound}→${result.opsRowsWritten}, ${unrouted} unrouted, ${result.failures} failed`,
+		body: `${live ? "Live" : "Dry-run"}: SHIPPED ${result.rowsFound}→${live ? result.rowsWritten : result.rowsWouldWrite}, Ops ${result.opsRowsFound}→${live ? result.opsRowsWritten : result.opsRowsWouldWrite}, ${unrouted} unrouted, ${result.failures} failed`,
 	});
 	return result;
 }

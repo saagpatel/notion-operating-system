@@ -1774,7 +1774,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 				{
 					name: "step-timeout-minutes",
 					description:
-						"Override the child-command timeout for each weekly step.",
+						"Set a minimum child-command timeout while preserving longer lane defaults.",
 					type: "number",
 					valueName: "minutes",
 				},

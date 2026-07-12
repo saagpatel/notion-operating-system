@@ -72,6 +72,17 @@ interface WeeklyRefreshStepResult extends WeeklyRefreshStepContract {
   attempts?: number;
 }
 
+class WeeklyStepExecutionError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+    readonly category: NonNullable<WeeklyRefreshStepResult["failureCategory"]>,
+  ) {
+    super(message);
+    this.name = "WeeklyStepExecutionError";
+  }
+}
+
 interface WeeklyRefreshOutput {
   ok: true;
   liveRequested: boolean;
@@ -176,7 +187,8 @@ export async function runWeeklyRefreshCommand(
   const externalSignalMaxEventsPerSource =
     flags.signalMaxEventsPerSource ?? Math.min(config.phase5ExternalSignals?.syncLimits.maxEventsPerSource ?? 25, 5);
 
-  const preflightSteps = await runWeeklyRefreshSteps(buildStepDefinitions(flags, false, externalSignalSourceLimit, externalSignalMaxEventsPerSource), {
+  const preflightDefinitions = buildStepDefinitions(flags, false, externalSignalSourceLimit, externalSignalMaxEventsPerSource);
+  const preflightSteps = await runWeeklyRefreshSteps(preflightDefinitions, {
     maxStepAttempts: flags.maxStepAttempts,
     stopAfterControlTowerFailure: false,
     streamChildOutput: flags.streamChildOutput,
@@ -197,7 +209,9 @@ export async function runWeeklyRefreshCommand(
   logHumanSummary("Preflight", preflightSteps, needsLiveWrite);
 
   if (flags.live && needsLiveWrite && preflightStatus !== "failed" && preflightStatus !== "partial") {
-    const liveSteps = await runWeeklyRefreshSteps(buildStepDefinitions(flags, true, externalSignalSourceLimit, externalSignalMaxEventsPerSource), {
+    const liveDefinitions = buildStepDefinitions(flags, true, externalSignalSourceLimit, externalSignalMaxEventsPerSource);
+    assertSameWeeklyStepPlan(preflightDefinitions, liveDefinitions);
+    const liveSteps = await runWeeklyRefreshSteps(liveDefinitions, {
       maxStepAttempts: flags.maxStepAttempts,
       stopAfterControlTowerFailure: true,
       streamChildOutput: flags.streamChildOutput,
@@ -271,6 +285,17 @@ export async function runWeeklyRefreshCommand(
     console.log(JSON.stringify(buildWeeklyRefreshQuickSummary(output), null, 2));
   }
   console.log(JSON.stringify(output, null, 2));
+}
+
+export function assertSameWeeklyStepPlan(
+  preflight: WeeklyRefreshStepDefinition[],
+  live: WeeklyRefreshStepDefinition[],
+): void {
+  const signature = (steps: WeeklyRefreshStepDefinition[]) =>
+    steps.map((step) => `${step.key}:${step.kind}:${step.title}`).join("|");
+  if (signature(preflight) !== signature(live)) {
+    throw new Error("Weekly live step plan differs from the plan validated during preflight.");
+  }
 }
 
 function buildStepDefinitions(
@@ -376,7 +401,10 @@ function buildStepDefinitions(
       ? expandedSteps
       : expandedSteps.map((step) => ({
           ...step,
-          timeoutMs: Math.max(1, flags.stepTimeoutMinutes!) * 60 * 1000,
+          timeoutMs: Math.max(
+            step.timeoutMs,
+            Math.max(1, flags.stepTimeoutMinutes!) * 60 * 1000,
+          ),
         })),
     {
       only: flags.only,
@@ -644,7 +672,11 @@ async function runJsonCommand(
   const exitCode = await new Promise<number>((resolve, reject) => {
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error(`${step.title} timed out after ${Math.round(step.timeoutMs / 60000)} minutes.`));
+      reject(new WeeklyStepExecutionError(
+        `${step.title} timed out after ${Math.round(step.timeoutMs / 60000)} minutes.`,
+        true,
+        "timeout_exhausted",
+      ));
     }, step.timeoutMs);
     child.on("error", reject);
     child.on("close", (code) => {
@@ -654,7 +686,13 @@ async function runJsonCommand(
   });
 
   if (exitCode !== 0) {
-    throw new Error(stderr.trim() || stdout.trim() || `${step.title} exited with code ${exitCode}`);
+    const message = stderr.trim() || stdout.trim() || `${step.title} exited with code ${exitCode}`;
+    const retryable = /fetch failed|ETIMEDOUT|ECONNRESET|ENETUNREACH|timed out|transport/i.test(message);
+    throw new WeeklyStepExecutionError(
+      message,
+      retryable,
+      retryable ? "transport_error" : "unexpected_response",
+    );
   }
 
   const trimmed = stdout.trim();
@@ -1348,6 +1386,9 @@ function logHumanMessage(message: string): void {
 }
 
 function shouldRetryStepError(error: unknown): boolean {
+  if (error instanceof WeeklyStepExecutionError) {
+    return error.retryable;
+  }
   const message = error instanceof Error ? error.message : String(error);
   return /fetch failed|ETIMEDOUT|ECONNRESET|ENETUNREACH|timed out/i.test(message);
 }
@@ -1355,6 +1396,9 @@ function shouldRetryStepError(error: unknown): boolean {
 function classifyStepError(
   error: unknown,
 ): WeeklyRefreshStepResult["failureCategory"] {
+  if (error instanceof WeeklyStepExecutionError) {
+    return error.category;
+  }
   const message = error instanceof Error ? error.message : String(error);
   if (/timed out/i.test(message)) {
     return "timeout_exhausted";

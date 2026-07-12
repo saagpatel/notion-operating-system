@@ -964,9 +964,24 @@ describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
 
 		expect(result.rowsRecovered).toBe(1);
 		expect(result.rowsWritten).toBe(0);
+		expect(result.rowsWouldWrite).toBe(0);
 		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.markProcessed).not.toHaveBeenCalled();
+	});
+
+	test("keeps dry-run would-write counts separate from actual writes", async () => {
+		bridgeSyncMocks.queryDataSourcePages.mockResolvedValue({ results: [] });
+		const result = await runBridgeDbSyncCommand({
+			live: false,
+			dbPath: "/tmp/test-bridge.db",
+			limit: 5,
+			today: "2026-04-14",
+		});
+
+		expect(result.rowsWouldWrite).toBe(1);
+		expect(result.rowsWritten).toBe(0);
+		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
 	});
 
 	test("aborts before any Notion write when the Build Log lacks the Sync Key property", async () => {
