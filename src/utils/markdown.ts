@@ -213,12 +213,12 @@ function normalizeComparisonMarkdown(markdown: string): string {
     .replace(/\\\|/g, "|")
     .replace(/\\</g, "<")
     .replace(/\\>/g, ">")
-    .replace(/\]\(\[(https?:\/\/[^\]\s)]+)\]\(\1\)\)/g, "]($1)")
-    .replace(/\]\(<mention-page url="([^"]+)"\/>\)/g, "]($1)")
     .replace(
       /https:\/\/app\.notion\.com\/p\/(?:[^/\s?#)]+-)?([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?[^\s)#]*)?(?:#[^\s)#]*)?/gi,
       (_match, notionId: string) => `https://www.notion.so/${notionId.replace(/-/g, "")}`,
     )
+    .replace(/\]\(\[(https?:\/\/[^\]\s)]+)\]\(\1\)\)/g, "]($1)")
+    .replace(/\]\(<mention-page url="([^"]+)"\/>\)/g, "]($1)")
     .replace(
       /\[([A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,})(?:\/)?\]\(https?:\/\/\1\/?\)/gi,
       "$1",

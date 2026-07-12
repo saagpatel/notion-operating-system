@@ -664,6 +664,15 @@ describe("managed markdown sync", () => {
 		expect(normalizeMarkdown(stored)).toBe(normalizeMarkdown(rendered));
 	});
 
+	test("normalizes nested Notion links after canonicalizing app and www URLs", () => {
+		const stored =
+			'- \\[2026-07-11 - \\[Codex\\] TradeOffAtlas — 2026-07-11\\]([https://www.notion.so/39bc21f1caf081268e62f28edd1183e2](https://app.notion.com/p/39bc21f1caf081268e62f28edd1183e2))';
+		const rendered =
+			"- [2026-07-11 - [Codex] TradeOffAtlas — 2026-07-11](https://www.notion.so/39bc21f1caf081268e62f28edd1183e2)";
+
+		expect(normalizeMarkdown(stored)).toBe(normalizeMarkdown(rendered));
+	});
+
 	test("normalizes slugged Notion urls that include underscores", () => {
 		const stored =
 			"- [Packet](https://www.notion.so/326c21f1caf0813fae47fa49e67efc35)";
