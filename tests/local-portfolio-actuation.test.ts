@@ -676,6 +676,52 @@ describe("local portfolio actuation", () => {
     expect(notes.join(" ")).toContain("Two distinct approvers");
   });
 
+	test("rejects a sole approver who is also the requester", async () => {
+		const controlConfig = parseLocalPortfolioControlTowerConfig(
+			await readConfig("../config/local-portfolio-control-tower.json"),
+		);
+		const request = baseRequest({
+			executionIntent: "Ready for Live",
+			requestedByIds: ["person-1"],
+			approverIds: ["person-1"],
+		});
+		const notes = evaluateActionRequestReadiness({
+			request,
+			policies: [{
+				id: "policy-1", url: "https://notion.so/policy-1", title: "github.create_issue",
+				provider: "GitHub", mutationClass: "Issue", executionMode: "Approved Live",
+				identityType: "GitHub App", approvalRule: "Single Approval", dryRunRequired: true,
+				rollbackRequired: false, defaultExpiryHours: 72, allowedSources: ["Manual"], notes: "",
+			}],
+			config: controlConfig,
+			actionKey: "github.create_issue",
+			today: "2026-03-17",
+		});
+
+		expect(notes).toContain("The sole approver cannot also be the requester.");
+	});
+
+	test("rejects break-glass policies because no emergency execution path exists", async () => {
+		const controlConfig = parseLocalPortfolioControlTowerConfig(
+			await readConfig("../config/local-portfolio-control-tower.json"),
+		);
+		const request = baseRequest({ executionIntent: "Ready for Live", approverIds: ["person-2"] });
+		const notes = evaluateActionRequestReadiness({
+			request,
+			policies: [{
+				id: "policy-1", url: "https://notion.so/policy-1", title: "github.create_issue",
+				provider: "GitHub", mutationClass: "Issue", executionMode: "Approved Live",
+				identityType: "Break Glass Token", approvalRule: "Single Approval", dryRunRequired: true,
+				rollbackRequired: false, defaultExpiryHours: 1, allowedSources: ["Manual"], notes: "",
+			}],
+			config: controlConfig,
+			actionKey: "github.create_issue",
+			today: "2026-03-17",
+		});
+
+		expect(notes).toContain("Break Glass Token policies are audit-only and cannot execute live actions.");
+	});
+
   test("rejects ambiguous Vercel target matches", () => {
     const request = baseRequest({
       title: "Redeploy premise-debate",

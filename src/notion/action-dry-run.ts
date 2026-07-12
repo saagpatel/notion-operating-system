@@ -30,6 +30,7 @@ import {
   fetchVercelPromotePreflight,
   fetchVercelRollbackPreflight,
   fetchGitHubActionPreflight,
+	missingGitHubLiveCredentials,
   loadLocalPortfolioActuationTargetConfig,
   renderActuationPacketSection,
   resolveActuationTarget,
@@ -206,6 +207,17 @@ export function evaluateActionDryRunReadiness(input: {
     preflight: input.preparation.preflight,
     today: input.today,
   });
+	if (
+		input.preparation.payload?.provider === "GitHub" &&
+		input.preparation.preflight === undefined
+	) {
+		const missingCredentials = missingGitHubLiveCredentials();
+		if (missingCredentials.length > 0) {
+			validationNotes.push(
+				`GitHub live preflight credentials are missing: ${missingCredentials.join(", ")}.`,
+			);
+		}
+	}
 
   const postDryRun = computePostDryRunReadiness({
     request: input.request,

@@ -1746,8 +1746,15 @@ export function evaluateActionRequestReadiness(input: {
   if (policy && !policy.allowedSources.includes(input.request.sourceType)) {
     notes.push(`Request source type "${input.request.sourceType}" is not allowlisted by policy.`);
   }
+	if (policy?.identityType === "Break Glass Token") {
+		notes.push("Break Glass Token policies are audit-only and cannot execute live actions.");
+	}
   if (input.request.executionIntent === "Ready for Live" && policy) {
     const distinctApprovers = uniqueNormalizedStrings(input.request.approverIds);
+		const requesterIds = new Set(uniqueNormalizedStrings(input.request.requestedByIds));
+		if (distinctApprovers.length === 1 && requesterIds.has(distinctApprovers[0]!)) {
+			notes.push("The sole approver cannot also be the requester.");
+		}
     if (policy.approvalRule === "Single Approval" && distinctApprovers.length < 1) {
       notes.push("At least one approver is required before live execution.");
     }
@@ -3581,7 +3588,7 @@ function hoursBetween(left: string, right: string): number {
   return Math.abs(rightDate - leftDate) / (1000 * 60 * 60);
 }
 
-function missingGitHubLiveCredentials(): string[] {
+export function missingGitHubLiveCredentials(): string[] {
   return [
     process.env.GITHUB_APP_ID?.trim() ? undefined : "GITHUB_APP_ID",
     process.env.GITHUB_APP_PRIVATE_KEY_PEM?.trim() ? undefined : "GITHUB_APP_PRIVATE_KEY_PEM",

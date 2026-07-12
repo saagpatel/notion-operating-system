@@ -288,6 +288,43 @@ describe("action dry run hardening", () => {
     expect(readiness.postDryRun.notes[0]).toContain("Two distinct approvers are required before live execution.");
   });
 
+	test("surfaces missing GitHub credentials during dry-run readiness", async () => {
+		process.env = { ...previousEnv };
+		delete process.env.GITHUB_APP_ID;
+		delete process.env.GITHUB_APP_PRIVATE_KEY_PEM;
+		const config = await readControlConfig();
+		const request = baseRequest({ approverIds: ["approver-1"] });
+		const preparation = await prepareActionDryRun({
+			request,
+			sources: [baseSource()],
+			targetConfig: parseLocalPortfolioActuationTargetConfig({
+				version: 1,
+				strategy: { primary: "repo_config", fallback: "manual_review", notes: [] },
+				defaults: {
+					allowedActions: ["github.create_issue"],
+					titlePrefix: "[Portfolio]",
+					defaultLabels: [],
+					supportsIssueCreate: true,
+					supportsPrComment: true,
+				},
+				targets: [],
+			}),
+			actionKey: "github.create_issue",
+		});
+		const readiness = evaluateActionDryRunReadiness({
+			request,
+			policies: [basePolicy()],
+			config,
+			actionKey: "github.create_issue",
+			preparation,
+			today: "2026-03-29",
+			executedAt: "2026-03-29T12:00:00.000Z",
+		});
+
+		expect(readiness.validationNotes.join(" ")).toContain("GitHub live preflight credentials are missing");
+		expect(readiness.readyForLive).toBe(false);
+	});
+
   test("writes a pinned rollback provider request key during a successful dry run", async () => {
     process.env = {
       ...previousEnv,
