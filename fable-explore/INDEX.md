@@ -35,6 +35,7 @@ The detailed sections below preserve the pre-integration exploration, review, an
 | `11-explainer-storyboard.md` | Full 6-act storyboard for "One Writer, No Lies": shared tick-based sim world, per-act rules + predict-then-reveal beats + copy stubs, build spec (vanilla TS, DOM-based, stepper not scrollytelling), ~4-session build order, 3 operator calls flagged. | done — awaiting operator review |
 | `12-essay-review.md` | Corpus-rubrics review of the essay draft: PASS on structure/redundancy/naming; STRENGTHEN on steelman (the "why Notion at all vs a local dashboard" counter is half-answered — needs Saagar's real reason); 2 sentence-of-judgment fixes. Draft 2 fixes applied; steelman move left open for operator. | done |
 | `13-pr3-unified-verification-design.md` | PR-3 design spec (P6): wire the existing `pageMarkdownMatches` equivalence into the Publisher's post-write readback (today it checks only truncation/unknown-block flags, never content). Expectation-per-mode table, `verifyWrites: warn\|fail\|off` knob, 7 test scenarios. Ready to delegate. | done — ready to delegate |
+| `diagrams/` | Four public-safe, standalone SVGs: protocol taxonomy, managed-section write ladder, receipt loop/crash-window repair, and weekly preflight→live gate. Uses the explainer ledger palette, direct labels, accessible titles/descriptions, and no external dependencies. | done — local source assets only, unpublished |
 
 ## Code drafted for review
 

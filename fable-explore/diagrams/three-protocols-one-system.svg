@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Three protocols, one system</title>
+  <desc id="desc">Structured fields use diff and patch with one writer per field. Shared prose uses fenced sections and a fallback ladder. Events use an outbox with receipt writeback. Data shape chooses the protocol and its guarantee.</desc>
+  <style>
+    .bg{fill:#fffdf8}.ink{fill:#24292e}.muted{fill:#6b7280}.local{fill:#fbf4e7;stroke:#8a5a2b}.remote{fill:#f2f8fa;stroke:#24566d}.wire{stroke:#6b7280}.card{stroke-width:2}.title{font:700 42px system-ui,sans-serif}.sub{font:18px system-ui,sans-serif}.label{font:700 19px system-ui,sans-serif}.body{font:16px system-ui,sans-serif}.mono{font:14px ui-monospace,monospace;letter-spacing:.04em}.pill{fill:#fffdf8;stroke-width:1.5}.arrow{fill:none;stroke-width:3;marker-end:url(#arrow)}
+  </style>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#6b7280"/></marker></defs>
+  <rect class="bg" width="1200" height="760"/>
+  <text class="title ink" x="70" y="78">Three protocols, one system</text>
+  <text class="sub muted" x="70" y="112">The data shape chooses the reconciliation protocol — and the guarantee.</text>
+  <text class="mono muted" x="90" y="168">DATA SHAPE</text><text class="mono muted" x="438" y="168">PROTOCOL</text><text class="mono muted" x="850" y="168">GUARANTEE</text>
+
+  <rect class="card local" x="70" y="190" width="285" height="145" rx="14"/>
+  <text class="label ink" x="95" y="230">Structured fields</text><text class="body muted" x="95" y="260">Derived properties with</text><text class="body muted" x="95" y="283">one declared owner each</text><rect class="pill local" x="95" y="298" width="132" height="24" rx="12"/><text class="mono ink" x="108" y="315">field:value</text>
+  <path class="arrow wire" d="M365 262H425"/><rect class="card remote" x="435" y="190" width="335" height="145" rx="14"/><text class="label ink" x="460" y="230">Diff → patch changed fields</text><text class="body muted" x="460" y="260">Unchanged and manual fields</text><text class="body muted" x="460" y="283">never enter the write set.</text>
+  <path class="arrow wire" d="M780 262H840"/><rect class="card remote" x="850" y="190" width="280" height="145" rx="14"/><text class="label ink" x="875" y="230">Conflict avoidance</text><text class="body muted" x="875" y="260">Single writer per field.</text><text class="body muted" x="875" y="286">No merge algebra needed.</text>
+
+  <rect class="card local" x="70" y="365" width="285" height="145" rx="14"/>
+  <text class="label ink" x="95" y="405">Shared prose</text><text class="body muted" x="95" y="435">Multiple writers share a page,</text><text class="body muted" x="95" y="458">but own fenced sections.</text><text class="mono muted" x="95" y="486">&lt;!-- start / end --&gt;</text>
+  <path class="arrow wire" d="M365 437H425"/><rect class="card remote" x="435" y="365" width="335" height="145" rx="14"/><text class="label ink" x="460" y="405">Section merge → write ladder</text><text class="body muted" x="460" y="435">Preserve other owners, then</text><text class="body muted" x="460" y="458">degrade through safe write shapes.</text>
+  <path class="arrow wire" d="M780 437H840"/><rect class="card remote" x="850" y="365" width="280" height="145" rx="14"/><text class="label ink" x="875" y="405">Bounded coexistence</text><text class="body muted" x="875" y="435">Page-level merge with</text><text class="body muted" x="875" y="458">section-level ownership.</text>
+
+  <rect class="card local" x="70" y="540" width="285" height="145" rx="14"/>
+  <text class="label ink" x="95" y="580">Events</text><text class="body muted" x="95" y="610">Durable queue rows that must</text><text class="body muted" x="95" y="633">become downstream records.</text><text class="mono muted" x="95" y="661">SHIPPED · unprocessed</text>
+  <path class="arrow wire" d="M365 612H425"/><rect class="card remote" x="435" y="540" width="335" height="145" rx="14"/><text class="label ink" x="460" y="580">Outbox → page → receipt</text><text class="body muted" x="460" y="610">Write the downstream page, then</text><text class="body muted" x="460" y="633">dock its id back upstream.</text>
+  <path class="arrow wire" d="M780 612H840"/><rect class="card remote" x="850" y="540" width="280" height="145" rx="14"/><text class="label ink" x="875" y="580">Auditable delivery</text><text class="body muted" x="875" y="610">At-least-once processing with</text><text class="body muted" x="875" y="633">durable downstream proof.</text>
+  <text class="mono muted" x="70" y="724">LOCAL TRUTH → SHAPE-SPECIFIC PROTOCOL → REMOTE MATERIALIZED VIEW</text>
+</svg>
