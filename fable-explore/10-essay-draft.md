@@ -16,6 +16,8 @@ My project state lives on my machine. Build sessions, commits, audit results, "t
 
 Notion is where I read it. It holds a portfolio database, a build log, weekly review pages, dashboards. It's good at that job. It is where decisions actually happen, because a decision needs a surface you'll actually look at over coffee, and a terminal full of JSON is not that surface.
 
+The reason it's Notion is not technical. It was free, looked nice, and was as easy to start using as Excel. I can open it on my phone, in any browser, or in the desktop app, and I can point an AI agent at the same pleasant interface without first building, hosting, and maintaining another product. There were no trials, no hoops, no adoption project. It's simply a solid tool that is easy and fun to use.
+
 So the architecture is one sentence: truth flows one way, from my machine into Notion, through a CLI that treats Notion as a materialized view it rents rather than a database it owns. The CLI is called Notion OS. The renting part is what this essay is about, because a landlord can change the locks, repaint the walls, and occasionally call security on your markdown, and none of that is allowed to make the build log wrong.
 
 There's decent prior art for pieces of this. Tools that sync local files into Notion pages exist. Reverse-ETL products will happily pump warehouse rows into Notion databases. What I haven't seen elsewhere is the posture: Notion as a *projection* of local truth, with the projection machinery built like it expects to be lied to. Which it should. It is.
@@ -68,7 +70,7 @@ The sync also does something I've come to think of as the signature move of the 
 
 Here's the confession. While writing this essay I went looking for the gap between that philosophy and the implementation, and found it in about an hour. The write sequence was: create the Notion page, then write the receipt. If the receipt write failed, the crash left the row unconfirmed, and the next run would happily create a second page for the same shipped thing. At-least-once delivery, no idempotency key, in the one lane whose entire purpose is being an honest record. The punchline is that a different lane in the same codebase, the one that executes governed GitHub actions, had proper idempotency keys the whole time. Same repository. Same problem. Two answers.
 
-The fix is exactly the boring thing the literature prescribes: a deterministic key derived from the source row, stamped onto the Notion page, checked before any create.<!-- PUBLISH GATE (Dim 5.3): link the real commit/PR for the idempotency fix here once public — receipts-brand rule: name the receipt or drop the claim. --> Redelivery now finds the existing page, writes the missing receipt, and converges. I'm not embarrassed by the bug so much as instructed by it. The pattern was already in the building. It just hadn't been made a policy.
+The fix is exactly the boring thing the literature prescribes: a deterministic key derived from the source row, stamped onto the Notion page, checked before any create. [Here is the implementation receipt.](https://github.com/saagpatel/notion-operating-system/commit/5f358a2) Redelivery now finds the existing page, writes the missing receipt, and converges. I'm not embarrassed by the bug so much as instructed by it. The pattern was already in the building. It just hadn't been made a policy.
 
 ## Trust nothing, including yourself
 
@@ -96,4 +98,4 @@ Rent the view. Own the truth.
 
 ---
 
-*Companion explainer: "One Writer, No Lies" (interactive, in progress) lets you drop acks, duplicate deliveries, and kill a sync mid-write, and watch the receipts converge anyway.*
+*Companion explainer: ["One Writer, No Lies"](https://saagarpatel.dev/authority) lets you drop acks, duplicate deliveries, and kill a sync mid-write, and watch the receipts converge anyway.*
