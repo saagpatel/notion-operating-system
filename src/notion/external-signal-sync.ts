@@ -2289,7 +2289,8 @@ export async function syncProviders(input: {
 		input.flags.provider === "all"
 			? input.providers.filter((provider) => provider.enabled)
 			: input.providers.filter(
-					(provider) => provider.key === input.flags.provider,
+					(provider) =>
+						provider.enabled && provider.key === input.flags.provider,
 				);
 
 	const results: ProviderSyncResult[] = [];
@@ -3646,7 +3647,12 @@ function selectScopedSources(input: {
 			? input.providers
 					.filter((provider) => provider.enabled)
 					.map((provider) => provider.key)
-			: [input.provider];
+			: input.providers
+					.filter(
+						(provider) =>
+							provider.enabled && provider.key === input.provider,
+					)
+					.map((provider) => provider.key);
 
 	return selectedProviderKeys.flatMap((providerKey) =>
 		limitProviderSources(

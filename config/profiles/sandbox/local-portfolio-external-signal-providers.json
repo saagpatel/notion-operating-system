@@ -50,7 +50,7 @@
     {
       "key": "repo_auditor",
       "displayName": "Repo Auditor",
-      "enabled": true,
+      "enabled": false,
       "authEnvVar": "GITHUB_AUDITOR_OUTPUT_DIR",
       "baseUrl": "",
       "syncStrategy": "incremental",
@@ -58,10 +58,9 @@
         "Event Log"
       ],
       "notes": [
-        "Local provider - reads most recent audit-report-*.json from GithubRepoAuditor output dir.",
-        "GITHUB_AUDITOR_OUTPUT_DIR env var specifies the output directory; defaults to ~/Projects/GithubRepoAuditor/output/.",
-        "Each repo audit becomes one Audit signal event with grade-based severity (A/B->Info, C->Watch, D/F->Risk).",
-        "Event key: repo_auditor::{full_name}::{report_date} - one event per repo per report date."
+        "Retired compatibility provider. Historical Repo Auditor events remain readable, but no new grade events are emitted.",
+        "Canonical portfolio consumers use GithubRepoAuditor output/portfolio-truth-latest.json instead of audit-report-*.json.",
+        "Do not re-enable without a new operator decision that defines non-duplicative, truth-native event semantics."
       ]
     },
     {
