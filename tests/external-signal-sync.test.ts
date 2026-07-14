@@ -1146,6 +1146,26 @@ describe("external signal sync hardening", () => {
 		expect(result[0]?.notes[0]).toContain("Provider not exercised");
 	});
 
+	test("does not run an explicitly selected disabled provider", async () => {
+		const result = await syncProviders({
+			flags: {
+				provider: "repo_auditor",
+				live: false,
+			},
+			today: "2026-07-14",
+			phase5: {
+				syncLimits: {
+					maxEventsPerSource: 5,
+				},
+			} as never,
+			providers: [repoAuditorProvider({ enabled: false })],
+			sources: [repoAuditorSource()],
+			eventKeySet: new Set(),
+		});
+
+		expect(result).toEqual([]);
+	});
+
 	test("classifies mixed-provider partial success with stable warning categories", () => {
 		const results: ProviderSyncResult[] = [
 			{

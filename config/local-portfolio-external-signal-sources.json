@@ -72,7 +72,7 @@
       "title": "GithubRepoAuditor - Audit Reports",
       "provider": "Repo Auditor",
       "sourceType": "Event Log",
-      "status": "Active",
+      "status": "Paused",
       "environment": "N/A",
       "syncStrategy": "Incremental",
       "identifier": "repo-auditor",

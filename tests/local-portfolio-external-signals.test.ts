@@ -58,6 +58,10 @@ describe("local portfolio external signals", () => {
 			"Paused",
 		]);
 		expect(providerConfig.providers).toHaveLength(5);
+		expect(
+			providerConfig.providers.find((provider) => provider.key === "repo_auditor")
+				?.enabled,
+		).toBe(false);
 		expect(viewPlan.collections).toHaveLength(4);
 	});
 
@@ -260,6 +264,7 @@ describe("local portfolio external signals", () => {
 		expect(notificationHubSeed?.provider).toBe("Notification Hub");
 		expect(repoAuditorSeed?.localProjectId).toBeUndefined();
 		expect(repoAuditorSeed?.provider).toBe("Repo Auditor");
+		expect(repoAuditorSeed?.status).toBe("Paused");
 	});
 
 	test("dedupes global manual seeds by provider source type and identifier", async () => {
