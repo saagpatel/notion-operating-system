@@ -18,7 +18,18 @@ import {
   relationValue,
   richTextValue,
   type DataSourcePageRef,
+  type NotionPageProperty,
 } from "../../notion/local-portfolio-control-tower-live.js";
+import {
+  canonicalJson,
+  claimEnvelope,
+  createClaimedActionFailureRecorder,
+  emitReceipt,
+  loadEnvelope,
+  sourceRevision,
+  validateEnvelope,
+  type IrreversibleActionEnvelopeV1,
+} from "./irreversible-action.js";
 
 const TODAY = losAngelesToday();
 
@@ -26,6 +37,7 @@ export interface SupportDatabaseHygieneFlags {
   live: boolean;
   today: string;
   config: string;
+  approval?: string;
 }
 
 type SupportKind = "research" | "skill" | "tool";
@@ -61,15 +73,62 @@ interface ForcedNearDuplicateMergePlan {
   kind: SupportKind;
   canonicalPage: DataSourcePageRef;
   duplicatePage: DataSourcePageRef;
+  canonicalOriginalMarkdown: string;
   canonicalMarkdown: string;
   mergedProjectIds: string[];
   projectIdsNeedingRewrite: string[];
+}
+
+export type HygieneEffect =
+  | {
+      kind: "update_properties";
+      page_id: string;
+      properties: Record<string, unknown>;
+    }
+  | {
+      kind: "patch_markdown";
+      page_id: string;
+      markdown: string;
+    }
+  | {
+      kind: "archive_page";
+      page_id: string;
+    };
+
+export interface HygieneRequiredPageState {
+  page_id: string;
+  properties?: Record<string, unknown>;
+  markdown?: string;
+}
+
+export interface SupportDatabaseHygieneApprovalPlan {
+  operation: "notion.support_database_hygiene";
+  today: string;
+  data_source_ids: string[];
+  target_page_ids: string[];
+  archive_page_ids: string[];
+  effect_count: number;
+  pre_archive_effects: HygieneEffect[];
+  archive_effects: HygieneEffect[];
+  required_pages: HygieneRequiredPageState[];
+}
+
+export interface HygieneReadbackResult {
+  ok: boolean;
+  checks: {
+    archive_ids_absent: boolean;
+    canonical_properties_exact: boolean;
+    canonical_markdown_exact: boolean;
+    project_relations_exact: boolean;
+    duplicate_relations_absent?: boolean;
+  };
 }
 
 function parseFlags(argv: string[]): SupportDatabaseHygieneFlags {
   let live = false;
   let today = TODAY;
   let config = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+  let approval: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
@@ -85,10 +144,15 @@ function parseFlags(argv: string[]): SupportDatabaseHygieneFlags {
     if (current === "--config") {
       config = argv[index + 1] ?? config;
       index += 1;
+      continue;
+    }
+    if (current === "--approval") {
+      approval = argv[index + 1];
+      index += 1;
     }
   }
 
-  return { live, today, config };
+  return { live, today, config, approval };
 }
 
 async function main(): Promise<void> {
@@ -104,6 +168,10 @@ async function main(): Promise<void> {
             { flag: "--live", description: "Apply the approved hygiene actions live." },
             { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
             { flag: "--config <path>", description: "Path to the control-tower config file." },
+            {
+              flag: "--approval <path>",
+              description: "Exact IrreversibleActionEnvelopeV1 required with --live.",
+            },
           ],
         }),
       );
@@ -178,6 +246,48 @@ export async function runSupportDatabaseHygienePass(
     toolPages,
     forcedNearDuplicateMerges: workspaceIds.forcedNearDuplicateMerges,
   });
+  const approvalPlan = supportDatabaseHygienePlan({
+    today: flags.today,
+    dataSourceIds: [
+      config.database.dataSourceId,
+      config.relatedDataSources.researchId,
+      config.relatedDataSources.skillsId,
+      config.relatedDataSources.toolsId,
+    ],
+    projectPages,
+    plans,
+    lowRiskArchiveCandidates,
+    forcedNearDuplicateMergePlans,
+  });
+  let envelope: IrreversibleActionEnvelopeV1 | undefined;
+  if (flags.live) {
+    if (!flags.approval) {
+      throw new AppError(
+        "--live requires --approval <IrreversibleActionEnvelopeV1.json>",
+      );
+    }
+    envelope = loadEnvelope(flags.approval);
+    validateEnvelope({
+      envelope,
+      actionKind: "notion.support_database_hygiene",
+      canonicalTargets: {
+        data_source_ids: approvalPlan.data_source_ids,
+        page_ids: approvalPlan.target_page_ids,
+      },
+      sourceRevision: sourceRevision(),
+      plan: approvalPlan,
+      effectCount: approvalPlan.effect_count,
+      deletionCount: approvalPlan.archive_page_ids.length,
+      requiredReadback: [
+        "archive_ids_absent",
+        "canonical_properties_exact",
+        "canonical_markdown_exact",
+        "project_relations_exact",
+        "duplicate_relations_absent",
+      ],
+    });
+    claimEnvelope(envelope);
+  }
 
   const projectById = new Map(projectPages.map((page) => [page.id, page]));
   const archivedPages: Array<{ kind: SupportKind; title: string; id: string }> = [];
@@ -205,16 +315,68 @@ export async function runSupportDatabaseHygienePass(
     duplicateCount: number;
   }> = [];
 
+  const unresolvedNearDuplicateCandidates = nearDuplicateCandidates.filter(
+    (candidate) =>
+      !forcedNearDuplicateMergePlans.some(
+        (plan) =>
+          plan.kind === candidate.kind &&
+          ((plan.canonicalPage.id === candidate.leftId && plan.duplicatePage.id === candidate.rightId) ||
+            (plan.canonicalPage.id === candidate.rightId && plan.duplicatePage.id === candidate.leftId)),
+      ),
+  );
+
+  let liveReadback: Record<string, unknown> | undefined;
   if (flags.live) {
+    const failure = createClaimedActionFailureRecorder({
+      envelope: envelope!,
+      target: {
+        data_source_ids: approvalPlan.data_source_ids,
+        page_ids: approvalPlan.target_page_ids,
+      },
+      providerReference: `notion:hygiene:${envelope!.provider_idempotency_key}`,
+    });
+    const finalReadback = await executeSupportDatabaseHygieneEffects({
+      plan: approvalPlan,
+      applyEffect: async (effect) => {
+        failure.markEffectAttempted();
+        await applyHygieneEffect(api, effect);
+      },
+      verifyState: (requireArchivesAbsent) =>
+        readAndVerifySupportDatabaseHygieneState({
+          api,
+          plan: approvalPlan,
+          requireArchivesAbsent,
+          sources: [
+            {
+              id: config.database.dataSourceId,
+              titlePropertyName: projectSchema.titlePropertyName,
+            },
+            {
+              id: config.relatedDataSources.researchId,
+              titlePropertyName: researchSchema.titlePropertyName,
+            },
+            {
+              id: config.relatedDataSources.skillsId,
+              titlePropertyName: skillSchema.titlePropertyName,
+            },
+            {
+              id: config.relatedDataSources.toolsId,
+              titlePropertyName: toolSchema.titlePropertyName,
+            },
+          ],
+        }),
+    }).catch((error: unknown) =>
+      failure.fail(error, "hygiene_effect_or_readback"),
+    );
+    liveReadback = {
+      ...finalReadback.checks,
+      effect_count: approvalPlan.effect_count,
+      verified_page_ids: approvalPlan.required_pages
+        .map((page) => page.page_id)
+        .sort(),
+    };
+
     for (const plan of plans) {
-      await refreshCanonicalSupportPage({
-        api,
-        kind: plan.kind,
-        page: plan.canonicalPage,
-        mergedProjectIds: plan.mergedProjectIds,
-        markdown: plan.canonicalMarkdown,
-        today: flags.today,
-      });
       canonicalRefreshes.push({
         kind: plan.kind,
         title: plan.title,
@@ -222,63 +384,38 @@ export async function runSupportDatabaseHygienePass(
         mergedProjectCount: plan.mergedProjectIds.length,
         duplicateCount: plan.duplicatePages.length,
       });
-
+      const duplicateIds = new Set(plan.duplicatePages.map((page) => page.id));
       for (const projectId of plan.projectIdsNeedingRewrite) {
         const projectPage = projectById.get(projectId);
         if (!projectPage) {
           continue;
         }
-        const propertyName = projectRelationProperty(plan.kind);
-        const currentIds = relationIds(projectPage.properties[propertyName]);
-        const duplicateIds = new Set(plan.duplicatePages.map((page) => page.id));
-        const removedDuplicateCount = currentIds.filter((id) => duplicateIds.has(id)).length;
-        const nextIds = uniqueIds([
-          ...currentIds.filter((id) => !duplicateIds.has(id)),
-          plan.canonicalPage.id,
-        ]);
-        if (!sameIdSet(currentIds, nextIds)) {
-          await api.updatePageProperties({
-            pageId: projectPage.id,
-            properties: {
-              [propertyName]: relationValue(nextIds),
-            },
-          });
-        }
         rewrittenProjects.push({
           projectTitle: projectPage.title,
           kind: plan.kind,
           title: plan.title,
-          removedDuplicateCount,
+          removedDuplicateCount: relationIds(
+            projectPage.properties[projectRelationProperty(plan.kind)],
+          ).filter((id) => duplicateIds.has(id)).length,
           canonicalId: plan.canonicalPage.id,
         });
       }
-
-      for (const duplicatePage of plan.duplicatePages) {
-        await api.archivePage(duplicatePage.id);
-        archivedPages.push({
+      archivedPages.push(
+        ...plan.duplicatePages.map((page) => ({
           kind: plan.kind,
-          title: duplicatePage.title,
-          id: duplicatePage.id,
-        });
-      }
+          title: page.title,
+          id: page.id,
+        })),
+      );
     }
-
-    for (const candidate of lowRiskArchiveCandidates) {
-      await api.archivePage(candidate.id);
-      archivedLowRiskPages.push({
+    archivedLowRiskPages.push(
+      ...lowRiskArchiveCandidates.map((candidate) => ({
         kind: candidate.kind,
         title: candidate.title,
         id: candidate.id,
-      });
-    }
-
+      })),
+    );
     for (const plan of forcedNearDuplicateMergePlans) {
-      await mergeForcedNearDuplicate({
-        api,
-        projectById,
-        plan,
-        today: flags.today,
-      });
       mergedNearDuplicateRows.push({
         kind: plan.kind,
         canonicalTitle: plan.canonicalPage.title,
@@ -292,17 +429,18 @@ export async function runSupportDatabaseHygienePass(
         id: plan.duplicatePage.id,
       });
     }
-  }
 
-  const unresolvedNearDuplicateCandidates = nearDuplicateCandidates.filter(
-    (candidate) =>
-      !forcedNearDuplicateMergePlans.some(
-        (plan) =>
-          plan.kind === candidate.kind &&
-          ((plan.canonicalPage.id === candidate.leftId && plan.duplicatePage.id === candidate.rightId) ||
-            (plan.canonicalPage.id === candidate.rightId && plan.duplicatePage.id === candidate.leftId)),
-      ),
-  );
+    emitReceipt({
+      envelope: envelope!,
+      target: {
+        data_source_ids: approvalPlan.data_source_ids,
+        page_ids: approvalPlan.target_page_ids,
+      },
+      providerReference: `notion:hygiene:${envelope!.provider_idempotency_key}`,
+      readbackResult: liveReadback,
+      terminalOutcome: "succeeded",
+    });
+  }
 
   return {
     ok: true,
@@ -342,7 +480,372 @@ export async function runSupportDatabaseHygienePass(
     archivedPages,
     archivedLowRiskPages,
     archivedForcedNearDuplicatePages,
+    approvalPlan,
+    liveReadback,
   };
+}
+
+export function supportDatabaseHygienePlan(input: {
+  today: string;
+  dataSourceIds: string[];
+  projectPages: DataSourcePageRef[];
+  plans: SupportGroupPlan[];
+  lowRiskArchiveCandidates: LowRiskArchiveCandidate[];
+  forcedNearDuplicateMergePlans: ForcedNearDuplicateMergePlan[];
+}): SupportDatabaseHygieneApprovalPlan {
+  const projectById = new Map(input.projectPages.map((page) => [page.id, page]));
+  const relationState = new Map<string, string[]>();
+  const preArchiveEffects: HygieneEffect[] = [];
+  const archivePageIds = new Set<string>();
+  const requiredMarkdown = new Map<string, string>();
+
+  const addPropertiesEffect = (
+    pageId: string,
+    properties: Record<string, unknown>,
+  ): void => {
+    preArchiveEffects.push({
+      kind: "update_properties",
+      page_id: pageId,
+      properties: serializableRecord(properties),
+    });
+  };
+
+  const addProjectRewrite = (input: {
+    projectId: string;
+    propertyName: string;
+    duplicateIds: Set<string>;
+    canonicalId: string;
+  }): void => {
+    const projectPage = projectById.get(input.projectId);
+    if (!projectPage) {
+      throw new AppError(
+        `Approved hygiene project target ${input.projectId} is missing from the rendered plan state`,
+      );
+    }
+    const stateKey = `${input.projectId}:${input.propertyName}`;
+    const currentIds =
+      relationState.get(stateKey) ??
+      relationIds(projectPage.properties[input.propertyName]);
+    const nextIds = uniqueIds([
+      ...currentIds.filter((id) => !input.duplicateIds.has(id)),
+      input.canonicalId,
+    ]);
+    if (!sameIdSet(currentIds, nextIds)) {
+      addPropertiesEffect(input.projectId, {
+        [input.propertyName]: relationValue(nextIds),
+      });
+      relationState.set(stateKey, nextIds);
+    }
+  };
+
+  for (const plan of input.plans) {
+    const properties: Record<string, unknown> = {
+      [supportProjectProperty(plan.kind)]: relationValue(plan.mergedProjectIds),
+    };
+    if (plan.kind === "tool") {
+      properties["Last Reviewed"] = datePropertyValue(input.today);
+    }
+    addPropertiesEffect(plan.canonicalPage.id, properties);
+    requiredMarkdown.set(plan.canonicalPage.id, plan.canonicalMarkdown.trim());
+    const currentMarkdown =
+      plan.duplicateMarkdowns.get(plan.canonicalPage.id)?.trim() ?? "";
+    if (currentMarkdown !== plan.canonicalMarkdown.trim()) {
+      preArchiveEffects.push({
+        kind: "patch_markdown",
+        page_id: plan.canonicalPage.id,
+        markdown: plan.canonicalMarkdown,
+      });
+    }
+
+    const duplicateIds = new Set(plan.duplicatePages.map((page) => page.id));
+    for (const projectId of plan.projectIdsNeedingRewrite) {
+      addProjectRewrite({
+        projectId,
+        propertyName: projectRelationProperty(plan.kind),
+        duplicateIds,
+        canonicalId: plan.canonicalPage.id,
+      });
+    }
+    for (const duplicatePage of plan.duplicatePages) {
+      archivePageIds.add(duplicatePage.id);
+    }
+  }
+
+  for (const plan of input.forcedNearDuplicateMergePlans) {
+    addPropertiesEffect(
+      plan.canonicalPage.id,
+      buildForcedNearDuplicateProperties({
+        kind: plan.kind,
+        canonicalPage: plan.canonicalPage,
+        duplicatePage: plan.duplicatePage,
+        mergedProjectIds: plan.mergedProjectIds,
+        today: input.today,
+      }),
+    );
+    requiredMarkdown.set(plan.canonicalPage.id, plan.canonicalMarkdown.trim());
+    if (plan.canonicalOriginalMarkdown.trim() !== plan.canonicalMarkdown.trim()) {
+      preArchiveEffects.push({
+        kind: "patch_markdown",
+        page_id: plan.canonicalPage.id,
+        markdown: plan.canonicalMarkdown,
+      });
+    }
+    for (const projectId of plan.projectIdsNeedingRewrite) {
+      addProjectRewrite({
+        projectId,
+        propertyName: projectRelationProperty(plan.kind),
+        duplicateIds: new Set([plan.duplicatePage.id]),
+        canonicalId: plan.canonicalPage.id,
+      });
+    }
+    archivePageIds.add(plan.duplicatePage.id);
+  }
+
+  for (const candidate of input.lowRiskArchiveCandidates) {
+    archivePageIds.add(candidate.id);
+  }
+
+  const archiveEffects: HygieneEffect[] = [...archivePageIds]
+    .sort()
+    .map((pageId) => ({ kind: "archive_page", page_id: pageId }));
+  const requiredPagesById = new Map<string, HygieneRequiredPageState>();
+  for (const effect of preArchiveEffects) {
+    if (effect.kind !== "update_properties") {
+      continue;
+    }
+    const existing = requiredPagesById.get(effect.page_id) ?? {
+      page_id: effect.page_id,
+    };
+    requiredPagesById.set(effect.page_id, {
+      ...existing,
+      properties: {
+        ...(existing.properties ?? {}),
+        ...effect.properties,
+      },
+    });
+  }
+  for (const [pageId, markdown] of requiredMarkdown) {
+    const existing = requiredPagesById.get(pageId) ?? { page_id: pageId };
+    requiredPagesById.set(pageId, { ...existing, markdown });
+  }
+
+  const targetPageIds = [
+    ...new Set([
+      ...preArchiveEffects.map((effect) => effect.page_id),
+      ...archiveEffects.map((effect) => effect.page_id),
+    ]),
+  ].sort();
+  return {
+    operation: "notion.support_database_hygiene",
+    today: input.today,
+    data_source_ids: [...input.dataSourceIds].sort(),
+    target_page_ids: targetPageIds,
+    archive_page_ids: archiveEffects.map((effect) => effect.page_id),
+    effect_count: preArchiveEffects.length + archiveEffects.length,
+    pre_archive_effects: preArchiveEffects,
+    archive_effects: archiveEffects,
+    required_pages: [...requiredPagesById.values()].sort((left, right) =>
+      left.page_id.localeCompare(right.page_id),
+    ),
+  };
+}
+
+function serializableRecord(value: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(canonicalJson(value)) as Record<string, unknown>;
+}
+
+export function verifySupportDatabaseHygieneState(input: {
+  plan: SupportDatabaseHygieneApprovalPlan;
+  visiblePages: DataSourcePageRef[];
+  markdownByPageId: Map<string, string>;
+  requireArchivesAbsent: boolean;
+}): HygieneReadbackResult {
+  const pageById = new Map(input.visiblePages.map((page) => [page.id, page]));
+  const projectRelationNames = new Set([
+    "Related Research",
+    "Supporting Skills",
+    "Tool Stack Records",
+  ]);
+  let canonicalPropertiesExact = true;
+  let projectRelationsExact = true;
+  let canonicalMarkdownExact = true;
+
+  for (const expectedPage of input.plan.required_pages) {
+    const observedPage = pageById.get(expectedPage.page_id);
+    for (const [propertyName, expected] of Object.entries(
+      expectedPage.properties ?? {},
+    )) {
+      const matches =
+        observedPage !== undefined &&
+        canonicalJson(propertySemanticValue(observedPage.properties[propertyName])) ===
+          canonicalJson(propertySemanticValue(expected));
+      if (projectRelationNames.has(propertyName)) {
+        projectRelationsExact &&= matches;
+      } else {
+        canonicalPropertiesExact &&= matches;
+      }
+    }
+    if (
+      expectedPage.markdown !== undefined &&
+      normalizeMarkdown(input.markdownByPageId.get(expectedPage.page_id) ?? "") !==
+        normalizeMarkdown(expectedPage.markdown)
+    ) {
+      canonicalMarkdownExact = false;
+    }
+  }
+
+  const archivedIds = new Set(input.plan.archive_page_ids);
+  const archiveIdsAbsent =
+    !input.requireArchivesAbsent ||
+    input.plan.archive_page_ids.every((pageId) => !pageById.has(pageId));
+  const duplicateRelationsAbsent = input.visiblePages.every((page) =>
+    Object.values(page.properties).every((property) =>
+      (property.relation ?? []).every((relation) => !archivedIds.has(relation.id)),
+    ),
+  );
+  const checks = {
+    archive_ids_absent: archiveIdsAbsent,
+    canonical_properties_exact: canonicalPropertiesExact,
+    canonical_markdown_exact: canonicalMarkdownExact,
+    project_relations_exact: projectRelationsExact,
+    duplicate_relations_absent: duplicateRelationsAbsent,
+  };
+  return {
+    ok: Object.values(checks).every(Boolean),
+    checks,
+  };
+}
+
+export async function executeSupportDatabaseHygieneEffects(input: {
+  plan: SupportDatabaseHygieneApprovalPlan;
+  applyEffect: (effect: HygieneEffect) => Promise<void>;
+  verifyState: (
+    requireArchivesAbsent: boolean,
+  ) => Promise<HygieneReadbackResult>;
+}): Promise<HygieneReadbackResult> {
+  for (const effect of input.plan.pre_archive_effects) {
+    await input.applyEffect(effect);
+  }
+  const preArchive = await input.verifyState(false);
+  if (!preArchive.ok) {
+    throw new AppError(
+      "Notion hygiene pre-archive readback did not prove the approved canonical state",
+    );
+  }
+  for (const effect of input.plan.archive_effects) {
+    await input.applyEffect(effect);
+  }
+  const finalReadback = await input.verifyState(true);
+  if (!finalReadback.ok) {
+    throw new AppError(
+      "Notion hygiene post-archive readback did not prove the approved terminal state",
+    );
+  }
+  return finalReadback;
+}
+
+async function applyHygieneEffect(
+  api: DirectNotionClient,
+  effect: HygieneEffect,
+): Promise<void> {
+  switch (effect.kind) {
+    case "update_properties":
+      await api.updatePageProperties({
+        pageId: effect.page_id,
+        properties: effect.properties,
+      });
+      return;
+    case "patch_markdown":
+      await api.patchPageMarkdown({
+        pageId: effect.page_id,
+        command: "replace_content",
+        newMarkdown: effect.markdown,
+      });
+      return;
+    case "archive_page":
+      await api.archivePage(effect.page_id);
+  }
+}
+
+async function readAndVerifySupportDatabaseHygieneState(input: {
+  api: DirectNotionClient;
+  plan: SupportDatabaseHygieneApprovalPlan;
+  requireArchivesAbsent: boolean;
+  sources: Array<{ id: string; titlePropertyName: string }>;
+}): Promise<HygieneReadbackResult> {
+  const pageGroups = await Promise.all(
+    input.sources.map((source) =>
+      fetchAllPages(input.api, source.id, source.titlePropertyName),
+    ),
+  );
+  const markdownByPageId = new Map<string, string>();
+  for (const expected of input.plan.required_pages) {
+    if (expected.markdown === undefined) {
+      continue;
+    }
+    const readback = await input.api.readPageMarkdown(expected.page_id);
+    if (readback.truncated || readback.unknownBlockIds.length > 0) {
+      throw new AppError(
+        `Notion hygiene markdown readback for ${expected.page_id} is incomplete`,
+      );
+    }
+    markdownByPageId.set(expected.page_id, readback.markdown);
+  }
+  return verifySupportDatabaseHygieneState({
+    plan: input.plan,
+    visiblePages: pageGroups.flat(),
+    markdownByPageId,
+    requireArchivesAbsent: input.requireArchivesAbsent,
+  });
+}
+
+function propertySemanticValue(value: unknown): unknown {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  const property = value as NotionPageProperty & Record<string, unknown>;
+  if (Array.isArray(property.relation)) {
+    return {
+      relation: property.relation.map((entry) => entry.id).sort(),
+    };
+  }
+  if ("date" in property) {
+    return { date: property.date?.start ?? null };
+  }
+  if ("select" in property) {
+    return { select: property.select?.name ?? null };
+  }
+  if (Array.isArray(property.multi_select)) {
+    return {
+      multi_select: property.multi_select
+        .map((entry) => entry.name ?? "")
+        .filter(Boolean)
+        .sort(),
+    };
+  }
+  if ("number" in property) {
+    return { number: property.number ?? null };
+  }
+  if (Array.isArray(property.rich_text)) {
+    return {
+      rich_text: property.rich_text
+        .map((entry) => {
+          const requestEntry = entry as typeof entry & {
+            text?: { content?: string };
+          };
+          return requestEntry.plain_text ?? requestEntry.text?.content ?? "";
+        })
+        .join(""),
+    };
+  }
+  if ("checkbox" in property) {
+    return { checkbox: Boolean(property.checkbox) };
+  }
+  return JSON.parse(canonicalJson(value)) as unknown;
+}
+
+function normalizeMarkdown(value: string): string {
+  return value.trim().replace(/\r\n/g, "\n");
 }
 
 async function buildSupportGroupPlans(input: {
@@ -489,6 +992,7 @@ async function buildForcedNearDuplicateMergePlans(input: {
       kind: rule.kind,
       canonicalPage,
       duplicatePage,
+      canonicalOriginalMarkdown: canonicalMarkdown.markdown.trim(),
       canonicalMarkdown: mergeNearDuplicateMarkdown({
         kind: rule.kind,
         canonicalTitle: canonicalPage.title,
@@ -501,89 +1005,6 @@ async function buildForcedNearDuplicateMergePlans(input: {
   }
 
   return plans;
-}
-
-async function refreshCanonicalSupportPage(input: {
-  api: DirectNotionClient;
-  kind: SupportKind;
-  page: DataSourcePageRef;
-  mergedProjectIds: string[];
-  markdown: string;
-  today: string;
-}): Promise<void> {
-  const properties: Record<string, unknown> = {
-    [supportProjectProperty(input.kind)]: relationValue(input.mergedProjectIds),
-  };
-
-  if (input.kind === "tool") {
-    properties["Last Reviewed"] = datePropertyValue(input.today);
-  }
-
-  await input.api.updatePageProperties({
-    pageId: input.page.id,
-    properties,
-  });
-
-  const currentMarkdown = await input.api.readPageMarkdown(input.page.id);
-  if (currentMarkdown.markdown.trim() !== input.markdown.trim()) {
-    await input.api.patchPageMarkdown({
-      pageId: input.page.id,
-      command: "replace_content",
-      newMarkdown: input.markdown,
-    });
-  }
-}
-
-async function mergeForcedNearDuplicate(input: {
-  api: DirectNotionClient;
-  projectById: Map<string, DataSourcePageRef>;
-  plan: ForcedNearDuplicateMergePlan;
-  today: string;
-}): Promise<void> {
-  const mergedProperties = buildForcedNearDuplicateProperties({
-    kind: input.plan.kind,
-    canonicalPage: input.plan.canonicalPage,
-    duplicatePage: input.plan.duplicatePage,
-    mergedProjectIds: input.plan.mergedProjectIds,
-    today: input.today,
-  });
-
-  await input.api.updatePageProperties({
-    pageId: input.plan.canonicalPage.id,
-    properties: mergedProperties,
-  });
-
-  const currentMarkdown = await input.api.readPageMarkdown(input.plan.canonicalPage.id);
-  if (currentMarkdown.markdown.trim() !== input.plan.canonicalMarkdown.trim()) {
-    await input.api.patchPageMarkdown({
-      pageId: input.plan.canonicalPage.id,
-      command: "replace_content",
-      newMarkdown: input.plan.canonicalMarkdown,
-    });
-  }
-
-  for (const projectId of input.plan.projectIdsNeedingRewrite) {
-    const projectPage = input.projectById.get(projectId);
-    if (!projectPage) {
-      continue;
-    }
-    const propertyName = projectRelationProperty(input.plan.kind);
-    const currentIds = relationIds(projectPage.properties[propertyName]);
-    const nextIds = uniqueIds([
-      ...currentIds.filter((id) => id !== input.plan.duplicatePage.id),
-      input.plan.canonicalPage.id,
-    ]);
-    if (!sameIdSet(currentIds, nextIds)) {
-      await input.api.updatePageProperties({
-        pageId: projectPage.id,
-        properties: {
-          [propertyName]: relationValue(nextIds),
-        },
-      });
-    }
-  }
-
-  await input.api.archivePage(input.plan.duplicatePage.id);
 }
 
 function findDuplicateGroups(pages: DataSourcePageRef[]): DataSourcePageRef[][] {
