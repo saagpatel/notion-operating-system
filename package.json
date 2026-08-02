@@ -153,8 +153,8 @@
 		"bridge-db:status": "tsx src/cli.ts bridge-db status"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "1.29.0",
-		"@notionhq/client": "^5.22.0",
+		"@modelcontextprotocol/sdk": "1.30.0",
+		"@notionhq/client": "^5.23.3",
 		"dotenv": "^17.4.2",
 		"exceljs": "^4.4.0",
 		"gray-matter": "^4.0.3",
