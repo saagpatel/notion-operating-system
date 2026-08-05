@@ -235,12 +235,12 @@ describe("package surface", () => {
       {
         script: "schema-migrate-probe",
         expected:
-          "Run the historical schema migration probe that verifies rollup property creation against the Local Portfolio Projects data source.",
+          "Inspect the Local Portfolio Projects schema for rollup migration readiness without mutating Notion.",
       },
       {
         script: "schema-migrate",
         expected:
-          "Run the historical Local Portfolio Projects schema migration that replaces manual count fields with native rollups.",
+          "Render or execute the historical Local Portfolio Projects schema migration.",
       },
     ];
 

@@ -1,13 +1,11 @@
 import "../../config/load-default-env.js";
 
 import { recordCommandOutputSummary } from "../../cli/command-summary.js";
-import { toErrorMessage } from "../../utils/errors.js";
+import { AppError, toErrorMessage } from "../../utils/errors.js";
 import { losAngelesToday } from "../../utils/date.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
-  loadLocalPortfolioControlTowerConfig,
-  saveLocalPortfolioControlTowerConfig,
 } from "../../notion/local-portfolio-control-tower.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH,
@@ -87,12 +85,16 @@ async function main(): Promise<void> {
           description: "Run the narrow GitHub-backed support-maintenance lane.",
           options: [
             { flag: "--help, -h", description: "Show this help message." },
-            { flag: "--live", description: "Apply the maintenance actions live." },
+            { flag: "--live", description: "Denied: combined live authority is not inherited." },
             { flag: "--owner <name>", description: "GitHub owner to inspect. Defaults to saagpatel." },
             { flag: "--limit <count>", description: "Maximum repositories to inspect. Defaults to 200." },
             { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
             { flag: "--config <path>", description: "Path to the control-tower config file." },
             { flag: "--source-config <path>", description: "Path to the external-signal source config file." },
+          ],
+          notes: [
+            "The combined command is dry-run-only.",
+            "Use separately governed live commands for each product action.",
           ],
         }),
       );
@@ -114,6 +116,11 @@ async function main(): Promise<void> {
 }
 
 export async function runGitHubSupportMaintenance(flags: Flags): Promise<Record<string, unknown>> {
+  if (flags.live) {
+    throw new AppError(
+      "combined GitHub support maintenance live execution is denied; authority cannot be inherited across product actions",
+    );
+  }
   const githubFlags: GitHubKnowledgeAuditFlags = {
     live: flags.live,
     owner: flags.owner,
@@ -154,20 +161,6 @@ export async function runGitHubSupportMaintenance(flags: Flags): Promise<Record<
       forcedNearDuplicateMergeCount: numberAt(supportDatabaseHygiene, ["forcedNearDuplicateMergeCount"]),
     },
   });
-
-  if (flags.live) {
-    const config = await loadLocalPortfolioControlTowerConfig(flags.config);
-    await saveLocalPortfolioControlTowerConfig(
-      {
-        ...config,
-        weeklyMaintenance: {
-          ...config.weeklyMaintenance,
-          supportMaintenanceLastSyncAt: flags.today,
-        },
-      },
-      flags.config,
-    );
-  }
 
   return {
     ok: true,

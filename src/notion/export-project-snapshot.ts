@@ -1,4 +1,4 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -9,7 +9,6 @@ import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { RunLogger } from "../logging/run-logger.js";
 import { losAngelesToday } from "../utils/date.js";
-import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	applyDerivedSignals,
@@ -248,6 +247,28 @@ export async function loadPortfolioAttentionAuthority(
 	};
 }
 
+export async function writeProjectSnapshotAtomic(
+	snapshot: ProjectSnapshot,
+	destination: string = SNAPSHOT_PATH,
+): Promise<void> {
+	const directory = path.dirname(destination);
+	const temporary = path.join(
+		directory,
+		`.${path.basename(destination)}.${randomUUID()}.tmp`,
+	);
+	await mkdir(directory, { recursive: true });
+	try {
+		await writeFile(temporary, `${JSON.stringify(snapshot, null, 2)}\n`, {
+			encoding: "utf8",
+			flag: "wx",
+			mode: 0o600,
+		});
+		await rename(temporary, destination);
+	} finally {
+		await rm(temporary, { force: true });
+	}
+}
+
 export async function runExportProjectSnapshotCommand(options: {
 	config?: string;
 	today?: string;
@@ -290,8 +311,7 @@ export async function runExportProjectSnapshotCommand(options: {
 		attentionAuthority,
 	});
 
-	await mkdir(path.dirname(SNAPSHOT_PATH), { recursive: true });
-	await writeFile(SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2), "utf8");
+	await writeProjectSnapshotAtomic(snapshot);
 
 	console.log(
 		`Wrote snapshot: ${snapshot.project_count} projects → ${SNAPSHOT_PATH}`,
@@ -311,13 +331,6 @@ export async function runExportProjectSnapshotCommand(options: {
 	};
 
 	recordCommandOutputSummary(output, { status: "completed" });
-
-	postNotificationHubEvent({
-		source: "notion-os",
-		level: "info",
-		title: "export-project-snapshot complete",
-		body: `${snapshot.project_count} projects written to snapshot (${overdueCount} overdue, ${needsReviewCount} need review)`,
-	});
 
 	console.log(JSON.stringify(output, null, 2));
 }

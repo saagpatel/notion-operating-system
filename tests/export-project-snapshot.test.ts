@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { describe, expect, test } from "vitest";
 
 import { loadLocalPortfolioControlTowerConfig } from "../src/notion/local-portfolio-control-tower.js";
-import { buildProjectSnapshot } from "../src/notion/export-project-snapshot.js";
+import {
+	buildProjectSnapshot,
+	writeProjectSnapshotAtomic,
+} from "../src/notion/export-project-snapshot.js";
 import type { DataSourcePageRef } from "../src/notion/local-portfolio-control-tower-live.js";
 
 describe("project snapshot provenance", () => {
@@ -87,5 +93,28 @@ describe("project snapshot provenance", () => {
 		expect(snapshot.source.watermark).toBeNull();
 		expect(snapshot.live_read_receipt.page_count).toBe(0);
 		expect(snapshot.attention_authority_receipt.state).toBe("unavailable");
+	});
+
+	test("publishes through a same-directory atomic rename without leaving temp files", async () => {
+		const config = await loadLocalPortfolioControlTowerConfig(
+			"./config/local-portfolio-control-tower.json",
+		);
+		const snapshot = buildProjectSnapshot({
+			pages: [],
+			dataSourceId: "source",
+			today: "2026-07-12",
+			generatedAt: "2026-07-12T10:00:00.000Z",
+			extractionRunId: "run-atomic",
+			config,
+		});
+		const directory = await mkdtemp(path.join(tmpdir(), "notion-snapshot-"));
+		const destination = path.join(directory, "project-snapshot.json");
+		try {
+			await writeProjectSnapshotAtomic(snapshot, destination);
+			expect(JSON.parse(await readFile(destination, "utf8"))).toEqual(snapshot);
+			expect(await readdir(directory)).toEqual(["project-snapshot.json"]);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 });
