@@ -8,7 +8,9 @@ import type {
 } from "./local-portfolio-control-tower.js";
 
 export interface NotionPageProperty {
+	id?: string;
 	type: string;
+	has_more?: boolean;
 	title?: Array<{ plain_text?: string }>;
 	rich_text?: Array<{ plain_text?: string }>;
 	select?: { name?: string | null } | null;
@@ -30,6 +32,18 @@ export interface DataSourcePageRef {
 	createdTime?: string;
 	lastEditedTime?: string;
 	properties: Record<string, NotionPageProperty>;
+}
+
+interface RelationPropertyItemClient {
+	retrievePagePropertyItems(input: {
+		pageId: string;
+		propertyId: string;
+		startCursor?: string;
+	}): Promise<{
+		relationIds: string[];
+		hasMore: boolean;
+		nextCursor?: string;
+	}>;
 }
 
 export interface FetchAllPagesOptions {
@@ -156,6 +170,59 @@ export async function fetchAllPages(
 	}
 
 	return pages;
+}
+
+export async function hydrateCompleteRelationProperties(
+	client: RelationPropertyItemClient,
+	pages: DataSourcePageRef[],
+): Promise<DataSourcePageRef[]> {
+	return Promise.all(
+		pages.map(async (page) => {
+			const properties = { ...page.properties };
+			for (const [propertyName, property] of Object.entries(properties)) {
+				if (property.type !== "relation" || property.has_more !== true) {
+					continue;
+				}
+				if (!property.id) {
+					throw new Error(
+						`Incomplete relation ${page.id}:${propertyName} has no provider property id`,
+					);
+				}
+				const relationIds: string[] = [];
+				const seenCursors = new Set<string>();
+				let nextCursor: string | undefined;
+				while (true) {
+					const response = await client.retrievePagePropertyItems({
+						pageId: page.id,
+						propertyId: property.id,
+						startCursor: nextCursor,
+					});
+					relationIds.push(...response.relationIds);
+					if (!response.hasMore) {
+						break;
+					}
+					if (
+						!response.nextCursor ||
+						seenCursors.has(response.nextCursor)
+					) {
+						throw new Error(
+							`Incomplete relation ${page.id}:${propertyName} returned an invalid provider cursor`,
+						);
+					}
+					seenCursors.add(response.nextCursor);
+					nextCursor = response.nextCursor;
+				}
+				properties[propertyName] = {
+					...property,
+					relation: [...new Set(relationIds)].map((id) => ({
+						id: normalizeNotionId(id),
+					})),
+					has_more: false,
+				};
+			}
+			return { ...page, properties };
+		}),
+	);
 }
 
 export function toControlTowerProjectRecord(

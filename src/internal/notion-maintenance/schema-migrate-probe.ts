@@ -70,10 +70,6 @@ export async function runLiveProbe(input: {
     deletionCount: 1,
     requiredReadback: ["property_absent_after_cleanup"],
   });
-  const before = await retrieveDataSource(input.sdk, input.dataSourceId);
-  if (before.properties?.[plan.property_name] !== undefined) {
-    throw new Error("nonce-owned probe property already exists; refusing to overwrite");
-  }
   claimEnvelope(envelope, input.claimStateDir);
   const failure = createClaimedActionFailureRecorder({
     envelope,
@@ -85,7 +81,14 @@ export async function runLiveProbe(input: {
     receiptDir: input.receiptDir,
   });
   let createdPropertyId: string | undefined;
+  let failurePhase = "pre_effect_property_absence";
   try {
+    const before = await retrieveDataSource(input.sdk, input.dataSourceId);
+    if (before.properties?.[plan.property_name] !== undefined) {
+      throw new Error("nonce-owned probe property already exists; refusing to overwrite");
+    }
+
+    failurePhase = "property_creation";
     failure.markEffectAttempted();
     const createdResponse = (await input.sdk.request({
       path: `data_sources/${input.dataSourceId}`,
@@ -97,6 +100,7 @@ export async function runLiveProbe(input: {
       throw new Error("provider did not return the created probe property id");
     }
 
+    failurePhase = "cleanup_and_readback";
     const beforeCleanup = await retrieveDataSource(input.sdk, input.dataSourceId);
     const currentProperty = beforeCleanup.properties?.[plan.property_name];
     if (currentProperty?.id !== createdPropertyId) {
@@ -113,7 +117,7 @@ export async function runLiveProbe(input: {
       throw new Error("probe cleanup readback failed");
     }
   } catch (error) {
-    failure.fail(error, createdPropertyId ? "cleanup_and_readback" : "property_creation");
+    failure.fail(error, failurePhase);
   }
   emitReceipt({
     envelope,
@@ -122,7 +126,7 @@ export async function runLiveProbe(input: {
       property_name: plan.property_name,
     },
     providerReference: `notion:property:${createdPropertyId}`,
-    readbackResult: { property_absent: true },
+    readbackResult: { property_absent_after_cleanup: true },
     terminalOutcome: "succeeded",
     receiptDir: input.receiptDir,
   });

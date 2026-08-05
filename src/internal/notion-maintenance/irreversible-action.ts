@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   closeSync,
   existsSync,
@@ -40,6 +40,17 @@ export const NOTION_CLAIM_STATE_DIR =
   "/Users/d/.codex/state/irreversible-actions/notion";
 export const NOTION_RECEIPT_DIR =
   "/Users/d/.codex/reports/irreversible-actions/notion/receipts";
+
+const OPAQUE_ACTION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+function requireOpaqueActionId(actionId: unknown): asserts actionId is string {
+  if (
+    typeof actionId !== "string" ||
+    !OPAQUE_ACTION_ID_PATTERN.test(actionId)
+  ) {
+    throw new Error("approval action_id must be an opaque identifier");
+  }
+}
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -90,8 +101,8 @@ export function validateEnvelope(input: {
   if (envelope.schema !== "IrreversibleActionEnvelopeV1") {
     throw new Error("approval schema mismatch");
   }
+  requireOpaqueActionId(envelope.action_id);
   if (
-    !envelope.action_id ||
     !envelope.principal?.id ||
     !envelope.provider_idempotency_key ||
     Object.keys(envelope.preconditions ?? {}).length === 0 ||
@@ -213,9 +224,22 @@ export function claimEnvelope(
   envelope: IrreversibleActionEnvelopeV1,
   stateDir = NOTION_CLAIM_STATE_DIR,
 ): string {
+  requireOpaqueActionId(envelope.action_id);
   const trustedStateDir = requirePrivateAuthorityDirectory(stateDir);
   const claimPath = path.join(trustedStateDir, `${envelope.action_id}.claim.json`);
-  const descriptor = openSync(claimPath, "wx", 0o600);
+  const claimedAt = new Date().toISOString();
+  const providerKeyDigest = createHash("sha256")
+    .update(envelope.provider_idempotency_key)
+    .digest("hex");
+  let descriptor: number;
+  try {
+    descriptor = openSync(claimPath, "wx", 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error("approval action_id is already claimed");
+    }
+    throw error;
+  }
   try {
     writeFileSync(
       descriptor,
@@ -223,13 +247,106 @@ export function claimEnvelope(
         schema: "IrreversibleActionClaimV1",
         action_id: envelope.action_id,
         envelope_digest: planDigest(envelope),
-        claimed_at: new Date().toISOString(),
+        provider_idempotency_key_digest: `sha256:${providerKeyDigest}`,
+        claimed_at: claimedAt,
+      })}\n`,
+    );
+  } finally {
+    closeSync(descriptor);
+  }
+
+  const providerStateDir = requirePrivateAuthorityDirectory(
+    path.join(trustedStateDir, "provider-operations"),
+  );
+  const providerClaimPath = path.join(
+    providerStateDir,
+    `${providerKeyDigest}.claim.json`,
+  );
+  try {
+    descriptor = openSync(providerClaimPath, "wx", 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(
+        "provider operation is already claimed; reconcile before retry",
+      );
+    }
+    throw error;
+  }
+  try {
+    writeFileSync(
+      descriptor,
+      `${canonicalJson({
+        schema: "IrreversibleProviderOperationClaimV1",
+        action_id: envelope.action_id,
+        provider_idempotency_key_digest: `sha256:${providerKeyDigest}`,
+        status: "claimed",
+        claimed_at: claimedAt,
       })}\n`,
     );
   } finally {
     closeSync(descriptor);
   }
   return claimPath;
+}
+
+function validateReceiptContract(input: {
+  envelope: IrreversibleActionEnvelopeV1;
+  providerReference: string;
+  readbackResult: unknown;
+  terminalOutcome: "succeeded" | "failed_before_effect" | "outcome_unknown";
+}): void {
+  const requirements = input.envelope.receipt_requirements;
+  if (
+    requirements?.schema !== "IrreversibleActionReceiptV1" ||
+    requirements.provider_reference !== true ||
+    requirements.readback_result !== true ||
+    requirements.terminal_outcome !== true
+  ) {
+    throw new Error("approval receipt requirements are incomplete");
+  }
+  if (
+    !Array.isArray(input.envelope.required_readback) ||
+    input.envelope.required_readback.length === 0 ||
+    input.envelope.required_readback.some(
+      (key) => typeof key !== "string" || !key.trim(),
+    )
+  ) {
+    throw new Error("approval required_readback is incomplete");
+  }
+  if (
+    !["succeeded", "failed_before_effect", "outcome_unknown"].includes(
+      input.terminalOutcome,
+    )
+  ) {
+    throw new Error("receipt terminal_outcome is invalid");
+  }
+  if (
+    typeof input.providerReference !== "string" ||
+    !input.providerReference.trim()
+  ) {
+    throw new Error("receipt provider_reference is required");
+  }
+  if (
+    input.readbackResult === null ||
+    typeof input.readbackResult !== "object" ||
+    Array.isArray(input.readbackResult)
+  ) {
+    throw new Error("receipt readback_result must be an object");
+  }
+  if (input.terminalOutcome !== "succeeded") {
+    return;
+  }
+  const readback = input.readbackResult as Record<string, unknown>;
+  for (const requiredKey of input.envelope.required_readback) {
+    if (
+      !Object.hasOwn(readback, requiredKey) ||
+      readback[requiredKey] !== true
+    ) {
+      throw new Error(
+        `successful receipt does not satisfy required readback: ${requiredKey}`,
+      );
+    }
+  }
 }
 
 export function emitReceipt(input: {
@@ -240,7 +357,15 @@ export function emitReceipt(input: {
   terminalOutcome: "succeeded" | "failed_before_effect" | "outcome_unknown";
   receiptDir?: string;
 }): string {
+  requireOpaqueActionId(input.envelope.action_id);
   const receiptDir = input.receiptDir ?? NOTION_RECEIPT_DIR;
+  validateReceiptContract(input);
+  if (
+    canonicalJson(input.target) !==
+    canonicalJson(input.envelope.canonical_targets)
+  ) {
+    throw new Error("receipt target does not match approved canonical targets");
+  }
   const trustedReceiptDir = requirePrivateAuthorityDirectory(receiptDir);
   const receiptPath = path.join(
     trustedReceiptDir,
@@ -252,6 +377,10 @@ export function emitReceipt(input: {
     target: input.target,
     artifact_digest: input.envelope.artifact_digest,
     provider_reference: input.providerReference,
+    provider_idempotency_key_digest: `sha256:${createHash("sha256")
+      .update(input.envelope.provider_idempotency_key)
+      .digest("hex")}`,
+    required_readback: input.envelope.required_readback,
     readback_result: input.readbackResult,
     terminal_outcome: input.terminalOutcome,
   };

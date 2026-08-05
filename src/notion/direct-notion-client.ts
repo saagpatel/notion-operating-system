@@ -29,6 +29,16 @@ export interface NotionBlockChild {
   inTrash: boolean;
 }
 
+export interface DirectNotionPageState {
+  id: string;
+  url: string;
+  title?: string;
+  parent?: { page_id?: string; data_source_id?: string };
+  parentDataSourceId?: string;
+  lastEditedTime?: string;
+  properties: Record<string, unknown>;
+}
+
 export class DirectNotionClient implements NotionApi {
   private readonly http: NotionHttp;
 
@@ -134,11 +144,25 @@ export class DirectNotionClient implements NotionApi {
   }
 
   public async retrievePage(pageId: string): Promise<PageSnapshot> {
+    const response = await this.retrievePageState(pageId);
+    return {
+      id: response.id,
+      url: response.url,
+      title: response.title,
+      parent: response.parent,
+    };
+  }
+
+  public async retrievePageState(pageId: string): Promise<DirectNotionPageState> {
     const response = await this.http.requestJson<{
       id: string;
       url: string;
+      last_edited_time?: string;
       parent?: { page_id?: string; data_source_id?: string };
-      properties?: Record<string, { type?: string; title?: Array<{ plain_text?: string }> }>;
+      properties?: Record<
+        string,
+        { type?: string; title?: Array<{ plain_text?: string }> }
+      >;
     }>(`/pages/${pageId}`);
     const title = findPageTitle(response.properties);
     return {
@@ -146,6 +170,47 @@ export class DirectNotionClient implements NotionApi {
       url: response.url,
       title,
       parent: normalizePageParent(response.parent),
+      parentDataSourceId: response.parent?.data_source_id
+        ? normalizeNotionId(response.parent.data_source_id)
+        : undefined,
+      lastEditedTime: response.last_edited_time,
+      properties: response.properties ?? {},
+    };
+  }
+
+  public async retrievePagePropertyItems(input: {
+    pageId: string;
+    propertyId: string;
+    startCursor?: string;
+  }): Promise<{
+    relationIds: string[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
+    const params = new URLSearchParams({ page_size: "100" });
+    if (input.startCursor) {
+      params.set("start_cursor", input.startCursor);
+    }
+    const response = await this.http.requestJson<{
+      results?: Array<{
+        type?: string;
+        relation?: { id?: string };
+      }>;
+      has_more?: boolean;
+      next_cursor?: string | null;
+    }>(
+      `/pages/${encodeNotionPathSegment(input.pageId)}/properties/${encodeNotionPathSegment(input.propertyId)}?${params.toString()}`,
+    );
+    return {
+      relationIds: (response.results ?? [])
+        .flatMap((item) => {
+          const relationId = item.relation?.id;
+          return item.type === "relation" && typeof relationId === "string"
+            ? [normalizeNotionId(relationId)]
+            : [];
+        }),
+      hasMore: Boolean(response.has_more),
+      nextCursor: response.next_cursor ?? undefined,
     };
   }
 
@@ -402,6 +467,14 @@ function mapNotionBlockChild(block: Record<string, unknown>): NotionBlockChild {
     archived: Boolean(block.archived),
     inTrash: Boolean(block.in_trash),
   };
+}
+
+function encodeNotionPathSegment(value: string): string {
+  try {
+    return encodeURIComponent(decodeURIComponent(value));
+  } catch {
+    return encodeURIComponent(value);
+  }
 }
 
 function extractRequiredId(sourceUrl: string, alias: string): string {

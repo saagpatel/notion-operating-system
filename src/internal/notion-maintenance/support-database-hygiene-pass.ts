@@ -4,8 +4,15 @@ import { recordCommandOutputSummary } from "../../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../../cli/context.js";
 import { AppError, toErrorMessage } from "../../utils/errors.js";
 import { losAngelesToday } from "../../utils/date.js";
+import {
+  maybeNormalizeNotionId,
+  normalizeNotionId,
+} from "../../utils/notion-id.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
-import { DirectNotionClient } from "../../notion/direct-notion-client.js";
+import {
+  DirectNotionClient,
+  type DirectNotionPageState,
+} from "../../notion/direct-notion-client.js";
 import { WorkspaceIds } from "../../config/workspace-ids.js";
 import {
   DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
@@ -14,6 +21,7 @@ import {
 import {
   datePropertyValue,
   fetchAllPages,
+  hydrateCompleteRelationProperties,
   relationIds,
   relationValue,
   richTextValue,
@@ -26,6 +34,7 @@ import {
   createClaimedActionFailureRecorder,
   emitReceipt,
   loadEnvelope,
+  planDigest,
   sourceRevision,
   validateEnvelope,
   type IrreversibleActionEnvelopeV1,
@@ -58,6 +67,7 @@ interface LowRiskArchiveCandidate {
   kind: SupportKind;
   id: string;
   title: string;
+  precondition: HygieneArchivePrecondition;
 }
 
 interface NearDuplicateCandidate {
@@ -75,6 +85,7 @@ interface ForcedNearDuplicateMergePlan {
   duplicatePage: DataSourcePageRef;
   canonicalOriginalMarkdown: string;
   canonicalMarkdown: string;
+  duplicateOriginalMarkdown: string;
   mergedProjectIds: string[];
   projectIdsNeedingRewrite: string[];
 }
@@ -84,6 +95,7 @@ export type HygieneEffect =
       kind: "update_properties";
       page_id: string;
       properties: Record<string, unknown>;
+      relation_preconditions?: Record<string, string[]>;
     }
   | {
       kind: "patch_markdown";
@@ -101,6 +113,13 @@ export interface HygieneRequiredPageState {
   markdown?: string;
 }
 
+export interface HygieneArchivePrecondition {
+  page_id: string;
+  parent_data_source_id: string;
+  last_edited_time: string;
+  state_digest: string;
+}
+
 export interface SupportDatabaseHygieneApprovalPlan {
   operation: "notion.support_database_hygiene";
   today: string;
@@ -111,6 +130,7 @@ export interface SupportDatabaseHygieneApprovalPlan {
   pre_archive_effects: HygieneEffect[];
   archive_effects: HygieneEffect[];
   required_pages: HygieneRequiredPageState[];
+  archive_preconditions: HygieneArchivePrecondition[];
 }
 
 export interface HygieneReadbackResult {
@@ -207,13 +227,34 @@ export async function runSupportDatabaseHygienePass(
   ]);
 
   const [projectPages, researchPages] = await Promise.all([
-    fetchAllPages(api, config.database.dataSourceId, projectSchema.titlePropertyName),
-    fetchAllPages(api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
+    fetchCompleteHygienePages(
+      api,
+      config.database.dataSourceId,
+      projectSchema.titlePropertyName,
+    ),
+    fetchCompleteHygienePages(
+      api,
+      config.relatedDataSources.researchId,
+      researchSchema.titlePropertyName,
+    ),
   ]);
   const [skillPages, toolPages] = await Promise.all([
-    fetchAllPages(api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
-    fetchAllPages(api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
+    fetchCompleteHygienePages(
+      api,
+      config.relatedDataSources.skillsId,
+      skillSchema.titlePropertyName,
+    ),
+    fetchCompleteHygienePages(
+      api,
+      config.relatedDataSources.toolsId,
+      toolSchema.titlePropertyName,
+    ),
   ]);
+  const dataSourceIdByKind: Record<SupportKind, string> = {
+    research: config.relatedDataSources.researchId,
+    skill: config.relatedDataSources.skillsId,
+    tool: config.relatedDataSources.toolsId,
+  };
 
   const plans = await buildSupportGroupPlans({
     api,
@@ -227,11 +268,17 @@ export async function runSupportDatabaseHygienePass(
     canonicalSupportPageIds: workspaceIds.canonicalSupportPageIds,
   });
   const duplicatePageIds = new Set(plans.flatMap((plan) => plan.duplicatePages.map((page) => page.id)));
-  const lowRiskArchiveCandidates = buildLowRiskArchiveCandidates([
-    ...researchPages.map((page) => ({ kind: "research" as const, page })),
-    ...skillPages.map((page) => ({ kind: "skill" as const, page })),
-    ...toolPages.map((page) => ({ kind: "tool" as const, page })),
-  ]).filter((candidate) => !duplicatePageIds.has(candidate.id));
+  const lowRiskArchiveCandidates = await buildLowRiskArchiveCandidates({
+    api,
+    pages: [
+      ...researchPages.map((page) => ({ kind: "research" as const, page })),
+      ...skillPages.map((page) => ({ kind: "skill" as const, page })),
+      ...toolPages.map((page) => ({ kind: "tool" as const, page })),
+    ],
+    dataSourceIdByKind,
+  }).then((candidates) =>
+    candidates.filter((candidate) => !duplicatePageIds.has(candidate.id)),
+  );
   const nearDuplicateCandidates = buildNearDuplicateCandidates({
     researchPages,
     skillPages,
@@ -258,6 +305,7 @@ export async function runSupportDatabaseHygienePass(
     plans,
     lowRiskArchiveCandidates,
     forcedNearDuplicateMergePlans,
+    dataSourceIdByKind,
   });
   let envelope: IrreversibleActionEnvelopeV1 | undefined;
   if (flags.live) {
@@ -284,6 +332,8 @@ export async function runSupportDatabaseHygienePass(
         "canonical_markdown_exact",
         "project_relations_exact",
         "duplicate_relations_absent",
+        "archive_preconditions_matched",
+        "relation_properties_complete",
       ],
     });
     claimEnvelope(envelope);
@@ -341,6 +391,8 @@ export async function runSupportDatabaseHygienePass(
         failure.markEffectAttempted();
         await applyHygieneEffect(api, effect);
       },
+      verifyPreArchiveEffect: (effect) =>
+        assertHygieneEffectPrecondition({ api, effect }),
       verifyState: (requireArchivesAbsent) =>
         readAndVerifySupportDatabaseHygieneState({
           api,
@@ -365,11 +417,19 @@ export async function runSupportDatabaseHygienePass(
             },
           ],
         }),
+      verifyArchivePrecondition: (effect) =>
+        assertHygieneArchivePrecondition({
+          api,
+          plan: approvalPlan,
+          effect,
+        }),
     }).catch((error: unknown) =>
       failure.fail(error, "hygiene_effect_or_readback"),
     );
     liveReadback = {
       ...finalReadback.checks,
+      archive_preconditions_matched: true,
+      relation_properties_complete: true,
       effect_count: approvalPlan.effect_count,
       verified_page_ids: approvalPlan.required_pages
         .map((page) => page.page_id)
@@ -492,21 +552,74 @@ export function supportDatabaseHygienePlan(input: {
   plans: SupportGroupPlan[];
   lowRiskArchiveCandidates: LowRiskArchiveCandidate[];
   forcedNearDuplicateMergePlans: ForcedNearDuplicateMergePlan[];
+  dataSourceIdByKind: Record<SupportKind, string>;
 }): SupportDatabaseHygieneApprovalPlan {
-  const projectById = new Map(input.projectPages.map((page) => [page.id, page]));
+  const pageById = new Map(
+    [
+      ...input.projectPages,
+      ...input.plans.flatMap((plan) => [
+        plan.canonicalPage,
+        ...plan.duplicatePages,
+      ]),
+      ...input.forcedNearDuplicateMergePlans.flatMap((plan) => [
+        plan.canonicalPage,
+        plan.duplicatePage,
+      ]),
+    ].map((page) => [page.id, page]),
+  );
   const relationState = new Map<string, string[]>();
   const preArchiveEffects: HygieneEffect[] = [];
   const archivePageIds = new Set<string>();
+  const archivePreconditions = new Map<string, HygieneArchivePrecondition>();
   const requiredMarkdown = new Map<string, string>();
+
+  const addArchiveTarget = (
+    page: DataSourcePageRef,
+    kind: SupportKind,
+    markdown: string,
+  ): void => {
+    const precondition = hygieneArchivePrecondition({
+      page,
+      parentDataSourceId: input.dataSourceIdByKind[kind],
+      markdown,
+    });
+    archivePageIds.add(page.id);
+    archivePreconditions.set(page.id, precondition);
+  };
 
   const addPropertiesEffect = (
     pageId: string,
     properties: Record<string, unknown>,
   ): void => {
+    const page = pageById.get(pageId);
+    if (!page) {
+      throw new AppError(
+        `Approved hygiene property target ${pageId} is missing from the rendered plan state`,
+      );
+    }
+    const relationPreconditions: Record<string, string[]> = {};
+    for (const [propertyName, value] of Object.entries(properties)) {
+      const requested = value as NotionPageProperty | undefined;
+      if (!Array.isArray(requested?.relation)) {
+        continue;
+      }
+      const stateKey = `${pageId}:${propertyName}`;
+      const currentIds =
+        relationState.get(stateKey) ??
+        relationIds(page.properties[propertyName]);
+      relationPreconditions[propertyName] = [...currentIds].sort();
+      relationState.set(
+        stateKey,
+        requested.relation.map((entry) => normalizeNotionId(entry.id)),
+      );
+    }
     preArchiveEffects.push({
       kind: "update_properties",
       page_id: pageId,
       properties: serializableRecord(properties),
+      ...(Object.keys(relationPreconditions).length > 0
+        ? { relation_preconditions: relationPreconditions }
+        : {}),
     });
   };
 
@@ -516,7 +629,7 @@ export function supportDatabaseHygienePlan(input: {
     duplicateIds: Set<string>;
     canonicalId: string;
   }): void => {
-    const projectPage = projectById.get(input.projectId);
+    const projectPage = pageById.get(input.projectId);
     if (!projectPage) {
       throw new AppError(
         `Approved hygiene project target ${input.projectId} is missing from the rendered plan state`,
@@ -534,7 +647,6 @@ export function supportDatabaseHygienePlan(input: {
       addPropertiesEffect(input.projectId, {
         [input.propertyName]: relationValue(nextIds),
       });
-      relationState.set(stateKey, nextIds);
     }
   };
 
@@ -567,7 +679,11 @@ export function supportDatabaseHygienePlan(input: {
       });
     }
     for (const duplicatePage of plan.duplicatePages) {
-      archivePageIds.add(duplicatePage.id);
+      addArchiveTarget(
+        duplicatePage,
+        plan.kind,
+        plan.duplicateMarkdowns.get(duplicatePage.id) ?? "",
+      );
     }
   }
 
@@ -598,16 +714,41 @@ export function supportDatabaseHygienePlan(input: {
         canonicalId: plan.canonicalPage.id,
       });
     }
-    archivePageIds.add(plan.duplicatePage.id);
+    addArchiveTarget(
+      plan.duplicatePage,
+      plan.kind,
+      plan.duplicateOriginalMarkdown,
+    );
   }
 
   for (const candidate of input.lowRiskArchiveCandidates) {
+    if (
+      !candidate.precondition ||
+      candidate.precondition.page_id !== candidate.id
+    ) {
+      throw new AppError(
+        `Archive target ${candidate.id} has no approved provider prestate`,
+      );
+    }
     archivePageIds.add(candidate.id);
+    archivePreconditions.set(candidate.id, candidate.precondition);
   }
 
   const archiveEffects: HygieneEffect[] = [...archivePageIds]
     .sort()
     .map((pageId) => ({ kind: "archive_page", page_id: pageId }));
+  if (
+    archivePreconditions.size !== archiveEffects.length ||
+    archiveEffects.some(
+      (effect) =>
+        effect.kind !== "archive_page" ||
+        !archivePreconditions.has(effect.page_id),
+    )
+  ) {
+    throw new AppError(
+      "Every Notion hygiene archive target must have an approved provider prestate",
+    );
+  }
   const requiredPagesById = new Map<string, HygieneRequiredPageState>();
   for (const effect of preArchiveEffects) {
     if (effect.kind !== "update_properties") {
@@ -647,11 +788,161 @@ export function supportDatabaseHygienePlan(input: {
     required_pages: [...requiredPagesById.values()].sort((left, right) =>
       left.page_id.localeCompare(right.page_id),
     ),
+    archive_preconditions: [...archivePreconditions.values()].sort(
+      (left, right) => left.page_id.localeCompare(right.page_id),
+    ),
   };
 }
 
 function serializableRecord(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(canonicalJson(value)) as Record<string, unknown>;
+}
+
+export function hygieneArchivePrecondition(input: {
+  page: DataSourcePageRef;
+  parentDataSourceId: string;
+  markdown: string;
+}): HygieneArchivePrecondition {
+  if (!input.page.lastEditedTime) {
+    throw new AppError(
+      `Archive target ${input.page.id} has no provider last-edited marker`,
+    );
+  }
+  const parentDataSourceId =
+    maybeNormalizeNotionId(input.parentDataSourceId) ??
+    input.parentDataSourceId.trim();
+  if (!parentDataSourceId) {
+    throw new AppError(
+      `Archive target ${input.page.id} has no parent data-source identity`,
+    );
+  }
+  return {
+    page_id: input.page.id,
+    parent_data_source_id: parentDataSourceId,
+    last_edited_time: input.page.lastEditedTime,
+    state_digest: planDigest({
+      page_id: input.page.id,
+      parent_data_source_id: parentDataSourceId,
+      last_edited_time: input.page.lastEditedTime,
+      title: input.page.title,
+      properties: Object.fromEntries(
+        Object.entries(input.page.properties).map(([name, property]) => [
+          name,
+          propertySemanticValue(property),
+        ]),
+      ),
+      markdown: normalizeMarkdown(input.markdown),
+    }),
+  };
+}
+
+interface HygieneArchiveReadApi {
+  retrievePageState(pageId: string): Promise<DirectNotionPageState>;
+  retrievePagePropertyItems(input: {
+    pageId: string;
+    propertyId: string;
+    startCursor?: string;
+  }): Promise<{
+    relationIds: string[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }>;
+  readPageMarkdown(pageId: string): ReturnType<
+    DirectNotionClient["readPageMarkdown"]
+  >;
+}
+
+export async function assertHygieneArchivePrecondition(input: {
+  api: HygieneArchiveReadApi;
+  plan: SupportDatabaseHygieneApprovalPlan;
+  effect: Extract<HygieneEffect, { kind: "archive_page" }>;
+}): Promise<void> {
+  const expected = input.plan.archive_preconditions.find(
+    (precondition) => precondition.page_id === input.effect.page_id,
+  );
+  if (!expected) {
+    throw new AppError(
+      `Archive target ${input.effect.page_id} has no approved provider prestate`,
+    );
+  }
+  const providerPage = await input.api.retrievePageState(input.effect.page_id);
+  const [page] = await hydrateCompleteRelationProperties(input.api, [
+    dataSourcePageFromProviderState(providerPage),
+  ]);
+  if (!page) {
+    throw new AppError(
+      `Archive target ${input.effect.page_id} could not be read back`,
+    );
+  }
+  const markdown = await input.api.readPageMarkdown(input.effect.page_id);
+  requireCompleteMarkdownReadback(input.effect.page_id, markdown);
+  const observed = hygieneArchivePrecondition({
+    page,
+    parentDataSourceId: providerPage.parentDataSourceId ?? "",
+    markdown: markdown.markdown,
+  });
+  if (canonicalJson(observed) !== canonicalJson(expected)) {
+    throw new AppError(
+      `Archive target ${input.effect.page_id} changed after approval`,
+    );
+  }
+}
+
+export async function assertHygieneEffectPrecondition(input: {
+  api: HygieneArchiveReadApi;
+  effect: HygieneEffect;
+}): Promise<void> {
+  if (
+    input.effect.kind !== "update_properties" ||
+    !input.effect.relation_preconditions
+  ) {
+    return;
+  }
+  const providerPage = await input.api.retrievePageState(input.effect.page_id);
+  const [page] = await hydrateCompleteRelationProperties(input.api, [
+    dataSourcePageFromProviderState(providerPage),
+  ]);
+  if (!page) {
+    throw new AppError(
+      `Property target ${input.effect.page_id} could not be read back`,
+    );
+  }
+  for (const [propertyName, expectedIds] of Object.entries(
+    input.effect.relation_preconditions,
+  )) {
+    const observedIds = relationIds(page.properties[propertyName]).sort();
+    if (canonicalJson(observedIds) !== canonicalJson([...expectedIds].sort())) {
+      throw new AppError(
+        `Relation ${input.effect.page_id}:${propertyName} changed after approval`,
+      );
+    }
+  }
+}
+
+function dataSourcePageFromProviderState(
+  page: DirectNotionPageState,
+): DataSourcePageRef {
+  return {
+    id: page.id,
+    url: page.url,
+    title: page.title ?? "",
+    lastEditedTime: page.lastEditedTime,
+    properties: page.properties as Record<string, NotionPageProperty>,
+  };
+}
+
+function requireCompleteMarkdownReadback(
+  pageId: string,
+  readback: {
+    truncated: boolean;
+    unknownBlockIds: string[];
+  },
+): void {
+  if (readback.truncated || readback.unknownBlockIds.length > 0) {
+    throw new AppError(
+      `Notion hygiene markdown readback for ${pageId} is incomplete`,
+    );
+  }
 }
 
 export function verifySupportDatabaseHygieneState(input: {
@@ -719,11 +1010,16 @@ export function verifySupportDatabaseHygieneState(input: {
 export async function executeSupportDatabaseHygieneEffects(input: {
   plan: SupportDatabaseHygieneApprovalPlan;
   applyEffect: (effect: HygieneEffect) => Promise<void>;
+  verifyPreArchiveEffect: (effect: HygieneEffect) => Promise<void>;
+  verifyArchivePrecondition: (
+    effect: Extract<HygieneEffect, { kind: "archive_page" }>,
+  ) => Promise<void>;
   verifyState: (
     requireArchivesAbsent: boolean,
   ) => Promise<HygieneReadbackResult>;
 }): Promise<HygieneReadbackResult> {
   for (const effect of input.plan.pre_archive_effects) {
+    await input.verifyPreArchiveEffect(effect);
     await input.applyEffect(effect);
   }
   const preArchive = await input.verifyState(false);
@@ -733,6 +1029,10 @@ export async function executeSupportDatabaseHygieneEffects(input: {
     );
   }
   for (const effect of input.plan.archive_effects) {
+    if (effect.kind !== "archive_page") {
+      throw new AppError("Notion hygiene archive phase contains a non-archive effect");
+    }
+    await input.verifyArchivePrecondition(effect);
     await input.applyEffect(effect);
   }
   const finalReadback = await input.verifyState(true);
@@ -775,7 +1075,11 @@ async function readAndVerifySupportDatabaseHygieneState(input: {
 }): Promise<HygieneReadbackResult> {
   const pageGroups = await Promise.all(
     input.sources.map((source) =>
-      fetchAllPages(input.api, source.id, source.titlePropertyName),
+      fetchCompleteHygienePages(
+        input.api,
+        source.id,
+        source.titlePropertyName,
+      ),
     ),
   );
   const markdownByPageId = new Map<string, string>();
@@ -784,11 +1088,7 @@ async function readAndVerifySupportDatabaseHygieneState(input: {
       continue;
     }
     const readback = await input.api.readPageMarkdown(expected.page_id);
-    if (readback.truncated || readback.unknownBlockIds.length > 0) {
-      throw new AppError(
-        `Notion hygiene markdown readback for ${expected.page_id} is incomplete`,
-      );
-    }
+    requireCompleteMarkdownReadback(expected.page_id, readback);
     markdownByPageId.set(expected.page_id, readback.markdown);
   }
   return verifySupportDatabaseHygieneState({
@@ -799,6 +1099,17 @@ async function readAndVerifySupportDatabaseHygieneState(input: {
   });
 }
 
+async function fetchCompleteHygienePages(
+  api: DirectNotionClient,
+  dataSourceId: string,
+  titlePropertyName: string,
+): Promise<DataSourcePageRef[]> {
+  return hydrateCompleteRelationProperties(
+    api,
+    await fetchAllPages(api, dataSourceId, titlePropertyName),
+  );
+}
+
 function propertySemanticValue(value: unknown): unknown {
   if (value === null || typeof value !== "object") {
     return value;
@@ -806,7 +1117,9 @@ function propertySemanticValue(value: unknown): unknown {
   const property = value as NotionPageProperty & Record<string, unknown>;
   if (Array.isArray(property.relation)) {
     return {
-      relation: property.relation.map((entry) => entry.id).sort(),
+      relation: property.relation
+        .map((entry) => normalizeNotionId(entry.id))
+        .sort(),
     };
   }
   if ("date" in property) {
@@ -912,6 +1225,7 @@ async function buildPlansForKind(input: {
     const markdownByPageId = new Map<string, string>();
     for (const page of group) {
       const markdown = await input.api.readPageMarkdown(page.id);
+      requireCompleteMarkdownReadback(page.id, markdown);
       markdownByPageId.set(page.id, markdown.markdown.trim());
     }
 
@@ -980,6 +1294,8 @@ async function buildForcedNearDuplicateMergePlans(input: {
       input.api.readPageMarkdown(canonicalPage.id),
       input.api.readPageMarkdown(duplicatePage.id),
     ]);
+    requireCompleteMarkdownReadback(canonicalPage.id, canonicalMarkdown);
+    requireCompleteMarkdownReadback(duplicatePage.id, duplicateMarkdown);
     const mergedProjectIds = uniqueIds([
       ...relationIds(canonicalPage.properties[supportProjectProperty(rule.kind)]),
       ...relationIds(duplicatePage.properties[supportProjectProperty(rule.kind)]),
@@ -999,6 +1315,7 @@ async function buildForcedNearDuplicateMergePlans(input: {
         canonicalMarkdown: canonicalMarkdown.markdown.trim(),
         duplicateMarkdown: duplicateMarkdown.markdown.trim(),
       }),
+      duplicateOriginalMarkdown: duplicateMarkdown.markdown.trim(),
       mergedProjectIds,
       projectIdsNeedingRewrite,
     });
@@ -1023,21 +1340,34 @@ function findDuplicateGroups(pages: DataSourcePageRef[]): DataSourcePageRef[][] 
   return Array.from(groupsByTitle.values()).filter((group) => group.length > 1);
 }
 
-function buildLowRiskArchiveCandidates(
-  pages: Array<{ kind: SupportKind; page: DataSourcePageRef }>,
-): LowRiskArchiveCandidate[] {
-  return pages
-    .filter(({ kind, page }) => {
+async function buildLowRiskArchiveCandidates(input: {
+  api: DirectNotionClient;
+  pages: Array<{ kind: SupportKind; page: DataSourcePageRef }>;
+  dataSourceIdByKind: Record<SupportKind, string>;
+}): Promise<LowRiskArchiveCandidate[]> {
+  return Promise.all(
+    input.pages
+      .filter(({ kind, page }) => {
       if (!/\bsandbox\b/i.test(page.title)) {
         return false;
       }
       return relationIds(page.properties[supportProjectProperty(kind)]).length === 0;
-    })
-    .map(({ kind, page }) => ({
-      kind,
-      id: page.id,
-      title: page.title,
-    }));
+      })
+      .map(async ({ kind, page }) => {
+        const markdown = await input.api.readPageMarkdown(page.id);
+        requireCompleteMarkdownReadback(page.id, markdown);
+        return {
+          kind,
+          id: page.id,
+          title: page.title,
+          precondition: hygieneArchivePrecondition({
+            page,
+            parentDataSourceId: input.dataSourceIdByKind[kind],
+            markdown: markdown.markdown,
+          }),
+        };
+      }),
+  );
 }
 
 function buildNearDuplicateCandidates(input: {

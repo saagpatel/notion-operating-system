@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -30,15 +31,25 @@ import {
 } from "../src/internal/notion-maintenance/schema-migrate-probe.js";
 import {
   assertMigrationPropertyIdentity,
+  authorizeSchemaMigration,
   patchPropertiesWithIdentityCheck,
   schemaMigrationPlan,
+  schemaMigrationTargets,
+  verifySchemaMigrationReadback,
 } from "../src/internal/notion-maintenance/schema-migrate.js";
 import {
+  assertHygieneArchivePrecondition,
+  assertHygieneEffectPrecondition,
   executeSupportDatabaseHygieneEffects,
+  hygieneArchivePrecondition,
   supportDatabaseHygienePlan,
   verifySupportDatabaseHygieneState,
 } from "../src/internal/notion-maintenance/support-database-hygiene-pass.js";
-import type { DataSourcePageRef } from "../src/notion/local-portfolio-control-tower-live.js";
+import {
+  hydrateCompleteRelationProperties,
+  type DataSourcePageRef,
+} from "../src/notion/local-portfolio-control-tower-live.js";
+import { DirectNotionClient } from "../src/notion/direct-notion-client.js";
 import type { PropertySchema } from "../src/types.js";
 
 function envelopeFor(input: {
@@ -50,6 +61,7 @@ function envelopeFor(input: {
   effects: number;
   deletions?: number;
   readback?: string[];
+  providerKey?: string;
 }): IrreversibleActionEnvelopeV1 {
   const now = Date.now();
   return {
@@ -67,7 +79,7 @@ function envelopeFor(input: {
     issued_at: new Date(now - 1_000).toISOString(),
     expires_at: new Date(now + 120_000).toISOString(),
     one_shot: true,
-    provider_idempotency_key: `fixture-${input.actionId}`,
+    provider_idempotency_key: input.providerKey ?? `fixture-${input.actionId}`,
     preconditions: { fixture: true },
     required_readback: input.readback ?? ["provider_state"],
     receipt_requirements: {
@@ -89,9 +101,75 @@ function writeEnvelope(directory: string, envelope: IrreversibleActionEnvelopeV1
 afterEach(() => {
   delete process.env.IRREVERSIBLE_ACTION_STATE_DIR;
   delete process.env.IRREVERSIBLE_ACTION_RECEIPT_DIR;
+  vi.unstubAllGlobals();
 });
 
 describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
+  test("action ids are opaque identifiers, never authority path fragments", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
+    const claims = path.join(directory, "claims");
+    const receipts = path.join(directory, "receipts");
+    const plan = { fixture: "action-id-containment" };
+    const invalidActionIds = [
+      "../escaped",
+      "..\\escaped",
+      "safe/../../escaped",
+      "safe:claim",
+      ".hidden",
+      "évidence",
+      "a".repeat(129),
+    ];
+    for (const actionId of invalidActionIds) {
+      const candidate = envelopeFor({
+        actionId,
+        actionKind: "notion.validation_fixture",
+        targets: { fixture: "target" },
+        sourceRevision: "fixture-source-revision",
+        plan,
+        effects: 0,
+        readback: ["fixture_containment"],
+      });
+      expect(() =>
+        validateEnvelope({
+          envelope: candidate,
+          actionKind: candidate.action_kind,
+          canonicalTargets: candidate.canonical_targets,
+          sourceRevision: candidate.source_revision,
+          plan,
+          effectCount: 0,
+          requiredReadback: candidate.required_readback,
+        }),
+      ).toThrow("approval action_id must be an opaque identifier");
+    }
+
+    const envelope = envelopeFor({
+      actionId: "../escaped",
+      actionKind: "notion.validation_fixture",
+      targets: { fixture: "target" },
+      sourceRevision: "fixture-source-revision",
+      plan,
+      effects: 0,
+      readback: ["fixture_containment"],
+    });
+    expect(() => claimEnvelope(envelope, claims)).toThrow(
+      "approval action_id must be an opaque identifier",
+    );
+    expect(() =>
+      emitReceipt({
+        envelope,
+        target: envelope.canonical_targets,
+        providerReference: "fixture:none",
+        readbackResult: { fixture_containment: true },
+        terminalOutcome: "succeeded",
+        receiptDir: receipts,
+      }),
+    ).toThrow("approval action_id must be an opaque identifier");
+    expect(existsSync(claims)).toBe(false);
+    expect(existsSync(receipts)).toBe(false);
+    expect(existsSync(path.join(directory, "escaped.claim.json"))).toBe(false);
+    expect(existsSync(path.join(directory, "escaped.receipt.json"))).toBe(false);
+  });
+
   test("changed plan cannot consume an older approval", () => {
     const approvedPlan = { data_source_id: "db-1", delete: ["old"] };
     const envelope = envelopeFor({
@@ -202,7 +280,7 @@ describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
         envelope,
         target: { data_source_id: "db-1" },
         providerReference: "fixture:provider",
-        readbackResult: { exact: true },
+        readbackResult: { provider_state: true },
         terminalOutcome: "succeeded",
         receiptDir: receipts,
       }),
@@ -232,11 +310,140 @@ describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
         envelope,
         target: { data_source_id: "db-1" },
         providerReference: "fixture:provider",
-        readbackResult: { exact: true },
+        readbackResult: { provider_state: true },
         terminalOutcome: "succeeded",
         receiptDir: receipts,
       }),
     ).toThrow("non-symlink directory");
+  });
+
+  test("provider operation claim blocks a fresh action after outcome_unknown", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
+    const claims = path.join(directory, "claims");
+    const receipts = path.join(directory, "receipts");
+    const providerKey = "fixture-shared-provider-operation";
+    const plan = { data_source_id: "db-1", effects: [{ kind: "archive" }] };
+    const first = envelopeFor({
+      actionId: "fixture-provider-operation-first",
+      actionKind: "notion.support_database_hygiene",
+      targets: { data_source_id: "db-1" },
+      sourceRevision: "hygiene:v2",
+      plan,
+      effects: 1,
+      deletions: 1,
+      providerKey,
+    });
+    const replacement = envelopeFor({
+      actionId: "fixture-provider-operation-replacement",
+      actionKind: "notion.support_database_hygiene",
+      targets: { data_source_id: "db-1" },
+      sourceRevision: "hygiene:v2",
+      plan,
+      effects: 1,
+      deletions: 1,
+      providerKey,
+    });
+
+    claimEnvelope(first, claims);
+    const failure = createClaimedActionFailureRecorder({
+      envelope: first,
+      target: first.canonical_targets,
+      providerReference: `fixture:notion:${providerKey}`,
+      receiptDir: receipts,
+    });
+    failure.markEffectAttempted();
+    expect(() =>
+      failure.fail(new Error("fixture ambiguous result"), "provider_effect"),
+    ).toThrow("fixture ambiguous result");
+
+    expect(() => claimEnvelope(replacement, claims)).toThrow(
+      "provider operation is already claimed; reconcile before retry",
+    );
+    expect(
+      JSON.parse(
+        readFileSync(
+          path.join(receipts, `${first.action_id}.receipt.json`),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({
+      provider_idempotency_key_digest: expect.stringMatching(
+        /^sha256:[0-9a-f]{64}$/,
+      ),
+      required_readback: ["provider_state"],
+      terminal_outcome: "outcome_unknown",
+    });
+  });
+
+  test("successful receipt requires every approved readback key to be true", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
+    const receipts = path.join(directory, "receipts");
+    const envelope = envelopeFor({
+      actionId: "fixture-success-readback-contract",
+      actionKind: "notion.schema_probe",
+      targets: { data_source_id: "db-1" },
+      sourceRevision: "schema-probe:v2",
+      plan: { data_source_id: "db-1" },
+      effects: 1,
+      readback: ["property_absent_after_cleanup"],
+    });
+    const receiptInput = {
+      envelope,
+      target: envelope.canonical_targets,
+      providerReference: "fixture:notion:property",
+      terminalOutcome: "succeeded" as const,
+      receiptDir: receipts,
+    };
+
+    expect(() =>
+      emitReceipt({
+        ...receiptInput,
+        readbackResult: { property_absent: true },
+      }),
+    ).toThrow(
+      "successful receipt does not satisfy required readback: property_absent_after_cleanup",
+    );
+    expect(() =>
+      emitReceipt({
+        ...receiptInput,
+        readbackResult: { property_absent_after_cleanup: false },
+      }),
+    ).toThrow(
+      "successful receipt does not satisfy required readback: property_absent_after_cleanup",
+    );
+    expect(() =>
+      emitReceipt({
+        ...receiptInput,
+        readbackResult: undefined,
+      }),
+    ).toThrow("receipt readback_result must be an object");
+    expect(() =>
+      emitReceipt({
+        ...receiptInput,
+        target: { data_source_id: "db-2" },
+        readbackResult: { property_absent_after_cleanup: true },
+      }),
+    ).toThrow("receipt target does not match approved canonical targets");
+    expect(existsSync(receipts)).toBe(false);
+
+    const receiptPath = emitReceipt({
+      ...receiptInput,
+      readbackResult: {
+        property_absent_after_cleanup: true,
+        provider_property_id: "fixture-property-id",
+      },
+    });
+    expect(JSON.parse(readFileSync(receiptPath, "utf8"))).toMatchObject({
+      provider_idempotency_key_digest: expect.stringMatching(
+        /^sha256:[0-9a-f]{64}$/,
+      ),
+      required_readback: ["property_absent_after_cleanup"],
+      terminal_outcome: "succeeded",
+      readback_result: {
+        property_absent_after_cleanup: true,
+        provider_property_id: "fixture-property-id",
+      },
+    });
   });
 
   test("default probe never constructs a network client", async () => {
@@ -355,6 +562,59 @@ describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
     });
   });
 
+  test("probe claims one-shot authority before mutable provider preflight", async () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
+    const claimDirectory = path.join(directory, "claims");
+    const receiptDirectory = path.join(directory, "receipts");
+    const actionId = "fixture-notion-probe-preflight-0001";
+    const plan = probePlan("db-1", actionId);
+    const envelope = envelopeFor({
+      actionId,
+      actionKind: "notion.schema_probe",
+      targets: {
+        data_source_id: "db-1",
+        property_name: plan.property_name,
+      },
+      sourceRevision: "fixture-source-revision",
+      plan,
+      effects: 2,
+      deletions: 1,
+      readback: ["property_absent_after_cleanup"],
+    });
+    const approvalFile = writeEnvelope(directory, envelope);
+    const request = vi.fn().mockResolvedValue({
+      properties: { [plan.property_name]: { id: "preexisting-property-id" } },
+    });
+    const sdk = { request } as unknown as Client;
+    const input = {
+      sdk,
+      dataSourceId: "db-1",
+      approvalFile,
+      sourceRevision: "fixture-source-revision",
+      claimStateDir: claimDirectory,
+      receiptDir: receiptDirectory,
+    };
+
+    await expect(runLiveProbe(input)).rejects.toThrow(
+      "nonce-owned probe property already exists",
+    );
+    const receipt = JSON.parse(
+      readFileSync(path.join(receiptDirectory, `${actionId}.receipt.json`), "utf8"),
+    );
+    expect(receipt).toMatchObject({
+      action_id: actionId,
+      terminal_outcome: "failed_before_effect",
+      readback_result: {
+        effect_attempted: false,
+        effect_count_attempted: 0,
+        failure_phase: "pre_effect_property_absence",
+      },
+    });
+
+    await expect(runLiveProbe(input)).rejects.toThrow("already claimed");
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   test("successful live probe emits a stable readback receipt", async () => {
     const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
     const receiptDirectory = path.join(directory, "receipts");
@@ -410,7 +670,7 @@ describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
       },
       artifact_digest: planDigest(plan),
       provider_reference: "notion:property:created-property-id",
-      readback_result: { property_absent: true },
+      readback_result: { property_absent_after_cleanup: true },
       terminal_outcome: "succeeded",
     });
   });
@@ -447,7 +707,13 @@ function page(
   title: string,
   properties: DataSourcePageRef["properties"],
 ): DataSourcePageRef {
-  return { id, title, url: `https://notion.test/${id}`, properties };
+  return {
+    id,
+    title,
+    url: `https://notion.test/${id}`,
+    lastEditedTime: "2026-07-17T12:00:00.000Z",
+    properties,
+  };
 }
 
 describe("exact Notion migration property authority", () => {
@@ -480,8 +746,140 @@ describe("exact Notion migration property authority", () => {
     expect(plan.delete_properties.every((property) => property.provider_id)).toBe(true);
     expect(plan.required_readback).toEqual([
       "deleted_provider_ids_absent",
-      "rollup_provider_ids_present",
+      "rollup_provider_semantics_exact",
     ]);
+  });
+
+  test("the stronger migration plan cannot consume an older semantic approval", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
+    const currentPlan = schemaMigrationPlan("db-1", migrationSchema());
+    const oldPlan = {
+      ...currentPlan,
+      create_rollups: currentPlan.create_rollups.map(
+        ({ function: _function, ...definition }) => definition,
+      ),
+      required_readback: [
+        "deleted_provider_ids_absent",
+        "rollup_provider_ids_present",
+      ],
+    };
+    const oldEnvelope = envelopeFor({
+      actionId: "fixture-old-rollup-semantic-approval",
+      actionKind: "notion.schema_migrate",
+      targets: schemaMigrationTargets(currentPlan),
+      sourceRevision: "fixture-source-revision",
+      plan: oldPlan,
+      effects: 6,
+      deletions: 8,
+      readback: oldPlan.required_readback,
+    });
+
+    expect(() =>
+      authorizeSchemaMigration({
+        approvalFile: writeEnvelope(directory, oldEnvelope),
+        dataSourceId: "db-1",
+        plan: currentPlan,
+        sourceRevision: "fixture-source-revision",
+      }),
+    ).toThrow("approval plan digest mismatch");
+  });
+
+  test("wrong rollup semantics cannot satisfy terminal migration readback", () => {
+    const plan = schemaMigrationPlan("db-1", migrationSchema());
+    const properties = Object.fromEntries(
+      plan.create_rollups.map((definition, index) => [
+        definition.propertyName,
+        {
+          id: `created-rollup-${index + 1}`,
+          type: "rollup",
+          rollup: {
+            relation_property_id: `relation-${index + 1}`,
+            relation_property_name:
+              index === 0 ? "Tool Stack Records" : definition.relationPropertyName,
+            rollup_property_id: `source-${index + 1}`,
+            rollup_property_name: definition.rollupPropertyName,
+            function: "count",
+          },
+        },
+      ]),
+    );
+
+    expect(() => verifySchemaMigrationReadback(plan, properties)).toThrow(
+      'rollup semantics changed for "Build Session Count"',
+    );
+  });
+
+  test("exact rollup semantics produce provider-specific terminal evidence", () => {
+    const plan = schemaMigrationPlan("db-1", migrationSchema());
+    const properties = Object.fromEntries(
+      plan.create_rollups.map((definition, index) => [
+        definition.propertyName,
+        {
+          id: `created-rollup-${index + 1}`,
+          type: "rollup",
+          rollup: {
+            relation_property_id: `relation-${index + 1}`,
+            relation_property_name: definition.relationPropertyName,
+            rollup_property_id: `source-${index + 1}`,
+            rollup_property_name: definition.rollupPropertyName,
+            function: definition.function,
+          },
+        },
+      ]),
+    );
+
+    const readback = verifySchemaMigrationReadback(plan, properties);
+    expect(readback).toMatchObject({
+      deleted_provider_ids_absent: true,
+      rollup_provider_semantics_exact: true,
+    });
+    expect(readback.rollup_provider_properties).toHaveLength(4);
+    expect(readback.rollup_provider_properties[0]).toEqual({
+      name: "Build Session Count",
+      provider_id: "created-rollup-1",
+      type: "rollup",
+      relation_property_id: "relation-1",
+      relation_property_name: "Build Sessions",
+      rollup_property_id: "source-1",
+      rollup_property_name: "Session Title",
+      function: "count",
+    });
+
+    const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
+    const envelope = envelopeFor({
+      actionId: "fixture-exact-rollup-semantic-receipt",
+      actionKind: "notion.schema_migrate",
+      targets: schemaMigrationTargets(plan),
+      sourceRevision: "fixture-source-revision",
+      plan,
+      effects: 6,
+      deletions: 8,
+      readback: plan.required_readback,
+    });
+    const receiptPath = emitReceipt({
+      envelope,
+      target: schemaMigrationTargets(plan),
+      providerReference: "notion:data_source:db-1",
+      readbackResult: readback,
+      terminalOutcome: "succeeded",
+      receiptDir: path.join(directory, "receipts"),
+    });
+    expect(JSON.parse(readFileSync(receiptPath, "utf8"))).toMatchObject({
+      action_id: envelope.action_id,
+      target: schemaMigrationTargets(plan),
+      artifact_digest: planDigest(plan),
+      provider_reference: "notion:data_source:db-1",
+      required_readback: [
+        "deleted_provider_ids_absent",
+        "rollup_provider_semantics_exact",
+      ],
+      readback_result: {
+        deleted_provider_ids_absent: true,
+        rollup_provider_semantics_exact: true,
+        rollup_provider_properties: readback.rollup_provider_properties,
+      },
+      terminal_outcome: "succeeded",
+    });
   });
 
   test("changed provider identity suppresses the destructive schema patch", async () => {
@@ -601,6 +999,11 @@ describe("exact Notion hygiene effects and readback", () => {
       ],
       lowRiskArchiveCandidates: [],
       forcedNearDuplicateMergePlans: [],
+      dataSourceIdByKind: {
+        research: "research-db",
+        skill: "skills-db",
+        tool: "tools-db",
+      },
     });
     return { canonical, duplicate, project, plan };
   }
@@ -615,6 +1018,465 @@ describe("exact Notion hygiene effects and readback", () => {
     expect(approved.archive_effects).toHaveLength(1);
     expect(approved.effect_count).toBe(
       approved.pre_archive_effects.length + approved.archive_effects.length,
+    );
+  });
+
+  test("archive approval binds complete reviewed provider prestate", () => {
+    const archiveTarget = page(
+      "77777777-7777-4777-8777-777777777777",
+      "Sparse sandbox note",
+      {
+        "Linked Local Projects": {
+          id: "provider-relation",
+          type: "relation",
+          relation: [],
+        },
+        Classification: {
+          type: "select",
+          select: { name: "temporary" },
+        },
+      },
+    );
+    const renderPlan = (markdown: string, classification: string) =>
+      supportDatabaseHygienePlan({
+        today: "2026-07-17",
+        dataSourceIds: ["tools-db"],
+        projectPages: [],
+        plans: [],
+        lowRiskArchiveCandidates: [
+          {
+            kind: "tool",
+            id: archiveTarget.id,
+            title: archiveTarget.title,
+            precondition: hygieneArchivePrecondition({
+              page: {
+                ...archiveTarget,
+                properties: {
+                  ...archiveTarget.properties,
+                  Classification: {
+                    type: "select",
+                    select: { name: classification },
+                  },
+                },
+              },
+              parentDataSourceId: "tools-db",
+              markdown,
+            }),
+          },
+        ],
+        forcedNearDuplicateMergePlans: [],
+        dataSourceIdByKind: {
+          research: "research-db",
+          skill: "skills-db",
+          tool: "tools-db",
+        },
+      });
+
+    const approved = renderPlan("# Sparse disposable note", "temporary");
+    const changed = renderPlan(
+      "# Incident evidence\n\nPreserve this record.",
+      "evidence",
+    );
+
+    expect(approved.archive_preconditions).toHaveLength(1);
+    expect(approved.archive_preconditions[0]).toMatchObject({
+      page_id: archiveTarget.id,
+      parent_data_source_id: "tools-db",
+      last_edited_time: archiveTarget.lastEditedTime,
+      state_digest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+    });
+    expect(planDigest(changed)).not.toBe(planDigest(approved));
+  });
+
+  test("changed provider prestate is denied immediately before archive", async () => {
+    const archiveTarget = page(
+      "77777777-7777-4777-8777-777777777777",
+      "Sparse sandbox note",
+      {
+        "Linked Local Projects": {
+          id: "provider-relation",
+          type: "relation",
+          relation: [],
+        },
+        Classification: {
+          type: "select",
+          select: { name: "temporary" },
+        },
+      },
+    );
+    const plan = supportDatabaseHygienePlan({
+      today: "2026-07-17",
+      dataSourceIds: ["tools-db"],
+      projectPages: [],
+      plans: [],
+      lowRiskArchiveCandidates: [
+        {
+          kind: "tool",
+          id: archiveTarget.id,
+          title: archiveTarget.title,
+          precondition: hygieneArchivePrecondition({
+            page: archiveTarget,
+            parentDataSourceId: "tools-db",
+            markdown: "# Sparse disposable note",
+          }),
+        },
+      ],
+      forcedNearDuplicateMergePlans: [],
+      dataSourceIdByKind: {
+        research: "research-db",
+        skill: "skills-db",
+        tool: "tools-db",
+      },
+    });
+    const applied: string[] = [];
+    const changedProperties = {
+      ...archiveTarget.properties,
+      Classification: {
+        type: "select",
+        select: { name: "evidence" },
+      },
+      "Legal Hold": { type: "checkbox", checkbox: true },
+    };
+    const api = {
+      retrievePageState: vi.fn().mockResolvedValue({
+        id: archiveTarget.id,
+        url: archiveTarget.url,
+        title: archiveTarget.title,
+        parentDataSourceId: "tools-db",
+        lastEditedTime: "2026-07-17T12:01:00.000Z",
+        properties: changedProperties,
+      }),
+      retrievePagePropertyItems: vi.fn(),
+      readPageMarkdown: vi.fn().mockResolvedValue({
+        markdown: "# Incident evidence\n\nPreserve this record.",
+        raw: {},
+        truncated: false,
+        unknownBlockIds: [],
+      }),
+    };
+
+    await expect(
+      executeSupportDatabaseHygieneEffects({
+        plan,
+        applyEffect: async (effect) => {
+          applied.push(`${effect.kind}:${effect.page_id}`);
+        },
+        verifyPreArchiveEffect: async () => {},
+        verifyArchivePrecondition: (effect) =>
+          assertHygieneArchivePrecondition({ api, plan, effect }),
+        verifyState: async () => ({
+          ok: true,
+          checks: {
+            archive_ids_absent: true,
+            canonical_properties_exact: true,
+            canonical_markdown_exact: true,
+            project_relations_exact: true,
+            duplicate_relations_absent: true,
+          },
+        }),
+      }),
+    ).rejects.toThrow("changed after approval");
+    expect(applied).toEqual([]);
+
+    const approvedApi = {
+      retrievePageState: vi.fn().mockResolvedValue({
+        id: archiveTarget.id,
+        url: archiveTarget.url,
+        title: archiveTarget.title,
+        parentDataSourceId: "tools-db",
+        lastEditedTime: archiveTarget.lastEditedTime,
+        properties: archiveTarget.properties,
+      }),
+      retrievePagePropertyItems: vi.fn(),
+      readPageMarkdown: vi.fn().mockResolvedValue({
+        markdown: "# Sparse disposable note",
+        raw: {},
+        truncated: false,
+        unknownBlockIds: [],
+      }),
+    };
+    await expect(
+      executeSupportDatabaseHygieneEffects({
+        plan,
+        applyEffect: async (effect) => {
+          applied.push(`${effect.kind}:${effect.page_id}`);
+        },
+        verifyPreArchiveEffect: async () => {},
+        verifyArchivePrecondition: (effect) =>
+          assertHygieneArchivePrecondition({
+            api: approvedApi,
+            plan,
+            effect,
+          }),
+        verifyState: async () => ({
+          ok: true,
+          checks: {
+            archive_ids_absent: true,
+            canonical_properties_exact: true,
+            canonical_markdown_exact: true,
+            project_relations_exact: true,
+            duplicate_relations_absent: true,
+          },
+        }),
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(applied).toEqual([`archive_page:${archiveTarget.id}`]);
+  });
+
+  test("paginated relation hydration preserves hidden survivors and exposes hidden archives", async () => {
+    const relationId = (index: number) =>
+      `70000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+    const stablePrefix = Array.from({ length: 24 }, (_, index) =>
+      relationId(index + 1),
+    );
+    const hiddenSurvivor = relationId(25);
+    const completeIds = [...stablePrefix, ids.duplicate, hiddenSurvivor];
+    const retrievePagePropertyItems = vi
+      .fn()
+      .mockResolvedValueOnce({
+        relationIds: completeIds.slice(0, 25),
+        hasMore: true,
+        nextCursor: "cursor-2",
+      })
+      .mockResolvedValueOnce({
+        relationIds: completeIds.slice(25),
+        hasMore: false,
+      });
+    const [hydratedProject] = await hydrateCompleteRelationProperties(
+      { retrievePagePropertyItems },
+      [
+        page(ids.projectPage, "Project", {
+          "Tool Stack Records": {
+            id: "provider-relation-id",
+            type: "relation",
+            relation: completeIds.slice(0, 25).map((id) => ({ id })),
+            has_more: true,
+          },
+        }),
+      ],
+    );
+    expect(retrievePagePropertyItems).toHaveBeenCalledTimes(2);
+    expect(hydratedProject).toBeDefined();
+    if (!hydratedProject) {
+      throw new Error("fixture hydration did not return the project page");
+    }
+    expect(
+      hydratedProject?.properties["Tool Stack Records"]?.relation?.map(
+        (entry) => entry.id,
+      ),
+    ).toEqual(completeIds);
+
+    const canonical = page(ids.canonical, "Tool", {
+      "Linked Local Projects": { type: "relation", relation: [] },
+    });
+    const duplicate = page(ids.duplicate, "Tool", {
+      "Linked Local Projects": { type: "relation", relation: [] },
+    });
+    const plan = supportDatabaseHygienePlan({
+      today: "2026-07-17",
+      dataSourceIds: ["projects-db", "tools-db"],
+      projectPages: [hydratedProject],
+      plans: [
+        {
+          kind: "tool",
+          title: "Tool",
+          titlePropertyName: "Name",
+          canonicalPage: canonical,
+          canonicalMarkdown: "# Tool",
+          duplicatePages: [duplicate],
+          duplicateMarkdowns: new Map([
+            [canonical.id, "# Tool"],
+            [duplicate.id, "# Duplicate"],
+          ]),
+          mergedProjectIds: [],
+          projectIdsNeedingRewrite: [hydratedProject.id],
+        },
+      ],
+      lowRiskArchiveCandidates: [],
+      forcedNearDuplicateMergePlans: [],
+      dataSourceIdByKind: {
+        research: "research-db",
+        skill: "skills-db",
+        tool: "tools-db",
+      },
+    });
+    const rewrite = plan.pre_archive_effects.find(
+      (effect) =>
+        effect.kind === "update_properties" &&
+        effect.page_id === hydratedProject.id,
+    );
+    expect(rewrite).toMatchObject({ kind: "update_properties" });
+    if (!rewrite) {
+      throw new Error("fixture plan did not contain the project rewrite");
+    }
+    const replacement = (
+      rewrite as Extract<
+        (typeof plan.pre_archive_effects)[number],
+        { kind: "update_properties" }
+      >
+    ).properties["Tool Stack Records"] as {
+      relation: Array<{ id: string }>;
+    };
+    expect(replacement.relation.map((entry) => entry.id)).toContain(
+      hiddenSurvivor,
+    );
+    expect(replacement.relation.map((entry) => entry.id)).not.toContain(
+      ids.duplicate,
+    );
+    expect(replacement.relation.map((entry) => entry.id)).toContain(
+      ids.canonical,
+    );
+    expect(
+      (
+        rewrite as Extract<
+          (typeof plan.pre_archive_effects)[number],
+          { kind: "update_properties" }
+        >
+      ).relation_preconditions,
+    ).toEqual({
+      "Tool Stack Records": [...completeIds].sort(),
+    });
+
+    const changedCompleteIds = [
+      ...completeIds.slice(0, 25),
+      ids.unrelated,
+    ];
+    const staleApi = {
+      retrievePageState: vi.fn().mockResolvedValue({
+        id: hydratedProject.id,
+        url: hydratedProject.url,
+        title: hydratedProject.title,
+        lastEditedTime: "2026-07-17T12:01:00.000Z",
+        properties: {
+          "Tool Stack Records": {
+            id: "provider-relation-id",
+            type: "relation",
+            relation: changedCompleteIds.slice(0, 25).map((id) => ({ id })),
+            has_more: true,
+          },
+        },
+      }),
+      retrievePagePropertyItems: vi
+        .fn()
+        .mockResolvedValueOnce({
+          relationIds: changedCompleteIds.slice(0, 25),
+          hasMore: true,
+          nextCursor: "changed-cursor-2",
+        })
+        .mockResolvedValueOnce({
+          relationIds: changedCompleteIds.slice(25),
+          hasMore: false,
+        }),
+      readPageMarkdown: vi.fn(),
+    };
+    const attempted: string[] = [];
+    await expect(
+      executeSupportDatabaseHygieneEffects({
+        plan: {
+          ...plan,
+          archive_page_ids: [],
+          effect_count: 1,
+          pre_archive_effects: [rewrite],
+          archive_effects: [],
+          archive_preconditions: [],
+        },
+        applyEffect: async (effect) => {
+          attempted.push(`${effect.kind}:${effect.page_id}`);
+        },
+        verifyPreArchiveEffect: (effect) =>
+          assertHygieneEffectPrecondition({ api: staleApi, effect }),
+        verifyArchivePrecondition: async () => {},
+        verifyState: async () => ({
+          ok: true,
+          checks: {
+            archive_ids_absent: true,
+            canonical_properties_exact: true,
+            canonical_markdown_exact: true,
+            project_relations_exact: true,
+            duplicate_relations_absent: true,
+          },
+        }),
+      }),
+    ).rejects.toThrow("changed after approval");
+    expect(attempted).toEqual([]);
+
+    const readback = verifySupportDatabaseHygieneState({
+      plan,
+      visiblePages: [
+        page(ids.projectPage, "Project", {
+          "Tool Stack Records": {
+            id: "provider-relation-id",
+            type: "relation",
+            relation: [...stablePrefix, hiddenSurvivor, ids.duplicate].map(
+              (id) => ({ id }),
+            ),
+            has_more: false,
+          },
+        }),
+      ],
+      markdownByPageId: new Map(),
+      requireArchivesAbsent: true,
+    });
+    expect(readback.checks.duplicate_relations_absent).toBe(false);
+    expect(readback.ok).toBe(false);
+  });
+
+  test("incomplete relation without a provider property id fails closed", async () => {
+    await expect(
+      hydrateCompleteRelationProperties(
+        { retrievePagePropertyItems: vi.fn() },
+        [
+          page(ids.projectPage, "Project", {
+            "Tool Stack Records": {
+              type: "relation",
+              relation: [{ id: ids.duplicate }],
+              has_more: true,
+            },
+          }),
+        ],
+      ),
+    ).rejects.toThrow("has no provider property id");
+  });
+
+  test("provider relation-property pagination preserves cursor and relation ids", async () => {
+    const relationId = "70000000-0000-4000-8000-000000000001";
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          results: [{ type: "relation", relation: { id: relationId } }],
+          has_more: true,
+          next_cursor: "cursor-2",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new DirectNotionClient("fixture-token", undefined, {
+      maxAttempts: 1,
+    });
+
+    await expect(
+      api.retrievePagePropertyItems({
+        pageId: ids.projectPage,
+        propertyId: "provider relation/id",
+        startCursor: "cursor-1",
+      }),
+    ).resolves.toEqual({
+      relationIds: [relationId],
+      hasMore: true,
+      nextCursor: "cursor-2",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://api.notion.com/v1/pages/${ids.projectPage}/properties/provider%20relation%2Fid?page_size=100&start_cursor=cursor-1`,
+      expect.objectContaining({ method: "GET" }),
+    );
+    await api.retrievePagePropertyItems({
+      pageId: ids.projectPage,
+      propertyId: "provider%20relation%2Fid",
+      startCursor: "cursor-1",
+    });
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `https://api.notion.com/v1/pages/${ids.projectPage}/properties/provider%20relation%2Fid?page_size=100&start_cursor=cursor-1`,
     );
   });
 
@@ -662,6 +1524,8 @@ describe("exact Notion hygiene effects and readback", () => {
         applyEffect: async (effect) => {
           applied.push(`${effect.kind}:${effect.page_id}`);
         },
+        verifyPreArchiveEffect: async () => {},
+        verifyArchivePrecondition: async () => {},
         verifyState: async (requireArchivesAbsent) => ({
           ok: requireArchivesAbsent,
           checks: {
@@ -697,6 +1561,8 @@ describe("exact Notion hygiene effects and readback", () => {
         "canonical_markdown_exact",
         "project_relations_exact",
         "duplicate_relations_absent",
+        "archive_preconditions_matched",
+        "relation_properties_complete",
       ],
     });
     const failure = createClaimedActionFailureRecorder({
@@ -714,6 +1580,8 @@ describe("exact Notion hygiene effects and readback", () => {
             applyEffect: async () => {
               failure.markEffectAttempted();
             },
+            verifyPreArchiveEffect: async () => {},
+            verifyArchivePrecondition: async () => {},
             verifyState: async (requireArchivesAbsent) => ({
               ok: requireArchivesAbsent,
               checks: {
@@ -783,6 +1651,8 @@ describe("exact Notion hygiene effects and readback", () => {
       applyEffect: async (effect) => {
         applied.push(`${effect.kind}:${effect.page_id}`);
       },
+      verifyPreArchiveEffect: async () => {},
+      verifyArchivePrecondition: async () => {},
       verifyState: async () => {
         verificationCount += 1;
         return {
@@ -824,6 +1694,8 @@ describe("exact Notion hygiene effects and readback", () => {
         "canonical_markdown_exact",
         "project_relations_exact",
         "duplicate_relations_absent",
+        "archive_preconditions_matched",
+        "relation_properties_complete",
       ],
     });
     const readback = {
@@ -832,6 +1704,8 @@ describe("exact Notion hygiene effects and readback", () => {
       canonical_markdown_exact: true,
       project_relations_exact: true,
       duplicate_relations_absent: true,
+      archive_preconditions_matched: true,
+      relation_properties_complete: true,
     };
 
     validateEnvelope({

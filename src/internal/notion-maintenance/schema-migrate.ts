@@ -6,7 +6,7 @@
  *   Step 2 — Delete 4 stale manual number count properties: Build Session Count, Related Research Count,
  *             Supporting Skills Count, Linked Tool Count
  *   Step 3 — Create 4 native Notion rollup properties with the same names as the deleted count fields
- *   Step 4 — Verify: fetch one page and confirm rollup types are present + deprecated fields are gone
+ *   Step 4 — Verify: fetch raw provider schema and confirm exact rollup semantics + deleted IDs
  *
  * Usage:
  *   npx tsx src/internal/notion-maintenance/schema-migrate.ts           # dry-run (prints what would happen, no Notion writes)
@@ -66,26 +66,31 @@ const ROLLUP_DEFINITIONS: Array<{
 	propertyName: string;
 	relationPropertyName: string;
 	rollupPropertyName: string;
+	function: "count";
 }> = [
 	{
 		propertyName: "Build Session Count",
 		relationPropertyName: "Build Sessions",
 		rollupPropertyName: "Session Title",
+		function: "count",
 	},
 	{
 		propertyName: "Related Research Count",
 		relationPropertyName: "Related Research",
 		rollupPropertyName: "Topic",
+		function: "count",
 	},
 	{
 		propertyName: "Supporting Skills Count",
 		relationPropertyName: "Supporting Skills",
 		rollupPropertyName: "Skill",
+		function: "count",
 	},
 	{
 		propertyName: "Linked Tool Count",
 		relationPropertyName: "Tool Stack Records",
 		rollupPropertyName: "Tool Name",
+		function: "count",
 	},
 ];
 
@@ -233,7 +238,7 @@ async function main() {
 					rollup: {
 						relation_property_name: def.relationPropertyName,
 						rollup_property_name: def.rollupPropertyName,
-						function: "count",
+						function: def.function,
 					},
 				},
 			});
@@ -256,89 +261,48 @@ async function main() {
 	// ── Step 4: Verify ────────────────────────────────────────────────────────
 	console.log("");
 	console.log("[schema-migrate] Step 4: Verifying exact provider schema...");
-	let verifyPassed = true;
-	let providerReadback: {
-		deleted_provider_ids_absent: true;
-		deleted_provider_ids: string[];
-		rollup_provider_ids_present: true;
-		rollup_provider_properties: Array<{
-			name: string;
-			provider_id: string;
-			type: string;
-		}>;
-	} | undefined;
+	let providerReadback:
+		| ReturnType<typeof verifySchemaMigrationReadback>
+		| undefined;
 	try {
-		const afterSchema = await api.retrieveDataSource(dataSourceId);
-		const currentProviderIds = new Set(
-			Object.values(afterSchema.properties)
-				.map((property) => property.id)
-				.filter((value): value is string => Boolean(value)),
-		);
-
-		for (const property of plan.delete_properties) {
-			if (currentProviderIds.has(property.provider_id)) {
-				console.error(
-					`[schema-migrate]   ✗ provider property "${property.provider_id}" still exists`,
-				);
-				verifyPassed = false;
-			}
-		}
-
-		const rollupProviderProperties: Array<{
-			name: string;
-			provider_id: string;
-			type: string;
-		}> = [];
-		for (const def of ROLLUP_DEFINITIONS) {
-			const property = afterSchema.properties[def.propertyName];
-			if (property?.type === "rollup" && property.id) {
-				rollupProviderProperties.push({
-					name: def.propertyName,
-					provider_id: property.id,
-					type: property.type,
-				});
-			} else {
-				console.error(
-					`[schema-migrate]   ✗ "${def.propertyName}" does not have a provider id and rollup type`,
-				);
-				verifyPassed = false;
-			}
-		}
-		providerReadback = {
-			deleted_provider_ids_absent: true,
-			deleted_provider_ids: plan.delete_properties.map(
-				(property) => property.provider_id,
-			),
-			rollup_provider_ids_present: true,
-			rollup_provider_properties: rollupProviderProperties,
+		const afterSchema = (await sdk.request({
+			path: `data_sources/${dataSourceId}`,
+			method: "get",
+		})) as {
+			properties?: Record<string, ProviderDataSourceProperty>;
 		};
+		if (!afterSchema.properties) {
+			throw new Error(
+				"schema-migrate provider readback omitted data source properties",
+			);
+		}
+		providerReadback = verifySchemaMigrationReadback(
+			plan,
+			afterSchema.properties,
+		);
 	} catch (err) {
 		console.error(`[schema-migrate] ✗ Schema verification failed:`, err);
 		failure.fail(err, "terminal_schema_readback");
 	}
 
 	console.log("");
-	if (verifyPassed) {
-		emitReceipt({
-			envelope,
-			target: schemaMigrationTargets(plan),
-			providerReference: `notion:data_source:${dataSourceId}`,
-			readbackResult: providerReadback,
-			terminalOutcome: "succeeded",
-		});
-		console.log("[schema-migrate] ✓ Migration complete — all checks passed.");
-		console.log(
-			"[schema-migrate]   Next: commit Phase 2 config changes, then run portfolio-audit:views-plan.",
-		);
-	} else {
-		console.log(
-			"[schema-migrate] ⚠ Migration applied but some verifications failed — inspect output above.",
-		);
+	if (!providerReadback) {
 		failure.fail(
-			new Error("schema migration terminal readback mismatch"),
+			new Error("schema migration terminal readback missing"),
 			"terminal_schema_readback",
 		);
 	}
+	emitReceipt({
+		envelope,
+		target: schemaMigrationTargets(plan),
+		providerReference: `notion:data_source:${dataSourceId}`,
+		readbackResult: providerReadback,
+		terminalOutcome: "succeeded",
+	});
+	console.log("[schema-migrate] ✓ Migration complete — all checks passed.");
+	console.log(
+		"[schema-migrate]   Next: commit Phase 2 config changes, then run portfolio-audit:views-plan.",
+	);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -376,7 +340,7 @@ export function schemaMigrationPlan(
 		create_rollups: ROLLUP_DEFINITIONS,
 		required_readback: [
 			"deleted_provider_ids_absent",
-			"rollup_provider_ids_present",
+			"rollup_provider_semantics_exact",
 		],
 	};
 }
@@ -389,6 +353,75 @@ export function schemaMigrationTargets(
 		property_ids: plan.delete_properties
 			.map((property) => property.provider_id)
 			.sort(),
+	};
+}
+
+export interface ProviderDataSourceProperty {
+	id?: string;
+	type?: string;
+	rollup?: {
+		relation_property_id?: string;
+		relation_property_name?: string;
+		rollup_property_id?: string;
+		rollup_property_name?: string;
+		function?: string;
+	};
+}
+
+export function verifySchemaMigrationReadback(
+	plan: ReturnType<typeof schemaMigrationPlan>,
+	properties: Record<string, ProviderDataSourceProperty>,
+) {
+	const currentProviderIds = new Set(
+		Object.values(properties)
+			.map((property) => property.id)
+			.filter((value): value is string => Boolean(value)),
+	);
+	for (const property of plan.delete_properties) {
+		if (currentProviderIds.has(property.provider_id)) {
+			throw new Error(
+				`schema-migrate provider property "${property.provider_id}" still exists`,
+			);
+		}
+	}
+
+	const rollupProviderProperties = ROLLUP_DEFINITIONS.map((def) => {
+		const property = properties[def.propertyName];
+		if (property?.type !== "rollup" || !property.id) {
+			throw new Error(
+				`schema-migrate "${def.propertyName}" does not have a provider id and rollup type`,
+			);
+		}
+		const rollup = property.rollup;
+		if (
+			!rollup?.relation_property_id ||
+			rollup.relation_property_name !== def.relationPropertyName ||
+			!rollup.rollup_property_id ||
+			rollup.rollup_property_name !== def.rollupPropertyName ||
+			rollup.function !== def.function
+		) {
+			throw new Error(
+				`schema-migrate rollup semantics changed for "${def.propertyName}"`,
+			);
+		}
+		return {
+			name: def.propertyName,
+			provider_id: property.id,
+			type: property.type,
+			relation_property_id: rollup.relation_property_id,
+			relation_property_name: rollup.relation_property_name,
+			rollup_property_id: rollup.rollup_property_id,
+			rollup_property_name: rollup.rollup_property_name,
+			function: rollup.function,
+		};
+	});
+	return {
+		deleted_provider_ids_absent: true as const,
+		deleted_provider_ids: plan.delete_properties.map(
+			(property) => property.provider_id,
+		),
+		rollup_provider_semantics_exact: true as const,
+		rollup_provider_properties: rollupProviderProperties,
 	};
 }
 
@@ -440,7 +473,7 @@ export function authorizeSchemaMigration(input: {
 		deletionCount: DEPRECATED_PROPERTIES.length + STALE_NUMBER_FIELDS.length,
 		requiredReadback: [
 			"deleted_provider_ids_absent",
-			"rollup_provider_ids_present",
+			"rollup_provider_semantics_exact",
 		],
 	});
 	return envelope;
@@ -488,7 +521,7 @@ function printDryRunPlan(
 	console.log("  Step 3 — CREATE rollup properties:");
 	for (const def of ROLLUP_DEFINITIONS) {
 		console.log(
-			`    - ${def.propertyName}  →  rollup("${def.rollupPropertyName}" in "${def.relationPropertyName}", count)`,
+			`    - ${def.propertyName}  →  rollup("${def.rollupPropertyName}" in "${def.relationPropertyName}", ${def.function})`,
 		);
 	}
 	console.log("");
