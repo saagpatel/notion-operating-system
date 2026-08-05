@@ -25,7 +25,7 @@ vi.mock("node:fs", async () => {
   };
 });
 
-const { claimEnvelope, planDigest } = await import(
+const { claimEnvelope, emitReceipt, planDigest } = await import(
   "../src/internal/notion-maintenance/irreversible-action.js"
 );
 type Envelope = Awaited<
@@ -82,5 +82,22 @@ describe("claim durability", () => {
     expect(() => claimEnvelope(target, claims)).toThrow(
       "approval action_id is already claimed",
     );
+  });
+
+  test("receipt emission flushes the receipt and its directory entry", () => {
+    fsyncCalls.length = 0;
+    const receipts = mkdtempSync(path.join(os.tmpdir(), "receipt-durability-"));
+    const target = envelope("fixture-notion-receipt-durability-0001");
+
+    emitReceipt({
+      envelope: target,
+      target: target.canonical_targets,
+      providerReference: "fixture:notion:db-1",
+      readbackResult: { provider_state: true },
+      terminalOutcome: "succeeded",
+      receiptDir: receipts,
+    });
+
+    expect(fsyncCalls.length).toBe(2);
   });
 });

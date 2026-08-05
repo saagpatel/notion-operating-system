@@ -282,16 +282,14 @@ export function requirePrivateAuthorityDirectory(directory: string): string {
 }
 
 /**
- * Flush a claim file and the directory entry that names it.
+ * Flush an authority artifact and the directory entry that names it.
  *
- * The one-shot guarantee rests entirely on the claim file being present after a
- * crash. Writing it is not enough: without an fsync of both the file and its
- * containing directory, a crash between the write and the OS flush can lose the
- * claim, leaving the envelope readable as unclaimed. A replay would then succeed
- * against an action that already ran, which is the exact failure this module
- * exists to prevent.
+ * Claims prevent replay, while terminal receipts make the result recoverable.
+ * Losing either after a crash can leave authority state inconsistent with an
+ * irreversible provider effect, so both file contents and directory metadata
+ * must be durable before the operation reports completion.
  */
-function persistClaim(descriptor: number, directory: string): void {
+function persistAuthorityArtifact(descriptor: number, directory: string): void {
   fsyncSync(descriptor);
   const directoryDescriptor = openSync(directory, "r");
   try {
@@ -332,7 +330,7 @@ export function claimEnvelope(
         claimed_at: claimedAt,
       })}\n`,
     );
-    persistClaim(descriptor, trustedStateDir);
+    persistAuthorityArtifact(descriptor, trustedStateDir);
   } finally {
     closeSync(descriptor);
   }
@@ -365,7 +363,7 @@ export function claimEnvelope(
         claimed_at: claimedAt,
       })}\n`,
     );
-    persistClaim(descriptor, providerStateDir);
+    persistAuthorityArtifact(descriptor, providerStateDir);
   } finally {
     closeSync(descriptor);
   }
@@ -477,6 +475,7 @@ export function emitReceipt(input: {
   const descriptor = openSync(receiptPath, "wx", 0o600);
   try {
     writeFileSync(descriptor, `${canonicalJson(receipt)}\n`);
+    persistAuthorityArtifact(descriptor, trustedReceiptDir);
   } finally {
     closeSync(descriptor);
   }
