@@ -6,7 +6,7 @@
  *   Step 2 — Delete 4 stale manual number count properties: Build Session Count, Related Research Count,
  *             Supporting Skills Count, Linked Tool Count
  *   Step 3 — Create 4 native Notion rollup properties with the same names as the deleted count fields
- *   Step 4 — Verify: fetch one page and confirm rollup types are present + deprecated fields are gone
+ *   Step 4 — Verify: fetch raw provider schema and confirm exact rollup semantics + deleted IDs
  *
  * Usage:
  *   npx tsx src/internal/notion-maintenance/schema-migrate.ts           # dry-run (prints what would happen, no Notion writes)
@@ -17,6 +17,7 @@
  */
 
 import type { Client } from "@notionhq/client";
+import type { PropertySchema } from "../../types.js";
 
 import { isDirectExecution } from "../../cli/legacy.js";
 import { createNotionSdkClient } from "../../notion/notion-sdk.js";
@@ -27,8 +28,18 @@ import {
 import { RunLogger } from "../../logging/run-logger.js";
 import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import { loadLocalPortfolioControlTowerConfig } from "../../notion/local-portfolio-control-tower.js";
-import { fetchAllPages } from "../../notion/local-portfolio-control-tower-live.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
+import {
+	approvalPath,
+	claimEnvelope,
+	createClaimedActionFailureRecorder,
+	emitReceipt,
+	loadEnvelope,
+	planDigest,
+	sourceRevision,
+	validateEnvelope,
+	type IrreversibleActionEnvelopeV1,
+} from "./irreversible-action.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -55,26 +66,31 @@ const ROLLUP_DEFINITIONS: Array<{
 	propertyName: string;
 	relationPropertyName: string;
 	rollupPropertyName: string;
+	function: "count";
 }> = [
 	{
 		propertyName: "Build Session Count",
 		relationPropertyName: "Build Sessions",
 		rollupPropertyName: "Session Title",
+		function: "count",
 	},
 	{
 		propertyName: "Related Research Count",
 		relationPropertyName: "Related Research",
 		rollupPropertyName: "Topic",
+		function: "count",
 	},
 	{
 		propertyName: "Supporting Skills Count",
 		relationPropertyName: "Supporting Skills",
 		rollupPropertyName: "Skill",
+		function: "count",
 	},
 	{
 		propertyName: "Linked Tool Count",
 		relationPropertyName: "Tool Stack Records",
 		rollupPropertyName: "Tool Name",
+		function: "count",
 	},
 ];
 
@@ -103,22 +119,26 @@ async function main() {
 
 	const isLive = argv.includes("--live");
 
+	const config = await loadLocalPortfolioControlTowerConfig();
+	const { dataSourceId } = config.database;
+	const revision = sourceRevision();
 	const token = requireNotionToken(
-		"NOTION_TOKEN is required for schema-migrate",
+		"NOTION_TOKEN is required to render the exact schema-migrate plan",
 	);
 	const runtimeConfig = loadRuntimeConfig();
 	const logger = new RunLogger(runtimeConfig.paths.logDir);
 	const api = new DirectNotionClient(token, logger);
-	const sdk = createNotionSdkClient(token);
-	const config = await loadLocalPortfolioControlTowerConfig();
-	const { dataSourceId } = config.database;
+	const schema = await api.retrieveDataSource(dataSourceId);
+	const plan = schemaMigrationPlan(dataSourceId, schema.properties);
 
 	console.log(`[schema-migrate] Mode: ${isLive ? "LIVE" : "DRY RUN"}`);
 	console.log(`[schema-migrate] Database dataSourceId: ${dataSourceId}`);
 	console.log("");
 
 	if (!isLive) {
-		printDryRunPlan();
+		printDryRunPlan(plan);
+		console.log(`[schema-migrate] Plan digest: ${planDigest(plan)}`);
+		console.log(`[schema-migrate] Source revision: ${revision}`);
 		console.log("");
 		console.log(
 			"[schema-migrate] Re-run with --live to apply these changes to Notion.",
@@ -128,23 +148,50 @@ async function main() {
 		);
 		process.exit(0);
 	}
+	const envelope = authorizeSchemaMigration({
+		approvalFile: approvalPath(argv),
+		dataSourceId,
+		plan,
+		sourceRevision: revision,
+	});
+	const sdk = createNotionSdkClient(token);
+	const beforeFirstDelete = await api.retrieveDataSource(dataSourceId);
+	assertMigrationPropertyIdentity(
+		plan.delete_properties,
+		beforeFirstDelete.properties,
+	);
+	claimEnvelope(envelope);
+	const failure = createClaimedActionFailureRecorder({
+		envelope,
+		target: schemaMigrationTargets(plan),
+		providerReference: `notion:data_source:${dataSourceId}`,
+	});
 
 	// ── Step 1: Delete deprecated properties ──────────────────────────────────
 	console.log(
 		"[schema-migrate] Step 1: Deleting deprecated properties (Momentum, Registry Status, Date Updated, Last Build Session)...",
 	);
 	try {
-		await patchProperties(
+		await patchPropertiesWithIdentityCheck({
+			api,
 			sdk,
 			dataSourceId,
-			Object.fromEntries(DEPRECATED_PROPERTIES.map((name) => [name, null])),
-		);
+			targets: plan.delete_properties.filter((property) =>
+				DEPRECATED_PROPERTIES.includes(
+					property.name as (typeof DEPRECATED_PROPERTIES)[number],
+				),
+			),
+			properties: Object.fromEntries(
+				DEPRECATED_PROPERTIES.map((name) => [name, null]),
+			),
+			beforePatch: () => failure.markEffectAttempted(),
+		});
 		console.log(
 			`[schema-migrate] ✓ Step 1 complete — deleted: ${DEPRECATED_PROPERTIES.join(", ")}`,
 		);
 	} catch (err) {
 		console.error(`[schema-migrate] ✗ Step 1 failed:`, err);
-		process.exit(1);
+		failure.fail(err, "delete_deprecated_properties");
 	}
 
 	// ── Step 2: Delete stale number count fields ──────────────────────────────
@@ -153,17 +200,26 @@ async function main() {
 		"[schema-migrate] Step 2: Deleting stale number count fields (Build Session Count, Related Research Count, Supporting Skills Count, Linked Tool Count)...",
 	);
 	try {
-		await patchProperties(
+		await patchPropertiesWithIdentityCheck({
+			api,
 			sdk,
 			dataSourceId,
-			Object.fromEntries(STALE_NUMBER_FIELDS.map((name) => [name, null])),
-		);
+			targets: plan.delete_properties.filter((property) =>
+				STALE_NUMBER_FIELDS.includes(
+					property.name as (typeof STALE_NUMBER_FIELDS)[number],
+				),
+			),
+			properties: Object.fromEntries(
+				STALE_NUMBER_FIELDS.map((name) => [name, null]),
+			),
+			beforePatch: () => failure.markEffectAttempted(),
+		});
 		console.log(
 			`[schema-migrate] ✓ Step 2 complete — deleted: ${STALE_NUMBER_FIELDS.join(", ")}`,
 		);
 	} catch (err) {
 		console.error(`[schema-migrate] ✗ Step 2 failed:`, err);
-		process.exit(1);
+		failure.fail(err, "delete_stale_number_fields");
 	}
 
 	// ── Step 3: Create rollup properties ─────────────────────────────────────
@@ -176,12 +232,13 @@ async function main() {
 			`[schema-migrate]   Creating "${def.propertyName}" (rollup of "${def.rollupPropertyName}" in "${def.relationPropertyName}")...`,
 		);
 		try {
+			failure.markEffectAttempted();
 			await patchProperties(sdk, dataSourceId, {
 				[def.propertyName]: {
 					rollup: {
 						relation_property_name: def.relationPropertyName,
 						rollup_property_name: def.rollupPropertyName,
-						function: "count",
+						function: def.function,
 					},
 				},
 			});
@@ -194,7 +251,7 @@ async function main() {
 			console.error(
 				`[schema-migrate]   Aborting — remaining rollups NOT created. Fix and re-run.`,
 			);
-			process.exit(1);
+			failure.fail(err, `create_rollup:${def.propertyName}`);
 		}
 	}
 	console.log(
@@ -203,71 +260,224 @@ async function main() {
 
 	// ── Step 4: Verify ────────────────────────────────────────────────────────
 	console.log("");
-	console.log("[schema-migrate] Step 4: Verifying schema via page fetch...");
-	let verifyPassed = true;
+	console.log("[schema-migrate] Step 4: Verifying exact provider schema...");
+	let providerReadback:
+		| ReturnType<typeof verifySchemaMigrationReadback>
+		| undefined;
 	try {
-		const pages = await fetchAllPages(api, dataSourceId, "Name");
-		if (pages.length === 0) {
-			console.error(
-				`[schema-migrate] ✗ No pages found — cannot verify. Check database manually.`,
+		const afterSchema = (await sdk.request({
+			path: `data_sources/${dataSourceId}`,
+			method: "get",
+		})) as {
+			properties?: Record<string, ProviderDataSourceProperty>;
+		};
+		if (!afterSchema.properties) {
+			throw new Error(
+				"schema-migrate provider readback omitted data source properties",
 			);
-			process.exit(1);
 		}
-		const page = pages[0]!;
-
-		// Check deprecated fields are gone
-		for (const name of DEPRECATED_PROPERTIES) {
-			const prop = page.properties[name];
-			if (prop !== undefined) {
-				console.error(
-					`[schema-migrate]   ✗ "${name}" still present — deletion may not have propagated yet`,
-				);
-				verifyPassed = false;
-			} else {
-				console.log(`[schema-migrate]   ✓ "${name}" is absent (deleted)`);
-			}
-		}
-
-		// Check rollup fields are present with correct type
-		for (const def of ROLLUP_DEFINITIONS) {
-			const prop = page.properties[def.propertyName] as
-				| {
-						type?: string;
-						rollup?: { type?: string; number?: unknown; function?: string };
-				  }
-				| undefined;
-			if (prop?.type === "rollup") {
-				const num = prop.rollup?.number;
-				console.log(
-					`[schema-migrate]   ✓ "${def.propertyName}" is type=rollup, value=${typeof num === "number" ? num : "(non-number — may be unsupported)"}`,
-				);
-			} else {
-				console.error(
-					`[schema-migrate]   ✗ "${def.propertyName}" type="${prop?.type ?? "missing"}" — expected "rollup"`,
-				);
-				verifyPassed = false;
-			}
-		}
+		providerReadback = verifySchemaMigrationReadback(
+			plan,
+			afterSchema.properties,
+		);
 	} catch (err) {
-		console.error(`[schema-migrate] ✗ Verification fetch failed:`, err);
-		process.exit(1);
+		console.error(`[schema-migrate] ✗ Schema verification failed:`, err);
+		failure.fail(err, "terminal_schema_readback");
 	}
 
 	console.log("");
-	if (verifyPassed) {
-		console.log("[schema-migrate] ✓ Migration complete — all checks passed.");
-		console.log(
-			"[schema-migrate]   Next: commit Phase 2 config changes, then run portfolio-audit:views-plan.",
+	if (!providerReadback) {
+		failure.fail(
+			new Error("schema migration terminal readback missing"),
+			"terminal_schema_readback",
 		);
-	} else {
-		console.log(
-			"[schema-migrate] ⚠ Migration applied but some verifications failed — inspect output above.",
-		);
-		process.exit(1);
 	}
+	emitReceipt({
+		envelope,
+		target: schemaMigrationTargets(plan),
+		providerReference: `notion:data_source:${dataSourceId}`,
+		readbackResult: providerReadback,
+		terminalOutcome: "succeeded",
+	});
+	console.log("[schema-migrate] ✓ Migration complete — all checks passed.");
+	console.log(
+		"[schema-migrate]   Next: commit Phase 2 config changes, then run portfolio-audit:views-plan.",
+	);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+export interface MigrationPropertyTarget {
+	name: string;
+	provider_id: string;
+	type: string;
+}
+
+export function schemaMigrationPlan(
+	dataSourceId: string,
+	properties: Record<string, PropertySchema>,
+) {
+	const deleteProperties = [
+		...DEPRECATED_PROPERTIES,
+		...STALE_NUMBER_FIELDS,
+	].map((name): MigrationPropertyTarget => {
+		const property = properties[name];
+		if (!property?.id || !property.type) {
+			throw new Error(
+				`schema-migrate plan requires provider id and type for "${name}"`,
+			);
+		}
+		return {
+			name,
+			provider_id: property.id,
+			type: property.type,
+		};
+	});
+	return {
+		operation: "notion.schema_migrate",
+		data_source_id: dataSourceId,
+		delete_properties: deleteProperties,
+		create_rollups: ROLLUP_DEFINITIONS,
+		required_readback: [
+			"deleted_provider_ids_absent",
+			"rollup_provider_semantics_exact",
+		],
+	};
+}
+
+export function schemaMigrationTargets(
+	plan: ReturnType<typeof schemaMigrationPlan>,
+) {
+	return {
+		data_source_id: plan.data_source_id,
+		property_ids: plan.delete_properties
+			.map((property) => property.provider_id)
+			.sort(),
+	};
+}
+
+export interface ProviderDataSourceProperty {
+	id?: string;
+	type?: string;
+	rollup?: {
+		relation_property_id?: string;
+		relation_property_name?: string;
+		rollup_property_id?: string;
+		rollup_property_name?: string;
+		function?: string;
+	};
+}
+
+export function verifySchemaMigrationReadback(
+	plan: ReturnType<typeof schemaMigrationPlan>,
+	properties: Record<string, ProviderDataSourceProperty>,
+) {
+	const currentProviderIds = new Set(
+		Object.values(properties)
+			.map((property) => property.id)
+			.filter((value): value is string => Boolean(value)),
+	);
+	for (const property of plan.delete_properties) {
+		if (currentProviderIds.has(property.provider_id)) {
+			throw new Error(
+				`schema-migrate provider property "${property.provider_id}" still exists`,
+			);
+		}
+	}
+
+	const rollupProviderProperties = ROLLUP_DEFINITIONS.map((def) => {
+		const property = properties[def.propertyName];
+		if (property?.type !== "rollup" || !property.id) {
+			throw new Error(
+				`schema-migrate "${def.propertyName}" does not have a provider id and rollup type`,
+			);
+		}
+		const rollup = property.rollup;
+		if (
+			!rollup?.relation_property_id ||
+			rollup.relation_property_name !== def.relationPropertyName ||
+			!rollup.rollup_property_id ||
+			rollup.rollup_property_name !== def.rollupPropertyName ||
+			rollup.function !== def.function
+		) {
+			throw new Error(
+				`schema-migrate rollup semantics changed for "${def.propertyName}"`,
+			);
+		}
+		return {
+			name: def.propertyName,
+			provider_id: property.id,
+			type: property.type,
+			relation_property_id: rollup.relation_property_id,
+			relation_property_name: rollup.relation_property_name,
+			rollup_property_id: rollup.rollup_property_id,
+			rollup_property_name: rollup.rollup_property_name,
+			function: rollup.function,
+		};
+	});
+	return {
+		deleted_provider_ids_absent: true as const,
+		deleted_provider_ids: plan.delete_properties.map(
+			(property) => property.provider_id,
+		),
+		rollup_provider_semantics_exact: true as const,
+		rollup_provider_properties: rollupProviderProperties,
+	};
+}
+
+export function assertMigrationPropertyIdentity(
+	targets: MigrationPropertyTarget[],
+	properties: Record<string, PropertySchema>,
+): void {
+	for (const target of targets) {
+		const current = properties[target.name];
+		if (
+			current?.id !== target.provider_id ||
+			current.type !== target.type
+		) {
+			throw new Error(
+				`schema-migrate property identity changed for "${target.name}"`,
+			);
+		}
+	}
+}
+
+export async function patchPropertiesWithIdentityCheck(input: {
+	api: Pick<DirectNotionClient, "retrieveDataSource">;
+	sdk: Client;
+	dataSourceId: string;
+	targets: MigrationPropertyTarget[];
+	properties: Record<string, unknown>;
+	beforePatch?: () => void;
+}): Promise<void> {
+	const current = await input.api.retrieveDataSource(input.dataSourceId);
+	assertMigrationPropertyIdentity(input.targets, current.properties);
+	input.beforePatch?.();
+	await patchProperties(input.sdk, input.dataSourceId, input.properties);
+}
+
+export function authorizeSchemaMigration(input: {
+	approvalFile: string;
+	dataSourceId: string;
+	plan: ReturnType<typeof schemaMigrationPlan>;
+	sourceRevision?: string;
+}): IrreversibleActionEnvelopeV1 {
+	const envelope = loadEnvelope(input.approvalFile);
+	validateEnvelope({
+		envelope,
+		actionKind: "notion.schema_migrate",
+		canonicalTargets: schemaMigrationTargets(input.plan),
+		sourceRevision: input.sourceRevision ?? sourceRevision(),
+		plan: input.plan,
+		effectCount: 6,
+		deletionCount: DEPRECATED_PROPERTIES.length + STALE_NUMBER_FIELDS.length,
+		requiredReadback: [
+			"deleted_provider_ids_absent",
+			"rollup_provider_semantics_exact",
+		],
+	});
+	return envelope;
+}
 
 async function patchProperties(
 	sdk: Client,
@@ -281,27 +491,41 @@ async function patchProperties(
 	});
 }
 
-function printDryRunPlan(): void {
+function printDryRunPlan(
+	plan: ReturnType<typeof schemaMigrationPlan>,
+): void {
 	console.log("[schema-migrate] DRY RUN — would apply the following changes:");
 	console.log("");
 	console.log("  Step 1 — DELETE deprecated properties:");
-	for (const name of DEPRECATED_PROPERTIES) {
-		console.log(`    - ${name}`);
+	for (const property of plan.delete_properties.filter((candidate) =>
+		DEPRECATED_PROPERTIES.includes(
+			candidate.name as (typeof DEPRECATED_PROPERTIES)[number],
+		),
+	)) {
+		console.log(
+			`    - ${property.name} (id=${property.provider_id}, type=${property.type})`,
+		);
 	}
 	console.log("");
 	console.log("  Step 2 — DELETE stale number count fields:");
-	for (const name of STALE_NUMBER_FIELDS) {
-		console.log(`    - ${name}`);
+	for (const property of plan.delete_properties.filter((candidate) =>
+		STALE_NUMBER_FIELDS.includes(
+			candidate.name as (typeof STALE_NUMBER_FIELDS)[number],
+		),
+	)) {
+		console.log(
+			`    - ${property.name} (id=${property.provider_id}, type=${property.type})`,
+		);
 	}
 	console.log("");
 	console.log("  Step 3 — CREATE rollup properties:");
 	for (const def of ROLLUP_DEFINITIONS) {
 		console.log(
-			`    - ${def.propertyName}  →  rollup("${def.rollupPropertyName}" in "${def.relationPropertyName}", count)`,
+			`    - ${def.propertyName}  →  rollup("${def.rollupPropertyName}" in "${def.relationPropertyName}", ${def.function})`,
 		);
 	}
 	console.log("");
-	console.log("  Step 4 — VERIFY via page fetch (reads only)");
+	console.log("  Step 4 — VERIFY exact provider ids and rollup schema (reads only)");
 }
 
 if (isDirectExecution(import.meta.url)) {

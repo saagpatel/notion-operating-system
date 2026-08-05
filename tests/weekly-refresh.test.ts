@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 
 import {
 	applyFastBooleanDefault,
+	assertWeeklyLiveAuthorityBoundary,
+	buildWeeklySupportMaintenanceArgs,
 	buildWeeklyRefreshChildEnv,
 	buildWeeklyRefreshCatchUpStatus,
 	buildWeeklyRefreshQuickSummary,
@@ -56,6 +58,47 @@ describe("weekly refresh fast workflow guidance", () => {
 				live: false,
 			}),
 		).toBe(false);
+	});
+
+	test("keeps the combined support child dry during a weekly live plan", () => {
+		const args = buildWeeklySupportMaintenanceArgs({
+			today: "2026-08-04",
+			config: "config/local-portfolio-control-tower.json",
+			owner: "fixture-owner",
+		});
+
+		expect(args).not.toContain("--live");
+		expect(args).toEqual([
+			"src/internal/notion-maintenance/github-support-maintenance.ts",
+			"--today",
+			"2026-08-04",
+			"--config",
+			"config/local-portfolio-control-tower.json",
+			"--owner",
+			"fixture-owner",
+		]);
+	});
+
+	test("blocks weekly live before any child when support drift needs separate authority", () => {
+		expect(() =>
+			assertWeeklyLiveAuthorityBoundary([
+				{
+					key: "support-maintenance",
+					wouldChange: true,
+					status: "drift",
+				},
+			]),
+		).toThrow(/blocked before any live child command/i);
+
+		expect(() =>
+			assertWeeklyLiveAuthorityBoundary([
+				{
+					key: "support-maintenance",
+					wouldChange: false,
+					status: "clean",
+				},
+			]),
+		).not.toThrow();
 	});
 
 	test("classifies weekend catch-up after missed weekday runs", () => {
@@ -406,6 +449,47 @@ describe("weekly refresh fast workflow guidance", () => {
 				reason: "Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
 				command:
 					"npm run maintenance:weekly-refresh -- --today 2026-05-03 --only execution-sync --fast --live --confirm-full-live",
+			},
+		]);
+	});
+
+	test("routes support drift back to the dry combined view and separate product actions", () => {
+		const plan = buildWeeklyRefreshRecoveryPlan(
+			{
+				ok: true,
+				liveRequested: false,
+				liveExecuted: false,
+				needsLiveWrite: true,
+				status: "completed",
+				today: "2026-08-04",
+				config: "config/local-portfolio-control-tower.json",
+				preflight: {
+					summary: {},
+					steps: [
+						{
+							key: "support-maintenance",
+							title: "GitHub Support Maintenance",
+							durationMs: 1000,
+							live: false,
+							wouldChange: true,
+							status: "drift",
+							summaryCounts: { hygieneActions: 1 },
+							warnings: [],
+						},
+					],
+				},
+			},
+			[],
+			[],
+		);
+
+		expect(plan).toEqual([
+			{
+				step: "support-maintenance",
+				reason:
+					"Support drift spans independent product actions; inspect the combined dry-run, execute only the drifting constituent lane with its own authority, then repeat the weekly preflight.",
+				command:
+					"npm run portfolio-audit:github-support-maintenance -- --today 2026-08-04",
 			},
 		]);
 	});

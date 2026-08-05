@@ -57,10 +57,15 @@ Use this command only when the weekly digest recommends it:
 npm run maintenance:weekly-refresh -- --live --confirm-full-live --summary-first
 ```
 
+The combined support-maintenance step remains dry-run-only even inside this
+workflow. If its preflight shows drift, the weekly command refuses before any
+live child starts. Run the GitHub knowledge audit and the approval-governed
+support-database hygiene action separately, then repeat the weekly preflight.
+
 Decision rules:
 
 - If both dry runs are clean and `needsLiveWrite=false`, no live run is needed.
-- If weekly refresh drifts but has no failed or partial steps, a manual live run is the normal follow-up.
+- If weekly refresh drifts but has no failed or partial steps and support maintenance is clean, a manual live run is the normal follow-up.
 - If any weekly-refresh step is failed or partial, do not run live; diagnose with targeted dry-run commands first.
 - If the task is a repair to one lane, do not run full weekly live. Use that lane's dry-run/live/dry-run loop and stop when it is clean.
 

@@ -32,7 +32,7 @@ Run this first in dry-run mode. It combines:
 - `npm run portfolio-audit:github-knowledge-audit`
 - `npm run portfolio-audit:support-database-hygiene-pass`
 
-## When To Run Live
+## When Drift Needs Live Work
 
 Use live mode only when the dry run shows real work to do:
 
@@ -41,11 +41,18 @@ Use live mode only when the dry run shows real work to do:
 - missing project relations in the GitHub-backed support slice
 - known duplicate cleanup already covered by the hygiene pass
 
-Live command:
+The combined command is dry-run-only because it spans two independent product
+actions. Use its nested output to identify which constituent lane has drift,
+then run only that lane:
 
 ```bash
-npm run portfolio-audit:github-support-maintenance -- --live
+npm run portfolio-audit:github-knowledge-audit -- --live
+npm run portfolio-audit:support-database-hygiene-pass -- --live --approval /path/to/IrreversibleActionEnvelopeV1.json
 ```
+
+The hygiene dry-run emits `approvalEnvelope`, which binds the exact action kind,
+targets, source revision, plan digest, effect and deletion bounds, and required
+readback. A zero-effect hygiene plan needs no live run and consumes no envelope.
 
 ## Safe Cleanup Rules
 
@@ -84,6 +91,6 @@ The intentional-single-project classification list lives in `config/stale-suppor
 1. Default to `npm run maintenance:weekly-refresh` when you want the full weekly portfolio lane.
 2. Use `npm run portfolio-audit:github-support-maintenance` when you only want the narrow GitHub-backed support slice.
 3. If the dry run is clean, stop there.
-4. If it shows real drift, rerun with `-- --live`.
+4. If it shows real drift, run only the drifting constituent lane; support hygiene requires the exact approval envelope shown above.
 5. Re-run the dry command to confirm the lane settled cleanly.
 6. Review `stale-support-audit` and `project-support-coverage-audit` outputs when you want to reduce long-tail support clutter or strengthen project support coverage.
