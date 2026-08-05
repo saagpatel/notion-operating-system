@@ -26,6 +26,7 @@ import {
 import {
   datePropertyValue,
   fetchAllPages,
+  hydrateCompleteRelationProperties,
   relationIds,
   relationValue,
   richTextValue,
@@ -34,6 +35,7 @@ import {
   textValue,
   titleValue,
   type DataSourcePageRef,
+  type NotionPageProperty,
 } from "../../notion/local-portfolio-control-tower-live.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 import { WorkspaceIds } from "../../config/workspace-ids.js";
@@ -195,9 +197,16 @@ async function main(): Promise<void> {
         plan.canonicalSourceNeedsUpdate,
     );
 
+  const archivePrestateDigests = await collectArchivePrestateDigests({
+    plans,
+    sdk,
+    api,
+  });
+
   const { effects, manualSeedUpdates: plannedManualSeedUpdates } =
     buildPortfolioHygieneEffects({
       plans,
+      archivePrestateDigests,
       sourceConfig,
       sourceConfigPath: path.resolve(flags.sourceConfig),
       today: flags.today,
@@ -706,6 +715,7 @@ function sourceNeedsUpdate(
  */
 function buildPortfolioHygieneEffects(input: {
   plans: RepoAuditPlan[];
+  archivePrestateDigests: ReadonlyMap<string, string>;
   sourceConfig: LocalPortfolioExternalSignalSourceConfig;
   sourceConfigPath: string;
   today: string;
@@ -720,11 +730,16 @@ function buildPortfolioHygieneEffects(input: {
       continue;
     }
     for (const page of plan.duplicateLocals) {
+      const expectedPrestateDigest = requiredArchivePrestateDigest(
+        input.archivePrestateDigests,
+        page.id,
+      );
       effects.push({
         effectId: `archive-local:${page.id}`,
         kind: "page_archive",
         targetId: page.id,
         payload: {
+          expected_prestate_digest: expectedPrestateDigest,
           in_trash: true,
           report_kind: "archived_local",
           title: page.title,
@@ -733,11 +748,16 @@ function buildPortfolioHygieneEffects(input: {
       });
     }
     for (const page of plan.duplicateIntakes) {
+      const expectedPrestateDigest = requiredArchivePrestateDigest(
+        input.archivePrestateDigests,
+        page.id,
+      );
       effects.push({
         effectId: `archive-intake:${page.id}`,
         kind: "page_archive",
         targetId: page.id,
         payload: {
+          expected_prestate_digest: expectedPrestateDigest,
           in_trash: true,
           report_kind: "archived_intake",
           title: page.title,
@@ -856,13 +876,114 @@ function buildPortfolioHygieneEffects(input: {
   return { effects, manualSeedUpdates };
 }
 
-async function performPortfolioHygieneEffect(input: {
+function requiredArchivePrestateDigest(
+  digests: ReadonlyMap<string, string>,
+  pageId: string,
+): string {
+  const digest = digests.get(pageId);
+  if (!digest) {
+    throw new AppError(`archive target ${pageId} has no complete provider prestate`);
+  }
+  return digest;
+}
+
+async function collectArchivePrestateDigests(input: {
+  plans: RepoAuditPlan[];
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+}): Promise<Map<string, string>> {
+  const pageIds = [
+    ...new Set(
+      input.plans.flatMap((plan) => [
+        ...plan.duplicateLocals.map((page) => page.id),
+        ...plan.duplicateIntakes.map((page) => page.id),
+      ]),
+    ),
+  ];
+  return new Map(
+    await Promise.all(
+      pageIds.map(async (pageId) => [
+        pageId,
+        await archivePagePrestateDigest({
+          pageId,
+          sdk: input.sdk,
+          api: input.api,
+        }),
+      ] as const),
+    ),
+  );
+}
+
+export async function archivePagePrestateDigest(input: {
+  pageId: string;
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+}): Promise<string> {
+  const providerPage = (await input.sdk.pages.retrieve({
+    page_id: input.pageId,
+  })) as unknown as Record<string, unknown>;
+  const properties = providerPage.properties;
+  if (
+    providerPage.object !== "page" ||
+    properties === null ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
+    throw new AppError(
+      `archive target ${input.pageId} did not return a complete provider page`,
+    );
+  }
+  const [hydrated] = await hydrateCompleteRelationProperties(input.api, [
+    {
+      id: input.pageId,
+      url: String(providerPage.url ?? ""),
+      title: "",
+      createdTime:
+        typeof providerPage.created_time === "string"
+          ? providerPage.created_time
+          : undefined,
+      lastEditedTime:
+        typeof providerPage.last_edited_time === "string"
+          ? providerPage.last_edited_time
+          : undefined,
+      properties: properties as Record<string, NotionPageProperty>,
+    },
+  ]);
+  if (!hydrated) {
+    throw new AppError(`archive target ${input.pageId} could not be hydrated`);
+  }
+  const markdown = await input.api.readPageMarkdown(input.pageId);
+  if (markdown.truncated || markdown.unknownBlockIds.length > 0) {
+    throw new AppError(
+      `archive target ${input.pageId} content readback is incomplete`,
+    );
+  }
+  return planDigest({
+    provider_page: {
+      ...providerPage,
+      properties: hydrated.properties,
+    },
+    markdown: markdown.markdown,
+  });
+}
+
+export async function performPortfolioHygieneEffect(input: {
   effect: NotionHygieneEffect;
   sdk: ReturnType<typeof createNotionSdkClient>;
   api: DirectNotionClient;
 }): Promise<string> {
   const { effect } = input;
   if (effect.kind === "page_archive") {
+    const currentPrestateDigest = await archivePagePrestateDigest({
+      pageId: effect.targetId,
+      sdk: input.sdk,
+      api: input.api,
+    });
+    if (currentPrestateDigest !== effect.payload.expected_prestate_digest) {
+      throw new AppError(
+        `archive target ${effect.targetId} changed after plan approval`,
+      );
+    }
     await input.sdk.pages.update({
       page_id: effect.targetId,
       in_trash: true,

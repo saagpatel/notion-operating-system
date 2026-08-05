@@ -96,6 +96,7 @@ const PRINCIPAL_KINDS = new Set([
 ]);
 
 const MIN_PROVIDER_IDEMPOTENCY_KEY_LENGTH = 8;
+const SHA256_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 function effectInventory(
   effects: NotionHygieneEffect[],
@@ -145,6 +146,16 @@ export function buildNotionHygienePlan(input: {
     effectIds.add(effect.effectId);
     if (!effect.targetId.trim()) {
       throw new AppError("hygiene plan targets must be exact");
+    }
+    if (
+      effect.kind === "page_archive" &&
+      !SHA256_DIGEST_PATTERN.test(
+        String(effect.payload.expected_prestate_digest ?? ""),
+      )
+    ) {
+      throw new AppError(
+        "page archive effects must bind a complete provider prestate digest",
+      );
     }
   }
   const allowedEffectCount = input.effects.length;

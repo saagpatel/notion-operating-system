@@ -41,7 +41,10 @@ function effects(): NotionHygieneEffect[] {
       effectId: "archive:page-duplicate",
       kind: "page_archive",
       targetId: "page-duplicate",
-      payload: { in_trash: true },
+      payload: {
+        expected_prestate_digest: `sha256:${"a".repeat(64)}`,
+        in_trash: true,
+      },
     },
     {
       effectId: "markdown:page-canonical",
@@ -140,6 +143,23 @@ async function readReceipt(
 }
 
 describe("Notion hygiene irreversible-action boundary", () => {
+  test("archive plans require a complete provider prestate digest", () => {
+    expect(() =>
+      buildNotionHygienePlan({
+        actionKind: "notion.portfolio_hygiene",
+        sourceRevision: SOURCE_REVISION,
+        effects: [
+          {
+            effectId: "archive:unbound-page",
+            kind: "page_archive",
+            targetId: "unbound-page",
+            payload: { in_trash: true },
+          },
+        ],
+      }),
+    ).toThrow(/complete provider prestate digest/i);
+  });
+
   test("live execution fails closed without an exact envelope", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "notion-hygiene-none-"));
     const performEffect = vi.fn();
