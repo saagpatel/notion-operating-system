@@ -1,6 +1,8 @@
 import "../../config/load-default-env.js";
 
 import { execFile } from "node:child_process";
+import { chmod, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 
 import { isDirectExecution } from "../../cli/legacy.js";
@@ -24,6 +26,7 @@ import {
 import {
   datePropertyValue,
   fetchAllPages,
+  hydrateCompleteRelationProperties,
   relationIds,
   relationValue,
   richTextValue,
@@ -32,9 +35,18 @@ import {
   textValue,
   titleValue,
   type DataSourcePageRef,
+  type NotionPageProperty,
 } from "../../notion/local-portfolio-control-tower-live.js";
 import { renderInternalScriptHelp, shouldShowHelp } from "./help.js";
 import { WorkspaceIds } from "../../config/workspace-ids.js";
+import {
+  buildNotionHygienePlan,
+  executeAuthorizedNotionHygiene,
+  type NotionHygieneEffect,
+  type NotionHygieneEffectReadback,
+  type NotionHygienePlan,
+} from "./notion-hygiene-authority.js";
+import { canonicalJson, planDigest, sourceRevision } from "./irreversible-action.js";
 
 const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
@@ -47,6 +59,11 @@ interface Flags {
   today: string;
   config: string;
   sourceConfig: string;
+  planOutput?: string;
+  plan?: string;
+  envelope?: string;
+  claimStateDir?: string;
+  receiptDir?: string;
 }
 
 interface GitHubRepo {
@@ -130,7 +147,12 @@ async function main(): Promise<void> {
           "Audit Notion and GitHub alignment, clean duplicate rows, and repair canonical source links.",
         options: [
           { flag: "--help, -h", description: "Show this help message." },
-          { flag: "--live", description: "Apply the hygiene fixes in Notion." },
+          { flag: "--live", description: "Execute an exact previously rendered plan." },
+          { flag: "--plan-output <path>", description: "Write the read-only rendered plan." },
+          { flag: "--plan <path>", description: "Previously rendered plan JSON." },
+          { flag: "--envelope <path>", description: "One-shot approval envelope." },
+          { flag: "--claim-state-dir <path>", description: "Private one-shot claim directory." },
+          { flag: "--receipt-dir <path>", description: "Private terminal receipt directory." },
           { flag: "--owner <login>", description: "GitHub owner or org to audit." },
           { flag: "--limit <n>", description: "Limit the number of repos inspected." },
           { flag: "--today <date>", description: "Override the YYYY-MM-DD date anchor." },
@@ -139,6 +161,10 @@ async function main(): Promise<void> {
             flag: "--source-config <path>",
             description: "Path to the external signal source config file.",
           },
+        ],
+        notes: [
+          "Plan rendering performs Notion and GitHub reads only.",
+          "Live execution fails closed unless every authority artifact is supplied.",
         ],
       }),
     );
@@ -153,11 +179,16 @@ async function main(): Promise<void> {
   const sdk = createNotionSdkClient(token);
   const api = new DirectNotionClient(token);
 
-  const [repos, localProjects, intakeProjects, sourceRows] = await Promise.all([
+  const [repos, rawLocalProjects, rawIntakeProjects, rawSourceRows] = await Promise.all([
     listGitHubRepos(flags.owner, flags.limit),
     fetchAllPages(sdk, config.database.dataSourceId, "Name"),
     fetchAllPages(sdk, workspaceIds.getDataSource("intakeProjects"), "Project Name"),
     fetchAllPages(sdk, config.phase5ExternalSignals!.sources.dataSourceId, "Name"),
+  ]);
+  const [localProjects, intakeProjects, sourceRows] = await Promise.all([
+    hydrateCompleteRelationProperties(api, rawLocalProjects),
+    hydrateCompleteRelationProperties(api, rawIntakeProjects),
+    hydrateCompleteRelationProperties(api, rawSourceRows),
   ]);
 
   const plans = repos
@@ -171,6 +202,38 @@ async function main(): Promise<void> {
         plan.canonicalSourceNeedsUpdate,
     );
 
+  const [archivePrestateDigests, markdownPrestateDigests] = await Promise.all([
+    collectArchivePrestateDigests({ plans, sdk, api }),
+    collectMarkdownPrestateDigests({ plans, api }),
+  ]);
+
+  const { effects, manualSeedUpdates: plannedManualSeedUpdates } =
+    buildPortfolioHygieneEffects({
+      plans,
+      archivePrestateDigests,
+      markdownPrestateDigests,
+      sourceConfig,
+      sourceConfigPath: path.resolve(flags.sourceConfig),
+      today: flags.today,
+    });
+  const currentApprovalPlan =
+    effects.length > 0
+      ? buildNotionHygienePlan({
+          actionKind: "notion.portfolio_hygiene",
+          sourceRevision: sourceRevision(),
+          effects,
+        })
+      : null;
+
+  if (!flags.live && flags.planOutput && currentApprovalPlan) {
+    await writeFile(
+      flags.planOutput,
+      `${JSON.stringify(currentApprovalPlan, null, 2)}\n`,
+      { mode: 0o600, flag: "wx" },
+    );
+    await chmod(flags.planOutput, 0o600);
+  }
+
   const archivedLocalRows: Array<{ title: string; id: string; repo: string }> = [];
   const archivedIntakeRows: Array<{ title: string; id: string; repo: string }> = [];
   const canonicalSourcesUpdated: Array<{ title: string; id: string; repo: string }> = [];
@@ -178,83 +241,54 @@ async function main(): Promise<void> {
   const manualSeedUpdates: ManualSeedUpdate[] = [];
 
   if (flags.live) {
-    for (const plan of plans) {
-      if (!plan.canonicalLocal) {
-        continue;
-      }
-
-      for (const page of plan.duplicateLocals) {
-        await sdk.pages.update({
-          page_id: page.id,
-          in_trash: true,
-        });
-        archivedLocalRows.push({
-          title: page.title,
-          id: page.id,
-          repo: plan.repo.name,
-        });
-      }
-
-      for (const page of plan.duplicateIntakes) {
-        await sdk.pages.update({
-          page_id: page.id,
-          in_trash: true,
-        });
-        archivedIntakeRows.push({
-          title: page.title,
-          id: page.id,
-          repo: plan.repo.name,
-        });
-      }
-
-      const canonicalSource = plan.canonicalSource
-        ? await repairCanonicalSource({
-            api,
-            source: plan.canonicalSource,
-            projectId: plan.canonicalLocal.id,
-            identifier: plan.identifier,
-            sourceTitle: plan.canonicalSourceTitle,
-            sourceUrl: plan.repo.url,
-            today: flags.today,
-          })
-        : undefined;
-
-      if (canonicalSource) {
-        canonicalSourcesUpdated.push({
-          title: plan.canonicalSourceTitle,
-          id: canonicalSource.id,
-          repo: plan.repo.name,
-        });
-      }
-
-      for (const source of plan.duplicateSources) {
-        await pauseDuplicateSource({
+    if (!flags.plan || !flags.envelope || !flags.claimStateDir || !flags.receiptDir) {
+      throw new AppError(
+        "--live requires --plan, --envelope, --claim-state-dir, and --receipt-dir",
+      );
+    }
+    if (!currentApprovalPlan) {
+      throw new AppError("live hygiene execution has no state-changing effects");
+    }
+    // The approver signed the plan rendered at approval time. Re-render from
+    // current state and refuse if the two disagree, so drift between rendering
+    // and execution cannot ride in on a still-valid envelope.
+    const renderedPlan = JSON.parse(
+      await readFile(flags.plan, "utf8"),
+    ) as NotionHygienePlan;
+    if (canonicalJson(renderedPlan) !== canonicalJson(currentApprovalPlan)) {
+      throw new AppError(
+        "live state no longer matches the previously rendered hygiene plan",
+      );
+    }
+    await executeAuthorizedNotionHygiene({
+      plan: renderedPlan,
+      envelopePath: flags.envelope,
+      claimStateDir: flags.claimStateDir,
+      receiptDir: flags.receiptDir,
+      performEffect: async (
+        effect,
+        _providerIdempotencyKey,
+        markEffectAttempted,
+      ) => {
+        const providerReference = await performPortfolioHygieneEffect({
+          effect,
+          sdk,
           api,
-          source,
-          canonicalTitle: plan.canonicalSourceTitle,
+          markEffectAttempted,
         });
-        duplicateSourcesPaused.push({
-          title: source.title,
-          id: source.id,
-          repo: plan.repo.name,
+        recordAppliedEffect({
+          effect,
+          archivedLocalRows,
+          archivedIntakeRows,
+          canonicalSourcesUpdated,
+          duplicateSourcesPaused,
         });
-      }
-
-      manualSeedUpdates.push({
-        identifier: plan.identifier,
-        title: plan.canonicalSourceTitle,
-        localProjectId: plan.canonicalLocal.id,
-        sourceUrl: plan.repo.url,
-      });
-    }
-
-    if (manualSeedUpdates.length > 0) {
-      await syncManualSeeds({
-        config: sourceConfig,
-        filePath: flags.sourceConfig,
-        updates: manualSeedUpdates,
-      });
-    }
+        return providerReference;
+      },
+      readbackEffect: (effect) =>
+        readbackPortfolioHygieneEffect({ effect, sdk, api }),
+    });
+    manualSeedUpdates.push(...plannedManualSeedUpdates);
   }
 
   const output = {
@@ -293,6 +327,7 @@ async function main(): Promise<void> {
     canonicalSourcesUpdated,
     duplicateSourcesPaused,
     syncedManualSeeds: manualSeedUpdates.map((entry) => entry.identifier),
+    approvalPlan: currentApprovalPlan,
   };
 
   recordCommandOutputSummary(output);
@@ -306,6 +341,11 @@ function parseFlags(argv: string[]): Flags {
   let today = TODAY;
   let config = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
   let sourceConfig = DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH;
+  let planOutput: string | undefined;
+  let plan: string | undefined;
+  let envelope: string | undefined;
+  let claimStateDir: string | undefined;
+  let receiptDir: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
@@ -340,6 +380,31 @@ function parseFlags(argv: string[]): Flags {
     if (current === "--source-config") {
       sourceConfig = argv[index + 1] ?? sourceConfig;
       index += 1;
+      continue;
+    }
+    if (current === "--plan-output") {
+      planOutput = requiredFlagValue(argv, index, current);
+      index += 1;
+      continue;
+    }
+    if (current === "--plan") {
+      plan = requiredFlagValue(argv, index, current);
+      index += 1;
+      continue;
+    }
+    if (current === "--envelope") {
+      envelope = requiredFlagValue(argv, index, current);
+      index += 1;
+      continue;
+    }
+    if (current === "--claim-state-dir") {
+      claimStateDir = requiredFlagValue(argv, index, current);
+      index += 1;
+      continue;
+    }
+    if (current === "--receipt-dir") {
+      receiptDir = requiredFlagValue(argv, index, current);
+      index += 1;
     }
   }
 
@@ -350,7 +415,20 @@ function parseFlags(argv: string[]): Flags {
     today,
     config,
     sourceConfig,
+    planOutput,
+    plan,
+    envelope,
+    claimStateDir,
+    receiptDir,
   };
+}
+
+function requiredFlagValue(argv: string[], index: number, flag: string): string {
+  const value = argv[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new AppError(`Expected a value after ${flag}`);
+  }
+  return value;
 }
 
 function buildRepoAuditPlan(input: {
@@ -636,67 +714,671 @@ function sourceNeedsUpdate(
   );
 }
 
-async function repairCanonicalSource(input: {
-  api: DirectNotionClient;
-  source: DataSourcePageRef;
-  projectId: string;
-  identifier: string;
-  sourceTitle: string;
-  sourceUrl: string;
+/**
+ * Render every state-changing effect this pass would apply, without applying any.
+ *
+ * The effects are data, not calls, so the whole intended mutation can be
+ * digested and signed before anything runs. Each effect carries an `expected`
+ * block where a readback can confirm it landed, and the local-file effect
+ * carries a before-digest so a config that changed after rendering is refused
+ * rather than clobbered.
+ */
+function buildPortfolioHygieneEffects(input: {
+  plans: RepoAuditPlan[];
+  archivePrestateDigests: ReadonlyMap<string, string>;
+  markdownPrestateDigests: ReadonlyMap<string, string>;
+  sourceConfig: LocalPortfolioExternalSignalSourceConfig;
+  sourceConfigPath: string;
   today: string;
-}): Promise<{ id: string; url: string }> {
-  await input.api.updatePageProperties({
-    pageId: input.source.id,
-    properties: {
-      Name: titleValue(input.sourceTitle),
-      "Local Project": relationValue([input.projectId]),
-      Provider: selectPropertyValue("GitHub"),
-      "Source Type": selectPropertyValue("Repo"),
-      Status: selectPropertyValue("Active"),
-      Environment: selectPropertyValue("N/A"),
-      "Sync Strategy": selectPropertyValue("Poll"),
-      Identifier: richTextValue(input.identifier),
-      "Source URL": { url: input.sourceUrl },
-      "Last Synced At": datePropertyValue(input.today),
+}): {
+  effects: NotionHygieneEffect[];
+  manualSeedUpdates: ManualSeedUpdate[];
+} {
+  const effects: NotionHygieneEffect[] = [];
+  const manualSeedUpdates: ManualSeedUpdate[] = [];
+  for (const plan of input.plans) {
+    if (!plan.canonicalLocal) {
+      continue;
+    }
+    for (const page of plan.duplicateLocals) {
+      const expectedPrestateDigest = requiredArchivePrestateDigest(
+        input.archivePrestateDigests,
+        page.id,
+      );
+      effects.push({
+        effectId: `archive-local:${page.id}`,
+        kind: "page_archive",
+        targetId: page.id,
+        payload: {
+          expected_prestate_digest: expectedPrestateDigest,
+          in_trash: true,
+          report_kind: "archived_local",
+          title: page.title,
+          repo: plan.repo.name,
+        },
+      });
+    }
+    for (const page of plan.duplicateIntakes) {
+      const expectedPrestateDigest = requiredArchivePrestateDigest(
+        input.archivePrestateDigests,
+        page.id,
+      );
+      effects.push({
+        effectId: `archive-intake:${page.id}`,
+        kind: "page_archive",
+        targetId: page.id,
+        payload: {
+          expected_prestate_digest: expectedPrestateDigest,
+          in_trash: true,
+          report_kind: "archived_intake",
+          title: page.title,
+          repo: plan.repo.name,
+        },
+      });
+    }
+    if (plan.canonicalSource && plan.canonicalSourceNeedsUpdate) {
+      const canonicalSourceProperties = {
+        Name: titleValue(plan.canonicalSourceTitle),
+        "Local Project": relationValue([plan.canonicalLocal.id]),
+        Provider: selectPropertyValue("GitHub"),
+        "Source Type": selectPropertyValue("Repo"),
+        Status: selectPropertyValue("Active"),
+        Environment: selectPropertyValue("N/A"),
+        "Sync Strategy": selectPropertyValue("Poll"),
+        Identifier: richTextValue(plan.identifier),
+        "Source URL": { url: plan.repo.url },
+        "Last Synced At": datePropertyValue(input.today),
+      };
+      effects.push({
+        effectId: `repair-source-properties:${plan.canonicalSource.id}`,
+        kind: "page_properties_update",
+        targetId: plan.canonicalSource.id,
+        payload: {
+          properties: canonicalSourceProperties,
+          expected_property_prestate: pagePropertyPrestate(
+            plan.canonicalSource.properties,
+            Object.keys(canonicalSourceProperties),
+          ),
+          expected: {
+            title: plan.canonicalSourceTitle,
+            local_project_id: plan.canonicalLocal.id,
+            provider: "GitHub",
+            source_type: "Repo",
+            status: "Active",
+            environment: "N/A",
+            sync_strategy: "Poll",
+            identifier: plan.identifier,
+            source_url: plan.repo.url,
+            last_synced_at: input.today,
+          },
+          report_kind: "canonical_source_updated",
+          title: plan.canonicalSourceTitle,
+          repo: plan.repo.name,
+        },
+      });
+      effects.push({
+        effectId: `repair-source-markdown:${plan.canonicalSource.id}`,
+        kind: "page_markdown_replace",
+        targetId: plan.canonicalSource.id,
+        payload: {
+          expected_prestate_digest: requiredMarkdownPrestateDigest(
+            input.markdownPrestateDigests,
+            plan.canonicalSource.id,
+          ),
+          markdown: renderCanonicalSourceMarkdown(
+            plan.canonicalSourceTitle,
+            plan.identifier,
+            plan.repo.url,
+          ),
+        },
+      });
+    }
+    for (const source of plan.duplicateSources) {
+      const pausedSourceProperties = {
+        Status: selectPropertyValue("Paused"),
+        Environment: selectPropertyValue("N/A"),
+        "Sync Strategy": selectPropertyValue("Poll"),
+        "Last Synced At": { date: null },
+      };
+      effects.push({
+        effectId: `pause-source-properties:${source.id}`,
+        kind: "page_properties_update",
+        targetId: source.id,
+        payload: {
+          properties: pausedSourceProperties,
+          expected_property_prestate: pagePropertyPrestate(
+            source.properties,
+            Object.keys(pausedSourceProperties),
+          ),
+          expected: {
+            status: "Paused",
+            environment: "N/A",
+            sync_strategy: "Poll",
+            last_synced_at: null,
+          },
+          report_kind: "duplicate_source_paused",
+          title: source.title,
+          repo: plan.repo.name,
+        },
+      });
+      effects.push({
+        effectId: `pause-source-markdown:${source.id}`,
+        kind: "page_markdown_replace",
+        targetId: source.id,
+        payload: {
+          expected_prestate_digest: requiredMarkdownPrestateDigest(
+            input.markdownPrestateDigests,
+            source.id,
+          ),
+          markdown: renderPausedSourceMarkdown(
+            source.title,
+            plan.canonicalSourceTitle,
+          ),
+        },
+      });
+    }
+    manualSeedUpdates.push({
+      identifier: plan.identifier,
+      title: plan.canonicalSourceTitle,
+      localProjectId: plan.canonicalLocal.id,
+      sourceUrl: plan.repo.url,
+    });
+  }
+  const nextSourceConfig = applyManualSeedUpdates(
+    input.sourceConfig,
+    manualSeedUpdates,
+  );
+  const beforeDigest = planDigest(input.sourceConfig);
+  const afterDigest = planDigest(nextSourceConfig);
+  if (beforeDigest !== afterDigest) {
+    effects.push({
+      effectId: `replace-source-config:${afterDigest}`,
+      kind: "local_file_replace",
+      targetId: input.sourceConfigPath,
+      payload: {
+        expected_before_digest: beforeDigest,
+        expected_after_digest: afterDigest,
+        content: nextSourceConfig as unknown as Record<string, unknown>,
+      },
+    });
+  }
+  return { effects, manualSeedUpdates };
+}
+
+function requiredArchivePrestateDigest(
+  digests: ReadonlyMap<string, string>,
+  pageId: string,
+): string {
+  const digest = digests.get(pageId);
+  if (!digest) {
+    throw new AppError(`archive target ${pageId} has no complete provider prestate`);
+  }
+  return digest;
+}
+
+function requiredMarkdownPrestateDigest(
+  digests: ReadonlyMap<string, string>,
+  pageId: string,
+): string {
+  const digest = digests.get(pageId);
+  if (!digest) {
+    throw new AppError(`markdown target ${pageId} has no complete provider prestate`);
+  }
+  return digest;
+}
+
+async function collectArchivePrestateDigests(input: {
+  plans: RepoAuditPlan[];
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+}): Promise<Map<string, string>> {
+  const pageIds = [
+    ...new Set(
+      input.plans.flatMap((plan) => [
+        ...plan.duplicateLocals.map((page) => page.id),
+        ...plan.duplicateIntakes.map((page) => page.id),
+      ]),
+    ),
+  ];
+  return new Map(
+    await Promise.all(
+      pageIds.map(async (pageId) => [
+        pageId,
+        await archivePagePrestateDigest({
+          pageId,
+          sdk: input.sdk,
+          api: input.api,
+        }),
+      ] as const),
+    ),
+  );
+}
+
+async function collectMarkdownPrestateDigests(input: {
+  plans: RepoAuditPlan[];
+  api: DirectNotionClient;
+}): Promise<Map<string, string>> {
+  const pageIds = [
+    ...new Set(
+      input.plans.flatMap((plan) => [
+        ...(plan.canonicalSource && plan.canonicalSourceNeedsUpdate
+          ? [plan.canonicalSource.id]
+          : []),
+        ...plan.duplicateSources.map((page) => page.id),
+      ]),
+    ),
+  ];
+  return new Map(
+    await Promise.all(
+      pageIds.map(async (pageId) => [
+        pageId,
+        await pageMarkdownPrestateDigest(input.api, pageId),
+      ] as const),
+    ),
+  );
+}
+
+async function readCompletePageMarkdown(
+  api: Pick<DirectNotionClient, "readPageMarkdown">,
+  pageId: string,
+): Promise<string> {
+  const markdown = await api.readPageMarkdown(pageId);
+  if (markdown.truncated || markdown.unknownBlockIds.length > 0) {
+    throw new AppError(`markdown target ${pageId} content readback is incomplete`);
+  }
+  return markdown.markdown;
+}
+
+export async function pageMarkdownPrestateDigest(
+  api: Pick<DirectNotionClient, "readPageMarkdown">,
+  pageId: string,
+): Promise<string> {
+  return planDigest(await readCompletePageMarkdown(api, pageId));
+}
+
+function notionPropertyPrestateValue(value: unknown): unknown {
+  if (value === null || typeof value !== "object") {
+    return value ?? null;
+  }
+  const property = value as Record<string, unknown>;
+  const text = (items: unknown): string =>
+    Array.isArray(items)
+      ? items
+          .map((item) => {
+            const entry = item as {
+              plain_text?: string;
+              text?: { content?: string };
+            };
+            return entry.plain_text ?? entry.text?.content ?? "";
+          })
+          .join("")
+      : "";
+  if (Array.isArray(property.title)) {
+    return { title: text(property.title) };
+  }
+  if (Array.isArray(property.rich_text)) {
+    return { rich_text: text(property.rich_text) };
+  }
+  if (Array.isArray(property.relation)) {
+    return {
+      relation: property.relation
+        .map((entry) => normalizeProviderId((entry as { id?: string }).id))
+        .filter(Boolean)
+        .sort(),
+    };
+  }
+  if ("select" in property) {
+    return {
+      select: (property.select as { name?: string } | null | undefined)?.name ?? null,
+    };
+  }
+  if ("status" in property) {
+    return {
+      status: (property.status as { name?: string } | null | undefined)?.name ?? null,
+    };
+  }
+  if (Array.isArray(property.multi_select)) {
+    return {
+      multi_select: property.multi_select
+        .map((entry) => (entry as { name?: string }).name ?? "")
+        .filter(Boolean)
+        .sort(),
+    };
+  }
+  if (Array.isArray(property.people)) {
+    return {
+      people: property.people
+        .map((entry) => (entry as { id?: string }).id ?? "")
+        .filter(Boolean)
+        .sort(),
+    };
+  }
+  if ("date" in property) {
+    const date = property.date as
+      | { start?: string; end?: string | null; time_zone?: string | null }
+      | null
+      | undefined;
+    return {
+      date: date
+        ? {
+            start: date.start ?? null,
+            end: date.end ?? null,
+            time_zone: date.time_zone ?? null,
+          }
+        : null,
+    };
+  }
+  for (const key of ["url", "checkbox", "number", "email", "phone_number"] as const) {
+    if (key in property) {
+      return { [key]: property[key] ?? null };
+    }
+  }
+  return JSON.parse(canonicalJson(value)) as unknown;
+}
+
+function normalizeProviderId(value: string | undefined): string {
+  return (value ?? "").replaceAll("-", "").toLowerCase();
+}
+
+function pagePropertyPrestate(
+  properties: Record<string, unknown>,
+  propertyNames: string[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    propertyNames
+      .sort()
+      .map((propertyName) => [
+        propertyName,
+        notionPropertyPrestateValue(properties[propertyName] ?? null),
+      ]),
+  );
+}
+
+async function readPagePropertyPrestate(input: {
+  pageId: string;
+  propertyNames: string[];
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+}): Promise<Record<string, unknown>> {
+  const providerPage = (await input.sdk.pages.retrieve({
+    page_id: input.pageId,
+  })) as unknown as Record<string, unknown>;
+  const properties = providerPage.properties;
+  if (
+    providerPage.object !== "page" ||
+    properties === null ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
+    throw new AppError(
+      `property target ${input.pageId} did not return a complete provider page`,
+    );
+  }
+  const [hydrated] = await hydrateCompleteRelationProperties(input.api, [
+    {
+      id: input.pageId,
+      url: String(providerPage.url ?? ""),
+      title: "",
+      properties: properties as Record<string, NotionPageProperty>,
     },
+  ]);
+  if (!hydrated) {
+    throw new AppError(`property target ${input.pageId} could not be hydrated`);
+  }
+  return pagePropertyPrestate(hydrated.properties, input.propertyNames);
+}
+
+export async function archivePagePrestateDigest(input: {
+  pageId: string;
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+}): Promise<string> {
+  const providerPage = (await input.sdk.pages.retrieve({
+    page_id: input.pageId,
+  })) as unknown as Record<string, unknown>;
+  const properties = providerPage.properties;
+  if (
+    providerPage.object !== "page" ||
+    properties === null ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
+    throw new AppError(
+      `archive target ${input.pageId} did not return a complete provider page`,
+    );
+  }
+  const [hydrated] = await hydrateCompleteRelationProperties(input.api, [
+    {
+      id: input.pageId,
+      url: String(providerPage.url ?? ""),
+      title: "",
+      createdTime:
+        typeof providerPage.created_time === "string"
+          ? providerPage.created_time
+          : undefined,
+      lastEditedTime:
+        typeof providerPage.last_edited_time === "string"
+          ? providerPage.last_edited_time
+          : undefined,
+      properties: properties as Record<string, NotionPageProperty>,
+    },
+  ]);
+  if (!hydrated) {
+    throw new AppError(`archive target ${input.pageId} could not be hydrated`);
+  }
+  const markdown = await readCompletePageMarkdown(input.api, input.pageId);
+  return planDigest({
+    provider_page: {
+      ...providerPage,
+      properties: hydrated.properties,
+    },
+    markdown,
   });
-  await input.api.patchPageMarkdown({
-    pageId: input.source.id,
-    command: "replace_content",
-    newMarkdown: renderCanonicalSourceMarkdown(input.sourceTitle, input.identifier, input.sourceUrl),
-  });
+}
+
+export async function performPortfolioHygieneEffect(input: {
+  effect: NotionHygieneEffect;
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+  markEffectAttempted: () => void;
+}): Promise<string> {
+  const { effect } = input;
+  if (effect.kind === "page_archive") {
+    const currentPrestateDigest = await archivePagePrestateDigest({
+      pageId: effect.targetId,
+      sdk: input.sdk,
+      api: input.api,
+    });
+    if (currentPrestateDigest !== effect.payload.expected_prestate_digest) {
+      throw new AppError(
+        `archive target ${effect.targetId} changed after plan approval`,
+      );
+    }
+    input.markEffectAttempted();
+    await input.sdk.pages.update({
+      page_id: effect.targetId,
+      in_trash: true,
+    });
+    return `notion:page:${effect.targetId}`;
+  }
+  if (effect.kind === "page_properties_update") {
+    const expectedPrestate = effect.payload
+      .expected_property_prestate as Record<string, unknown>;
+    const currentPrestate = await readPagePropertyPrestate({
+      pageId: effect.targetId,
+      propertyNames: Object.keys(expectedPrestate),
+      sdk: input.sdk,
+      api: input.api,
+    });
+    if (canonicalJson(currentPrestate) !== canonicalJson(expectedPrestate)) {
+      throw new AppError(
+        `property target ${effect.targetId} changed after plan approval`,
+      );
+    }
+    input.markEffectAttempted();
+    await input.api.updatePageProperties({
+      pageId: effect.targetId,
+      properties: effect.payload.properties as Record<string, unknown>,
+    });
+    return `notion:page:${effect.targetId}`;
+  }
+  if (effect.kind === "page_markdown_replace") {
+    const currentPrestateDigest = await pageMarkdownPrestateDigest(
+      input.api,
+      effect.targetId,
+    );
+    if (currentPrestateDigest !== effect.payload.expected_prestate_digest) {
+      throw new AppError(
+        `markdown target ${effect.targetId} changed after plan approval`,
+      );
+    }
+    input.markEffectAttempted();
+    await input.api.patchPageMarkdown({
+      pageId: effect.targetId,
+      command: "replace_content",
+      newMarkdown: String(effect.payload.markdown),
+    });
+    return `notion:page:${effect.targetId}`;
+  }
+  const current = await readJsonFile<Record<string, unknown>>(effect.targetId);
+  if (planDigest(current) !== effect.payload.expected_before_digest) {
+    throw new AppError(
+      "source config changed after plan rendering; compare-before-write failed",
+    );
+  }
+  input.markEffectAttempted();
+  await writeJsonFile(
+    effect.targetId,
+    effect.payload.content as Record<string, unknown>,
+  );
+  return `file:${effect.targetId}`;
+}
+
+async function readbackPortfolioHygieneEffect(input: {
+  effect: NotionHygieneEffect;
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+}): Promise<NotionHygieneEffectReadback> {
+  const { effect } = input;
+  let verified = false;
+  let details: Record<string, unknown> = {};
+  if (effect.kind === "page_archive") {
+    const page = (await input.sdk.pages.retrieve({
+      page_id: effect.targetId,
+    })) as unknown as Record<string, unknown>;
+    verified = page.in_trash === true || page.archived === true;
+    details = {
+      in_trash: page.in_trash ?? null,
+      archived: page.archived ?? null,
+    };
+  } else if (effect.kind === "page_properties_update") {
+    const page = (await input.sdk.pages.retrieve({
+      page_id: effect.targetId,
+    })) as unknown as {
+      properties?: Record<string, unknown>;
+    };
+    details = verifyExpectedProperties(
+      page.properties ?? {},
+      effect.payload.expected as Record<string, unknown>,
+    );
+    verified = details.matches === true;
+  } else if (effect.kind === "page_markdown_replace") {
+    const markdown = await input.api.readPageMarkdown(effect.targetId);
+    verified =
+      !markdown.truncated && markdown.markdown === effect.payload.markdown;
+    details = {
+      truncated: markdown.truncated,
+      markdown_digest: planDigest(markdown.markdown),
+    };
+  } else {
+    const current = await readJsonFile<Record<string, unknown>>(effect.targetId);
+    const digest = planDigest(current);
+    verified = digest === effect.payload.expected_after_digest;
+    details = { file_digest: digest };
+  }
   return {
-    id: input.source.id,
-    url: input.source.url,
+    effect_id: effect.effectId,
+    target_id: effect.targetId,
+    provider_reference:
+      effect.kind === "local_file_replace"
+        ? `file:${effect.targetId}`
+        : `notion:page:${effect.targetId}`,
+    verified,
+    details,
   };
 }
 
-async function pauseDuplicateSource(input: {
-  api: DirectNotionClient;
-  source: DataSourcePageRef;
-  canonicalTitle: string;
-}): Promise<void> {
-  await input.api.updatePageProperties({
-    pageId: input.source.id,
-    properties: {
-      Status: selectPropertyValue("Paused"),
-      Environment: selectPropertyValue("N/A"),
-      "Sync Strategy": selectPropertyValue("Poll"),
-      "Last Synced At": { date: null },
-    },
-  });
-  await input.api.patchPageMarkdown({
-    pageId: input.source.id,
-    command: "replace_content",
-    newMarkdown: [
-      `# ${input.source.title}`,
-      "",
-      "- Status: Paused",
-      `- Canonical repo source: ${input.canonicalTitle}`,
-      "",
-      "This duplicate GitHub source row was paused during the Notion hygiene pass so one canonical repo mapping stays active.",
-    ].join("\n"),
-  });
+function verifyExpectedProperties(
+  properties: Record<string, unknown>,
+  expected: Record<string, unknown>,
+): Record<string, unknown> {
+  const actual: Record<string, unknown> = {};
+  if ("title" in expected) {
+    actual.title = textValue(properties.Name as never);
+  }
+  if ("local_project_id" in expected) {
+    actual.local_project_id =
+      relationIds(properties["Local Project"] as never)[0] ?? null;
+  }
+  const selectFields: Array<[string, string]> = [
+    ["provider", "Provider"],
+    ["source_type", "Source Type"],
+    ["status", "Status"],
+    ["environment", "Environment"],
+    ["sync_strategy", "Sync Strategy"],
+  ];
+  for (const [expectedKey, propertyName] of selectFields) {
+    if (expectedKey in expected) {
+      actual[expectedKey] = selectValue(properties[propertyName] as never);
+    }
+  }
+  if ("identifier" in expected) {
+    actual.identifier = textValue(properties.Identifier as never);
+  }
+  if ("source_url" in expected) {
+    actual.source_url =
+      (properties["Source URL"] as { url?: string } | undefined)?.url ?? null;
+  }
+  if ("last_synced_at" in expected) {
+    actual.last_synced_at =
+      (
+        properties["Last Synced At"] as
+          | { date?: { start?: string } | null }
+          | undefined
+      )?.date?.start ?? null;
+  }
+  return {
+    matches: canonicalJson(actual) === canonicalJson(expected),
+    expected,
+    actual,
+  };
+}
+
+function recordAppliedEffect(input: {
+  effect: NotionHygieneEffect;
+  archivedLocalRows: Array<{ title: string; id: string; repo: string }>;
+  archivedIntakeRows: Array<{ title: string; id: string; repo: string }>;
+  canonicalSourcesUpdated: Array<{ title: string; id: string; repo: string }>;
+  duplicateSourcesPaused: Array<{ title: string; id: string; repo: string }>;
+}): void {
+  const reportKind = input.effect.payload.report_kind;
+  const report = {
+    title: String(input.effect.payload.title ?? ""),
+    id: input.effect.targetId,
+    repo: String(input.effect.payload.repo ?? ""),
+  };
+  if (reportKind === "archived_local") {
+    input.archivedLocalRows.push(report);
+  }
+  if (reportKind === "archived_intake") {
+    input.archivedIntakeRows.push(report);
+  }
+  if (reportKind === "canonical_source_updated") {
+    input.canonicalSourcesUpdated.push(report);
+  }
+  if (reportKind === "duplicate_source_paused") {
+    input.duplicateSourcesPaused.push(report);
+  }
 }
 
 function renderCanonicalSourceMarkdown(title: string, identifier: string, sourceUrl: string): string {
@@ -713,15 +1395,32 @@ function renderCanonicalSourceMarkdown(title: string, identifier: string, source
   ].join("\n");
 }
 
-async function syncManualSeeds(input: {
-  config: LocalPortfolioExternalSignalSourceConfig;
-  filePath: string;
-  updates: ManualSeedUpdate[];
-}): Promise<void> {
+function renderPausedSourceMarkdown(
+  title: string,
+  canonicalTitle: string,
+): string {
+  return [
+    `# ${title}`,
+    "",
+    "- Status: Paused",
+    `- Canonical repo source: ${canonicalTitle}`,
+    "",
+    "This duplicate GitHub source row was paused during the Notion hygiene pass so one canonical repo mapping stays active.",
+  ].join("\n");
+}
+
+/**
+ * Pure transform, so the resulting config can be digested at plan time and the
+ * write itself becomes an approved effect rather than a side effect.
+ */
+function applyManualSeedUpdates(
+  config: LocalPortfolioExternalSignalSourceConfig,
+  updates: ManualSeedUpdate[],
+): LocalPortfolioExternalSignalSourceConfig {
   const updateByIdentifier = new Map<string, ManualSeedUpdate>(
-    input.updates.map((entry) => [entry.identifier, entry]),
+    updates.map((entry) => [entry.identifier, entry]),
   );
-  const nextSeeds = input.config.manualSeeds.map((seed) => {
+  const nextSeeds = config.manualSeeds.map((seed) => {
     if (!seed.identifier) {
       return seed;
     }
@@ -743,10 +1442,10 @@ async function syncManualSeeds(input: {
     return nextSeed;
   });
 
-  await writeJsonFile(input.filePath, {
-    ...input.config,
+  return {
+    ...config,
     manualSeeds: nextSeeds,
-  });
+  };
 }
 
 async function listGitHubRepos(owner: string, limit?: number): Promise<GitHubRepo[]> {

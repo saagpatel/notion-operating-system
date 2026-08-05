@@ -204,24 +204,34 @@ export async function runWeeklyRefreshCommand(
       }
     | undefined;
   let liveExecuted = false;
+  let liveBlockedBySupportRecheck = false;
   let overallStatus: WeeklyRefreshOverallStatus = preflightStatus;
 
   logHumanSummary("Preflight", preflightSteps, needsLiveWrite);
 
   if (flags.live && needsLiveWrite && preflightStatus !== "failed" && preflightStatus !== "partial") {
+    assertWeeklyLiveAuthorityBoundary(preflightSteps);
     const liveDefinitions = buildStepDefinitions(flags, true, externalSignalSourceLimit, externalSignalMaxEventsPerSource);
     assertSameWeeklyStepPlan(preflightDefinitions, liveDefinitions);
     const liveSteps = await runWeeklyRefreshSteps(liveDefinitions, {
       maxStepAttempts: flags.maxStepAttempts,
       stopAfterControlTowerFailure: true,
+      stopAfterSupportDrift: true,
       streamChildOutput: flags.streamChildOutput,
     });
+    liveBlockedBySupportRecheck = liveSteps.some(
+      (step) =>
+        step.key === "support-maintenance" &&
+        shouldBlockWeeklyLiveAfterSupportRecheck(step),
+    );
     const liveSummary = summarizeStepResults(liveSteps);
     liveRun = {
       steps: liveSteps,
       summary: liveSummary,
     };
-    liveExecuted = true;
+    liveExecuted =
+      !liveBlockedBySupportRecheck &&
+      liveSteps.some((step) => step.live && step.status !== "skipped");
     overallStatus = aggregateOverallStatus(liveSteps, true);
     logHumanSummary("Live", liveSteps, false);
   } else if (flags.live && (preflightStatus === "failed" || preflightStatus === "partial")) {
@@ -240,7 +250,7 @@ export async function runWeeklyRefreshCommand(
     needsLiveWrite,
     liveExecuted,
   });
-  if (shouldPersistFullRunState) {
+  if (shouldPersistFullRunState && !liveBlockedBySupportRecheck) {
     freshness = await persistWeeklyRefreshState({
       configPath: flags.config,
       today: flags.today,
@@ -252,6 +262,10 @@ export async function runWeeklyRefreshCommand(
       liveSummary: liveRun?.summary,
       allowCommandCenterReplacement: true,
     });
+  } else if (liveBlockedBySupportRecheck) {
+    logHumanMessage(
+      "Weekly freshness state was not updated because the just-in-time support recheck found drift before any live writer ran.",
+    );
   } else if (flags.live) {
     logHumanMessage("Targeted live refresh completed without rewriting full-run weekly freshness state.");
   }
@@ -324,7 +338,11 @@ function buildStepDefinitions(
       key: "support-maintenance",
       title: "GitHub Support Maintenance",
       kind: "script",
-      args: ["src/internal/notion-maintenance/github-support-maintenance.ts", ...sharedArgs, "--owner", flags.owner],
+      // The combined support surface spans two product actions and is
+      // intentionally dry-run-only. A full weekly live pass may re-check a
+      // clean support preflight, but it must never forward live authority to
+      // this wrapper.
+      args: buildWeeklySupportMaintenanceArgs(flags),
       timeoutMs: 10 * 60 * 1000,
     },
     {
@@ -526,18 +544,43 @@ function buildSharedArgs(
   return args;
 }
 
+export function buildWeeklySupportMaintenanceArgs(flags: {
+  today: string;
+  config: string;
+  owner: string;
+}): string[] {
+  return [
+    "src/internal/notion-maintenance/github-support-maintenance.ts",
+    ...buildSharedArgs(flags, false),
+    "--owner",
+    flags.owner,
+  ];
+}
+
 async function runWeeklyRefreshSteps(
   steps: WeeklyRefreshStepDefinition[],
   options: {
     maxStepAttempts: number;
     stopAfterControlTowerFailure: boolean;
+    stopAfterSupportDrift?: boolean;
     streamChildOutput: boolean;
   },
 ): Promise<WeeklyRefreshStepResult[]> {
   const results: WeeklyRefreshStepResult[] = [];
   let controlTowerFailed = false;
+  let supportDriftBlocked = false;
 
   for (const step of steps) {
+    if (supportDriftBlocked) {
+      results.push(
+        buildSkippedStep(
+          step,
+          step.args.includes("--live"),
+          "Skipped because the just-in-time support maintenance recheck found drift.",
+        ),
+      );
+      continue;
+    }
     if (controlTowerFailed && step.skipAfterControlTowerFailure) {
       results.push(
         buildSkippedStep(step, step.args.includes("--live"), "Skipped because control-tower sync failed."),
@@ -551,12 +594,32 @@ async function runWeeklyRefreshSteps(
     });
     results.push(result);
 
+    if (
+      options.stopAfterSupportDrift &&
+      step.key === "support-maintenance" &&
+      shouldBlockWeeklyLiveAfterSupportRecheck(result)
+    ) {
+      supportDriftBlocked = true;
+    }
+
     if (options.stopAfterControlTowerFailure && step.key === "control-tower-sync" && result.status === "failed") {
       controlTowerFailed = true;
     }
   }
 
   return results;
+}
+
+export function shouldBlockWeeklyLiveAfterSupportRecheck(step: {
+  status: string;
+  wouldChange: boolean;
+}): boolean {
+  return (
+    step.wouldChange ||
+    step.status === "drift" ||
+    step.status === "failed" ||
+    step.status === "partial"
+  );
 }
 
 async function runStep(
@@ -839,6 +902,25 @@ function validateWeeklyRefreshFlags(flags: {
   }
 }
 
+export function assertWeeklyLiveAuthorityBoundary(
+  steps: Array<{ key: string; wouldChange: boolean; status: string }>,
+): void {
+  const supportDrift = steps.some(
+    (step) =>
+      step.key === "support-maintenance" &&
+      (step.wouldChange || step.status === "drift"),
+  );
+  if (supportDrift) {
+    throw new Error(
+      [
+        "Weekly live execution is blocked before any live child command because support maintenance has drift.",
+        "The combined support command cannot inherit authority for its independent product actions.",
+        "Run the GitHub knowledge audit and support-database hygiene lanes separately, using the hygiene approval envelope when that plan has effects, then repeat the weekly preflight.",
+      ].join(" "),
+    );
+  }
+}
+
 function isWeeklyStepKey(value: string): value is WeeklyStepKey {
   return (WEEKLY_STEP_KEYS as readonly string[]).includes(value);
 }
@@ -1102,7 +1184,9 @@ export function buildWeeklyRefreshRecoveryPlan(
     for (const step of driftSteps) {
       plan.push({
         step: step.key,
-        reason: isExternalSignalFullScopeBacklogDrift(step)
+        reason: step.key === "support-maintenance"
+          ? "Support drift spans independent product actions; inspect the combined dry-run, execute only the drifting constituent lane with its own authority, then repeat the weekly preflight."
+          : isExternalSignalFullScopeBacklogDrift(step)
           ? "External Signal Sync is in a full-scope provider/source backlog; run this lane live without --fast, then repeat the same full-scope dry-run until it reports clean."
           : "Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
         command: buildWeeklyRefreshLiveRepairCommand(output.today, step),
@@ -1113,6 +1197,9 @@ export function buildWeeklyRefreshRecoveryPlan(
 }
 
 function buildWeeklyRefreshLiveRepairCommand(today: string, step: WeeklyRefreshStepResult): string {
+  if (step.key === "support-maintenance") {
+    return `npm run portfolio-audit:github-support-maintenance -- --today ${today}`;
+  }
   const fastFlag = isExternalSignalFullScopeBacklogDrift(step) ? "" : " --fast";
   return `npm run maintenance:weekly-refresh -- --today ${today} --only ${step.key}${fastFlag} --live --confirm-full-live`;
 }

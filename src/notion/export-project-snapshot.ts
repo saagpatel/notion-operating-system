@@ -9,7 +9,6 @@ import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { RunLogger } from "../logging/run-logger.js";
 import { losAngelesToday } from "../utils/date.js";
-import { postNotificationHubEvent } from "../utils/notification-hub.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	applyDerivedSignals,
@@ -311,13 +310,6 @@ export async function runExportProjectSnapshotCommand(options: {
 	};
 
 	recordCommandOutputSummary(output, { status: "completed" });
-
-	postNotificationHubEvent({
-		source: "notion-os",
-		level: "info",
-		title: "export-project-snapshot complete",
-		body: `${snapshot.project_count} projects written to snapshot (${overdueCount} overdue, ${needsReviewCount} need review)`,
-	});
 
 	console.log(JSON.stringify(output, null, 2));
 }

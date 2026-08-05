@@ -10,7 +10,8 @@ Use this as the default maintenance rhythm now that the numbered structural phas
 - Review the weekly `weekly-notion-maintenance` inbox item as the default Notion maintenance signal.
 - Run `npm run maintenance:weekly-refresh -- --fast` first when you need a compact weekly preflight.
 - Read the compact timing summary before taking action. It reports total runtime, longest lane, slow lanes, and every lane sorted from slowest to fastest.
-- Run `npm run maintenance:weekly-refresh -- --fast --live --confirm-full-live` manually only when that weekly digest recommends a full live refresh.
+- Run `npm run maintenance:weekly-refresh -- --fast --live --confirm-full-live` manually only when that weekly digest recommends a full live refresh and the support-maintenance preflight is clean.
+- If support maintenance has drift, execute its GitHub knowledge and support-hygiene product actions separately, then repeat the weekly preflight. The hygiene action requires its exact approval envelope.
 
 ## Fast Notion Repair Rule
 
@@ -60,6 +61,10 @@ Run full weekly live only for full weekly maintenance:
 ```bash
 npm run maintenance:weekly-refresh -- --today 2026-05-04 --fast --live --confirm-full-live
 ```
+
+The command refuses before any live child starts when support maintenance has
+drift. Resolve that drift through the separate product commands documented in
+`github-support-maintenance.md`, then rerun the weekly preflight.
 
 If the full weekly live command fails in `execution-sync`, `intelligence-sync`, or `external-signals`, continue with that lane's targeted command instead of rerunning the full weekly sequence.
 
