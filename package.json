@@ -153,7 +153,7 @@
 		"bridge-db:status": "tsx src/cli.ts bridge-db status"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "1.29.0",
+		"@modelcontextprotocol/sdk": "1.30.0",
 		"@notionhq/client": "^5.22.0",
 		"dotenv": "^17.4.2",
 		"exceljs": "^4.4.0",
@@ -170,10 +170,10 @@
 		"uuid": "11.1.1",
 		"js-yaml": "3.15.0",
 		"minimatch@3.1.5": {
-			"brace-expansion": "1.1.13"
+			"brace-expansion": "1.1.18"
 		},
 		"minimatch@5.1.9": {
-			"brace-expansion": "2.0.3"
+			"brace-expansion": "2.1.4"
 		}
 	}
 }
