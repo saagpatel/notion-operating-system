@@ -20,6 +20,7 @@ import {
   runSupportDatabaseHygienePass,
   type SupportDatabaseHygieneFlags,
 } from "./support-database-hygiene-pass.js";
+import { loadEnvelope } from "./irreversible-action.js";
 import { buildWeeklyStepContract, mapWeeklyStepStatusToCommandStatus } from "../../notion/weekly-refresh-contract.js";
 
 const TODAY = losAngelesToday();
@@ -32,6 +33,7 @@ interface Flags {
   today: string;
   config: string;
   sourceConfig: string;
+  approval?: string;
 }
 
 function parseFlags(argv: string[]): Flags {
@@ -41,6 +43,7 @@ function parseFlags(argv: string[]): Flags {
   let today = TODAY;
   let config = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
   let sourceConfig = DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH;
+  let approval: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
@@ -71,10 +74,15 @@ function parseFlags(argv: string[]): Flags {
     if (current === "--source-config") {
       sourceConfig = argv[index + 1] ?? sourceConfig;
       index += 1;
+      continue;
+    }
+    if (current === "--approval") {
+      approval = argv[index + 1];
+      index += 1;
     }
   }
 
-  return { live, owner, limit, today, config, sourceConfig };
+  return { live, owner, limit, today, config, sourceConfig, approval };
 }
 
 async function main(): Promise<void> {
@@ -93,6 +101,10 @@ async function main(): Promise<void> {
             { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
             { flag: "--config <path>", description: "Path to the control-tower config file." },
             { flag: "--source-config <path>", description: "Path to the external-signal source config file." },
+            {
+              flag: "--approval <path>",
+              description: "Exact hygiene IrreversibleActionEnvelopeV1 required with --live.",
+            },
           ],
         }),
       );
@@ -126,10 +138,43 @@ export async function runGitHubSupportMaintenance(flags: Flags): Promise<Record<
     live: flags.live,
     today: flags.today,
     config: flags.config,
+    approval: flags.approval,
   };
 
+  // In live mode, compute the exact hygiene plan before any maintenance write.
+  // Only a non-empty destructive plan requires and consumes an envelope.
+  const supportPreflight = flags.live
+    ? await runSupportDatabaseHygienePass({
+        ...supportFlags,
+        live: false,
+        approval: undefined,
+      })
+    : undefined;
+  const hygieneEffectCount = supportPreflight
+    ? numberAt(supportPreflight, ["approvalPlan", "effect_count"])
+    : 0;
+  assertSupportApprovalBeforeLiveWrites({
+    live: flags.live,
+    hygieneEffectCount,
+    approval: flags.approval,
+  });
+  if (flags.live && hygieneEffectCount > 0) {
+    const envelope = loadEnvelope(flags.approval!);
+    if (
+      envelope.schema !== "IrreversibleActionEnvelopeV1" ||
+      envelope.action_kind !== "notion.support_database_hygiene"
+    ) {
+      throw new Error(
+        "--approval must authorize notion.support_database_hygiene",
+      );
+    }
+  }
+  const supportDatabaseHygiene = flags.live && hygieneEffectCount > 0
+    ? await runSupportDatabaseHygienePass(supportFlags)
+    : supportPreflight;
   const githubKnowledgeAudit = await runGitHubKnowledgeAudit(githubFlags);
-  const supportDatabaseHygiene = await runSupportDatabaseHygienePass(supportFlags);
+  const resolvedSupportDatabaseHygiene =
+    supportDatabaseHygiene ?? await runSupportDatabaseHygienePass(supportFlags);
 
   const githubRefreshCount = numberAt(githubKnowledgeAudit, ["skills", "new"]) +
     numberAt(githubKnowledgeAudit, ["skills", "refreshNeeded"]) +
@@ -139,9 +184,9 @@ export async function runGitHubSupportMaintenance(flags: Flags): Promise<Record<
     numberAt(githubKnowledgeAudit, ["tools", "refreshNeeded"]) +
     numberAt(githubKnowledgeAudit, ["existingToolUpdates", "refreshNeeded"]);
   const hygieneActions =
-    numberAt(supportDatabaseHygiene, ["duplicateGroupCount"]) +
-    numberAt(supportDatabaseHygiene, ["lowRiskArchiveCount"]) +
-    numberAt(supportDatabaseHygiene, ["forcedNearDuplicateMergeCount"]);
+    numberAt(resolvedSupportDatabaseHygiene, ["duplicateGroupCount"]) +
+    numberAt(resolvedSupportDatabaseHygiene, ["lowRiskArchiveCount"]) +
+    numberAt(resolvedSupportDatabaseHygiene, ["forcedNearDuplicateMergeCount"]);
   const contract = buildWeeklyStepContract({
     live: flags.live,
     wouldChange: githubRefreshCount > 0 || hygieneActions > 0,
@@ -149,9 +194,9 @@ export async function runGitHubSupportMaintenance(flags: Flags): Promise<Record<
       githubRefreshCount,
       hygieneActions,
       touchedProjects: numberAt(githubKnowledgeAudit, ["touchedProjects", "count"]),
-      duplicateGroupCount: numberAt(supportDatabaseHygiene, ["duplicateGroupCount"]),
-      lowRiskArchiveCount: numberAt(supportDatabaseHygiene, ["lowRiskArchiveCount"]),
-      forcedNearDuplicateMergeCount: numberAt(supportDatabaseHygiene, ["forcedNearDuplicateMergeCount"]),
+      duplicateGroupCount: numberAt(resolvedSupportDatabaseHygiene, ["duplicateGroupCount"]),
+      lowRiskArchiveCount: numberAt(resolvedSupportDatabaseHygiene, ["lowRiskArchiveCount"]),
+      forcedNearDuplicateMergeCount: numberAt(resolvedSupportDatabaseHygiene, ["forcedNearDuplicateMergeCount"]),
     },
   });
 
@@ -179,8 +224,20 @@ export async function runGitHubSupportMaintenance(flags: Flags): Promise<Record<
     owner: flags.owner,
     today: flags.today,
     githubKnowledgeAudit,
-    supportDatabaseHygiene,
+    supportDatabaseHygiene: resolvedSupportDatabaseHygiene,
   };
+}
+
+export function assertSupportApprovalBeforeLiveWrites(input: {
+  live: boolean;
+  hygieneEffectCount: number;
+  approval?: string;
+}): void {
+  if (input.live && input.hygieneEffectCount > 0 && !input.approval) {
+    throw new Error(
+      "--live requires --approval <IrreversibleActionEnvelopeV1.json> before any maintenance write",
+    );
+  }
 }
 
 function numberAt(source: Record<string, unknown>, path: string[]): number {

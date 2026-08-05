@@ -54,8 +54,13 @@ Live weekly refreshes are manual operator actions.
 Use this command only when the weekly digest recommends it:
 
 ```bash
-npm run maintenance:weekly-refresh -- --live --confirm-full-live --summary-first
+npm run maintenance:weekly-refresh -- --live --confirm-full-live --summary-first --support-approval /path/to/IrreversibleActionEnvelopeV1.json
 ```
+
+The support approval comes from the preceding support-maintenance dry-run. When
+that preflight reports hygiene effects, the weekly run fails before any live
+child command starts if `--support-approval` is absent. No envelope is consumed
+for a zero-effect hygiene plan.
 
 Decision rules:
 

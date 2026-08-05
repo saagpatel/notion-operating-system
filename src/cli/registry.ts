@@ -1717,6 +1717,13 @@ export const cliRegistry: CliCommandDefinition[] = [
 					type: "boolean",
 				},
 				{
+					name: "support-approval",
+					description:
+						"Exact IrreversibleActionEnvelopeV1 required when support preflight finds hygiene effects.",
+					type: "string",
+					valueName: "path",
+				},
+				{
 					name: "owner",
 					description: "GitHub owner used for support maintenance.",
 					type: "string",
@@ -1809,6 +1816,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 					fast: asBoolean(parsed.options.fast),
 					live: asBoolean(parsed.options.live),
 					confirmFullLive: asBoolean(parsed.options["confirm-full-live"]),
+					supportApproval: asString(parsed.options["support-approval"]),
 					today: asString(parsed.options.today),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),

@@ -44,8 +44,15 @@ Use live mode only when the dry run shows real work to do:
 Live command:
 
 ```bash
-npm run portfolio-audit:github-support-maintenance -- --live
+npm run portfolio-audit:github-support-maintenance -- --live --approval /path/to/IrreversibleActionEnvelopeV1.json
 ```
+
+When hygiene effects are planned, the dry-run JSON includes `approvalEnvelope`, which binds the exact action kind,
+targets, source revision, plan digest, effect/deletion bounds, and required
+readback. Use those fields to create a short-lived, one-shot operator envelope.
+Live mode validates and claims that envelope before hygiene or GitHub-backed
+maintenance writes begin. A zero-effect hygiene plan does not consume an
+envelope.
 
 ## Safe Cleanup Rules
 
@@ -84,6 +91,6 @@ The intentional-single-project classification list lives in `config/stale-suppor
 1. Default to `npm run maintenance:weekly-refresh` when you want the full weekly portfolio lane.
 2. Use `npm run portfolio-audit:github-support-maintenance` when you only want the narrow GitHub-backed support slice.
 3. If the dry run is clean, stop there.
-4. If it shows real drift, rerun with `-- --live`.
+4. If it shows real drift, create the exact hygiene envelope and rerun with `-- --live --approval <path>`.
 5. Re-run the dry command to confirm the lane settled cleanly.
 6. Review `stale-support-audit` and `project-support-coverage-audit` outputs when you want to reduce long-tail support clutter or strengthen project support coverage.

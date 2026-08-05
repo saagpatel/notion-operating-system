@@ -36,6 +36,7 @@ interface WeeklyRefreshCommandOptions {
   fast?: boolean;
   live?: boolean;
   confirmFullLive?: boolean;
+  supportApproval?: string;
   today?: string;
   config?: string;
   owner?: string;
@@ -144,6 +145,7 @@ export async function runWeeklyRefreshCommand(
     fast: options.fast ?? false,
     live: options.live ?? false,
     confirmFullLive: options.confirmFullLive ?? false,
+    supportApproval: options.supportApproval,
     today: options.today ?? losAngelesToday(),
     config: options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
     owner: options.owner ?? DEFAULT_OWNER,
@@ -207,6 +209,19 @@ export async function runWeeklyRefreshCommand(
   let overallStatus: WeeklyRefreshOverallStatus = preflightStatus;
 
   logHumanSummary("Preflight", preflightSteps, needsLiveWrite);
+
+  if (
+    flags.live &&
+    needsLiveWrite &&
+    preflightStatus !== "failed" &&
+    preflightStatus !== "partial" &&
+    weeklySupportApprovalRequired(preflightSteps) &&
+    !flags.supportApproval
+  ) {
+    throw new Error(
+      "Live support hygiene requires --support-approval <IrreversibleActionEnvelopeV1.json>",
+    );
+  }
 
   if (flags.live && needsLiveWrite && preflightStatus !== "failed" && preflightStatus !== "partial") {
     const liveDefinitions = buildStepDefinitions(flags, true, externalSignalSourceLimit, externalSignalMaxEventsPerSource);
@@ -304,6 +319,7 @@ function buildStepDefinitions(
     today: string;
     config: string;
     owner: string;
+    supportApproval?: string;
     signalSourceLimit?: number;
     signalMaxEventsPerSource?: number;
     only?: WeeklyStepKey[];
@@ -324,7 +340,15 @@ function buildStepDefinitions(
       key: "support-maintenance",
       title: "GitHub Support Maintenance",
       kind: "script",
-      args: ["src/internal/notion-maintenance/github-support-maintenance.ts", ...sharedArgs, "--owner", flags.owner],
+      args: [
+        "src/internal/notion-maintenance/github-support-maintenance.ts",
+        ...sharedArgs,
+        ...(live && flags.supportApproval
+          ? ["--approval", flags.supportApproval]
+          : []),
+        "--owner",
+        flags.owner,
+      ],
       timeoutMs: 10 * 60 * 1000,
     },
     {
@@ -839,6 +863,16 @@ function validateWeeklyRefreshFlags(flags: {
   }
 }
 
+export function weeklySupportApprovalRequired(
+  steps: Array<{ key: string; summaryCounts: Record<string, number> }>,
+): boolean {
+  return steps.some(
+    (step) =>
+      step.key === "support-maintenance" &&
+      (step.summaryCounts.hygieneActions ?? 0) > 0,
+  );
+}
+
 function isWeeklyStepKey(value: string): value is WeeklyStepKey {
   return (WEEKLY_STEP_KEYS as readonly string[]).includes(value);
 }
@@ -1114,7 +1148,11 @@ export function buildWeeklyRefreshRecoveryPlan(
 
 function buildWeeklyRefreshLiveRepairCommand(today: string, step: WeeklyRefreshStepResult): string {
   const fastFlag = isExternalSignalFullScopeBacklogDrift(step) ? "" : " --fast";
-  return `npm run maintenance:weekly-refresh -- --today ${today} --only ${step.key}${fastFlag} --live --confirm-full-live`;
+  const approvalFlag = step.key === "support-maintenance" &&
+    (step.summaryCounts.hygieneActions ?? 0) > 0
+    ? " --support-approval <IrreversibleActionEnvelopeV1.json>"
+    : "";
+  return `npm run maintenance:weekly-refresh -- --today ${today} --only ${step.key}${fastFlag} --live --confirm-full-live${approvalFlag}`;
 }
 
 function buildWeeklyRefreshOperatorNotes(output: WeeklyRefreshOutput): string[] {

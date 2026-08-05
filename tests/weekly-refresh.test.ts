@@ -239,7 +239,7 @@ describe("weekly refresh fast workflow guidance", () => {
 				},
 				steps: [
 					{
-						key: "execution-sync",
+								key: "execution-sync",
 						title: "Execution Sync",
 						durationMs: 1000,
 						live: false,
@@ -390,7 +390,7 @@ describe("weekly refresh fast workflow guidance", () => {
 							live: false,
 							wouldChange: true,
 							status: "drift",
-							summaryCounts: {},
+								summaryCounts: {},
 							warnings: [],
 						},
 					],
@@ -408,6 +408,41 @@ describe("weekly refresh fast workflow guidance", () => {
 					"npm run maintenance:weekly-refresh -- --today 2026-05-03 --only execution-sync --fast --live --confirm-full-live",
 			},
 		]);
+	});
+
+	test("includes exact support authority in live repair guidance", () => {
+		const plan = buildWeeklyRefreshRecoveryPlan(
+			{
+				ok: true,
+				liveRequested: false,
+				liveExecuted: false,
+				needsLiveWrite: true,
+				status: "completed",
+				today: "2026-05-03",
+				config: "config/local-portfolio-control-tower.json",
+				preflight: {
+					summary: {},
+					steps: [
+						{
+								key: "support-maintenance",
+							title: "GitHub Support Maintenance",
+							durationMs: 1000,
+							live: false,
+							wouldChange: true,
+							status: "drift",
+								summaryCounts: { hygieneActions: 1 },
+							warnings: [],
+						},
+					],
+				},
+			},
+			[],
+			[],
+		);
+
+		expect(plan[0]?.command).toContain(
+			"--support-approval <IrreversibleActionEnvelopeV1.json>",
+		);
 	});
 
 	test("summarizes per-lane timings in the compact output", () => {
