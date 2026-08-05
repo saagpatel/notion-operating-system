@@ -12,6 +12,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 export interface IrreversibleActionEnvelopeV1 {
@@ -64,10 +65,33 @@ const ENVELOPE_FIELDS: ReadonlySet<string> = new Set([
   "receipt_requirements",
 ]);
 
-export const NOTION_CLAIM_STATE_DIR =
-  "/Users/d/.codex/state/irreversible-actions/notion";
-export const NOTION_RECEIPT_DIR =
-  "/Users/d/.codex/reports/irreversible-actions/notion/receipts";
+/**
+ * The installation home for authority state.
+ *
+ * Deliberately read from the password database rather than `$HOME`. These two
+ * directories are where the one-shot claim is written and looked up, so any
+ * caller able to redirect them can make an already-spent envelope look
+ * unclaimed and replay an irreversible action. `os.homedir()` would honor a
+ * `HOME` set by the caller; `os.userInfo().homedir` does not, which is the
+ * whole reason it is used here in place of the shorter call.
+ */
+const AUTHORITY_HOME = os.userInfo().homedir;
+
+export const NOTION_CLAIM_STATE_DIR = path.join(
+  AUTHORITY_HOME,
+  ".codex",
+  "state",
+  "irreversible-actions",
+  "notion",
+);
+export const NOTION_RECEIPT_DIR = path.join(
+  AUTHORITY_HOME,
+  ".codex",
+  "reports",
+  "irreversible-actions",
+  "notion",
+  "receipts",
+);
 
 const OPAQUE_ACTION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 

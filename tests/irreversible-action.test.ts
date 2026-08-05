@@ -304,12 +304,45 @@ describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
   test("production authority namespaces are fixed installation paths", () => {
     process.env.IRREVERSIBLE_ACTION_STATE_DIR = "/tmp/caller-claims";
     process.env.IRREVERSIBLE_ACTION_RECEIPT_DIR = "/tmp/caller-receipts";
+    const home = os.userInfo().homedir;
     expect(NOTION_CLAIM_STATE_DIR).toBe(
-      "/Users/d/.codex/state/irreversible-actions/notion",
+      path.join(home, ".codex/state/irreversible-actions/notion"),
     );
     expect(NOTION_RECEIPT_DIR).toBe(
-      "/Users/d/.codex/reports/irreversible-actions/notion/receipts",
+      path.join(home, ".codex/reports/irreversible-actions/notion/receipts"),
     );
+  });
+
+  test("a caller-supplied HOME cannot move the authority namespaces", async () => {
+    // The claim file is what proves an envelope was already spent. A caller who
+    // can redirect the directory it lives in can make a spent envelope read as
+    // unclaimed and replay an irreversible action, so HOME must not reach these
+    // paths. The module is re-imported under a tampered HOME because the
+    // constants are resolved once at load, which makes an in-test assignment
+    // arrive too late to prove anything.
+    const originalHome = process.env.HOME;
+    process.env.HOME = "/tmp/caller-home";
+    try {
+      vi.resetModules();
+      const reloaded = await import(
+        "../src/internal/notion-maintenance/irreversible-action.js"
+      );
+      expect(reloaded.NOTION_CLAIM_STATE_DIR.startsWith("/tmp/caller-home")).toBe(
+        false,
+      );
+      expect(reloaded.NOTION_RECEIPT_DIR.startsWith("/tmp/caller-home")).toBe(
+        false,
+      );
+      expect(reloaded.NOTION_CLAIM_STATE_DIR).toBe(
+        path.join(
+          os.userInfo().homedir,
+          ".codex/state/irreversible-actions/notion",
+        ),
+      );
+    } finally {
+      process.env.HOME = originalHome;
+      vi.resetModules();
+    }
   });
 
   test("claim and receipt reject pre-existing weak authority directories", () => {
