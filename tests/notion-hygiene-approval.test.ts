@@ -50,7 +50,10 @@ function effects(): NotionHygieneEffect[] {
       effectId: "markdown:page-canonical",
       kind: "page_markdown_replace",
       targetId: "page-canonical",
-      payload: { markdown: "# Canonical" },
+      payload: {
+        expected_prestate_digest: `sha256:${"b".repeat(64)}`,
+        markdown: "# Canonical",
+      },
     },
   ];
 }
@@ -158,6 +161,40 @@ describe("Notion hygiene irreversible-action boundary", () => {
         ],
       }),
     ).toThrow(/complete provider prestate digest/i);
+  });
+
+  test("markdown plans require an exact provider prestate digest", () => {
+    expect(() =>
+      buildNotionHygienePlan({
+        actionKind: "notion.portfolio_hygiene",
+        sourceRevision: SOURCE_REVISION,
+        effects: [
+          {
+            effectId: "markdown:unbound-page",
+            kind: "page_markdown_replace",
+            targetId: "unbound-page",
+            payload: { markdown: "# Replacement" },
+          },
+        ],
+      }),
+    ).toThrow(/exact provider prestate digest/i);
+  });
+
+  test("property plans require the exact provider prestate", () => {
+    expect(() =>
+      buildNotionHygienePlan({
+        actionKind: "notion.portfolio_hygiene",
+        sourceRevision: SOURCE_REVISION,
+        effects: [
+          {
+            effectId: "properties:unbound-page",
+            kind: "page_properties_update",
+            targetId: "unbound-page",
+            payload: { properties: { Status: { select: { name: "Paused" } } } },
+          },
+        ],
+      }),
+    ).toThrow(/exact provider prestate/i);
   });
 
   test("live execution fails closed without an exact envelope", async () => {

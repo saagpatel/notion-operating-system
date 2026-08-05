@@ -18,6 +18,7 @@
  * `REQUIRED_READBACK` below, both of which carry the reason inline.
  */
 import {
+  canonicalJson,
   claimEnvelope,
   emitReceipt,
   loadEnvelope,
@@ -156,6 +157,35 @@ export function buildNotionHygienePlan(input: {
       throw new AppError(
         "page archive effects must bind a complete provider prestate digest",
       );
+    }
+    if (
+      effect.kind === "page_markdown_replace" &&
+      !SHA256_DIGEST_PATTERN.test(
+        String(effect.payload.expected_prestate_digest ?? ""),
+      )
+    ) {
+      throw new AppError(
+        "page markdown effects must bind an exact provider prestate digest",
+      );
+    }
+    if (effect.kind === "page_properties_update") {
+      const expected = effect.payload.expected_property_prestate;
+      const properties = effect.payload.properties;
+      if (
+        expected === null ||
+        typeof expected !== "object" ||
+        Array.isArray(expected) ||
+        properties === null ||
+        typeof properties !== "object" ||
+        Array.isArray(properties) ||
+        Object.keys(expected).length === 0 ||
+        canonicalJson(Object.keys(expected).sort()) !==
+          canonicalJson(Object.keys(properties).sort())
+      ) {
+        throw new AppError(
+          "page property effects must bind the exact provider prestate",
+        );
+      }
     }
   }
   const allowedEffectCount = input.effects.length;

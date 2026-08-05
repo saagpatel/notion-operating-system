@@ -127,6 +127,20 @@ export function planDigest(plan: unknown): string {
 }
 
 export function sourceRevision(cwd = process.cwd()): string {
+  const worktreeState = execFileSync(
+    "git",
+    ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"],
+    {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  );
+  if (worktreeState.trim()) {
+    throw new Error(
+      "source revision is unavailable because the execution worktree is dirty",
+    );
+  }
   const revision = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd,
     encoding: "utf8",

@@ -179,11 +179,16 @@ async function main(): Promise<void> {
   const sdk = createNotionSdkClient(token);
   const api = new DirectNotionClient(token);
 
-  const [repos, localProjects, intakeProjects, sourceRows] = await Promise.all([
+  const [repos, rawLocalProjects, rawIntakeProjects, rawSourceRows] = await Promise.all([
     listGitHubRepos(flags.owner, flags.limit),
     fetchAllPages(sdk, config.database.dataSourceId, "Name"),
     fetchAllPages(sdk, workspaceIds.getDataSource("intakeProjects"), "Project Name"),
     fetchAllPages(sdk, config.phase5ExternalSignals!.sources.dataSourceId, "Name"),
+  ]);
+  const [localProjects, intakeProjects, sourceRows] = await Promise.all([
+    hydrateCompleteRelationProperties(api, rawLocalProjects),
+    hydrateCompleteRelationProperties(api, rawIntakeProjects),
+    hydrateCompleteRelationProperties(api, rawSourceRows),
   ]);
 
   const plans = repos
@@ -197,16 +202,16 @@ async function main(): Promise<void> {
         plan.canonicalSourceNeedsUpdate,
     );
 
-  const archivePrestateDigests = await collectArchivePrestateDigests({
-    plans,
-    sdk,
-    api,
-  });
+  const [archivePrestateDigests, markdownPrestateDigests] = await Promise.all([
+    collectArchivePrestateDigests({ plans, sdk, api }),
+    collectMarkdownPrestateDigests({ plans, api }),
+  ]);
 
   const { effects, manualSeedUpdates: plannedManualSeedUpdates } =
     buildPortfolioHygieneEffects({
       plans,
       archivePrestateDigests,
+      markdownPrestateDigests,
       sourceConfig,
       sourceConfigPath: path.resolve(flags.sourceConfig),
       today: flags.today,
@@ -721,6 +726,7 @@ function sourceNeedsUpdate(
 function buildPortfolioHygieneEffects(input: {
   plans: RepoAuditPlan[];
   archivePrestateDigests: ReadonlyMap<string, string>;
+  markdownPrestateDigests: ReadonlyMap<string, string>;
   sourceConfig: LocalPortfolioExternalSignalSourceConfig;
   sourceConfigPath: string;
   today: string;
@@ -771,23 +777,28 @@ function buildPortfolioHygieneEffects(input: {
       });
     }
     if (plan.canonicalSource && plan.canonicalSourceNeedsUpdate) {
+      const canonicalSourceProperties = {
+        Name: titleValue(plan.canonicalSourceTitle),
+        "Local Project": relationValue([plan.canonicalLocal.id]),
+        Provider: selectPropertyValue("GitHub"),
+        "Source Type": selectPropertyValue("Repo"),
+        Status: selectPropertyValue("Active"),
+        Environment: selectPropertyValue("N/A"),
+        "Sync Strategy": selectPropertyValue("Poll"),
+        Identifier: richTextValue(plan.identifier),
+        "Source URL": { url: plan.repo.url },
+        "Last Synced At": datePropertyValue(input.today),
+      };
       effects.push({
         effectId: `repair-source-properties:${plan.canonicalSource.id}`,
         kind: "page_properties_update",
         targetId: plan.canonicalSource.id,
         payload: {
-          properties: {
-            Name: titleValue(plan.canonicalSourceTitle),
-            "Local Project": relationValue([plan.canonicalLocal.id]),
-            Provider: selectPropertyValue("GitHub"),
-            "Source Type": selectPropertyValue("Repo"),
-            Status: selectPropertyValue("Active"),
-            Environment: selectPropertyValue("N/A"),
-            "Sync Strategy": selectPropertyValue("Poll"),
-            Identifier: richTextValue(plan.identifier),
-            "Source URL": { url: plan.repo.url },
-            "Last Synced At": datePropertyValue(input.today),
-          },
+          properties: canonicalSourceProperties,
+          expected_property_prestate: pagePropertyPrestate(
+            plan.canonicalSource.properties,
+            Object.keys(canonicalSourceProperties),
+          ),
           expected: {
             title: plan.canonicalSourceTitle,
             local_project_id: plan.canonicalLocal.id,
@@ -810,6 +821,10 @@ function buildPortfolioHygieneEffects(input: {
         kind: "page_markdown_replace",
         targetId: plan.canonicalSource.id,
         payload: {
+          expected_prestate_digest: requiredMarkdownPrestateDigest(
+            input.markdownPrestateDigests,
+            plan.canonicalSource.id,
+          ),
           markdown: renderCanonicalSourceMarkdown(
             plan.canonicalSourceTitle,
             plan.identifier,
@@ -819,17 +834,22 @@ function buildPortfolioHygieneEffects(input: {
       });
     }
     for (const source of plan.duplicateSources) {
+      const pausedSourceProperties = {
+        Status: selectPropertyValue("Paused"),
+        Environment: selectPropertyValue("N/A"),
+        "Sync Strategy": selectPropertyValue("Poll"),
+        "Last Synced At": { date: null },
+      };
       effects.push({
         effectId: `pause-source-properties:${source.id}`,
         kind: "page_properties_update",
         targetId: source.id,
         payload: {
-          properties: {
-            Status: selectPropertyValue("Paused"),
-            Environment: selectPropertyValue("N/A"),
-            "Sync Strategy": selectPropertyValue("Poll"),
-            "Last Synced At": { date: null },
-          },
+          properties: pausedSourceProperties,
+          expected_property_prestate: pagePropertyPrestate(
+            source.properties,
+            Object.keys(pausedSourceProperties),
+          ),
           expected: {
             status: "Paused",
             environment: "N/A",
@@ -846,6 +866,10 @@ function buildPortfolioHygieneEffects(input: {
         kind: "page_markdown_replace",
         targetId: source.id,
         payload: {
+          expected_prestate_digest: requiredMarkdownPrestateDigest(
+            input.markdownPrestateDigests,
+            source.id,
+          ),
           markdown: renderPausedSourceMarkdown(
             source.title,
             plan.canonicalSourceTitle,
@@ -892,6 +916,17 @@ function requiredArchivePrestateDigest(
   return digest;
 }
 
+function requiredMarkdownPrestateDigest(
+  digests: ReadonlyMap<string, string>,
+  pageId: string,
+): string {
+  const digest = digests.get(pageId);
+  if (!digest) {
+    throw new AppError(`markdown target ${pageId} has no complete provider prestate`);
+  }
+  return digest;
+}
+
 async function collectArchivePrestateDigests(input: {
   plans: RepoAuditPlan[];
   sdk: ReturnType<typeof createNotionSdkClient>;
@@ -917,6 +952,180 @@ async function collectArchivePrestateDigests(input: {
       ] as const),
     ),
   );
+}
+
+async function collectMarkdownPrestateDigests(input: {
+  plans: RepoAuditPlan[];
+  api: DirectNotionClient;
+}): Promise<Map<string, string>> {
+  const pageIds = [
+    ...new Set(
+      input.plans.flatMap((plan) => [
+        ...(plan.canonicalSource && plan.canonicalSourceNeedsUpdate
+          ? [plan.canonicalSource.id]
+          : []),
+        ...plan.duplicateSources.map((page) => page.id),
+      ]),
+    ),
+  ];
+  return new Map(
+    await Promise.all(
+      pageIds.map(async (pageId) => [
+        pageId,
+        await pageMarkdownPrestateDigest(input.api, pageId),
+      ] as const),
+    ),
+  );
+}
+
+async function readCompletePageMarkdown(
+  api: Pick<DirectNotionClient, "readPageMarkdown">,
+  pageId: string,
+): Promise<string> {
+  const markdown = await api.readPageMarkdown(pageId);
+  if (markdown.truncated || markdown.unknownBlockIds.length > 0) {
+    throw new AppError(`markdown target ${pageId} content readback is incomplete`);
+  }
+  return markdown.markdown;
+}
+
+export async function pageMarkdownPrestateDigest(
+  api: Pick<DirectNotionClient, "readPageMarkdown">,
+  pageId: string,
+): Promise<string> {
+  return planDigest(await readCompletePageMarkdown(api, pageId));
+}
+
+function notionPropertyPrestateValue(value: unknown): unknown {
+  if (value === null || typeof value !== "object") {
+    return value ?? null;
+  }
+  const property = value as Record<string, unknown>;
+  const text = (items: unknown): string =>
+    Array.isArray(items)
+      ? items
+          .map((item) => {
+            const entry = item as {
+              plain_text?: string;
+              text?: { content?: string };
+            };
+            return entry.plain_text ?? entry.text?.content ?? "";
+          })
+          .join("")
+      : "";
+  if (Array.isArray(property.title)) {
+    return { title: text(property.title) };
+  }
+  if (Array.isArray(property.rich_text)) {
+    return { rich_text: text(property.rich_text) };
+  }
+  if (Array.isArray(property.relation)) {
+    return {
+      relation: property.relation
+        .map((entry) => normalizeProviderId((entry as { id?: string }).id))
+        .filter(Boolean)
+        .sort(),
+    };
+  }
+  if ("select" in property) {
+    return {
+      select: (property.select as { name?: string } | null | undefined)?.name ?? null,
+    };
+  }
+  if ("status" in property) {
+    return {
+      status: (property.status as { name?: string } | null | undefined)?.name ?? null,
+    };
+  }
+  if (Array.isArray(property.multi_select)) {
+    return {
+      multi_select: property.multi_select
+        .map((entry) => (entry as { name?: string }).name ?? "")
+        .filter(Boolean)
+        .sort(),
+    };
+  }
+  if (Array.isArray(property.people)) {
+    return {
+      people: property.people
+        .map((entry) => (entry as { id?: string }).id ?? "")
+        .filter(Boolean)
+        .sort(),
+    };
+  }
+  if ("date" in property) {
+    const date = property.date as
+      | { start?: string; end?: string | null; time_zone?: string | null }
+      | null
+      | undefined;
+    return {
+      date: date
+        ? {
+            start: date.start ?? null,
+            end: date.end ?? null,
+            time_zone: date.time_zone ?? null,
+          }
+        : null,
+    };
+  }
+  for (const key of ["url", "checkbox", "number", "email", "phone_number"] as const) {
+    if (key in property) {
+      return { [key]: property[key] ?? null };
+    }
+  }
+  return JSON.parse(canonicalJson(value)) as unknown;
+}
+
+function normalizeProviderId(value: string | undefined): string {
+  return (value ?? "").replaceAll("-", "").toLowerCase();
+}
+
+function pagePropertyPrestate(
+  properties: Record<string, unknown>,
+  propertyNames: string[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    propertyNames
+      .sort()
+      .map((propertyName) => [
+        propertyName,
+        notionPropertyPrestateValue(properties[propertyName] ?? null),
+      ]),
+  );
+}
+
+async function readPagePropertyPrestate(input: {
+  pageId: string;
+  propertyNames: string[];
+  sdk: ReturnType<typeof createNotionSdkClient>;
+  api: DirectNotionClient;
+}): Promise<Record<string, unknown>> {
+  const providerPage = (await input.sdk.pages.retrieve({
+    page_id: input.pageId,
+  })) as unknown as Record<string, unknown>;
+  const properties = providerPage.properties;
+  if (
+    providerPage.object !== "page" ||
+    properties === null ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
+    throw new AppError(
+      `property target ${input.pageId} did not return a complete provider page`,
+    );
+  }
+  const [hydrated] = await hydrateCompleteRelationProperties(input.api, [
+    {
+      id: input.pageId,
+      url: String(providerPage.url ?? ""),
+      title: "",
+      properties: properties as Record<string, NotionPageProperty>,
+    },
+  ]);
+  if (!hydrated) {
+    throw new AppError(`property target ${input.pageId} could not be hydrated`);
+  }
+  return pagePropertyPrestate(hydrated.properties, input.propertyNames);
 }
 
 export async function archivePagePrestateDigest(input: {
@@ -957,18 +1166,13 @@ export async function archivePagePrestateDigest(input: {
   if (!hydrated) {
     throw new AppError(`archive target ${input.pageId} could not be hydrated`);
   }
-  const markdown = await input.api.readPageMarkdown(input.pageId);
-  if (markdown.truncated || markdown.unknownBlockIds.length > 0) {
-    throw new AppError(
-      `archive target ${input.pageId} content readback is incomplete`,
-    );
-  }
+  const markdown = await readCompletePageMarkdown(input.api, input.pageId);
   return planDigest({
     provider_page: {
       ...providerPage,
       properties: hydrated.properties,
     },
-    markdown: markdown.markdown,
+    markdown,
   });
 }
 
@@ -998,6 +1202,19 @@ export async function performPortfolioHygieneEffect(input: {
     return `notion:page:${effect.targetId}`;
   }
   if (effect.kind === "page_properties_update") {
+    const expectedPrestate = effect.payload
+      .expected_property_prestate as Record<string, unknown>;
+    const currentPrestate = await readPagePropertyPrestate({
+      pageId: effect.targetId,
+      propertyNames: Object.keys(expectedPrestate),
+      sdk: input.sdk,
+      api: input.api,
+    });
+    if (canonicalJson(currentPrestate) !== canonicalJson(expectedPrestate)) {
+      throw new AppError(
+        `property target ${effect.targetId} changed after plan approval`,
+      );
+    }
     input.markEffectAttempted();
     await input.api.updatePageProperties({
       pageId: effect.targetId,
@@ -1006,6 +1223,15 @@ export async function performPortfolioHygieneEffect(input: {
     return `notion:page:${effect.targetId}`;
   }
   if (effect.kind === "page_markdown_replace") {
+    const currentPrestateDigest = await pageMarkdownPrestateDigest(
+      input.api,
+      effect.targetId,
+    );
+    if (currentPrestateDigest !== effect.payload.expected_prestate_digest) {
+      throw new AppError(
+        `markdown target ${effect.targetId} changed after plan approval`,
+      );
+    }
     input.markEffectAttempted();
     await input.api.patchPageMarkdown({
       pageId: effect.targetId,

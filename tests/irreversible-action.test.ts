@@ -5,8 +5,10 @@ import {
   mkdtempSync,
   readFileSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -21,6 +23,7 @@ import {
   NOTION_CLAIM_STATE_DIR,
   NOTION_RECEIPT_DIR,
   planDigest,
+  sourceRevision,
   validateEnvelope,
   type IrreversibleActionEnvelopeV1,
 } from "../src/internal/notion-maintenance/irreversible-action.js";
@@ -105,6 +108,30 @@ afterEach(() => {
 });
 
 describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
+  test("source revisions refuse tracked and untracked execution-tree drift", () => {
+    const repository = mkdtempSync(path.join(os.tmpdir(), "source-revision-"));
+    execFileSync("git", ["init", "--quiet"], { cwd: repository });
+    execFileSync("git", ["config", "user.name", "Fixture"], { cwd: repository });
+    execFileSync("git", ["config", "user.email", "fixture@example.invalid"], {
+      cwd: repository,
+    });
+    const tracked = path.join(repository, "fixture.txt");
+    writeFileSync(tracked, "approved\n");
+    execFileSync("git", ["add", "--", "fixture.txt"], { cwd: repository });
+    execFileSync("git", ["commit", "--quiet", "-m", "fixture"], {
+      cwd: repository,
+    });
+    expect(sourceRevision(repository)).toMatch(/^git:[0-9a-f]{40}$/);
+
+    const untracked = path.join(repository, "untracked.txt");
+    writeFileSync(untracked, "unapproved\n");
+    expect(() => sourceRevision(repository)).toThrow(/worktree is dirty/i);
+    unlinkSync(untracked);
+
+    writeFileSync(tracked, "modified\n");
+    expect(() => sourceRevision(repository)).toThrow(/worktree is dirty/i);
+  });
+
   test("action ids are opaque identifiers, never authority path fragments", () => {
     const directory = mkdtempSync(path.join(os.tmpdir(), "notion-envelope-"));
     const claims = path.join(directory, "claims");
@@ -1107,6 +1134,78 @@ describe("exact Notion hygiene effects and readback", () => {
     expect(approved.effect_count).toBe(
       approved.pre_archive_effects.length + approved.archive_effects.length,
     );
+  });
+
+  test("support markdown replacement refuses post-approval edits", async () => {
+    const plan = hygieneFixture("# Approved merged notes").plan;
+    const effect = plan.pre_archive_effects.find(
+      (candidate) => candidate.kind === "patch_markdown",
+    );
+    expect(effect).toMatchObject({
+      kind: "patch_markdown",
+      expected_markdown_digest: planDigest("# Old notes"),
+    });
+    if (!effect || effect.kind !== "patch_markdown") {
+      throw new Error("fixture plan did not contain a markdown effect");
+    }
+    const api = {
+      retrievePageState: vi.fn(),
+      retrievePagePropertyItems: vi.fn(),
+      readPageMarkdown: vi.fn().mockResolvedValue({
+        markdown: "# User edit\n\nPreserve this content.",
+        raw: {},
+        truncated: false,
+        unknownBlockIds: [],
+      }),
+    };
+
+    await expect(
+      assertHygieneEffectPrecondition({ api, effect }),
+    ).rejects.toThrow(/markdown .* changed after approval/i);
+  });
+
+  test("support property replacement refuses post-approval edits", async () => {
+    const plan = hygieneFixture().plan;
+    const effect = plan.pre_archive_effects.find(
+      (candidate) =>
+        candidate.kind === "update_properties" &&
+        candidate.page_id === ids.canonical,
+    );
+    expect(effect).toMatchObject({
+      kind: "update_properties",
+      property_preconditions: {
+        "Last Reviewed": { date: "2026-07-16" },
+      },
+    });
+    if (!effect || effect.kind !== "update_properties") {
+      throw new Error("fixture plan did not contain a property effect");
+    }
+    const api = {
+      retrievePageState: vi.fn().mockResolvedValue({
+        id: ids.canonical,
+        url: "https://notion.example/canonical",
+        title: "Tool",
+        lastEditedTime: "2026-07-17T12:01:00.000Z",
+        properties: {
+          "Linked Local Projects": {
+            id: "linked-projects",
+            type: "relation",
+            relation: [{ id: ids.projectA }],
+            has_more: false,
+          },
+          "Last Reviewed": {
+            type: "date",
+            date: { start: "2026-07-18" },
+          },
+        },
+      }),
+      retrievePagePropertyItems: vi.fn(),
+      readPageMarkdown: vi.fn(),
+    };
+
+    await expect(
+      assertHygieneEffectPrecondition({ api, effect }),
+    ).rejects.toThrow(/property .* changed after approval/i);
   });
 
   test("archive approval binds complete reviewed provider prestate", () => {

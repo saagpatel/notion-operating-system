@@ -96,11 +96,13 @@ export type HygieneEffect =
       page_id: string;
       properties: Record<string, unknown>;
       relation_preconditions?: Record<string, string[]>;
+      property_preconditions?: Record<string, unknown>;
     }
   | {
       kind: "patch_markdown";
       page_id: string;
       markdown: string;
+      expected_markdown_digest: string;
     }
   | {
       kind: "archive_page";
@@ -568,10 +570,12 @@ export function supportDatabaseHygienePlan(input: {
     ].map((page) => [page.id, page]),
   );
   const relationState = new Map<string, string[]>();
+  const propertyState = new Map<string, unknown>();
   const preArchiveEffects: HygieneEffect[] = [];
   const archivePageIds = new Set<string>();
   const archivePreconditions = new Map<string, HygieneArchivePrecondition>();
   const requiredMarkdown = new Map<string, string>();
+  const markdownState = new Map<string, string>();
 
   const addArchiveTarget = (
     page: DataSourcePageRef,
@@ -598,20 +602,26 @@ export function supportDatabaseHygienePlan(input: {
       );
     }
     const relationPreconditions: Record<string, string[]> = {};
+    const propertyPreconditions: Record<string, unknown> = {};
     for (const [propertyName, value] of Object.entries(properties)) {
       const requested = value as NotionPageProperty | undefined;
-      if (!Array.isArray(requested?.relation)) {
-        continue;
-      }
       const stateKey = `${pageId}:${propertyName}`;
-      const currentIds =
-        relationState.get(stateKey) ??
-        relationIds(page.properties[propertyName]);
-      relationPreconditions[propertyName] = [...currentIds].sort();
-      relationState.set(
-        stateKey,
-        requested.relation.map((entry) => normalizeNotionId(entry.id)),
-      );
+      if (Array.isArray(requested?.relation)) {
+        const currentIds =
+          relationState.get(stateKey) ??
+          relationIds(page.properties[propertyName]);
+        relationPreconditions[propertyName] = [...currentIds].sort();
+        relationState.set(
+          stateKey,
+          requested.relation.map((entry) => normalizeNotionId(entry.id)),
+        );
+      } else {
+        const currentValue = propertyState.has(stateKey)
+          ? propertyState.get(stateKey)
+          : propertySemanticValue(page.properties[propertyName] ?? null);
+        propertyPreconditions[propertyName] = currentValue ?? null;
+        propertyState.set(stateKey, propertySemanticValue(requested ?? null));
+      }
     }
     preArchiveEffects.push({
       kind: "update_properties",
@@ -620,7 +630,28 @@ export function supportDatabaseHygienePlan(input: {
       ...(Object.keys(relationPreconditions).length > 0
         ? { relation_preconditions: relationPreconditions }
         : {}),
+      ...(Object.keys(propertyPreconditions).length > 0
+        ? { property_preconditions: propertyPreconditions }
+        : {}),
     });
+  };
+
+  const addMarkdownEffect = (
+    pageId: string,
+    observedMarkdown: string,
+    replacementMarkdown: string,
+  ): void => {
+    const currentMarkdown = markdownState.get(pageId) ?? observedMarkdown;
+    if (normalizeMarkdown(currentMarkdown) === normalizeMarkdown(replacementMarkdown)) {
+      return;
+    }
+    preArchiveEffects.push({
+      kind: "patch_markdown",
+      page_id: pageId,
+      markdown: replacementMarkdown,
+      expected_markdown_digest: planDigest(currentMarkdown),
+    });
+    markdownState.set(pageId, replacementMarkdown);
   };
 
   const addProjectRewrite = (input: {
@@ -659,15 +690,11 @@ export function supportDatabaseHygienePlan(input: {
     }
     addPropertiesEffect(plan.canonicalPage.id, properties);
     requiredMarkdown.set(plan.canonicalPage.id, plan.canonicalMarkdown.trim());
-    const currentMarkdown =
-      plan.duplicateMarkdowns.get(plan.canonicalPage.id)?.trim() ?? "";
-    if (currentMarkdown !== plan.canonicalMarkdown.trim()) {
-      preArchiveEffects.push({
-        kind: "patch_markdown",
-        page_id: plan.canonicalPage.id,
-        markdown: plan.canonicalMarkdown,
-      });
-    }
+    addMarkdownEffect(
+      plan.canonicalPage.id,
+      plan.duplicateMarkdowns.get(plan.canonicalPage.id) ?? "",
+      plan.canonicalMarkdown,
+    );
 
     const duplicateIds = new Set(plan.duplicatePages.map((page) => page.id));
     for (const projectId of plan.projectIdsNeedingRewrite) {
@@ -699,13 +726,11 @@ export function supportDatabaseHygienePlan(input: {
       }),
     );
     requiredMarkdown.set(plan.canonicalPage.id, plan.canonicalMarkdown.trim());
-    if (plan.canonicalOriginalMarkdown.trim() !== plan.canonicalMarkdown.trim()) {
-      preArchiveEffects.push({
-        kind: "patch_markdown",
-        page_id: plan.canonicalPage.id,
-        markdown: plan.canonicalMarkdown,
-      });
-    }
+    addMarkdownEffect(
+      plan.canonicalPage.id,
+      plan.canonicalOriginalMarkdown,
+      plan.canonicalMarkdown,
+    );
     for (const projectId of plan.projectIdsNeedingRewrite) {
       addProjectRewrite({
         projectId,
@@ -892,9 +917,19 @@ export async function assertHygieneEffectPrecondition(input: {
   api: HygieneArchiveReadApi;
   effect: HygieneEffect;
 }): Promise<void> {
+  if (input.effect.kind === "patch_markdown") {
+    const markdown = await input.api.readPageMarkdown(input.effect.page_id);
+    requireCompleteMarkdownReadback(input.effect.page_id, markdown);
+    if (planDigest(markdown.markdown) !== input.effect.expected_markdown_digest) {
+      throw new AppError(
+        `Markdown ${input.effect.page_id} changed after approval`,
+      );
+    }
+    return;
+  }
   if (
     input.effect.kind !== "update_properties" ||
-    !input.effect.relation_preconditions
+    (!input.effect.relation_preconditions && !input.effect.property_preconditions)
   ) {
     return;
   }
@@ -908,12 +943,24 @@ export async function assertHygieneEffectPrecondition(input: {
     );
   }
   for (const [propertyName, expectedIds] of Object.entries(
-    input.effect.relation_preconditions,
+    input.effect.relation_preconditions ?? {},
   )) {
     const observedIds = relationIds(page.properties[propertyName]).sort();
     if (canonicalJson(observedIds) !== canonicalJson([...expectedIds].sort())) {
       throw new AppError(
         `Relation ${input.effect.page_id}:${propertyName} changed after approval`,
+      );
+    }
+  }
+  for (const [propertyName, expectedValue] of Object.entries(
+    input.effect.property_preconditions ?? {},
+  )) {
+    const observedValue = propertySemanticValue(
+      page.properties[propertyName] ?? null,
+    );
+    if (canonicalJson(observedValue) !== canonicalJson(expectedValue)) {
+      throw new AppError(
+        `Property ${input.effect.page_id}:${propertyName} changed after approval`,
       );
     }
   }
@@ -1226,7 +1273,7 @@ async function buildPlansForKind(input: {
     for (const page of group) {
       const markdown = await input.api.readPageMarkdown(page.id);
       requireCompleteMarkdownReadback(page.id, markdown);
-      markdownByPageId.set(page.id, markdown.markdown.trim());
+      markdownByPageId.set(page.id, markdown.markdown);
     }
 
     const canonicalPage = chooseCanonicalPage({
@@ -1308,14 +1355,14 @@ async function buildForcedNearDuplicateMergePlans(input: {
       kind: rule.kind,
       canonicalPage,
       duplicatePage,
-      canonicalOriginalMarkdown: canonicalMarkdown.markdown.trim(),
+      canonicalOriginalMarkdown: canonicalMarkdown.markdown,
       canonicalMarkdown: mergeNearDuplicateMarkdown({
         kind: rule.kind,
         canonicalTitle: canonicalPage.title,
-        canonicalMarkdown: canonicalMarkdown.markdown.trim(),
-        duplicateMarkdown: duplicateMarkdown.markdown.trim(),
+        canonicalMarkdown: canonicalMarkdown.markdown,
+        duplicateMarkdown: duplicateMarkdown.markdown,
       }),
-      duplicateOriginalMarkdown: duplicateMarkdown.markdown.trim(),
+      duplicateOriginalMarkdown: duplicateMarkdown.markdown,
       mergedProjectIds,
       projectIdsNeedingRewrite,
     });

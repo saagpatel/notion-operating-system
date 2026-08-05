@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import {
   archivePagePrestateDigest,
+  pageMarkdownPrestateDigest,
   performPortfolioHygieneEffect,
 } from "../src/internal/notion-maintenance/notion-hygiene-pass.js";
 import type { NotionHygieneEffect } from "../src/internal/notion-maintenance/notion-hygiene-authority.js";
@@ -29,9 +30,16 @@ function fixture() {
         relation: [{ id: "project-1" }],
         has_more: false,
       },
+      Status: {
+        id: "status",
+        type: "select",
+        select: { name: "Active" },
+      },
     },
   };
   const update = vi.fn().mockResolvedValue({});
+  const patchPageMarkdown = vi.fn().mockResolvedValue({});
+  const updatePageProperties = vi.fn().mockResolvedValue({});
   const sdk = {
     pages: {
       retrieve: vi.fn().mockImplementation(async () => structuredClone(page)),
@@ -46,11 +54,15 @@ function fixture() {
       truncated: false,
       unknownBlockIds: [],
     })),
+    patchPageMarkdown,
+    updatePageProperties,
   };
   return {
     api,
     sdk,
     update,
+    patchPageMarkdown,
+    updatePageProperties,
     setMarkdown(value: string) {
       markdown = value;
     },
@@ -149,5 +161,66 @@ describe("Notion hygiene archive prestate", () => {
       in_trash: true,
     });
     expect(markEffectAttempted).toHaveBeenCalledTimes(1);
+  });
+
+  test("refuses markdown replacement when content changed after approval", async () => {
+    const state = fixture();
+    const markEffectAttempted = vi.fn();
+    const digest = await pageMarkdownPrestateDigest(
+      state.api as never,
+      "page-duplicate",
+    );
+    state.setMarkdown("# User edit\n\nPreserve this content");
+
+    await expect(
+      performPortfolioHygieneEffect({
+        effect: {
+          effectId: "markdown:page-duplicate",
+          kind: "page_markdown_replace",
+          targetId: "page-duplicate",
+          payload: {
+            expected_prestate_digest: digest,
+            markdown: "# Canonical replacement",
+          },
+        },
+        sdk: state.sdk as never,
+        api: state.api as never,
+        markEffectAttempted,
+      }),
+    ).rejects.toThrow(/changed after plan approval/i);
+    expect(markEffectAttempted).not.toHaveBeenCalled();
+    expect(state.patchPageMarkdown).not.toHaveBeenCalled();
+  });
+
+  test("refuses property replacement when provider state changed after approval", async () => {
+    const state = fixture();
+    const markEffectAttempted = vi.fn();
+    const changed = state.page();
+    const properties = changed.properties as Record<string, unknown>;
+    properties.Status = {
+      id: "status",
+      type: "select",
+      select: { name: "Operator override" },
+    };
+    state.setPage(changed);
+
+    await expect(
+      performPortfolioHygieneEffect({
+        effect: {
+          effectId: "properties:page-duplicate",
+          kind: "page_properties_update",
+          targetId: "page-duplicate",
+          payload: {
+            expected_property_prestate: { Status: { select: "Active" } },
+            properties: { Status: { select: { name: "Paused" } } },
+          },
+        },
+        sdk: state.sdk as never,
+        api: state.api as never,
+        markEffectAttempted,
+      }),
+    ).rejects.toThrow(/changed after plan approval/i);
+    expect(markEffectAttempted).not.toHaveBeenCalled();
+    expect(state.updatePageProperties).not.toHaveBeenCalled();
   });
 });
