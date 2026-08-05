@@ -346,7 +346,16 @@ describe("Notion hygiene irreversible-action boundary", () => {
     const performEffect = vi
       .fn()
       .mockResolvedValueOnce("notion:page:page-duplicate")
-      .mockRejectedValueOnce(new Error("fixture timeout"));
+      .mockImplementationOnce(
+        async (
+          _effect: NotionHygieneEffect,
+          _providerIdempotencyKey: string,
+          markEffectAttempted: () => void,
+        ) => {
+          markEffectAttempted();
+          throw new Error("fixture timeout");
+        },
+      );
 
     await expect(
       executeAuthorizedNotionHygiene({
@@ -380,6 +389,34 @@ describe("Notion hygiene irreversible-action boundary", () => {
       }),
     ).rejects.toThrow(/already claimed/i);
     expect(performEffect).toHaveBeenCalledTimes(2);
+  });
+
+  test("pre-write refusal emits failed_before_effect without inflating the count", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "notion-hygiene-prewrite-"));
+    const plan = hygienePlan();
+    const actionId = "fixture-notion-hygiene-prewrite-0001";
+    const envelopePath = await writeEnvelope(root, plan, actionId);
+
+    await expect(
+      executeAuthorizedNotionHygiene({
+        plan,
+        envelopePath,
+        claimStateDir: path.join(root, "claims"),
+        receiptDir: path.join(root, "receipts"),
+        performEffect: vi
+          .fn()
+          .mockRejectedValue(new Error("compare-before-write failed")),
+        readbackEffect: vi.fn().mockImplementation(verifiedReadback),
+      }),
+    ).rejects.toThrow(/automatic retry is prohibited/i);
+    expect(await readReceipt(root, actionId)).toMatchObject({
+      terminal_outcome: "failed_before_effect",
+      readback_result: {
+        readback_complete: false,
+        effect_count: 0,
+        error: "compare-before-write failed",
+      },
+    });
   });
 
   test("failed readback produces outcome_unknown rather than success", async () => {

@@ -277,6 +277,7 @@ export async function executeAuthorizedNotionHygiene(input: {
   performEffect: (
     effect: NotionHygieneEffect,
     providerIdempotencyKey: string,
+    markEffectAttempted: () => void,
   ) => Promise<string>;
   readbackEffect: (
     effect: NotionHygieneEffect,
@@ -311,13 +312,24 @@ export async function executeAuthorizedNotionHygiene(input: {
   const providerReferences: string[] = [];
   try {
     for (const effect of input.plan.effects) {
-      effectCount += 1;
-      providerReferences.push(
-        await input.performEffect(
-          effect,
-          `${envelope.provider_idempotency_key}:${effect.effectId}`,
-        ),
+      let effectAttempted = false;
+      const providerReference = await input.performEffect(
+        effect,
+        `${envelope.provider_idempotency_key}:${effect.effectId}`,
+        () => {
+          if (!effectAttempted) {
+            effectAttempted = true;
+            effectCount += 1;
+          }
+        },
       );
+      // A successful provider call is itself proof that an effect was
+      // attempted. This fallback keeps adapters honest while still allowing a
+      // pre-write check to throw without inflating the attempted-effect count.
+      if (!effectAttempted) {
+        effectCount += 1;
+      }
+      providerReferences.push(providerReference);
     }
   } catch (error) {
     // The shared failure recorder is deliberately not used here. It records

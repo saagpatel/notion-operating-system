@@ -260,11 +260,16 @@ async function main(): Promise<void> {
       envelopePath: flags.envelope,
       claimStateDir: flags.claimStateDir,
       receiptDir: flags.receiptDir,
-      performEffect: async (effect) => {
+      performEffect: async (
+        effect,
+        _providerIdempotencyKey,
+        markEffectAttempted,
+      ) => {
         const providerReference = await performPortfolioHygieneEffect({
           effect,
           sdk,
           api,
+          markEffectAttempted,
         });
         recordAppliedEffect({
           effect,
@@ -971,6 +976,7 @@ export async function performPortfolioHygieneEffect(input: {
   effect: NotionHygieneEffect;
   sdk: ReturnType<typeof createNotionSdkClient>;
   api: DirectNotionClient;
+  markEffectAttempted: () => void;
 }): Promise<string> {
   const { effect } = input;
   if (effect.kind === "page_archive") {
@@ -984,6 +990,7 @@ export async function performPortfolioHygieneEffect(input: {
         `archive target ${effect.targetId} changed after plan approval`,
       );
     }
+    input.markEffectAttempted();
     await input.sdk.pages.update({
       page_id: effect.targetId,
       in_trash: true,
@@ -991,6 +998,7 @@ export async function performPortfolioHygieneEffect(input: {
     return `notion:page:${effect.targetId}`;
   }
   if (effect.kind === "page_properties_update") {
+    input.markEffectAttempted();
     await input.api.updatePageProperties({
       pageId: effect.targetId,
       properties: effect.payload.properties as Record<string, unknown>,
@@ -998,6 +1006,7 @@ export async function performPortfolioHygieneEffect(input: {
     return `notion:page:${effect.targetId}`;
   }
   if (effect.kind === "page_markdown_replace") {
+    input.markEffectAttempted();
     await input.api.patchPageMarkdown({
       pageId: effect.targetId,
       command: "replace_content",
@@ -1011,6 +1020,7 @@ export async function performPortfolioHygieneEffect(input: {
       "source config changed after plan rendering; compare-before-write failed",
     );
   }
+  input.markEffectAttempted();
   await writeJsonFile(
     effect.targetId,
     effect.payload.content as Record<string, unknown>,

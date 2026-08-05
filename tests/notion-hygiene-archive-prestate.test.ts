@@ -78,6 +78,7 @@ function archiveEffect(expectedPrestateDigest: string): NotionHygieneEffect {
 describe("Notion hygiene archive prestate", () => {
   test("refuses an archive when provider properties changed after approval", async () => {
     const state = fixture();
+    const markEffectAttempted = vi.fn();
     const digest = await archivePagePrestateDigest({
       pageId: "page-duplicate",
       sdk: state.sdk as never,
@@ -97,13 +98,16 @@ describe("Notion hygiene archive prestate", () => {
         effect: archiveEffect(digest),
         sdk: state.sdk as never,
         api: state.api as never,
+        markEffectAttempted,
       }),
     ).rejects.toThrow(/changed after plan approval/i);
+    expect(markEffectAttempted).not.toHaveBeenCalled();
     expect(state.update).not.toHaveBeenCalled();
   });
 
   test("refuses an archive when page content changed after approval", async () => {
     const state = fixture();
+    const markEffectAttempted = vi.fn();
     const digest = await archivePagePrestateDigest({
       pageId: "page-duplicate",
       sdk: state.sdk as never,
@@ -116,13 +120,16 @@ describe("Notion hygiene archive prestate", () => {
         effect: archiveEffect(digest),
         sdk: state.sdk as never,
         api: state.api as never,
+        markEffectAttempted,
       }),
     ).rejects.toThrow(/changed after plan approval/i);
+    expect(markEffectAttempted).not.toHaveBeenCalled();
     expect(state.update).not.toHaveBeenCalled();
   });
 
   test("archives only when the complete provider prestate still matches", async () => {
     const state = fixture();
+    const markEffectAttempted = vi.fn();
     const digest = await archivePagePrestateDigest({
       pageId: "page-duplicate",
       sdk: state.sdk as never,
@@ -134,11 +141,13 @@ describe("Notion hygiene archive prestate", () => {
         effect: archiveEffect(digest),
         sdk: state.sdk as never,
         api: state.api as never,
+        markEffectAttempted,
       }),
     ).resolves.toBe("notion:page:page-duplicate");
     expect(state.update).toHaveBeenCalledWith({
       page_id: "page-duplicate",
       in_trash: true,
     });
+    expect(markEffectAttempted).toHaveBeenCalledTimes(1);
   });
 });

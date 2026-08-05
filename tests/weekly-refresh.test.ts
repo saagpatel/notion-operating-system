@@ -11,6 +11,7 @@ import {
 	buildWeeklyRefreshTimingSummary,
 	expandExternalSignalLiveProjectBatches,
 	shouldPersistWeeklyRefreshState,
+	shouldBlockWeeklyLiveAfterSupportRecheck,
 } from "../src/notion/weekly-refresh.js";
 
 describe("weekly refresh fast workflow guidance", () => {
@@ -99,6 +100,27 @@ describe("weekly refresh fast workflow guidance", () => {
 				},
 			]),
 		).not.toThrow();
+	});
+
+	test("blocks remaining live writers when the just-in-time support recheck is non-clean", () => {
+		expect(
+			shouldBlockWeeklyLiveAfterSupportRecheck({
+				wouldChange: true,
+				status: "drift",
+			}),
+		).toBe(true);
+		expect(
+			shouldBlockWeeklyLiveAfterSupportRecheck({
+				wouldChange: false,
+				status: "failed",
+			}),
+		).toBe(true);
+		expect(
+			shouldBlockWeeklyLiveAfterSupportRecheck({
+				wouldChange: false,
+				status: "clean",
+			}),
+		).toBe(false);
 	});
 
 	test("classifies weekend catch-up after missed weekday runs", () => {
