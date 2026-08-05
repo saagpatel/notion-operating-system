@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   closeSync,
   existsSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -35,6 +36,33 @@ export interface IrreversibleActionEnvelopeV1 {
     terminal_outcome: true;
   };
 }
+
+/**
+ * The complete, closed set of envelope fields.
+ *
+ * Validation is exact rather than best-effort: an envelope carrying keys this
+ * version does not know about is refused outright. Silently ignoring extras
+ * would let a field a future version might honor ride through today's
+ * validator unexamined, which is not a property an approval envelope should
+ * have.
+ */
+const ENVELOPE_FIELDS: ReadonlySet<string> = new Set([
+  "schema",
+  "action_id",
+  "action_kind",
+  "principal",
+  "canonical_targets",
+  "source_revision",
+  "artifact_digest",
+  "bounds",
+  "issued_at",
+  "expires_at",
+  "one_shot",
+  "provider_idempotency_key",
+  "preconditions",
+  "required_readback",
+  "receipt_requirements",
+]);
 
 export const NOTION_CLAIM_STATE_DIR =
   "/Users/d/.codex/state/irreversible-actions/notion";
@@ -100,6 +128,15 @@ export function validateEnvelope(input: {
   const { envelope } = input;
   if (envelope.schema !== "IrreversibleActionEnvelopeV1") {
     throw new Error("approval schema mismatch");
+  }
+  const presentFields = Object.keys(
+    (envelope ?? {}) as unknown as Record<string, unknown>,
+  );
+  if (
+    presentFields.length !== ENVELOPE_FIELDS.size ||
+    presentFields.some((field) => !ENVELOPE_FIELDS.has(field))
+  ) {
+    throw new Error("approval envelope fields mismatch");
   }
   requireOpaqueActionId(envelope.action_id);
   if (
@@ -220,6 +257,26 @@ export function requirePrivateAuthorityDirectory(directory: string): string {
   return canonical;
 }
 
+/**
+ * Flush a claim file and the directory entry that names it.
+ *
+ * The one-shot guarantee rests entirely on the claim file being present after a
+ * crash. Writing it is not enough: without an fsync of both the file and its
+ * containing directory, a crash between the write and the OS flush can lose the
+ * claim, leaving the envelope readable as unclaimed. A replay would then succeed
+ * against an action that already ran, which is the exact failure this module
+ * exists to prevent.
+ */
+function persistClaim(descriptor: number, directory: string): void {
+  fsyncSync(descriptor);
+  const directoryDescriptor = openSync(directory, "r");
+  try {
+    fsyncSync(directoryDescriptor);
+  } finally {
+    closeSync(directoryDescriptor);
+  }
+}
+
 export function claimEnvelope(
   envelope: IrreversibleActionEnvelopeV1,
   stateDir = NOTION_CLAIM_STATE_DIR,
@@ -251,6 +308,7 @@ export function claimEnvelope(
         claimed_at: claimedAt,
       })}\n`,
     );
+    persistClaim(descriptor, trustedStateDir);
   } finally {
     closeSync(descriptor);
   }
@@ -283,6 +341,7 @@ export function claimEnvelope(
         claimed_at: claimedAt,
       })}\n`,
     );
+    persistClaim(descriptor, providerStateDir);
   } finally {
     closeSync(descriptor);
   }

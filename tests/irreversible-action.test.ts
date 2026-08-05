@@ -195,6 +195,61 @@ describe("IrreversibleActionEnvelopeV1 Notion adapter", () => {
     ).toThrow("plan digest mismatch");
   });
 
+  test("an envelope carrying an unknown field is refused outright", () => {
+    const plan = { data_source_id: "db-1", effects: [{ kind: "archive" }] };
+    const envelope = envelopeFor({
+      actionId: "fixture-notion-unknown-field-0001",
+      actionKind: "notion.support_database_hygiene",
+      targets: { data_source_id: "db-1" },
+      sourceRevision: "hygiene:v2",
+      plan,
+      effects: 1,
+    });
+    // Every known field still validates; only the extra key differs. Ignoring
+    // it would let a field a future version might honor ride through unexamined.
+    const tampered = {
+      ...envelope,
+      allow_destructive_override: true,
+    } as unknown as IrreversibleActionEnvelopeV1;
+
+    expect(() =>
+      validateEnvelope({
+        envelope: tampered,
+        actionKind: "notion.support_database_hygiene",
+        canonicalTargets: { data_source_id: "db-1" },
+        sourceRevision: "hygiene:v2",
+        plan,
+        effectCount: 1,
+        requiredReadback: ["provider_state"],
+      }),
+    ).toThrow("approval envelope fields mismatch");
+  });
+
+  test("an envelope missing a required field is refused", () => {
+    const plan = { data_source_id: "db-1", effects: [{ kind: "archive" }] };
+    const envelope = envelopeFor({
+      actionId: "fixture-notion-missing-field-0001",
+      actionKind: "notion.support_database_hygiene",
+      targets: { data_source_id: "db-1" },
+      sourceRevision: "hygiene:v2",
+      plan,
+      effects: 1,
+    });
+    const { preconditions: _dropped, ...truncated } = envelope;
+
+    expect(() =>
+      validateEnvelope({
+        envelope: truncated as unknown as IrreversibleActionEnvelopeV1,
+        actionKind: "notion.support_database_hygiene",
+        canonicalTargets: { data_source_id: "db-1" },
+        sourceRevision: "hygiene:v2",
+        plan,
+        effectCount: 1,
+        requiredReadback: ["provider_state"],
+      }),
+    ).toThrow("approval envelope fields mismatch");
+  });
+
   test("allowed effect count must equal the exact planned effect count", () => {
     const plan = { data_source_id: "db-1", effects: [{ kind: "archive" }] };
     const envelope = envelopeFor({
