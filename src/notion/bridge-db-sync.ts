@@ -356,8 +356,11 @@ export async function runBridgeDbSyncCommand(
 				const syncKey = buildBuildLogSyncKey(row);
 
 				try {
-					// Same idempotency lookup as the SHIPPED path (P1); ops recovery marks
-					// the row PROCESSED instead of confirming a shipped sync.
+					// Same idempotency lookup as the SHIPPED path (P1). For ops rows
+					// this lookup IS the duplicate guard: unlike a SHIPPED row, an
+					// ops row gets no confirmation written back to bridge-db, so the
+					// Sync Key in the Build Log is the only durable record that this
+					// event was already synced.
 					const existingPageId = await findBuildLogPageBySyncKey(
 						api,
 						config.relatedDataSources.buildLogId,
@@ -380,18 +383,10 @@ export async function runBridgeDbSyncCommand(
 					}
 
 					if (existingPageId) {
-						try {
-							await markRowProcessed(dbPath, row.id);
-							result.opsRowsRecovered += 1;
-							console.log(
-								`[bridge-db-sync] Recovered ops event: "${title}" already exists as ${existingPageId} (sync key ${syncKey}); row marked PROCESSED without a duplicate page.`,
-							);
-						} catch (markError) {
-							result.failures += 1;
-							result.notes.push(
-								`Found existing Build Log page ${existingPageId} for ops row ${row.id} but failed to mark it PROCESSED — recovery will retry on next run: ${toErrorMessage(markError)}`,
-							);
-						}
+						result.opsRowsRecovered += 1;
+						console.log(
+							`[bridge-db-sync] Skipped ops event: "${title}" already exists as ${existingPageId} (sync key ${syncKey}); no duplicate page written.`,
+						);
 						continue;
 					}
 
@@ -414,18 +409,10 @@ export async function runBridgeDbSyncCommand(
 						properties: createProps,
 						markdown: buildMarkdownBody(row),
 					});
-					try {
-						await markRowProcessed(dbPath, row.id);
-						result.opsRowsWritten += 1;
-						console.log(
-							`[bridge-db-sync] Written ops event: "${title}" (${created.id})`,
-						);
-					} catch (markError) {
-						result.failures += 1;
-						result.notes.push(
-							`Failed to mark ops row ${row.id} as PROCESSED — it will be recovered via sync key ${syncKey} on next run: ${toErrorMessage(markError)}`,
-						);
-					}
+					result.opsRowsWritten += 1;
+					console.log(
+						`[bridge-db-sync] Written ops event: "${title}" (${created.id})`,
+					);
 				} catch (error) {
 					result.failures += 1;
 					result.notes.push(
@@ -543,24 +530,6 @@ export async function readShippedRows(
 	const session = await BridgeDbMcpSession.open({ dbPath });
 	try {
 		return await session.getShippedEvents(limit);
-	} finally {
-		await session.close();
-	}
-}
-
-/**
- * Mark a row as PROCESSED in bridge-db via MCP.
- * Throws on failure so callers can catch and handle.
- * @param dbPath - bridge.db path forwarded to the MCP subprocess
- * @param rowId - the activity_log row id
- */
-export async function markRowProcessed(
-	dbPath: string,
-	rowId: number,
-): Promise<void> {
-	const session = await BridgeDbMcpSession.open({ dbPath });
-	try {
-		await session.markProcessed(rowId);
 	} finally {
 		await session.close();
 	}
