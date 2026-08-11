@@ -231,6 +231,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		expect(bridgeSyncMocks.updatePageProperties).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 123,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] Ghost Routes — 2026-04-14" with Session Date 2026-04-14',
@@ -296,6 +297,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 789,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] claude-md-lint — 2026-04-14" with Session Date 2026-04-14',
@@ -344,12 +346,14 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 794,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] operator-os-docs — 2026-04-14" with Session Date 2026-04-14',
 		});
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 795,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] portfolio-docs-agent-contract-lane — 2026-04-14" with Session Date 2026-04-14',
@@ -390,6 +394,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 796,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] renamed-project-lane — 2026-04-14" with Session Date 2026-04-14',
@@ -422,6 +427,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 790,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] MCPAudit — 2026-04-14" with Session Date 2026-04-14',
@@ -454,6 +460,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 791,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] skill-forge — 2026-04-14" with Session Date 2026-04-14',
@@ -486,6 +493,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 792,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] portfolio-dep-security — 2026-04-14" with Session Date 2026-04-14',
@@ -518,6 +526,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 793,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] PortfolioCommandCenter — 2026-04-14" with Session Date 2026-04-14',
@@ -850,6 +859,7 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 804,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] cost-tracker — 2026-04-14" with Session Date 2026-04-14',
@@ -894,6 +904,7 @@ describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				activityId: 123,
+				caller: "cc",
 				downstreamRef: "build-log-page-123",
 			}),
 		);

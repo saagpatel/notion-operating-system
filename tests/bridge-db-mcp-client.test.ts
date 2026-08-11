@@ -226,6 +226,7 @@ describe("confirmShippedRowSynced", () => {
 	test("opens a session, records downstream proof, and closes", async () => {
 		await confirmShippedRowSynced("/custom/bridge.db", {
 			rowId: 123,
+			caller: "cc",
 			downstreamRef: "notion-page-123",
 			notes: "Created Build Log page",
 		});
@@ -235,6 +236,7 @@ describe("confirmShippedRowSynced", () => {
 		});
 		expect(session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 123,
+			caller: "cc",
 			downstreamRef: "notion-page-123",
 			notes: "Created Build Log page",
 		});
@@ -247,6 +249,7 @@ describe("confirmShippedRowSynced", () => {
 		await expect(
 			confirmShippedRowSynced("/ignored/path", {
 				rowId: 99,
+				caller: "cc",
 				downstreamRef: "page-99",
 			}),
 		).rejects.toThrow("receipt failed");
@@ -257,6 +260,7 @@ describe("confirmShippedRowSynced", () => {
 		await expect(
 			confirmShippedRowSynced("/ignored/path", {
 				rowId: 1,
+				caller: "cc",
 				downstreamRef: "page-1",
 			}),
 		).resolves.toBeUndefined();

@@ -76,6 +76,13 @@ export interface BridgeDbStatus {
 
 export interface ConfirmShippedSyncOptions {
 	activityId: number;
+	/**
+	 * System recording the disposition. record_disposition requires a
+	 * channel-bound caller matching the event's own source, so this must be the
+	 * row's `source` ("cc", "codex", ...) and NOT the syncing process. Passing
+	 * "notion_os" for a cc-authored row is rejected by bridge-db.
+	 */
+	caller: string;
 	downstreamRef: string;
 	notes?: string;
 }
@@ -147,6 +154,36 @@ export function normalizeBridgeDbToolArray(
 	throw new Error(`${toolName} returned unexpected type: ${typeof value}`);
 }
 
+/**
+ * Prove a disposition actually landed on the row we asked about.
+ *
+ * Discarding this result is how the sync silently rotted: bridge-db retired
+ * `confirm_shipped_sync`, every call came back an error, nobody looked, and the
+ * sync went on reporting rows as written while they stayed unprocessed. A
+ * missing, negative, or mismatched payload must fail loudly instead.
+ */
+export function assertDispositionRecorded(
+	parsed: unknown,
+	activityId: number,
+): void {
+	if (!parsed || typeof parsed !== "object") {
+		throw new Error(
+			`record_disposition returned no payload for activity ${activityId}; the row was not confirmed`,
+		);
+	}
+	const payload = parsed as { ok?: unknown; activity_id?: unknown };
+	if (payload.ok !== true) {
+		throw new Error(
+			`record_disposition did not confirm activity ${activityId} (ok=${String(payload.ok)}); the row was not confirmed`,
+		);
+	}
+	if (payload.activity_id !== activityId) {
+		throw new Error(
+			`record_disposition confirmed activity ${String(payload.activity_id)} but ${activityId} was requested`,
+		);
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Session class — one subprocess per command invocation
 // ---------------------------------------------------------------------------
@@ -186,24 +223,39 @@ export class BridgeDbMcpSession {
 		) as ShippedEvent[];
 	}
 
+	/**
+	 * NOTE: `mark_shipped_processed` was retired alongside `confirm_shipped_sync`
+	 * when bridge-db consolidated its disposition verbs, and `record_disposition`
+	 * is SHIPPED-only, so personal-ops event rows currently have no marking verb
+	 * at all. The call is left pointing at the retired tool deliberately: the
+	 * result is now parsed, so this fails loudly instead of reporting success
+	 * while doing nothing. Choosing a replacement is a bridge-db API decision,
+	 * not something to invent here.
+	 */
 	async markProcessed(id: number): Promise<void> {
-		await this.client.callTool({
+		const result = await this.client.callTool({
 			name: "mark_shipped_processed",
 			arguments: { activity_ids: [id] },
 		});
+		parseBridgeDbToolResult(result);
 	}
 
 	async confirmShippedSync(options: ConfirmShippedSyncOptions): Promise<void> {
-		await this.client.callTool({
-			name: "confirm_shipped_sync",
+		const result = await this.client.callTool({
+			name: "record_disposition",
 			arguments: {
-				caller: "notion_os",
+				caller: options.caller,
 				activity_id: options.activityId,
+				disposition: "synced",
 				downstream_system: "notion",
 				downstream_ref: options.downstreamRef,
 				notes: options.notes ?? null,
 			},
 		});
+		assertDispositionRecorded(
+			parseBridgeDbToolResult(result),
+			options.activityId,
+		);
 	}
 
 	async getStatus(): Promise<BridgeDbStatus> {
