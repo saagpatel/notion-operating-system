@@ -273,6 +273,7 @@ export async function runBridgeDbSyncCommand(
 				try {
 					await confirmShippedRowSynced(dbPath, {
 						rowId: row.id,
+						caller: row.source,
 						downstreamRef: existingPageId,
 						notes: `Recovered existing Build Log page for sync key ${syncKey} — created by a prior run whose confirmation failed`,
 					});
@@ -309,6 +310,7 @@ export async function runBridgeDbSyncCommand(
 			try {
 				await confirmShippedRowSynced(dbPath, {
 					rowId: row.id,
+					caller: row.source,
 					downstreamRef: created.id,
 					notes: `Created Build Log page "${title}" with Session Date ${sessionDate}`,
 				});
@@ -566,6 +568,12 @@ export async function markRowProcessed(
 
 export interface ConfirmShippedRowSyncedOptions {
 	rowId: number;
+	/**
+	 * The row's own `source`. bridge-db binds a disposition to the system that
+	 * authored the event, so this must travel from the row rather than being
+	 * hardcoded to the syncing process.
+	 */
+	caller: string;
 	downstreamRef: string;
 	notes?: string;
 }
@@ -584,6 +592,7 @@ export async function confirmShippedRowSynced(
 	try {
 		await session.confirmShippedSync({
 			activityId: options.rowId,
+			caller: options.caller,
 			downstreamRef: options.downstreamRef,
 			...(options.notes ? { notes: options.notes } : {}),
 		});
