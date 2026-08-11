@@ -67,7 +67,7 @@
         "would_write": false,
         "summary": "Notion is intentionally deferred in this lane because active Notion work is handled separately.",
         "evidence_refs": [
-          "/Users/d/Notion"
+          "~/Notion"
         ],
         "raw_excerpt": "Notion is intentionally deferred in this lane."
       }
