@@ -89,4 +89,4 @@ Please investigate why `PATCH /pages/{id}/markdown` is closing connections for o
 
 ## Contact
 
-GitHub: `saagpatel` · Email: saagar210@gmail.com
+GitHub: `saagpatel` (contact by email on request)
