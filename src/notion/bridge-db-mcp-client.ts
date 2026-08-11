@@ -223,23 +223,6 @@ export class BridgeDbMcpSession {
 		) as ShippedEvent[];
 	}
 
-	/**
-	 * NOTE: `mark_shipped_processed` was retired alongside `confirm_shipped_sync`
-	 * when bridge-db consolidated its disposition verbs, and `record_disposition`
-	 * is SHIPPED-only, so personal-ops event rows currently have no marking verb
-	 * at all. The call is left pointing at the retired tool deliberately: the
-	 * result is now parsed, so this fails loudly instead of reporting success
-	 * while doing nothing. Choosing a replacement is a bridge-db API decision,
-	 * not something to invent here.
-	 */
-	async markProcessed(id: number): Promise<void> {
-		const result = await this.client.callTool({
-			name: "mark_shipped_processed",
-			arguments: { activity_ids: [id] },
-		});
-		parseBridgeDbToolResult(result);
-	}
-
 	async confirmShippedSync(options: ConfirmShippedSyncOptions): Promise<void> {
 		const result = await this.client.callTool({
 			name: "record_disposition",
@@ -303,9 +286,15 @@ export class BridgeDbMcpSession {
 	}
 
 	/**
-	 * Fetch recent personal_ops activity entries that have event tags
-	 * (TASK_DONE, APPROVAL_SENT, PLANNING_APPLIED, REVIEW_CLOSED) but
-	 * have not yet been marked PROCESSED.
+	 * Fetch recent personal_ops activity entries carrying an ops event tag
+	 * (TASK_DONE, APPROVAL_SENT, PLANNING_APPLIED, REVIEW_CLOSED).
+	 *
+	 * The PROCESSED exclusion is a legacy filter, not a live protocol. Nothing
+	 * writes that tag any more: the ops lane's duplicate guard is the Build Log
+	 * Sync Key, not bridge-db state. The filter is kept because rows marked
+	 * before the write was dropped are genuinely already synced, so excluding
+	 * them saves a pointless Notion lookup. It becomes a no-op once bridge-db's
+	 * 50-row-per-source retention ages those rows out.
 	 */
 	async getPersonalOpsEvents(limit: number): Promise<ShippedEvent[]> {
 		const result = await this.client.callTool({
