@@ -23,9 +23,9 @@ This pass materially cleared `OPscinema` but did not fully close the entire pack
 
 # Verification
 
-- `make smoke-app-install` completed with `/Users/d/Applications/OpsCinema Suite.app` installed as bundle id `com.opscinema.desktop`.
+- `make smoke-app-install` completed with `~/Applications/OpsCinema Suite.app` installed as bundle id `com.opscinema.desktop`.
 - `make smoke-app-verify` passed after the install-path signing fix.
-- `codesign -dr - "/Users/d/Applications/OpsCinema Suite.app"` now reports `designated => identifier "com.opscinema.desktop"`.
+- `codesign -dr - "~/Applications/OpsCinema Suite.app"` now reports `designated => identifier "com.opscinema.desktop"`.
 - `cargo check -p opscinema_desktop_backend --features runtime` passed after the capture-path change.
 - `cargo test -p opscinema_desktop_backend phase0_capture_permission_denied_has_action_hint -- --nocapture` passed.
 - `cargo test -p opscinema_desktop_backend phase0_runtime_smoke_build_info_and_session_roundtrip -- --nocapture` passed.

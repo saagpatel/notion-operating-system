@@ -9,14 +9,14 @@
 
 ## 1. Current State
 
-### Devil's Advocate (`/Users/d/Projects/Devil's Advocate`)
+### Devil's Advocate (`~/Projects/Devil's Advocate`)
 - **Stack:** Next.js 15, React 18, `better-sqlite3` (raw SQL, no ORM), Anthropic SDK
 - **DB layer:** `src/lib/db/index.ts` — singleton `better-sqlite3` instance, WAL mode, schema applied inline via `applySchema()` at startup
 - **DB path:** hardcoded to `<cwd>/database/devils-advocate.db`
 - **Deployment state:** Local-only. `DEPLOY.md` explicitly warns **do not deploy to Vercel** (ephemeral filesystem kills the DB). Identifies Turso as the recommended next step.
 - **Tests:** Vitest unit tests on `queries.ts`
 
-### DecisionStressTest (`/Users/d/Projects/DecisionStressTest`)
+### DecisionStressTest (`~/Projects/DecisionStressTest`)
 - **Stack:** Next.js 16, React 19, `better-sqlite3` + `drizzle-orm`, OpenAI structured outputs
 - **DB layer:** `src/lib/db/client.ts` — singleton via `globalThis.__decisionStressDb__`, WAL + foreign keys + busy timeout. `DATABASE_PATH` env var configures path; defaults to `.local/dev.sqlite`. Full backup/restore CLI (`db:backup`, `db:restore`).
 - **Deployment state:** Explicitly designed as a **private local app**. `env-schema.ts` includes an `UNSAFE_ALLOW_NONLOCALHOST` flag — non-localhost access is guarded and off by default. `APP_ENV: local-prod` is the production mode. No Vercel deployment intent.

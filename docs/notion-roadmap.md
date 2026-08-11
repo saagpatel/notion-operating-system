@@ -29,7 +29,7 @@ Updated: 2026-07-11
 - Objective: Make the daily driver durable now that Phase 11 can rank, publish, and audit the work queue.
 
 ## Repo State Snapshot
-- The June 13 landscape refresh reconciled path drift: `/Users/d/Projects/Notion` is the real checkout, while `/Users/d/Notion` is a hollow non-worktree stub and must not receive writes.
+- The June 13 landscape refresh reconciled path drift: `~/Projects/Notion` is the real checkout, while `~/Notion` is a hollow non-worktree stub and must not receive writes.
 - The June 13 dry-run-first refresh found 5 drifting weekly lanes and no failed or partial lanes; repairs used targeted live lane commands, not a broad live weekly refresh.
 - The June 13 review-recovery follow-through applied 85 narrow Local Portfolio Project property updates and cleared overdue reviews, missing Next Move, and missing Last Active to 0.
 - Final weekly fast preflight for 2026-06-13 reports 6 clean lanes, 0 drift, no failed or partial steps, and `needsLiveWrite=false`.

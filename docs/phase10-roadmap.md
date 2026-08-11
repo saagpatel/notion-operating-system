@@ -52,7 +52,7 @@ This is the pre-compaction reference document for the next major phase of the No
 
 Three projects on this machine already produce the data the Notion OS needs. None of them are wired to it yet.
 
-### GithubRepoAuditor (`/Users/d/Projects/GithubRepoAuditor`)
+### GithubRepoAuditor (`~/Projects/GithubRepoAuditor`)
 
 - **What it is:** Python portfolio OS. Clones every repo, runs 12 analyzers (docs, tests, CI, deps, activity, security, structure, community), produces dual-axis scores with letter grades (A–F), drives a weekly operator loop.
 - **Current maturity:** Phases 0–27 + 103–108 complete. 799 tests. Schema 0.4.0. Risk overlay shipped.
@@ -60,15 +60,15 @@ Three projects on this machine already produce the data the Notion OS needs. Non
 - **Partial Notion wiring already exists:** `src/notion_client.py`, `notion_dashboard.py`, `notion_export.py`, `notion_registry.py`, `notion_sync.py`. Reads from `Local Portfolio Projects` via `config/notion-project-map.json`. Can push audit signal events — but to a legacy path, not the canonical `external_signal_events` destination.
 - **The gap:** Redirect `notion_sync.py` output to `external_signal_events`. One adapter. The payoff: every project row gets a live "Repo Health Score" that degrades over time and triggers review cadence when it drops.
 
-### notification-hub (`/Users/d/Projects/notification-hub`)
+### notification-hub (`~/Projects/notification-hub`)
 
 - **What it is:** Python FastAPI event intake and routing hub. Accepts `POST /events` from Claude Code, Codex, and Claude.ai. Classifies urgency. Fans out to macOS push notifications, Slack webhook, and a local JSONL event log. Also watches bridge-db markdown for changes.
 - **Data it owns:** JSONL event log — every notification ever fired from any AI system. Fields: `source`, `level`, `title`, `body`, `project`, `event_id`, `received_at`, `classified_level`.
 - **The gap:** Zero Notion integration exists. A nightly sync worker reading the JSONL log and writing to `external_signal_events` gives Notion a live cross-agent activity stream. The schema maps directly: `source` → Source, `level` → urgency, `project` → relation to `local_portfolio_projects`.
 
-### bridge-db (`/Users/d/Projects/bridge-db`)
+### bridge-db (`~/Projects/bridge-db`)
 
-- **What it is:** SQLite-backed MCP server (WAL mode). Shared state bus between Claude.ai, Claude Code, and Codex. Verify the current MCP surface from `/Users/d/Projects/bridge-db` source before copying tool counts.
+- **What it is:** SQLite-backed MCP server (WAL mode). Shared state bus between Claude.ai, Claude Code, and Codex. Verify the current MCP surface from `~/Projects/bridge-db` source before copying tool counts.
 - **Tools:** `activity` (log_activity, get_recent_activity, get_shipped_events, confirm_shipped_sync, record_shipped_event_disposition, mark_shipped_processed for non-shipped operational rows only), `handoffs` (create_handoff, get_pending_handoffs, pick_up_handoff, clear_handoff), `context` (update_section, get_section, get_all_sections), `snapshots` (save_snapshot, get_latest_snapshot), `cost` (record_cost, get_cost_history), `export` (export_bridge_markdown → `~/.claude/projects/-Users-d/memory/claude_ai_context.md`).
 - **Data it owns:** SQLite at `~/.local/share/bridge-db/bridge.db` — activity log, handoffs queue, context sections, snapshots, cost history.
 - **The gap:** `get_shipped_events` + `confirm_shipped_sync` is a natural polling target. Anything an agent marks "shipped" should propagate to `build_log` with a durable Notion receipt. Pending handoffs could become `work_packets` rows. Cost history is a signal row. No Notion writer exists yet.

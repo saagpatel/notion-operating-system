@@ -34,7 +34,7 @@ Its steady-state contract is:
 
 The weekly method is defined in the repo-local Codex skill:
 
-- [`weekly-notion-maintenance` skill](/Users/d/Projects/Notion/.agents/skills/weekly-notion-maintenance/SKILL.md)
+- [`weekly-notion-maintenance` skill](~/Projects/Notion/.agents/skills/weekly-notion-maintenance/SKILL.md)
 
 ## Schedule Policy
 
@@ -146,9 +146,9 @@ If future portfolio-level reporting is needed, treat that as a separate project 
 
 The weekly-refresh implementation and hardening work still matter. The following documents are historical references, not active operating instructions:
 
-- [`weekly-refresh-phase-2-handoff.md`](/Users/d/Projects/Notion/docs/weekly-refresh-phase-2-handoff.md)
-- [`weekly-refresh-maintenance.md`](/Users/d/Projects/Notion/docs/weekly-refresh-maintenance.md)
-- [`weekly-refresh-rollout-scorecard.md`](/Users/d/Projects/Notion/docs/weekly-refresh-rollout-scorecard.md)
-- [`weekly-refresh-cutover-review.md`](/Users/d/Projects/Notion/docs/weekly-refresh-cutover-review.md)
+- [`weekly-refresh-phase-2-handoff.md`](~/Projects/Notion/docs/weekly-refresh-phase-2-handoff.md)
+- [`weekly-refresh-maintenance.md`](~/Projects/Notion/docs/weekly-refresh-maintenance.md)
+- [`weekly-refresh-rollout-scorecard.md`](~/Projects/Notion/docs/weekly-refresh-rollout-scorecard.md)
+- [`weekly-refresh-cutover-review.md`](~/Projects/Notion/docs/weekly-refresh-cutover-review.md)
 
 Use those only to understand how the earlier cutover plan evolved. Do not use them as the current weekly operating guide.
