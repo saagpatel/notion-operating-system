@@ -23,8 +23,8 @@ Batch goal:
 
 The packet is based on:
 
-- the Notion repo configs and scripts in `/Users/d/Notion`
-- the local project folders under `/Users/d/Projects`
+- the Notion repo configs and scripts in `~/Notion`
+- the local project folders under `~/Projects`
 - live Notion records read through the repo tooling
 - current GitHub state checked during this session
 
@@ -51,7 +51,7 @@ Current state:
 - Notion project exists and currently reads `Needs Decision / Build Now`.
 - Notion already has a committed portfolio decision dated 2026-03-21 saying not to migrate it yet.
 - There is no GitHub source row, no actuation target, no packet, no tasks, and no governance evidence linked to the project in Notion.
-- Local repo exists at `/Users/d/Projects/knowledgecore`.
+- Local repo exists at `~/Projects/knowledgecore`.
 - Local repo has a dirty worktree.
 - Local repo has several GitHub workflow files, but `.codex/verify.commands` is stale and references nonexistent root `npm` commands even though the repo has no root `package.json`.
 - Local `origin` points to `https://github.com/saagar210/knowledgecore.git`, which currently returns `Repository not found`.
@@ -87,7 +87,7 @@ Current state:
 - Notion project exists and currently reads `Ready to Demo / Worth Finishing`.
 - Notion already has a ready finish packet and ready tasks for Zendesk support, Statuspage integration, and finish proof.
 - There is no GitHub source row, no actuation target, no action request, and no webhook evidence linked to the project in Notion.
-- Local repo exists at `/Users/d/Projects/ITPRJsViaClaude/IncidentWorkbench`.
+- Local repo exists at `~/Projects/ITPRJsViaClaude/IncidentWorkbench`.
 - Local repo has a dirty worktree, but the local delta is small compared with other batch projects.
 - Local repo has a strong workflow surface and strict backend verification commands.
 - Local `origin` points to `https://github.com/saagar210/IncidentWorkbench.git`, which currently returns `Repository not found`.
@@ -118,7 +118,7 @@ Current state:
 
 - Notion project exists and currently reads `Ready to Demo / Needs Review`.
 - Notion already has an active GitHub source, in-progress rollout packet, ready tasks, executed action requests, and webhook evidence.
-- Local repo exists at `/Users/d/Projects/ITPRJsViaClaude/KBFreshnessDetector`.
+- Local repo exists at `~/Projects/ITPRJsViaClaude/KBFreshnessDetector`.
 - Local repo is clean.
 - Local repo already points to `saagpatel/KBFreshness` and preserves `legacy-origin`.
 - GitHub is live and reachable.
@@ -154,7 +154,7 @@ Current state:
 - Notion project exists and already has an active GitHub source, completed onboarding packet and tasks, executed action request, and webhook evidence.
 - Notion still shows the project as `Parked / Needs Review`.
 - Derived GitHub fields on the project are stale relative to live activity.
-- Local repo exists at `/Users/d/Projects/ITPRJsViaClaude/PersonalKBDrafter`.
+- Local repo exists at `~/Projects/ITPRJsViaClaude/PersonalKBDrafter`.
 - Local repo has a heavily dirty worktree.
 - Local repo already points to `saagpatel/PersonalKBDrafter` and preserves `legacy-origin`.
 - GitHub is live and reachable.
@@ -189,7 +189,7 @@ Current state:
 
 - Notion project exists and currently reads `Parked / Needs Review`.
 - There is no GitHub source row, no packet, no tasks, no governance evidence, and no external signal coverage linked to the project in Notion.
-- Local repo exists at `/Users/d/Projects/ITPRJsViaClaude/ScreenshotAnnotate`.
+- Local repo exists at `~/Projects/ITPRJsViaClaude/ScreenshotAnnotate`.
 - Local repo has a heavily dirty worktree.
 - Local repo has workflow files, but `.codex/verify.commands` only covers perf checks and is not a full readiness gate.
 - Local `origin` points to `https://github.com/saagar210/ScreenshotAnnotate.git`, which currently returns `Repository not found`.

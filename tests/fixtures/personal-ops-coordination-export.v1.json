@@ -68,7 +68,7 @@
         "confidence": "medium",
         "freshness_at": null,
         "evidence_refs": [
-          "/Users/d/Notion"
+          "~/Notion"
         ],
         "dedupe_key": "coordination-20260510T102500Z:source:notion:deferred",
         "raw_excerpt": "Notion is intentionally deferred in this lane."

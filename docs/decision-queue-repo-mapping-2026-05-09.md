@@ -23,14 +23,14 @@ the stale-active rescue and repo-mapping cleanup pass.
 | JSM Ticket Analytics Export | `~/Projects/jsm-analytics-export` | `JSMTicketAnalyticsExport` |
 | MCP Audit | `MCPAudit.` | `MCPAudit` |
 | MCP Forge | `mcpforge.` | `mcpforge` |
-| Notion Operating System | `Notion Operating System.` | `/Users/d/Notion` |
-| Personal Ops | `Personal Ops.` | `/Users/d/.local/share/personal-ops` |
+| Notion Operating System | `Notion Operating System.` | `~/Notion` |
+| Personal Ops | `Personal Ops.` | `~/.local/share/personal-ops` |
 | Reddit Sentiment Analyzer | `RedditSentimentAnalyzer.` | `RedditSentimentAnalyzer` |
 | EarthPulse | `FunGamePrjs/EarthPulse` | `Fun:GamePrjs/EarthPulse` |
 | EarthPulse-readiness | `FunGamePrjs/EarthPulse-readiness` | `Fun:GamePrjs/EarthPulse` |
 | PomGambler-prod | `Fun:GamePrjs/PomGambler-prod` | `Fun:GamePrjs/PomGambler` |
 | DesktopTerrarium | `Fun:GamePrjs/DesktopTerrarium` | `Fun:GamePrjs/DesktopTerrarium/desktop_terrarium` |
-| Sandbox Local Portfolio Project | `Sandbox Local Portfolio Project.` | `/Users/d/portfolio-actuation-sandbox` |
+| Sandbox Local Portfolio Project | `Sandbox Local Portfolio Project.` | `~/portfolio-actuation-sandbox` |
 
 ## Decision Queue
 
@@ -56,7 +56,7 @@ No repo/source mapping cleanup remains after the live decision pass.
 | Project | Resolution |
 |---|---|
 | DesktopTerrarium | Repointed to the nested `desktop_terrarium` git repo. |
-| Sandbox Local Portfolio Project | Repointed to `/Users/d/portfolio-actuation-sandbox` and parked as a watch-only proof row. |
+| Sandbox Local Portfolio Project | Repointed to `~/portfolio-actuation-sandbox` and parked as a watch-only proof row. |
 | da-scaffold | Paused the empty GitHub placeholder; keep local-only until an origin exists. |
 | RAG Knowledge Base | Paused the empty GitHub placeholder; keep local-only until an origin exists. |
 | TabTriage | Paused the empty GitHub placeholder; publish or park after local dirty files are reviewed. |

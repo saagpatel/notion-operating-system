@@ -3,21 +3,21 @@
 Continue this work in the same workspace unless I say otherwise.
 
 ## Mission
-This repo is a working “Notion Operating System” in `/Users/d/Projects/Notion`. The major Phase 9 feature work is already landed: governed GitHub actions, bounded Vercel redeploy/rollback/promote, operator runbooks, a compact `governance:health-report`, and Notion command-center health visibility. The large cleanup and project-hardening pass is now also complete enough that the next slice should be **Phase 10 follow-through and operational maturity**, not another broad cleanup sweep.
+This repo is a working “Notion Operating System” in `~/Projects/Notion`. The major Phase 9 feature work is already landed: governed GitHub actions, bounded Vercel redeploy/rollback/promote, operator runbooks, a compact `governance:health-report`, and Notion command-center health visibility. The large cleanup and project-hardening pass is now also complete enough that the next slice should be **Phase 10 follow-through and operational maturity**, not another broad cleanup sweep.
 
 ## Workspace
-- Same folder as the previous session: `/Users/d/Projects/Notion`
+- Same folder as the previous session: `~/Projects/Notion`
 - Treat the workspace as source of truth
 - Re-ground from files before changing anything
 
 ## Read These First
-- `/Users/d/Projects/Notion/AGENTS.md`
-- `/Users/d/Projects/Notion/README.md`
-- `/Users/d/Projects/Notion/docs/notion-roadmap.md`
-- `/Users/d/Projects/Notion/docs/notion-phase-memory.md`
-- `/Users/d/Projects/Notion/docs/github-governed-actions-runbook.md`
-- `/Users/d/Projects/Notion/docs/governance-sync-failure-troubleshooting.md`
-- `/Users/d/Projects/Notion/docs/governance-incident-followup-runbook.md`
+- `~/Projects/Notion/AGENTS.md`
+- `~/Projects/Notion/README.md`
+- `~/Projects/Notion/docs/notion-roadmap.md`
+- `~/Projects/Notion/docs/notion-phase-memory.md`
+- `~/Projects/Notion/docs/github-governed-actions-runbook.md`
+- `~/Projects/Notion/docs/governance-sync-failure-troubleshooting.md`
+- `~/Projects/Notion/docs/governance-incident-followup-runbook.md`
 
 ## Latest Checkpoint
 - The repo has now completed a deep audit-and-prune pass across script surface, docs alignment, and internal utility boundaries.

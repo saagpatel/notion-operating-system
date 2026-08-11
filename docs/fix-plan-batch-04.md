@@ -84,4 +84,4 @@ No current fix is needed for wrong-database placement or exact-title duplicate r
 - Local repo surface is normalized in place for all five projects, with no ambiguous dirty or untracked state left in the active execution slice.
 - GitHub truth and Notion truth agree on PR posture, workflow posture, readiness state, and blocker text for each project.
 - The latest governed GitHub execution is reconciled for every project that currently shows `Pending` or material `Mismatch` status.
-- `/Users/d/Notion/docs/fix-plan-batch-04.md` and `/Users/d/Notion/docs/fix-plan-batch-04-summary.json` match the same verified batch state.
+- `~/Notion/docs/fix-plan-batch-04.md` and `~/Notion/docs/fix-plan-batch-04-summary.json` match the same verified batch state.

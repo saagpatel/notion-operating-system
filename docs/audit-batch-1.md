@@ -22,7 +22,7 @@
 ### DesktopTerrarium
 - The nested canonical git root still has not been reflected correctly.
 - Recent failed workflow runs remain (15).
-- The canonical local repo root is nested at /Users/d/Projects/Fun:GamePrjs/DesktopTerrarium.
+- The canonical local repo root is nested at ~/Projects/Fun:GamePrjs/DesktopTerrarium.
 
 ### job-search-2026
 - The governed GitHub operating lane is still missing.

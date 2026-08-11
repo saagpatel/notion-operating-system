@@ -47,17 +47,17 @@ What this pass actually changed:
   - Installed `llama3.2:latest` locally in Ollama to unblock real report generation.
   - Ran the live backend and captured a passing report-generation E2E proof.
 - `PixelForge`
-  - Saved a fresh pass-two safety patch at `/Users/d/Projects/.batch-03-safety/PixelForge/pass-2-pre-narrow.patch`.
+  - Saved a fresh pass-two safety patch at `~/Projects/.batch-03-safety/PixelForge/pass-2-pre-narrow.patch`.
   - Restored unrelated workflow/docs/bootstrap drift.
   - Kept only the bounded operation-progress and busy-state slice plus its focused tests.
   - Re-ran the local proof path after installing dependencies.
 - `TerraSynth`
-  - Saved a fresh pass-two safety patch at `/Users/d/Projects/.batch-03-safety/TerraSynth/pass-2-pre-narrow.patch`.
+  - Saved a fresh pass-two safety patch at `~/Projects/.batch-03-safety/TerraSynth/pass-2-pre-narrow.patch`.
   - Restored unrelated workflow/docs/perf/bootstrap drift.
   - Kept only the bounded export/import and keyboard-control slice plus its focused tests.
   - Re-ran the local proof path after installing dependencies.
 - `SynthWave`
-  - Saved a fresh pass-two safety patch at `/Users/d/Projects/.batch-03-safety/SynthWave/pass-2-pre-split.patch`.
+  - Saved a fresh pass-two safety patch at `~/Projects/.batch-03-safety/SynthWave/pass-2-pre-split.patch`.
   - Removed the README and private-beta doc edits from the preserved branch.
   - Kept only the runtime readiness-recovery slice and re-verified it.
 

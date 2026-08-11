@@ -71,7 +71,7 @@
     - `#2` npm `rollup` patch update
   - the recent `ci-nightly` failures on March 22, 2026 and March 23, 2026 are both Windows `cross-platform-smoke` failures caused by `doctor-env` reporting `npm` as unavailable/unknown on the runner even after `npm ci` completed
 - Remaining findings:
-  - the folder path is still `/Users/d/Projects/Fun:GamePrjs/ CryptForge`, and the rename was not attempted because the repo is dirty and the move was not clearly lossless
+  - the folder path is still `~/Projects/Fun:GamePrjs/ CryptForge`, and the rename was not attempted because the repo is dirty and the move was not clearly lossless
   - the two Dependabot PRs still need an explicit merge-or-close decision
   - the `ci-nightly` Windows runner issue still needs a workflow or environment follow-up before nightly status can be treated as clean
 
