@@ -14,8 +14,10 @@ import type {
 import {
 	BridgeDbMcpSession,
 	buildBridgeDbMcpEnvironment,
+	buildNotionDispositionArguments,
 	normalizeBridgeDbToolArray,
 	parseBridgeDbToolResult,
+	resolveBridgeDbMcpLauncher,
 } from "../src/notion/bridge-db-mcp-client.js";
 import {
 	confirmShippedRowSynced,
@@ -176,7 +178,6 @@ describe("confirmShippedRowSynced", () => {
 	test("opens a session, records downstream proof, and closes", async () => {
 		await confirmShippedRowSynced("/custom/bridge.db", {
 			rowId: 123,
-			caller: "cc",
 			downstreamRef: "notion-page-123",
 			notes: "Created Build Log page",
 		});
@@ -186,7 +187,6 @@ describe("confirmShippedRowSynced", () => {
 		});
 		expect(session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 123,
-			caller: "cc",
 			downstreamRef: "notion-page-123",
 			notes: "Created Build Log page",
 		});
@@ -199,7 +199,6 @@ describe("confirmShippedRowSynced", () => {
 		await expect(
 			confirmShippedRowSynced("/ignored/path", {
 				rowId: 99,
-				caller: "cc",
 				downstreamRef: "page-99",
 			}),
 		).rejects.toThrow("receipt failed");
@@ -210,7 +209,6 @@ describe("confirmShippedRowSynced", () => {
 		await expect(
 			confirmShippedRowSynced("/ignored/path", {
 				rowId: 1,
-				caller: "cc",
 				downstreamRef: "page-1",
 			}),
 		).resolves.toBeUndefined();
@@ -222,6 +220,47 @@ describe("confirmShippedRowSynced", () => {
 // ---------------------------------------------------------------------------
 
 describe("bridge-db MCP result parsing", () => {
+	test("records proof as notion_os without borrowing the event source", () => {
+		expect(
+			buildNotionDispositionArguments({
+				activityId: 42,
+				downstreamRef: "notion-page-42",
+				notes: "exact readback",
+			}),
+		).toEqual({
+			caller: "notion_os",
+			activity_id: 42,
+			disposition: "synced",
+			downstream_system: "notion",
+			downstream_ref: "notion-page-42",
+			notes: "exact readback",
+		});
+	});
+
+	test("uses the installed immutable BridgeDB launcher by default", () => {
+		vi.stubEnv("BRIDGE_DB_MCP_LAUNCHER", "");
+		try {
+			expect(resolveBridgeDbMcpLauncher()).toMatch(
+				/\/\.local\/state\/bridge-db\/current\/bin\/bridge-db-mcp$/,
+			);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	test("accepts only an absolute reviewed BridgeDB launcher override", () => {
+		vi.stubEnv("BRIDGE_DB_MCP_LAUNCHER", "/private/release/bin/bridge-db-mcp");
+		try {
+			expect(resolveBridgeDbMcpLauncher()).toBe(
+				"/private/release/bin/bridge-db-mcp",
+			);
+			vi.stubEnv("BRIDGE_DB_MCP_LAUNCHER", "relative/bridge-db-mcp");
+			expect(() => resolveBridgeDbMcpLauncher()).toThrow("absolute path");
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
 	test("prefers structuredContent.result over text content", () => {
 		const structured = [makeEvent({ id: 7 })];
 		const parsed = parseBridgeDbToolResult({

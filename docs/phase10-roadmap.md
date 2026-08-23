@@ -115,7 +115,12 @@ This single adapter gives Notion a live cross-agent activity stream spanning eve
 ### Initiative 2 — bridge-db Shipped Events → build_log
 **Priority: High. Closes the AI agent activity loop.**
 
-Add a polling adapter that calls bridge-db's `get_shipped_events`, writes each to `build_log` in Notion, then calls `confirm_shipped_sync` with the created Notion page id to advance the watermark with proof. Run as part of the weekly sequence or on demand.
+The polling adapter calls bridge-db's `get_shipped_events`, writes each to
+`build_log` in Notion, then calls `record_disposition(disposition="synced")`
+with the created Notion page id. It connects through the installed immutable
+BridgeDB launcher and acts only as `notion_os`; an exact owner delegation is
+required for a foreign-source row. Run it as part of the weekly sequence or on
+demand.
 
 Each shipped event maps to:
 - title → build log entry title
@@ -125,7 +130,13 @@ Each shipped event maps to:
 
 Bridge-db handoffs → `work_packets` is Phase 2 of this initiative. Lower urgency than the shipped events feed since handoffs are transient.
 
-**Implementation path:** TypeScript adapter `src/notion/bridge-db-sync.ts` reads bridge-db through the MCP server. The default DB path is `~/.local/share/bridge-db/bridge.db`, and `notion-os bridge-db sync --db-path <path>` forwards that override to the subprocess as `BRIDGE_DB_PATH`. Manual proof runs can use `--shipped-only` to avoid processing personal-ops rows, or `--ops-only` for the inverse queue.
+**Implementation path:** TypeScript adapter `src/notion/bridge-db-sync.ts` reads
+bridge-db through the MCP server. The default DB path is
+`~/.local/share/bridge-db/bridge.db`, and `notion-os bridge-db sync --db-path
+<path>` forwards that override to the subprocess as `BRIDGE_DB_PATH`.
+`BRIDGE_DB_MCP_LAUNCHER` may select another absolute reviewed immutable
+generation for a bounded rollout. Manual proof runs can use `--shipped-only`
+to avoid processing personal-ops rows, or `--ops-only` for the inverse queue.
 
 ---
 

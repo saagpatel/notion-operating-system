@@ -252,6 +252,11 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 | `VERCEL_TOKEN` | For governed Vercel writes | Vercel API token |
 | `NOTION_LOG_DIR` | Optional | Log directory (default: `./logs`) |
 | `NOTION_DESTINATIONS_PATH` | Optional | Destinations config path (default: `./config/destinations.json`) |
+| `BRIDGE_DB_MCP_LAUNCHER` | Optional | Absolute reviewed BridgeDB launcher; defaults to the installed immutable `~/.local/state/bridge-db/current/bin/bridge-db-mcp` |
+
+The bridge sync always acts as its bound `notion_os` principal. A foreign-source
+SHIPPED row therefore needs an exact active BridgeDB owner delegation before a
+live sync; the worker never substitutes the row's source as its caller.
 
 ## Sandbox Profile Discipline
 
