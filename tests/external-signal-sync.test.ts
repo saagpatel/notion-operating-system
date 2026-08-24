@@ -237,10 +237,11 @@ describe("external signal sync hardening", () => {
 			updatePageProperties: async (input: {
 				pageId: string;
 				properties: Record<string, unknown>;
+				recordClientErrorAsFailure?: boolean;
 			}) => {
 				updateAttempts += 1;
 				calls.push(
-					`update:${input.pageId}:${Object.keys(input.properties).sort().join(",")}`,
+					`update:${input.pageId}:${Object.keys(input.properties).sort().join(",")}:${String(input.recordClientErrorAsFailure)}`,
 				);
 				if (updateAttempts === 1) {
 					throw new AppError("Notion rejected full metadata patch", {
@@ -287,9 +288,65 @@ describe("external signal sync hardening", () => {
 		});
 
 		expect(calls).toEqual([
-			"update:existing-brief:Brief Date,Brief Hash,Name,Storage Version",
-			"update:existing-brief:Brief Hash,Storage Version",
+			"update:existing-brief:Brief Date,Brief Hash,Name,Storage Version:false",
+			"update:existing-brief:Brief Hash,Storage Version:undefined",
 			"patch:existing-brief",
+		]);
+	});
+
+	test("defers new stored brief metadata failures until its hash fallback is exhausted", async () => {
+		const calls: string[] = [];
+		let updateAttempts = 0;
+		const api = {
+			searchPage: async () => null,
+			createPageWithMarkdown: async () => {
+				calls.push("create");
+				return {
+					id: "created-brief",
+					url: "https://www.notion.so/created-brief",
+				};
+			},
+			updatePageProperties: async (input: {
+				pageId: string;
+				properties: Record<string, unknown>;
+				recordClientErrorAsFailure?: boolean;
+			}) => {
+				updateAttempts += 1;
+				calls.push(
+					`update:${Object.keys(input.properties).sort().join(",")}:${String(input.recordClientErrorAsFailure)}`,
+				);
+				if (updateAttempts === 1) {
+					throw new AppError("Notion rejected full metadata patch", {
+						status: 400,
+					});
+				}
+			},
+		};
+
+		await upsertExternalSignalBriefPage({
+			api: api as never,
+			dataSourceId: "11111111-1111-4111-8111-111111111111",
+			titlePropertyName: "Name",
+			title: "Project - External Signal Brief - 2026-06-06",
+			properties: {
+				Name: {
+					title: [{ type: "text", text: { content: "Project" } }],
+				},
+				"Brief Date": { date: { start: "2026-06-06" } },
+				"Brief Hash": {
+					rich_text: [{ type: "text", text: { content: "hash" } }],
+				},
+				"Storage Version": {
+					rich_text: [{ type: "text", text: { content: "v1" } }],
+				},
+			},
+			markdown: "External brief",
+		});
+
+		expect(calls).toEqual([
+			"create",
+			"update:Brief Date,Brief Hash,Storage Version:false",
+			"update:Brief Hash,Storage Version:undefined",
 		]);
 	});
 
