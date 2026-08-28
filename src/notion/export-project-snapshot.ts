@@ -354,7 +354,6 @@ export async function writeJsonAtomically(
 	) {
 		throw new Error("Snapshot output path escapes the allowed root");
 	}
-	await mkdir(requestedRoot, { recursive: true, mode: 0o700 });
 	const rootInfo = await lstat(requestedRoot);
 	if (
 		rootInfo.isSymbolicLink() ||
@@ -364,24 +363,37 @@ export async function writeJsonAtomically(
 	) {
 		throw new Error("Snapshot output root has unsafe ownership, type, or mode");
 	}
-	const requestedDirectory = path.dirname(requestedDestination);
-	await mkdir(requestedDirectory, { recursive: true, mode: 0o700 });
-	const directoryInfo = await lstat(requestedDirectory);
-	if (
-		directoryInfo.isSymbolicLink() ||
-		!directoryInfo.isDirectory() ||
-		directoryInfo.uid !== process.getuid?.() ||
-		(directoryInfo.mode & 0o022) !== 0
-	) {
-		throw new Error("Snapshot output directory has unsafe ownership, type, or mode");
-	}
 	const physicalRoot = await realpath(requestedRoot);
-	const directory = await realpath(requestedDirectory);
-	if (
-		directory !== physicalRoot &&
-		!directory.startsWith(`${physicalRoot}${path.sep}`)
-	) {
-		throw new Error("Snapshot output directory escapes the physical allowed root");
+	const requestedDirectoryRelative = path.dirname(lexicalRelative);
+	let directory = physicalRoot;
+	if (requestedDirectoryRelative !== ".") {
+		for (const component of requestedDirectoryRelative.split(path.sep)) {
+			const nextDirectory = path.join(directory, component);
+			let directoryInfo;
+			try {
+				directoryInfo = await lstat(nextDirectory);
+			} catch (error) {
+				if (
+					typeof error !== "object" ||
+					error === null ||
+					!("code" in error) ||
+					error.code !== "ENOENT"
+				) throw error;
+				await mkdir(nextDirectory, { mode: 0o700 });
+				directoryInfo = await lstat(nextDirectory);
+			}
+			if (
+				directoryInfo.isSymbolicLink() ||
+				!directoryInfo.isDirectory() ||
+				directoryInfo.uid !== process.getuid?.() ||
+				(directoryInfo.mode & 0o022) !== 0
+			) {
+				throw new Error(
+					"Snapshot output directory has unsafe ownership, type, or mode",
+				);
+			}
+			directory = nextDirectory;
+		}
 	}
 	const resolvedDestination = path.join(
 		directory,

@@ -138,7 +138,11 @@ describe("project snapshot provenance", () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-output-"));
 		try {
 			const outputPath = path.join(root, "isolated", "project-snapshot.json");
-			await writeJsonAtomically(outputPath, { state: "verified", count: 2 });
+			await writeJsonAtomically(
+				outputPath,
+				{ state: "verified", count: 2 },
+				{ allowedRoot: root },
+			);
 
 			expect(JSON.parse(await readFile(outputPath, "utf8"))).toEqual({
 				state: "verified",
@@ -196,7 +200,7 @@ describe("project snapshot provenance", () => {
 			const linkedParent = path.join(root, "linked");
 			await symlink(outside, linkedParent);
 			await expect(writeJsonAtomically(
-				path.join(linkedParent, "project-snapshot.json"),
+				path.join(linkedParent, "created", "project-snapshot.json"),
 				{ ok: true },
 				{ allowedRoot: root },
 			)).rejects.toThrow("unsafe ownership, type, or mode");
