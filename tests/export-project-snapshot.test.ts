@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -9,6 +9,7 @@ import { loadLocalPortfolioControlTowerConfig } from "../src/notion/local-portfo
 import {
 	buildProjectSnapshot,
 	loadPortfolioAttentionAuthority,
+	writeJsonAtomically,
 } from "../src/notion/export-project-snapshot.js";
 import type { DataSourcePageRef } from "../src/notion/local-portfolio-control-tower-live.js";
 
@@ -108,7 +109,7 @@ describe("project snapshot provenance", () => {
 		}
 	});
 
-	test("falls back to the legacy truth only when no generation pointer exists", async () => {
+	test("fails closed on legacy truth when no authoritative generation pointer exists", async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), "notion-portfolio-legacy-"));
 		try {
 			const legacyPath = path.join(root, "legacy.json");
@@ -125,14 +126,84 @@ describe("project snapshot provenance", () => {
 			);
 			await writeFile(legacyPath, legacyBytes);
 
-			const authority = await loadPortfolioAttentionAuthority(legacyPath, root);
-
-			expect(authority.contentSha256).toBe(
-				createHash("sha256").update(legacyBytes).digest("hex"),
-			);
-			expect(authority.byTitle.get("Legacy Project")).toBe("parked");
+			await expect(
+				loadPortfolioAttentionAuthority(legacyPath, root),
+			).rejects.toThrow("Authoritative portfolio generation pointer is required");
 		} finally {
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("atomically publishes isolated output with owner-only mode and no temp residue", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-output-"));
+		try {
+			const outputPath = path.join(root, "isolated", "project-snapshot.json");
+			await writeJsonAtomically(outputPath, { state: "verified", count: 2 });
+
+			expect(JSON.parse(await readFile(outputPath, "utf8"))).toEqual({
+				state: "verified",
+				count: 2,
+			});
+			expect((await stat(outputPath)).mode & 0o777).toBe(0o600);
+			expect(await readdir(path.dirname(outputPath))).toEqual([
+				"project-snapshot.json",
+			]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("does not replace a prior snapshot when serialization fails", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-atomic-failure-"));
+		try {
+			const outputPath = path.join(root, "project-snapshot.json");
+			await writeFile(outputPath, "prior\n", { mode: 0o600 });
+			const circular: { self?: unknown } = {};
+			circular.self = circular;
+
+			await expect(writeJsonAtomically(outputPath, circular)).rejects.toThrow();
+			expect(await readFile(outputPath, "utf8")).toBe("prior\n");
+			expect(await readdir(root)).toEqual(["project-snapshot.json"]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("rejects a group-writable output directory before creating a snapshot", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-unsafe-output-"));
+		try {
+			await chmod(root, 0o770);
+			await expect(
+				writeJsonAtomically(path.join(root, "project-snapshot.json"), { ok: true }),
+			).rejects.toThrow("unsafe ownership, type, or mode");
+			expect(await readdir(root)).toEqual([]);
+		} finally {
+			await chmod(root, 0o700);
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("rejects lexical escapes and symlinked output parents", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-output-root-"));
+		const outside = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-output-outside-"));
+		try {
+			await expect(writeJsonAtomically(
+				path.join(root, "..", "escaped.json"),
+				{ ok: true },
+				{ allowedRoot: root },
+			)).rejects.toThrow("escapes the allowed root");
+
+			const linkedParent = path.join(root, "linked");
+			await symlink(outside, linkedParent);
+			await expect(writeJsonAtomically(
+				path.join(linkedParent, "project-snapshot.json"),
+				{ ok: true },
+				{ allowedRoot: root },
+			)).rejects.toThrow("unsafe ownership, type, or mode");
+			expect(await readdir(outside)).toEqual([]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+			await rm(outside, { recursive: true, force: true });
 		}
 	});
 
