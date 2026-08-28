@@ -3,9 +3,12 @@
 // entry points, the ~60 parse* helpers, and the shared validation primitives.
 // Re-exported from the parent module so its public API is unchanged.
 
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+
 import { loadRuntimeConfig } from "../../config/runtime-config.js";
 import { AppError } from "../../utils/errors.js";
-import { readJsonFile, writeJsonFile } from "../../utils/files.js";
+import { writeJsonFile } from "../../utils/files.js";
 import {
 	extractNotionIdFromUrl,
 	normalizeNotionId,
@@ -30,8 +33,30 @@ const OPERATING_QUEUES = new Set<OperatingQueue>(OPERATING_QUEUE_LIST);
 
 export async function loadLocalPortfolioControlTowerConfig(
 	filePath = loadRuntimeConfig().paths.controlTowerConfigPath,
+	options: { expectedSha256?: string } = {},
 ): Promise<LocalPortfolioControlTowerConfig> {
-	const raw = await readJsonFile<unknown>(filePath);
+	const bytes = await readFile(filePath);
+	if (options.expectedSha256 !== undefined) {
+		if (!/^[0-9a-f]{64}$/.test(options.expectedSha256)) {
+			throw new AppError(
+				"Local portfolio control tower config expected SHA-256 is invalid",
+			);
+		}
+		const observedSha256 = createHash("sha256").update(bytes).digest("hex");
+		if (observedSha256 !== options.expectedSha256) {
+			throw new AppError(
+				"Local portfolio control tower config SHA-256 mismatch",
+			);
+		}
+	}
+	let raw: unknown;
+	try {
+		raw = JSON.parse(bytes.toString("utf8"));
+	} catch (error) {
+		throw new AppError(
+			`Failed to parse local portfolio control tower config: ${String(error)}`,
+		);
+	}
 	return parseLocalPortfolioControlTowerConfig(raw);
 }
 

@@ -265,11 +265,12 @@ export async function loadPortfolioAttentionAuthority(
 
 export async function runExportProjectSnapshotCommand(options: {
 	config?: string;
+	configSha256?: string;
 	today?: string;
 	output?: string;
 }): Promise<void> {
 	const sourceModulePath = fileURLToPath(import.meta.url);
-	verifySnapshotRuntimeSource(sourceModulePath);
+	const runtimeIdentity = verifySnapshotRuntimeSource(sourceModulePath);
 	const runtimeConfig = loadRuntimeConfig();
 	const logger = RunLogger.fromRuntimeConfig(runtimeConfig);
 	await logger.init();
@@ -280,8 +281,16 @@ export async function runExportProjectSnapshotCommand(options: {
 	}
 
 	const today = options.today ?? losAngelesToday();
+	const configSha256 =
+		options.configSha256 ?? process.env.NOTION_SNAPSHOT_CONFIG_SHA256;
+	if (runtimeIdentity.mode === "immutable-generation" && !configSha256) {
+		throw new Error(
+			"Immutable snapshot runtime requires an exact control-tower config SHA-256",
+		);
+	}
 	const config = await loadLocalPortfolioControlTowerConfig(
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+		{ expectedSha256: configSha256 },
 	);
 
 	const api = new DirectNotionClient(token, logger);
