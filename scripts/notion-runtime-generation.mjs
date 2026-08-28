@@ -5,6 +5,7 @@ import {
 	chmodSync,
 	closeSync,
 	existsSync,
+	fstatSync,
 	fsyncSync,
 	lstatSync,
 	mkdirSync,
@@ -30,6 +31,7 @@ const REPOSITORY = "saagpatel/notion-operating-system";
 const EXPECTED_REMOTE = "https://github.com/saagpatel/notion-operating-system.git";
 const MANIFEST_NAME = "notion-runtime-generation.json";
 const POINTER_NAME = "current.json";
+const REVERSAL_CUSTODY = "selector-reversal-custody";
 const ENTRYPOINT = "dist/src/cli.js";
 const EXPORT_MODULE = "dist/src/notion/export-project-snapshot.js";
 const HEX40 = /^[0-9a-f]{40}$/;
@@ -140,6 +142,69 @@ function ensureManagedRoot(root) {
 	if (!existsSync(releases)) mkdirSync(releases, { mode: 0o700 });
 	requireOwnedDirectory(releases, "release root");
 	return { root, releases };
+}
+
+function fsyncDirectory(directory) {
+	const descriptor = openSync(directory, "r");
+	try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
+}
+
+function withGenerationLock(root, action, callback, finalization = {}) {
+	const generationLock = path.join(root, ".notion-runtime-generation.lock");
+	let descriptor;
+	let identity;
+	let lockOwned = false;
+	try {
+		descriptor = openSync(generationLock, "wx", 0o600);
+		lockOwned = true;
+		identity = fstatSync(descriptor);
+		writeFileSync(
+			descriptor,
+			`${canonicalJson({ action, pid: process.pid, started_at: utcNow() })}\n`,
+		);
+		fsyncSync(descriptor);
+	} catch (error) {
+		if (descriptor !== undefined) closeSync(descriptor);
+		if (lockOwned && existsSync(generationLock)) {
+			const observed = lstatSync(generationLock);
+			if (identity !== undefined && observed.dev === identity.dev && observed.ino === identity.ino) {
+				unlinkSync(generationLock);
+			}
+		}
+		throw new GenerationError(`runtime generation lock is already held: ${error.message}`);
+	}
+	let result;
+	let actionError;
+	try {
+		result = callback();
+	} catch (error) {
+		actionError = error;
+	}
+	let finalizationError;
+	try {
+		if (!existsSync(generationLock)) {
+			throw new GenerationError("runtime generation lock disappeared while held");
+		}
+		const observed = lstatSync(generationLock);
+		if (observed.dev !== identity.dev || observed.ino !== identity.ino) {
+			throw new GenerationError("runtime generation lock identity changed while held");
+		}
+		if (descriptor !== undefined) closeSync(descriptor);
+		descriptor = undefined;
+		(finalization.unlinkLock ?? unlinkSync)(generationLock);
+		(finalization.fsyncDirectory ?? fsyncDirectory)(root);
+	} catch (error) {
+		finalizationError = error;
+		if (descriptor !== undefined) closeSync(descriptor);
+	}
+	if (finalizationError !== undefined) {
+		const prefix = actionError === undefined
+			? "operation may be committed; lock finalization is recovery-required"
+			: `operation failed (${actionError.message}); lock finalization also requires recovery`;
+		throw new GenerationError(`${prefix}: ${finalizationError.message}. Inspect the exact selector and lock before retrying.`);
+	}
+	if (actionError !== undefined) throw actionError;
+	return result;
 }
 
 function validateSource(sourceRoot, commit) {
@@ -388,36 +453,20 @@ function stage(args) {
 function readback(args) {
 	const root = realpathSync(args.managedRoot);
 	requireOwnedDirectory(root, "managed root");
-	const selected = validatePointer(root);
-	const result = receipt("readback", "verified-current", selected.release, selected.manifest);
-	result.pointer = selected.pointerPath;
-	result.pointer_sha256 = sha256File(selected.pointerPath);
-	return result;
+	return withGenerationLock(root, "readback", () => {
+		const selected = validatePointer(root);
+		const result = receipt("readback", "verified-current", selected.release, selected.manifest);
+		result.pointer = selected.pointerPath;
+		result.pointer_sha256 = sha256File(selected.pointerPath);
+		return result;
+	});
 }
 
 function select(args) {
 	if (args.allowSelection !== "yes") throw new GenerationError("selection requires --allow-selection yes");
 	const root = realpathSync(args.managedRoot);
 	requireOwnedDirectory(root, "managed root");
-	const generationLock = path.join(root, ".notion-runtime-generation.lock");
-	let lockDescriptor;
-	let lockOwned = false;
-	try {
-		lockDescriptor = openSync(generationLock, "wx", 0o600);
-		lockOwned = true;
-		writeFileSync(
-			lockDescriptor,
-			`${canonicalJson({ action: "select", pid: process.pid, started_at: utcNow() })}\n`,
-		);
-		fsyncSync(lockDescriptor);
-		closeSync(lockDescriptor);
-		lockDescriptor = undefined;
-	} catch (error) {
-		if (lockDescriptor !== undefined) closeSync(lockDescriptor);
-		if (lockOwned && existsSync(generationLock)) unlinkSync(generationLock);
-		throw new GenerationError(`runtime generation lock is already held: ${error.message}`);
-	}
-	try {
+	return withGenerationLock(root, "select", () => {
 		const release = path.join(root, "releases", args.commit);
 		const manifest = validateManifest(release, args.commit);
 		const manifestSha = sha256File(path.join(release, MANIFEST_NAME));
@@ -455,14 +504,196 @@ function select(args) {
 		result.previous = previous;
 		result.claim_ceiling = "Local runtime selector and immutable bytes only; loaded wrapper, credentials, provider behavior, and scheduler execution require separate proof.";
 		return result;
-	} finally {
-		if (existsSync(generationLock)) unlinkSync(generationLock);
+	});
+}
+
+function deactivate(args, operations = {}) {
+	if (args.allowSelection !== "yes") throw new GenerationError("deactivation requires --allow-selection yes");
+	if (args.expectedPrevious !== "none") throw new GenerationError("first-install deactivation requires --expected-previous none");
+	if (!HEX64.test(args.expectedCurrentManifestSha256) || !HEX64.test(args.expectedPointerSha256)) {
+		throw new GenerationError("deactivation digest bindings must be lowercase SHA-256 values");
 	}
+	const root = realpathSync(args.managedRoot);
+	const syncDirectory = operations.fsyncDirectory ?? fsyncDirectory;
+	const digestFile = operations.sha256File ?? sha256File;
+	requireOwnedDirectory(root, "managed root");
+	return withGenerationLock(root, "deactivate", () => {
+		const selected = validatePointer(root);
+		if (selected.pointer.current.source_commit !== args.expectedCurrent) {
+			throw new GenerationError("current runtime selection changed");
+		}
+		if (selected.pointer.current.manifest_sha256 !== args.expectedCurrentManifestSha256) {
+			throw new GenerationError("current runtime manifest binding changed");
+		}
+		if (selected.pointer.previous !== null) {
+			throw new GenerationError("deactivation is limited to a first-install selector with previous null");
+		}
+		const pointerSha = sha256File(selected.pointerPath);
+		if (pointerSha !== args.expectedPointerSha256) {
+			throw new GenerationError("current runtime pointer digest changed");
+		}
+		const custody = path.join(root, REVERSAL_CUSTODY);
+		if (!existsSync(custody)) {
+			mkdirSync(custody, { mode: 0o700 });
+			syncDirectory(root);
+		}
+		requireOwnedDirectory(custody, "selector reversal custody", 0o700);
+		const custodyPointer = path.join(
+			custody,
+			`current.pre-deactivate-${args.expectedCurrent}-${Date.now()}-${process.pid}.json`,
+		);
+		if (existsSync(custodyPointer)) throw new GenerationError("selector reversal custody target already exists");
+		let moved = false;
+		try {
+			renameSync(selected.pointerPath, custodyPointer);
+			moved = true;
+			syncDirectory(custody);
+			syncDirectory(root);
+			if (existsSync(selected.pointerPath)) throw new GenerationError("runtime pointer remains present after deactivation");
+			requireOwnedFile(custodyPointer, "selector reversal custody pointer", 0o600);
+			if (digestFile(custodyPointer) !== pointerSha) throw new GenerationError("selector reversal custody pointer digest mismatch");
+		} catch (error) {
+			if (moved) {
+				try {
+					if (!existsSync(selected.pointerPath) && existsSync(custodyPointer)) {
+						requireOwnedFile(custodyPointer, "selector reversal custody pointer before restoration", 0o600);
+						if (sha256File(custodyPointer) !== pointerSha) {
+							throw new GenerationError("custody pointer digest changed before restoration");
+						}
+						renameSync(custodyPointer, selected.pointerPath);
+						syncDirectory(custody);
+						syncDirectory(root);
+					}
+					if (!existsSync(selected.pointerPath) || existsSync(custodyPointer)) {
+						throw new GenerationError("selector restoration did not reach an exact active state");
+					}
+					const restored = validatePointer(root);
+					if (sha256File(restored.pointerPath) !== pointerSha) {
+						throw new GenerationError("restored selector digest mismatch");
+					}
+				} catch (recoveryError) {
+					throw new GenerationError(`deactivation failed and selector restoration is recovery-required: ${error.message}; recovery: ${recoveryError.message}`);
+				}
+			}
+			throw error;
+		}
+		const result = receipt("deactivate", "reversed-to-inactive", selected.release, selected.manifest);
+		result.before_pointer_sha256 = pointerSha;
+		result.before = selected.pointer;
+		result.pointer_absent = true;
+		result.reversal_custody_pointer = custodyPointer;
+		result.reversal_custody_pointer_sha256 = pointerSha;
+		result.release_retained = true;
+		result.rollback = {
+			action: "reactivate",
+			commit: args.expectedCurrent,
+			manifest_sha256: args.expectedCurrentManifestSha256,
+			custody_pointer: custodyPointer,
+			custody_pointer_sha256: pointerSha,
+			requires_selection_authority: true,
+		};
+		result.claim_ceiling = "Local first-install selector reversal only; immutable release bytes are retained, and loaded wrapper, production activation, credentials, provider behavior, and scheduler execution require separate proof.";
+		return result;
+	}, operations.lockFinalization ?? {});
+}
+
+function reactivate(args, operations = {}) {
+	if (args.allowSelection !== "yes") throw new GenerationError("reactivation requires --allow-selection yes");
+	if (!HEX40.test(args.commit) || !HEX64.test(args.manifestSha256) || !HEX64.test(args.custodyPointerSha256)) {
+		throw new GenerationError("reactivation identity bindings are invalid");
+	}
+	const root = realpathSync(args.managedRoot);
+	const syncDirectory = operations.fsyncDirectory ?? fsyncDirectory;
+	requireOwnedDirectory(root, "managed root");
+	return withGenerationLock(root, "reactivate", () => {
+		const pointerPath = path.join(root, POINTER_NAME);
+		if (existsSync(pointerPath)) throw new GenerationError("runtime pointer is already present");
+		const custody = path.join(root, REVERSAL_CUSTODY);
+		requireOwnedDirectory(custody, "selector reversal custody", 0o700);
+		if (!path.isAbsolute(args.custodyPointer) || realpathSync(path.dirname(args.custodyPointer)) !== realpathSync(custody)) {
+			throw new GenerationError("custody pointer is outside selector reversal custody");
+		}
+		requireOwnedFile(args.custodyPointer, "selector reversal custody pointer", 0o600);
+		const custodyIdentity = lstatSync(args.custodyPointer);
+		if (sha256File(args.custodyPointer) !== args.custodyPointerSha256) {
+			throw new GenerationError("custody pointer digest changed");
+		}
+		const payload = JSON.parse(readFileSync(args.custodyPointer, "utf8"));
+		if (
+			payload.schema !== "NotionRuntimePointerV1" ||
+			payload.current?.source_commit !== args.commit ||
+			payload.current?.manifest_sha256 !== args.manifestSha256 ||
+			payload.previous !== null
+		) {
+			throw new GenerationError("custody pointer does not bind the requested first-install generation");
+		}
+		let moved = false;
+		try {
+			operations.beforeReactivateMove?.(args.custodyPointer);
+			renameSync(args.custodyPointer, pointerPath);
+			moved = true;
+			const movedIdentity = lstatSync(pointerPath);
+			if (movedIdentity.dev !== custodyIdentity.dev || movedIdentity.ino !== custodyIdentity.ino) {
+				throw new GenerationError("custody pointer identity changed across reactivation move");
+			}
+			syncDirectory(custody);
+			syncDirectory(root);
+			const selected = validatePointer(root);
+			if (sha256File(pointerPath) !== args.custodyPointerSha256) {
+				throw new GenerationError("restored selector digest mismatch");
+			}
+			const result = receipt("reactivate", "reactivated", selected.release, selected.manifest);
+			result.pointer = pointerPath;
+			result.pointer_sha256 = args.custodyPointerSha256;
+			result.reversal_custody_pointer_consumed = true;
+			result.claim_ceiling = "Local runtime selector restoration only; loaded wrapper, production activation, credentials, provider behavior, and scheduler execution require separate proof.";
+			return result;
+		} catch (error) {
+			if (moved) {
+				try {
+					if (existsSync(pointerPath) && !existsSync(args.custodyPointer)) {
+						const activeIdentity = lstatSync(pointerPath);
+						const identityMatches = activeIdentity.dev === custodyIdentity.dev && activeIdentity.ino === custodyIdentity.ino;
+						let bytesMatch = false;
+						if (identityMatches) {
+							try {
+								requireOwnedFile(pointerPath, "runtime pointer before inactive-state restoration", 0o600);
+								bytesMatch = sha256File(pointerPath) === args.custodyPointerSha256;
+							} catch {
+								bytesMatch = false;
+							}
+						}
+						if (!identityMatches || !bytesMatch) {
+							const evidence = path.join(custody, `reactivation-recovery-evidence-${Date.now()}-${process.pid}`);
+							if (existsSync(evidence)) throw new GenerationError("reactivation recovery evidence target already exists");
+							renameSync(pointerPath, evidence);
+							syncDirectory(custody);
+							syncDirectory(root);
+							throw new GenerationError(`unexpected active selector was quarantined at ${evidence}`);
+						}
+						renameSync(pointerPath, args.custodyPointer);
+						syncDirectory(custody);
+						syncDirectory(root);
+					}
+					if (existsSync(pointerPath) || !existsSync(args.custodyPointer)) {
+						throw new GenerationError("inactive selector custody was not restored");
+					}
+					requireOwnedFile(args.custodyPointer, "selector reversal custody pointer", 0o600);
+					if (sha256File(args.custodyPointer) !== args.custodyPointerSha256) {
+						throw new GenerationError("restored custody pointer digest mismatch");
+					}
+				} catch (recoveryError) {
+					throw new GenerationError(`reactivation failed and inactive-state recovery is recovery-required: ${error.message}; recovery: ${recoveryError.message}`);
+				}
+			}
+			throw error;
+		}
+	}, operations.lockFinalization ?? {});
 }
 
 function parseArgs(argv) {
 	const [action, ...rest] = argv;
-	if (!["stage", "select", "readback"].includes(action)) throw new GenerationError("action must be stage, select, or readback");
+	if (!["stage", "select", "readback", "deactivate", "reactivate"].includes(action)) throw new GenerationError("action must be stage, select, readback, deactivate, or reactivate");
 	const values = { action };
 	for (let index = 0; index < rest.length; index += 2) {
 		const key = rest[index];
@@ -474,7 +705,11 @@ function parseArgs(argv) {
 		? ["sourceRoot", "commit", "managedRoot"]
 		: action === "select"
 			? ["commit", "managedRoot", "expectedCurrent", "allowSelection"]
-			: ["managedRoot"];
+			: action === "deactivate"
+				? ["managedRoot", "expectedCurrent", "expectedCurrentManifestSha256", "expectedPointerSha256", "expectedPrevious", "allowSelection"]
+				: action === "reactivate"
+					? ["managedRoot", "commit", "manifestSha256", "custodyPointer", "custodyPointerSha256", "allowSelection"]
+				: ["managedRoot"];
 	for (const required of requiredFields) if (!values[required]) throw new GenerationError(`missing --${required.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`);
 	if (values.commit && !HEX40.test(values.commit)) throw new GenerationError("commit must be a full lowercase SHA-1");
 	return values;
@@ -492,12 +727,12 @@ function atomicReceipt(receiptPath, value) {
 	try { fsyncSync(parentDescriptor); } finally { closeSync(parentDescriptor); }
 }
 
-export { GenerationError, readback, select, stage, validateManifest, validatePointer };
+export { GenerationError, deactivate, reactivate, readback, select, stage, validateManifest, validatePointer, withGenerationLock };
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
 	try {
 		const args = parseArgs(process.argv.slice(2));
-		const result = args.action === "stage" ? stage(args) : args.action === "select" ? select(args) : readback(args);
+		const result = args.action === "stage" ? stage(args) : args.action === "select" ? select(args) : args.action === "deactivate" ? deactivate(args) : args.action === "reactivate" ? reactivate(args) : readback(args);
 		if (args.receipt) atomicReceipt(args.receipt, result);
 		process.stdout.write(`${canonicalJson(result)}\n`);
 	} catch (error) {

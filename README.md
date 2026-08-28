@@ -195,6 +195,23 @@ npm run portfolio-audit:recommendation-run -- --type weekly --live        # 4. r
 npm run portfolio-audit:action-request-sync -- --live         # 5. sync governance summaries
 ```
 
+## Immutable scheduled runtime generations
+
+`scripts/notion-runtime-generation.mjs` stages and verifies the immutable runtime
+used by the scheduled snapshot wrapper. `stage`, `select`, and `readback` remain
+separate operations. `readback` does not alter a runtime selector or release, but
+it temporarily creates and removes an owner-only generation-lock control file to
+serialize verification with selector changes. A first-install selector whose
+`previous` binding is `null` can be reversed with `deactivate` only when the
+expected current commit, current manifest digest, and pointer digest all match
+under that lock. The pointer is moved into owner-private selector-reversal
+custody while the immutable release remains intact. `reactivate` consumes the
+exact expectation-bound custody pointer, restores its original bytes and digest,
+and verifies the retained release. A post-move failure is recovered to the exact
+pre-operation selector state when possible; incomplete recovery is reported
+explicitly as `recovery-required`. These operations do not load launchd, use
+credentials, call Notion, or provide scheduler proof.
+
 ## Common Commands
 
 | Command | What it does |

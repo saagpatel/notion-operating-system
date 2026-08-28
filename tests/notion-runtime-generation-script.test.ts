@@ -1,10 +1,13 @@
 import { chmod, mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, openSync, readdirSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
+
+// @ts-expect-error The production launcher is intentionally a plain ESM script.
+import { deactivate, reactivate, withGenerationLock } from "../scripts/notion-runtime-generation.mjs";
 
 const scriptPath = path.resolve("scripts/notion-runtime-generation.mjs");
 const npmCliPath = realpathSync(
@@ -35,6 +38,11 @@ function runAsync(command: string, args: string[]) {
 		child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
 		child.on("close", (status) => resolve({ status, stdout, stderr }));
 	});
+}
+
+function fsyncDirectory(directory: string) {
+	const descriptor = openSync(directory, "r");
+	try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
 }
 
 async function fixtureRepository(): Promise<{ root: string; commit: string }> {
@@ -87,6 +95,295 @@ async function fixtureRepository(): Promise<{ root: string; commit: string }> {
 }
 
 describe("immutable Notion runtime generation script", () => {
+	test("reverses a first-install selector to inactive while retaining exact release and pointer custody", async () => {
+		const source = await fixtureRepository();
+		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-deactivate-"));
+		const stageReceipt = JSON.parse(run(process.execPath, [
+			scriptPath,
+			"stage",
+			"--source-root", source.root,
+			"--commit", source.commit,
+			"--managed-root", managedRoot,
+		], undefined, runtimeBuilderEnv));
+		const selection = JSON.parse(run(process.execPath, [
+			scriptPath,
+			"select",
+			"--commit", source.commit,
+			"--managed-root", managedRoot,
+			"--expected-current", "none",
+			"--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv));
+		const pointerPath = path.join(managedRoot, "current.json");
+		const pointerBefore = await readFile(pointerPath);
+		const entrypointPath = path.join(managedRoot, "releases", source.commit, "dist/src/cli.js");
+		const entrypointBefore = await readFile(entrypointPath);
+
+		const deactivated = JSON.parse(run(process.execPath, [
+			scriptPath,
+			"deactivate",
+			"--managed-root", managedRoot,
+			"--expected-current", source.commit,
+			"--expected-current-manifest-sha256", stageReceipt.manifest_sha256,
+			"--expected-pointer-sha256", selection.pointer_sha256,
+			"--expected-previous", "none",
+			"--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv));
+		expect(deactivated).toMatchObject({
+			action: "deactivate",
+			state: "reversed-to-inactive",
+			pointer_absent: true,
+			release_retained: true,
+		});
+		await expect(readFile(pointerPath)).rejects.toThrow();
+		expect(await readFile(deactivated.reversal_custody_pointer)).toEqual(pointerBefore);
+		expect(await readFile(entrypointPath)).toEqual(entrypointBefore);
+
+		const inactiveReadback = spawnSync(process.execPath, [
+			scriptPath,
+			"readback",
+			"--managed-root", managedRoot,
+		], { encoding: "utf8", env: runtimeBuilderEnv });
+		expect(inactiveReadback.status).toBe(1);
+
+		const reactivated = JSON.parse(run(process.execPath, [
+			scriptPath,
+			"reactivate",
+			"--commit", source.commit,
+			"--managed-root", managedRoot,
+			"--manifest-sha256", stageReceipt.manifest_sha256,
+			"--custody-pointer", deactivated.reversal_custody_pointer,
+			"--custody-pointer-sha256", deactivated.reversal_custody_pointer_sha256,
+			"--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv));
+		expect(reactivated).toMatchObject({ action: "reactivate", state: "reactivated" });
+		expect(await readFile(pointerPath)).toEqual(pointerBefore);
+		expect(existsSync(deactivated.reversal_custody_pointer)).toBe(false);
+		expect(JSON.parse(run(process.execPath, [scriptPath, "readback", "--managed-root", managedRoot])).state).toBe("verified-current");
+	});
+
+	test("post-move failures restore the exact selector state and allow retry", async () => {
+		const source = await fixtureRepository();
+		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-transaction-recovery-"));
+		const stageReceipt = JSON.parse(run(process.execPath, [
+			scriptPath, "stage", "--source-root", source.root, "--commit", source.commit, "--managed-root", managedRoot,
+		], undefined, runtimeBuilderEnv));
+		const selection = JSON.parse(run(process.execPath, [
+			scriptPath, "select", "--commit", source.commit, "--managed-root", managedRoot,
+			"--expected-current", "none", "--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv));
+		const pointerPath = path.join(managedRoot, "current.json");
+		const pointerBefore = await readFile(pointerPath);
+		await mkdir(path.join(managedRoot, "selector-reversal-custody"), { mode: 0o700 });
+		const deactivateArgs = {
+			managedRoot,
+			expectedCurrent: source.commit,
+			expectedCurrentManifestSha256: stageReceipt.manifest_sha256,
+			expectedPointerSha256: selection.pointer_sha256,
+			expectedPrevious: "none",
+			allowSelection: "yes",
+		};
+
+		for (const failureAt of [1, 2]) {
+			let calls = 0;
+			expect(() => deactivate(deactivateArgs, {
+				fsyncDirectory(directory: string) {
+					calls += 1;
+					if (calls === failureAt) throw new Error(`injected fsync failure ${failureAt}`);
+					fsyncDirectory(directory);
+				},
+			})).toThrow(`injected fsync failure ${failureAt}`);
+			expect(await readFile(pointerPath)).toEqual(pointerBefore);
+			expect(await readdir(path.join(managedRoot, "selector-reversal-custody"))).toEqual([]);
+		}
+
+		expect(() => deactivate(deactivateArgs, { sha256File: () => "0".repeat(64) })).toThrow("custody pointer digest mismatch");
+		expect(await readFile(pointerPath)).toEqual(pointerBefore);
+		expect(await readdir(path.join(managedRoot, "selector-reversal-custody"))).toEqual([]);
+
+		const deactivated = deactivate(deactivateArgs);
+		const custodyPointer = deactivated.reversal_custody_pointer as string;
+		const reactivateArgs = {
+			managedRoot,
+			commit: source.commit,
+			manifestSha256: stageReceipt.manifest_sha256,
+			custodyPointer,
+			custodyPointerSha256: selection.pointer_sha256,
+			allowSelection: "yes",
+		};
+		for (const failureAt of [1, 2]) {
+			let calls = 0;
+			expect(() => reactivate(reactivateArgs, {
+				fsyncDirectory(directory: string) {
+					calls += 1;
+					if (calls === failureAt) throw new Error(`injected reactivation fsync failure ${failureAt}`);
+					fsyncDirectory(directory);
+				},
+			})).toThrow(`injected reactivation fsync failure ${failureAt}`);
+			expect(existsSync(pointerPath)).toBe(false);
+			expect(await readFile(custodyPointer)).toEqual(pointerBefore);
+		}
+		const restored = reactivate(reactivateArgs);
+		expect(restored.state).toBe("reactivated");
+		expect(await readFile(pointerPath)).toEqual(pointerBefore);
+	});
+
+	test("fails closed when its exact generation lock disappears", async () => {
+		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-lock-disappears-"));
+		const pointer = path.join(managedRoot, "current.json");
+		await writeFile(pointer, "sentinel\n", { mode: 0o600 });
+		expect(() => withGenerationLock(managedRoot, "test", () => {
+			unlinkSync(path.join(managedRoot, ".notion-runtime-generation.lock"));
+		})).toThrow("lock disappeared while held");
+		expect(await readFile(pointer, "utf8")).toBe("sentinel\n");
+	});
+
+	test("reports committed uncertainty when lock finalization fails", async () => {
+		const source = await fixtureRepository();
+		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-lock-finalization-"));
+		const stageReceipt = JSON.parse(run(process.execPath, [
+			scriptPath, "stage", "--source-root", source.root, "--commit", source.commit, "--managed-root", managedRoot,
+		], undefined, runtimeBuilderEnv));
+		const selection = JSON.parse(run(process.execPath, [
+			scriptPath, "select", "--commit", source.commit, "--managed-root", managedRoot,
+			"--expected-current", "none", "--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv));
+		const pointer = path.join(managedRoot, "current.json");
+		expect(() => deactivate({
+			managedRoot,
+			expectedCurrent: source.commit,
+			expectedCurrentManifestSha256: stageReceipt.manifest_sha256,
+			expectedPointerSha256: selection.pointer_sha256,
+			expectedPrevious: "none",
+			allowSelection: "yes",
+		}, {
+			lockFinalization: { unlinkLock: () => { throw new Error("injected unlink failure"); } },
+		})).toThrow(/operation may be committed.*recovery-required/);
+		expect(existsSync(pointer)).toBe(false);
+		expect(readdirSync(path.join(managedRoot, "selector-reversal-custody"))).toHaveLength(1);
+	});
+
+	test("does not move a replaced custody symlink over the selector", async () => {
+		const source = await fixtureRepository();
+		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-custody-replacement-"));
+		const stageReceipt = JSON.parse(run(process.execPath, [
+			scriptPath, "stage", "--source-root", source.root, "--commit", source.commit, "--managed-root", managedRoot,
+		], undefined, runtimeBuilderEnv));
+		const selection = JSON.parse(run(process.execPath, [
+			scriptPath, "select", "--commit", source.commit, "--managed-root", managedRoot,
+			"--expected-current", "none", "--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv));
+		const custody = path.join(managedRoot, "selector-reversal-custody");
+		await mkdir(custody, { mode: 0o700 });
+		let calls = 0;
+		expect(() => deactivate({
+			managedRoot,
+			expectedCurrent: source.commit,
+			expectedCurrentManifestSha256: stageReceipt.manifest_sha256,
+			expectedPointerSha256: selection.pointer_sha256,
+			expectedPrevious: "none",
+			allowSelection: "yes",
+		}, {
+			fsyncDirectory(directory: string) {
+				calls += 1;
+				if (calls === 1) {
+					const [custodyName] = readdirSync(custody);
+					const custodyPointer = path.join(custody, custodyName!);
+					unlinkSync(custodyPointer);
+					symlinkSync(path.join(managedRoot, "releases", source.commit, "dist/src/cli.js"), custodyPointer);
+					throw new Error("injected custody replacement");
+				}
+				fsyncDirectory(directory);
+			},
+		})).toThrow("recovery-required");
+		expect(existsSync(path.join(managedRoot, "current.json"))).toBe(false);
+		const [custodyName] = readdirSync(custody);
+		expect(custodyName).toBeDefined();
+	});
+
+	test("quarantines replaced or mutated reactivation sources instead of leaving them active", async () => {
+		for (const replacement of ["symlink", "regular", "inplace"] as const) {
+			const source = await fixtureRepository();
+			const managedRoot = await mkdtemp(path.join(os.tmpdir(), `notion-runtime-reactivation-${replacement}-`));
+			const stageReceipt = JSON.parse(run(process.execPath, [
+				scriptPath, "stage", "--source-root", source.root, "--commit", source.commit, "--managed-root", managedRoot,
+			], undefined, runtimeBuilderEnv));
+			const selection = JSON.parse(run(process.execPath, [
+				scriptPath, "select", "--commit", source.commit, "--managed-root", managedRoot,
+				"--expected-current", "none", "--allow-selection", "yes",
+			], undefined, runtimeBuilderEnv));
+			const deactivated = deactivate({
+				managedRoot,
+				expectedCurrent: source.commit,
+				expectedCurrentManifestSha256: stageReceipt.manifest_sha256,
+				expectedPointerSha256: selection.pointer_sha256,
+				expectedPrevious: "none",
+				allowSelection: "yes",
+			});
+			const custodyPointer = deactivated.reversal_custody_pointer as string;
+			const custody = path.dirname(custodyPointer);
+			expect(() => reactivate({
+				managedRoot,
+				commit: source.commit,
+				manifestSha256: stageReceipt.manifest_sha256,
+				custodyPointer,
+				custodyPointerSha256: selection.pointer_sha256,
+				allowSelection: "yes",
+			}, {
+				beforeReactivateMove(target: string) {
+					if (replacement === "inplace") {
+						writeFileSync(target, "in-place mutation\n", { mode: 0o600 });
+					} else if (replacement === "symlink") {
+						unlinkSync(target);
+						symlinkSync(path.join(managedRoot, "releases", source.commit, "dist/src/cli.js"), target);
+					} else {
+						unlinkSync(target);
+						writeFileSync(target, "replacement\n", { mode: 0o600, flag: "wx" });
+					}
+				},
+			})).toThrow("recovery-required");
+			expect(existsSync(path.join(managedRoot, "current.json"))).toBe(false);
+			expect(existsSync(custodyPointer)).toBe(false);
+			expect(readdirSync(custody).some((name) => name.startsWith("reactivation-recovery-evidence-"))).toBe(true);
+		}
+	});
+
+	test("deactivation rejects stale bindings and a held operation lock without mutation", async () => {
+		const source = await fixtureRepository();
+		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-deactivate-guards-"));
+		const stageReceipt = JSON.parse(run(process.execPath, [
+			scriptPath, "stage", "--source-root", source.root, "--commit", source.commit, "--managed-root", managedRoot,
+		], undefined, runtimeBuilderEnv));
+		const selection = JSON.parse(run(process.execPath, [
+			scriptPath, "select", "--commit", source.commit, "--managed-root", managedRoot,
+			"--expected-current", "none", "--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv));
+		const pointerPath = path.join(managedRoot, "current.json");
+		const before = await readFile(pointerPath);
+		const stale = spawnSync(process.execPath, [
+			scriptPath, "deactivate", "--managed-root", managedRoot,
+			"--expected-current", source.commit,
+			"--expected-current-manifest-sha256", "0".repeat(64),
+			"--expected-pointer-sha256", selection.pointer_sha256,
+			"--expected-previous", "none", "--allow-selection", "yes",
+		], { encoding: "utf8", env: runtimeBuilderEnv });
+		expect(stale.status).toBe(1);
+		expect(stale.stderr).toContain("manifest binding changed");
+		expect(await readFile(pointerPath)).toEqual(before);
+
+		const lock = path.join(managedRoot, ".notion-runtime-generation.lock");
+		await writeFile(lock, "held\n", { mode: 0o600 });
+		const held = spawnSync(process.execPath, [
+			scriptPath, "deactivate", "--managed-root", managedRoot,
+			"--expected-current", source.commit,
+			"--expected-current-manifest-sha256", stageReceipt.manifest_sha256,
+			"--expected-pointer-sha256", selection.pointer_sha256,
+			"--expected-previous", "none", "--allow-selection", "yes",
+		], { encoding: "utf8", env: runtimeBuilderEnv });
+		expect(held.status).toBe(1);
+		expect(held.stderr).toContain("lock is already held");
+		expect(await readFile(pointerPath)).toEqual(before);
+	});
+
 	test("stages a complete frozen origin/main runtime and readback detects dependency drift", async () => {
 		const source = await fixtureRepository();
 		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-managed-"));
