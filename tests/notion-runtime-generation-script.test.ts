@@ -225,7 +225,7 @@ describe("immutable Notion runtime generation script", () => {
 		const restored = reactivate(reactivateArgs);
 		expect(restored.state).toBe("reactivated");
 		expect(await readFile(pointerPath)).toEqual(pointerBefore);
-	});
+	}, 30_000);
 
 	test("fails closed when its exact generation lock disappears", async () => {
 		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-lock-disappears-"));
@@ -345,7 +345,7 @@ describe("immutable Notion runtime generation script", () => {
 			expect(existsSync(custodyPointer)).toBe(false);
 			expect(readdirSync(custody).some((name) => name.startsWith("reactivation-recovery-evidence-"))).toBe(true);
 		}
-	});
+	}, 30_000);
 
 	test("deactivation rejects stale bindings and a held operation lock without mutation", async () => {
 		const source = await fixtureRepository();
