@@ -1,5 +1,5 @@
 import { chmod, mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { closeSync, existsSync, fsyncSync, openSync, readdirSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, openSync, readFileSync, readdirSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -7,7 +7,7 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 
 // @ts-expect-error The production launcher is intentionally a plain ESM script.
-import { deactivate, reactivate, withGenerationLock } from "../scripts/notion-runtime-generation.mjs";
+import { deactivate, reactivate, readback, withGenerationLock } from "../scripts/notion-runtime-generation.mjs";
 
 const scriptPath = path.resolve("scripts/notion-runtime-generation.mjs");
 const npmCliPath = realpathSync(
@@ -236,6 +236,30 @@ describe("immutable Notion runtime generation script", () => {
 		})).toThrow("lock disappeared while held");
 		expect(await readFile(pointer, "utf8")).toBe("sentinel\n");
 	});
+
+	test("readback leaves no lock and rejects a pointer that changes during verification", async () => {
+		const source = await fixtureRepository();
+		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-stable-readback-"));
+		const stageReceipt = JSON.parse(run(process.execPath, [
+			scriptPath, "stage", "--source-root", source.root, "--commit", source.commit, "--managed-root", managedRoot,
+		], undefined, runtimeBuilderEnv));
+		run(process.execPath, [
+			scriptPath, "select", "--commit", source.commit, "--managed-root", managedRoot,
+			"--expected-current", "none", "--allow-selection", "yes",
+		], undefined, runtimeBuilderEnv);
+		const lock = path.join(managedRoot, ".notion-runtime-generation.lock");
+		expect(readback({ managedRoot }).state).toBe("verified-current");
+		expect(existsSync(lock)).toBe(false);
+		expect(() => readback({ managedRoot }, {
+			beforeFinalValidation(pointerPath: string) {
+				const pointer = JSON.parse(readFileSync(pointerPath, "utf8"));
+				pointer.updated_at = new Date(Date.now() + 1_000).toISOString();
+				writeFileSync(pointerPath, `${JSON.stringify(pointer)}\n`, { mode: 0o600 });
+			},
+		})).toThrow("runtime pointer changed during readback");
+		expect(existsSync(lock)).toBe(false);
+		expect(stageReceipt.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
+	}, 30_000);
 
 	test("reports committed uncertainty when lock finalization fails", async () => {
 		const source = await fixtureRepository();

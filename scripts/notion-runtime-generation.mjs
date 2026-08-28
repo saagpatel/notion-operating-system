@@ -450,16 +450,29 @@ function stage(args) {
 	}
 }
 
-function readback(args) {
+function readback(args, operations = {}) {
 	const root = realpathSync(args.managedRoot);
 	requireOwnedDirectory(root, "managed root");
-	return withGenerationLock(root, "readback", () => {
-		const selected = validatePointer(root);
-		const result = receipt("readback", "verified-current", selected.release, selected.manifest);
-		result.pointer = selected.pointerPath;
-		result.pointer_sha256 = sha256File(selected.pointerPath);
-		return result;
-	});
+	const selected = validatePointer(root);
+	const beforeIdentity = lstatSync(selected.pointerPath);
+	const beforeSha = sha256File(selected.pointerPath);
+	const result = receipt("readback", "verified-current", selected.release, selected.manifest);
+	operations.beforeFinalValidation?.(selected.pointerPath);
+	const confirmed = validatePointer(root);
+	const afterSha = sha256File(confirmed.pointerPath);
+	const afterIdentity = lstatSync(confirmed.pointerPath);
+	if (
+		afterIdentity.dev !== beforeIdentity.dev ||
+		afterIdentity.ino !== beforeIdentity.ino ||
+		afterIdentity.size !== beforeIdentity.size ||
+		afterIdentity.mtimeMs !== beforeIdentity.mtimeMs ||
+		afterIdentity.ctimeMs !== beforeIdentity.ctimeMs ||
+		afterSha !== beforeSha ||
+		canonicalJson(confirmed.pointer) !== canonicalJson(selected.pointer)
+	) throw new GenerationError("runtime pointer changed during readback");
+	result.pointer = selected.pointerPath;
+	result.pointer_sha256 = beforeSha;
+	return result;
 }
 
 function select(args) {

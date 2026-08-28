@@ -199,10 +199,14 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 
 `scripts/notion-runtime-generation.mjs` stages and verifies the immutable runtime
 used by the scheduled snapshot wrapper. `stage`, `select`, and `readback` remain
-separate operations. `readback` does not alter a runtime selector or release, but
-it temporarily creates and removes an owner-only generation-lock control file to
-serialize verification with selector changes. A first-install selector whose
-`previous` binding is `null` can be reversed with `deactivate` only when the
+separate operations. `readback` does not alter a runtime selector, release, or
+lock. It validates the pointer, release, manifest, pointer identity, and pointer
+digest before and after receipt construction and fails if final validation
+observes a binding change.
+Therefore an interrupted scheduled verification cannot leave a persistent lock.
+Selector mutations remain serialized by an owner-only generation lock and stale
+mutation locks remain fail-closed for explicit recovery. A first-install selector
+whose `previous` binding is `null` can be reversed with `deactivate` only when the
 expected current commit, current manifest digest, and pointer digest all match
 under that lock. The pointer is moved into owner-private selector-reversal
 custody while the immutable release remains intact. `reactivate` consumes the
