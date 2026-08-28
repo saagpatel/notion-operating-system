@@ -1,3 +1,4 @@
+import { lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 import { config as loadDotenv } from "dotenv";
@@ -29,6 +30,7 @@ const positiveIntSchema = (fallback: number) =>
 const runtimeEnvSchema = z.object({
   NOTION_PROFILE: optionalStringSchema,
   NOTION_TOKEN: optionalStringSchema,
+  NOTION_ENV_FILE: optionalStringSchema,
   NOTION_LOG_DIR: defaultStringSchema("./logs"),
   NOTION_DESTINATIONS_PATH: optionalStringSchema,
   NOTION_RETRY_MAX_ATTEMPTS: positiveIntSchema(5),
@@ -128,6 +130,7 @@ export function safeLoadRuntimeConfig(options: RuntimeConfigOptions = {}): Runti
       env,
       profileName: options.profile,
     });
+    profile = withEnvFileOverride(profile, cwd, env.NOTION_ENV_FILE);
   } catch (error) {
     profile = buildImplicitWorkspaceProfile(cwd);
     profileIssues.push(`profile: ${toIssueMessage(error)}`);
@@ -180,11 +183,11 @@ export function requireNotionToken(message = "NOTION_TOKEN is required", options
 export function hydrateProcessEnvFromRuntimeProfile(options: Pick<RuntimeConfigOptions, "cwd" | "profile"> = {}): RuntimeConfig {
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const env = { ...process.env };
-  const profile = resolveWorkspaceProfile({
+  const profile = withEnvFileOverride(resolveWorkspaceProfile({
     cwd,
     env,
     profileName: options.profile,
-  });
+  }), cwd, env.NOTION_ENV_FILE);
   hydrateEnv(process.env, profile.envFile, {
     overrideExisting: true,
   });
@@ -194,6 +197,49 @@ export function hydrateProcessEnvFromRuntimeProfile(options: Pick<RuntimeConfigO
     profile: options.profile,
     hydrateEnvFile: false,
   });
+}
+
+function withEnvFileOverride(
+  profile: WorkspaceProfile,
+  cwd: string,
+  override: string | undefined,
+): WorkspaceProfile {
+  const normalized = normalizeOptionalString(override) as string | undefined;
+  if (!normalized) {
+    return profile;
+  }
+  if (!path.isAbsolute(normalized)) {
+    throw new AppError("NOTION_ENV_FILE must be an absolute path");
+  }
+  const envFile = validateExternalEnvFile(normalized);
+  return {
+    ...profile,
+    envFile,
+    ownedPaths: {
+      ...profile.ownedPaths,
+      envFile,
+    },
+  };
+}
+
+function validateExternalEnvFile(envFile: string): string {
+  const metadata = lstatSync(envFile);
+  const currentUid = process.getuid?.();
+  if (
+    metadata.isSymbolicLink() ||
+    !metadata.isFile() ||
+    metadata.nlink !== 1 ||
+    currentUid === undefined ||
+    metadata.uid !== currentUid
+  ) {
+    throw new AppError(
+      "NOTION_ENV_FILE must be a non-symlink, owner-bound regular file",
+    );
+  }
+  if ((metadata.mode & 0o077) !== 0) {
+    throw new AppError("NOTION_ENV_FILE must not grant group or world access");
+  }
+  return realpathSync(envFile);
 }
 
 function buildRuntimeConfig(env: RuntimeEnv, cwd: string, profile: WorkspaceProfile): RuntimeConfig {

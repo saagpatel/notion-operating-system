@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -9,6 +9,7 @@ import { loadRuntimeConfig, safeLoadRuntimeConfig } from "../src/config/runtime-
 const runtimeEnvKeys = [
   "NOTION_PROFILE",
   "NOTION_TOKEN",
+  "NOTION_ENV_FILE",
   "NOTION_DESTINATIONS_PATH",
 ] as const;
 
@@ -19,6 +20,58 @@ afterEach(() => {
 });
 
 describe("runtime config", () => {
+
+  test("hydrates credentials from an explicit external env file without moving workspace config paths", async () => {
+    const runtimeDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-external-env-"));
+    const credentialDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-credential-"));
+    const envFile = path.join(credentialDir, "notion.env");
+    await writeFile(envFile, "NOTION_TOKEN=external-token\n", "utf8");
+    await chmod(envFile, 0o600);
+
+    const config = loadRuntimeConfig({
+      cwd: runtimeDir,
+      env: { NOTION_ENV_FILE: envFile },
+    });
+
+    expect(config.notion.token).toBe("external-token");
+    expect(config.paths.envFile).toBe(await realpath(envFile));
+    expect(config.paths.controlTowerConfigPath).toBe(
+      path.resolve(runtimeDir, "./config/local-portfolio-control-tower.json"),
+    );
+  });
+
+  test("rejects relative, over-permissive, and symlinked external env files", async () => {
+    const runtimeDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-env-policy-"));
+    const credentialDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-env-policy-credential-"));
+    const envFile = path.join(credentialDir, "notion.env");
+    await writeFile(envFile, "NOTION_TOKEN=external-token\n", "utf8");
+    await chmod(envFile, 0o600);
+
+    expect(() =>
+      loadRuntimeConfig({
+        cwd: runtimeDir,
+        env: { NOTION_ENV_FILE: "relative.env" },
+      }),
+    ).toThrow("NOTION_ENV_FILE must be an absolute path");
+
+    await chmod(envFile, 0o640);
+    expect(() =>
+      loadRuntimeConfig({
+        cwd: runtimeDir,
+        env: { NOTION_ENV_FILE: envFile },
+      }),
+    ).toThrow("must not grant group or world access");
+
+    await chmod(envFile, 0o600);
+    const symlinkPath = path.join(credentialDir, "notion-link.env");
+    await symlink(envFile, symlinkPath);
+    expect(() =>
+      loadRuntimeConfig({
+        cwd: runtimeDir,
+        env: { NOTION_ENV_FILE: symlinkPath },
+      }),
+    ).toThrow("non-symlink, owner-bound regular file");
+  });
   test("loads defaults and resolves runtime paths from the provided cwd", () => {
     const config = loadRuntimeConfig({
       cwd: "/tmp/notion-os",
