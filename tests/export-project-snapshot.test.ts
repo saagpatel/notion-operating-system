@@ -89,6 +89,35 @@ async function writePortfolioGenerationFixture(root: string): Promise<{
 }
 
 describe("project snapshot provenance", () => {
+	test("binds parsing to the exact control-tower config bytes", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "notion-config-digest-"));
+		try {
+			const source = await readFile(
+				"./config/local-portfolio-control-tower.json",
+			);
+			const configPath = path.join(root, "control-tower.json");
+			await writeFile(configPath, source);
+			const expectedSha256 = createHash("sha256")
+				.update(source)
+				.digest("hex");
+
+			await expect(
+				loadLocalPortfolioControlTowerConfig(configPath, {
+					expectedSha256,
+				}),
+			).resolves.toMatchObject({ version: 1 });
+
+			await writeFile(configPath, Buffer.concat([source, Buffer.from("\n")]));
+			await expect(
+				loadLocalPortfolioControlTowerConfig(configPath, {
+					expectedSha256,
+				}),
+			).rejects.toThrow("config SHA-256 mismatch");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("binds attention authority to the current content-addressed portfolio generation", async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), "notion-portfolio-generation-"));
 		try {
