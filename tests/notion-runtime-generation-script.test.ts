@@ -7,6 +7,13 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 
 const scriptPath = path.resolve("scripts/notion-runtime-generation.mjs");
+const npmCliPath = realpathSync(
+	process.env.npm_execpath ?? "/opt/homebrew/bin/npm",
+);
+const runtimeBuilderEnv = {
+	...process.env,
+	NOTION_RUNTIME_NPM_PATH: npmCliPath,
+};
 
 function run(command: string, args: string[], cwd?: string, env = process.env) {
 	const result = spawnSync(command, args, { cwd, env, encoding: "utf8" });
@@ -18,7 +25,10 @@ function run(command: string, args: string[], cwd?: string, env = process.env) {
 
 function runAsync(command: string, args: string[]) {
 	return new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
-		const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+		const child = spawn(command, args, {
+			env: runtimeBuilderEnv,
+			stdio: ["ignore", "pipe", "pipe"],
+		});
 		let stdout = "";
 		let stderr = "";
 		child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
@@ -59,7 +69,7 @@ async function fixtureRepository(): Promise<{ root: string; commit: string }> {
 			'await writeFile("dist/src/notion/export-project-snapshot.js", "export const ok = true;\\n");',
 		].join("\n"),
 	);
-	run(process.execPath, [realpathSync("/opt/homebrew/bin/npm"), "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], root, {
+	run(process.execPath, [npmCliPath, "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], root, {
 		HOME: process.env.HOME,
 		PATH: `${path.dirname(realpathSync(process.execPath))}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`,
 		TMPDIR: process.env.TMPDIR,
@@ -81,7 +91,10 @@ describe("immutable Notion runtime generation script", () => {
 		const source = await fixtureRepository();
 		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-managed-"));
 		const receiptPath = path.join(managedRoot, "stage-receipt.json");
-		const env = { ...process.env, NOTION_TOKEN: "must-not-reach-build" };
+		const env = {
+			...runtimeBuilderEnv,
+			NOTION_TOKEN: "must-not-reach-build",
+		};
 
 		const stageOutput = run(process.execPath, [
 			scriptPath,
@@ -127,7 +140,7 @@ describe("immutable Notion runtime generation script", () => {
 			"--managed-root", managedRoot,
 			"--expected-current", "0".repeat(40),
 			"--allow-selection", "yes",
-		], { encoding: "utf8" });
+		], { encoding: "utf8", env: runtimeBuilderEnv });
 		expect(staleSelection.status).toBe(1);
 		expect(staleSelection.stderr).toContain("current runtime selection changed");
 
@@ -155,7 +168,7 @@ describe("immutable Notion runtime generation script", () => {
 			scriptPath,
 			"readback",
 			"--managed-root", managedRoot,
-		], { encoding: "utf8" });
+		], { encoding: "utf8", env: runtimeBuilderEnv });
 		expect(drift.status).toBe(1);
 		expect(drift.stderr).toContain("runtime file manifest mismatch");
 	});
@@ -171,7 +184,7 @@ describe("immutable Notion runtime generation script", () => {
 			"--source-root", source.root,
 			"--commit", source.commit,
 			"--managed-root", managedRoot,
-		], { encoding: "utf8" });
+		], { encoding: "utf8", env: runtimeBuilderEnv });
 		expect(result.status).toBe(1);
 		expect(await readdir(managedRoot)).toEqual(["releases"]);
 	});
