@@ -1,4 +1,4 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -21,6 +21,10 @@ import {
 	type DataSourcePageRef,
 	toControlTowerProjectRecord,
 } from "./local-portfolio-control-tower-live.js";
+import {
+	DEFAULT_PORTFOLIO_GENERATION_ROOT,
+	readPortfolioTruth,
+} from "../portfolio-generation-reader.js";
 
 const SNAPSHOT_PATH = path.join(
 	os.homedir(),
@@ -217,9 +221,16 @@ export function buildProjectSnapshot(input: {
 
 export async function loadPortfolioAttentionAuthority(
 	truthPath: string = PORTFOLIO_TRUTH_PATH,
+	generationRoot: string =
+		process.env.PORTFOLIO_GENERATION_ROOT ??
+		process.env.PERSONAL_OPS_PORTFOLIO_GENERATION_ROOT ??
+		DEFAULT_PORTFOLIO_GENERATION_ROOT,
 ): Promise<PortfolioAttentionAuthority> {
-	const bytes = await readFile(truthPath);
-	const raw = JSON.parse(bytes.toString("utf8")) as unknown;
+	const readback = await readPortfolioTruth({
+		generationRoot,
+		legacyPath: truthPath,
+	});
+	const raw: unknown = readback.payload;
 	if (typeof raw !== "object" || raw === null || !("projects" in raw)) {
 		throw new Error("GithubRepoAuditor truth root is invalid");
 	}
@@ -242,7 +253,7 @@ export async function loadPortfolioAttentionAuthority(
 	}
 	return {
 		generatedAt: root.generated_at,
-		contentSha256: createHash("sha256").update(bytes).digest("hex"),
+		contentSha256: readback.artifactSha256,
 		byTitle,
 	};
 }
