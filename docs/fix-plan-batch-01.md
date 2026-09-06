@@ -18,8 +18,8 @@
 
 - Remaining batch-01 fixes needed: none.
 - Work completed in this pass: the approved `SpecCompanion` governed request executed successfully, the live request state now reads `Executed`, and GitHub issue `#4` exists at `https://github.com/saagpatel/SpecCompanion/issues/4`.
-- Work completed in this pass: `SpecCompanion` now has one canonical active local surface at `/Users/d/Projects/SpecCompanion`, while the extra batch copies are preserved only as retired snapshots.
-- Work completed in this pass: `DeepTank` is explicitly recorded as a non-merge project with standalone finish posture rooted at `/Users/d/Projects/Fun:GamePrjs/DeepTank`.
+- Work completed in this pass: `SpecCompanion` now has one canonical active local surface at `~/Projects/SpecCompanion`, while the extra batch copies are preserved only as retired snapshots.
+- Work completed in this pass: `DeepTank` is explicitly recorded as a non-merge project with standalone finish posture rooted at `~/Projects/Fun:GamePrjs/DeepTank`.
 - Anything still remaining outside batch-01 closure: `SpecCompanion` issue `#4` and the next `DeepTank` finish slice are normal project execution work, not unresolved batch fixes.
 
 ## Recommended execution order

@@ -72,7 +72,7 @@
       {
         "title": "EarthPulse",
         "completed": [
-          "Established the active colon-free worktree at /Users/d/Projects/FunGamePrjs/EarthPulse.",
+          "Established the active colon-free worktree at ~/Projects/FunGamePrjs/EarthPulse.",
           "Restored the pnpm dependency baseline with pnpm install --frozen-lockfile.",
           "Passed pnpm preflight:ci, pnpm typecheck, and pnpm test:unit."
         ],

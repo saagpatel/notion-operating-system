@@ -90,6 +90,20 @@ const commonOptions = {
 		type: "string",
 		valueName: "path",
 	},
+	configSha256: {
+		name: "configSha256",
+		aliases: ["config-sha256"] as string[],
+		description:
+			"Require the control-tower config bytes to match this SHA-256.",
+		type: "string",
+		valueName: "sha256",
+	},
+	output: {
+		name: "output",
+		description: "Write command output to this exact path.",
+		type: "string",
+		valueName: "path",
+	},
 } as const;
 
 const localPortfolioViewsConfigOption = {
@@ -703,11 +717,18 @@ export const cliRegistry: CliCommandDefinition[] = [
 		),
 		buildConfigCommand(
 			"export-project-snapshot",
-			"Write a JSON snapshot of project state to ~/.local/share/notion-os/project-snapshot.json for personal-ops consumption.",
-			[commonOptions.today, commonOptions.config],
+			"Atomically write a JSON snapshot of project state for personal-ops consumption.",
+			[
+				commonOptions.today,
+				commonOptions.config,
+				commonOptions.configSha256,
+				commonOptions.output,
+			],
 			({ parsed }) =>
 				runExportProjectSnapshotCommand({
 					today: asString(parsed.options.today),
+					output: asString(parsed.options.output),
+					configSha256: asString(parsed.options.configSha256),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,

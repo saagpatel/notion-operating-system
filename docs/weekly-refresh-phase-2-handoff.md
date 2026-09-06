@@ -4,9 +4,9 @@
 >
 > This file is April 2026 evidence history for the weekly-refresh orchestrator.
 > It is not the current restart source. For live continuation, start with
-> `/Users/d/Projects/Notion/HANDOFF.md`, `AGENTS.md`, and
+> `~/Projects/Notion/HANDOFF.md`, `AGENTS.md`, and
 > `git status --short --branch`. The real checkout is
-> `/Users/d/Projects/Notion`; any historical `/Users/d/Notion` reference is only
+> `~/Projects/Notion`; any historical `~/Notion` reference is only
 > a stub and must not be used for repo work.
 
 This file is the full handoff context for the next chat window.
@@ -24,7 +24,7 @@ Use it as historical context for:
 ## 1. Historical Snapshot
 
 - Repo: `notion-operating-system`
-- Working directory: `/Users/d/Projects/Notion`
+- Working directory: `~/Projects/Notion`
 - Current branch at the time: `codex/weekly-refresh-orchestrator`
 - Latest local commit: `c350420 feat(notion): add weekly refresh orchestrator`
 - Working tree status at handoff: clean
@@ -375,7 +375,7 @@ The user created the new shadow automation already.
 
 Automation file:
 
-- `/Users/d/.codex/automations/weekly-refresh-shadow/automation.toml`
+- `~/.codex/automations/weekly-refresh-shadow/automation.toml`
 
 Current contents show:
 
@@ -576,9 +576,9 @@ npx vitest run tests/control-tower.test.ts tests/cli.test.ts tests/package-surfa
 ### Automation inspection
 
 ```bash
-sed -n '1,220p' /Users/d/.codex/automations/weekly-refresh-shadow/automation.toml
-sed -n '1,220p' /Users/d/.codex/automations/weekly-github-notion-maintenance/automation.toml
-sed -n '1,220p' /Users/d/.codex/automations/weekly-command-center/automation.toml
+sed -n '1,220p' ~/.codex/automations/weekly-refresh-shadow/automation.toml
+sed -n '1,220p' ~/.codex/automations/weekly-github-notion-maintenance/automation.toml
+sed -n '1,220p' ~/.codex/automations/weekly-command-center/automation.toml
 ```
 
 ---

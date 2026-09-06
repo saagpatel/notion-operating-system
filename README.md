@@ -104,7 +104,7 @@ npm run control-tower:repo-mapping-audit
 ```
 
 The repo-mapping audit is read-only by default. It joins `Needs Decision`
-rows, local repo path evidence under `/Users/d/Projects`, and GitHub
+rows, local repo path evidence under `~/Projects`, and GitHub
 external-source coverage so mapping cleanup does not depend on stale chat
 memory. Add `--live-normalize-local-paths` only after the dry run shows
 deterministic Local Path fixes.
@@ -194,6 +194,27 @@ npm run portfolio-audit:external-signal-sync -- --provider github --live  # 3. s
 npm run portfolio-audit:recommendation-run -- --type weekly --live        # 4. run recommendations
 npm run portfolio-audit:action-request-sync -- --live         # 5. sync governance summaries
 ```
+
+## Immutable scheduled runtime generations
+
+`scripts/notion-runtime-generation.mjs` stages and verifies the immutable runtime
+used by the scheduled snapshot wrapper. `stage`, `select`, and `readback` remain
+separate operations. `readback` does not alter a runtime selector, release, or
+lock. It validates the pointer, release, manifest, pointer identity, and pointer
+digest before and after receipt construction and fails if final validation
+observes a binding change.
+Therefore an interrupted scheduled verification cannot leave a persistent lock.
+Selector mutations remain serialized by an owner-only generation lock and stale
+mutation locks remain fail-closed for explicit recovery. A first-install selector
+whose `previous` binding is `null` can be reversed with `deactivate` only when the
+expected current commit, current manifest digest, and pointer digest all match
+under that lock. The pointer is moved into owner-private selector-reversal
+custody while the immutable release remains intact. `reactivate` consumes the
+exact expectation-bound custody pointer, restores its original bytes and digest,
+and verifies the retained release. A post-move failure is recovered to the exact
+pre-operation selector state when possible; incomplete recovery is reported
+explicitly as `recovery-required`. These operations do not load launchd, use
+credentials, call Notion, or provide scheduler proof.
 
 ## Common Commands
 

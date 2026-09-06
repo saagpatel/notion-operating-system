@@ -5,7 +5,6 @@ const bridgeSyncMocks = vi.hoisted(() => {
 		getShippedEvents: vi.fn(),
 		getPersonalOpsEvents: vi.fn(),
 		confirmShippedSync: vi.fn(),
-		markProcessed: vi.fn(),
 		logActivity: vi.fn(),
 		assertSchemaCompatible: vi.fn(),
 		close: vi.fn(),
@@ -131,7 +130,6 @@ function resetBridgeSyncMocks(): void {
 	]);
 	bridgeSyncMocks.session.getPersonalOpsEvents.mockResolvedValue([]);
 	bridgeSyncMocks.session.confirmShippedSync.mockResolvedValue(undefined);
-	bridgeSyncMocks.session.markProcessed.mockResolvedValue(undefined);
 	bridgeSyncMocks.session.logActivity.mockResolvedValue(undefined);
 	bridgeSyncMocks.session.assertSchemaCompatible.mockResolvedValue(5);
 	bridgeSyncMocks.session.close.mockResolvedValue(undefined);
@@ -193,8 +191,8 @@ beforeEach(() => {
 	resetBridgeSyncMocks();
 });
 
-// Note: readShippedRows and markRowProcessed are now async MCP-backed functions.
-// They are tested in bridge-db-mcp-client integration tests, not here.
+// Note: readShippedRows is an async MCP-backed function, tested in the
+// bridge-db-mcp-client integration tests rather than here.
 // Formatting helpers below remain synchronous and are unit-tested here.
 
 // ---------------------------------------------------------------------------
@@ -231,6 +229,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		expect(bridgeSyncMocks.updatePageProperties).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 123,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] Ghost Routes — 2026-04-14" with Session Date 2026-04-14',
@@ -296,6 +295,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 789,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] claude-md-lint — 2026-04-14" with Session Date 2026-04-14',
@@ -344,12 +344,14 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 794,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] operator-os-docs — 2026-04-14" with Session Date 2026-04-14',
 		});
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 795,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] portfolio-docs-agent-contract-lane — 2026-04-14" with Session Date 2026-04-14',
@@ -390,6 +392,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 796,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] renamed-project-lane — 2026-04-14" with Session Date 2026-04-14',
@@ -422,6 +425,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 790,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] MCPAudit — 2026-04-14" with Session Date 2026-04-14',
@@ -454,6 +458,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 791,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] skill-forge — 2026-04-14" with Session Date 2026-04-14',
@@ -486,6 +491,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 792,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] portfolio-dep-security — 2026-04-14" with Session Date 2026-04-14',
@@ -518,6 +524,7 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 793,
+			caller: "cc",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[CC] PortfolioCommandCenter — 2026-04-14" with Session Date 2026-04-14',
@@ -583,8 +590,10 @@ describe("runBridgeDbSyncCommand receipt-backed shipped rows", () => {
 
 		expect(bridgeSyncMocks.session.getShippedEvents).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.getPersonalOpsEvents).toHaveBeenCalledOnce();
+		// The ops lane writes the Build Log page and stops. Nothing is confirmed
+		// back to bridge-db, so the Sync Key on that page is the durable record.
+		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledOnce();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
-		expect(bridgeSyncMocks.session.markProcessed).toHaveBeenCalledWith(456);
 	});
 
 	test("rejects conflicting queue filters", async () => {
@@ -850,6 +859,7 @@ describe("runBridgeDbSyncCommand canonical notion_sync routing", () => {
 		);
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 804,
+			caller: "codex",
 			downstreamRef: "build-log-page-123",
 			notes:
 				'Created Build Log page "[Codex] cost-tracker — 2026-04-14" with Session Date 2026-04-14',
@@ -894,6 +904,7 @@ describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				activityId: 123,
+				caller: "cc",
 				downstreamRef: "build-log-page-123",
 			}),
 		);
@@ -921,7 +932,7 @@ describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
 		);
 	});
 
-	test("recovers ops rows via markRowProcessed instead of confirmShippedSync", async () => {
+	test("skips an ops row whose Sync Key already exists, writing nothing back to bridge-db", async () => {
 		bridgeSyncMocks.session.getPersonalOpsEvents.mockResolvedValue([
 			baseRow({
 				id: 456,
@@ -945,9 +956,9 @@ describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
 
 		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
-		expect(bridgeSyncMocks.session.markProcessed).toHaveBeenCalledWith(456);
 		expect(result.opsRowsRecovered).toBe(1);
 		expect(result.opsRowsWritten).toBe(0);
+		expect(result.failures).toBe(0);
 	});
 
 	test("dry-run reports would-recover vs would-write accurately without mutating anything", async () => {
@@ -967,7 +978,6 @@ describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
 		expect(result.rowsWouldWrite).toBe(0);
 		expect(bridgeSyncMocks.createPageWithMarkdown).not.toHaveBeenCalled();
 		expect(bridgeSyncMocks.session.confirmShippedSync).not.toHaveBeenCalled();
-		expect(bridgeSyncMocks.session.markProcessed).not.toHaveBeenCalled();
 	});
 
 	test("keeps dry-run would-write counts separate from actual writes", async () => {

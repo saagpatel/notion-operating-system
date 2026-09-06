@@ -71,7 +71,7 @@ Updated: 2026-03-24
 
 ## 6. Done definition
 
-- `/Users/d/Notion/docs/fix-plan-batch-08.md` and `/Users/d/Notion/docs/fix-plan-batch-08-summary.json` exist and reflect the same post-implementation state.
+- `~/Notion/docs/fix-plan-batch-08.md` and `~/Notion/docs/fix-plan-batch-08-summary.json` exist and reflect the same post-implementation state.
 - All five scoped projects remain correctly housed in `Local Portfolio Projects` with zero exact-title duplicates in `Project Portfolio`.
 - Each scoped project keeps exactly one active canonical repo source row, and `RealEstate` keeps only paused historical source rows beyond that active canonical row.
 - Dependency-baseline recovery remains explicitly complete for all five repos and is not described as an open setup problem anywhere in the batch record.

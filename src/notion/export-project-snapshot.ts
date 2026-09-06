@@ -1,4 +1,4 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +10,7 @@ import { loadRuntimeConfig } from "../config/runtime-config.js";
 import { RunLogger } from "../logging/run-logger.js";
 import { losAngelesToday } from "../utils/date.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
+import { verifySnapshotRuntimeSource } from "./runtime-generation.js";
 import {
 	applyDerivedSignals,
 	type ControlTowerProjectRecord,
@@ -21,8 +22,12 @@ import {
 	type DataSourcePageRef,
 	toControlTowerProjectRecord,
 } from "./local-portfolio-control-tower-live.js";
+import {
+	DEFAULT_PORTFOLIO_GENERATION_ROOT,
+	readPortfolioTruth,
+} from "../portfolio-generation-reader.js";
 
-const SNAPSHOT_PATH = path.join(
+export const DEFAULT_SNAPSHOT_PATH = path.join(
 	os.homedir(),
 	".local",
 	"share",
@@ -36,7 +41,6 @@ const PORTFOLIO_TRUTH_PATH = path.join(
 	"output",
 	"portfolio-truth-latest.json",
 );
-const CANONICAL_REPO_PATH = path.join(os.homedir(), "Projects", "Notion");
 const DEFAULT_ATTENTION_STATES = new Set([
 	"active-product",
 	"active-infra",
@@ -229,9 +233,21 @@ export function buildProjectSnapshot(input: {
 
 export async function loadPortfolioAttentionAuthority(
 	truthPath: string = PORTFOLIO_TRUTH_PATH,
+	generationRoot: string =
+		process.env.PORTFOLIO_GENERATION_ROOT ??
+		process.env.PERSONAL_OPS_PORTFOLIO_GENERATION_ROOT ??
+		DEFAULT_PORTFOLIO_GENERATION_ROOT,
 ): Promise<PortfolioAttentionAuthority> {
-	const bytes = await readFile(truthPath);
-	const raw = JSON.parse(bytes.toString("utf8")) as unknown;
+	const readback = await readPortfolioTruth({
+		generationRoot,
+		legacyPath: truthPath,
+	});
+	if (!readback.authoritative) {
+		throw new Error(
+			"Authoritative portfolio generation pointer is required for project snapshot export",
+		);
+	}
+	const raw: unknown = readback.payload;
 	if (typeof raw !== "object" || raw === null || !("projects" in raw)) {
 		throw new Error("GithubRepoAuditor truth root is invalid");
 	}
@@ -254,21 +270,19 @@ export async function loadPortfolioAttentionAuthority(
 	}
 	return {
 		generatedAt: root.generated_at,
-		contentSha256: createHash("sha256").update(bytes).digest("hex"),
+		contentSha256: readback.artifactSha256,
 		byTitle,
 	};
 }
 
 export async function runExportProjectSnapshotCommand(options: {
 	config?: string;
+	configSha256?: string;
 	today?: string;
+	output?: string;
 }): Promise<void> {
 	const sourceModulePath = fileURLToPath(import.meta.url);
-	if (!sourceModulePath.startsWith(`${CANONICAL_REPO_PATH}${path.sep}`)) {
-		throw new Error(
-			`Refusing snapshot publication from non-canonical Notion checkout: ${sourceModulePath}; expected ${CANONICAL_REPO_PATH}`,
-		);
-	}
+	const runtimeIdentity = verifySnapshotRuntimeSource(sourceModulePath);
 	const runtimeConfig = loadRuntimeConfig();
 	const logger = RunLogger.fromRuntimeConfig(runtimeConfig);
 	await logger.init();
@@ -279,8 +293,16 @@ export async function runExportProjectSnapshotCommand(options: {
 	}
 
 	const today = options.today ?? losAngelesToday();
+	const configSha256 =
+		options.configSha256 ?? process.env.NOTION_SNAPSHOT_CONFIG_SHA256;
+	if (runtimeIdentity.mode === "immutable-generation" && !configSha256) {
+		throw new Error(
+			"Immutable snapshot runtime requires an exact control-tower config SHA-256",
+		);
+	}
 	const config = await loadLocalPortfolioControlTowerConfig(
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+		{ expectedSha256: configSha256 },
 	);
 
 	const api = new DirectNotionClient(token, logger);
@@ -301,11 +323,19 @@ export async function runExportProjectSnapshotCommand(options: {
 		attentionAuthority,
 	});
 
-	await mkdir(path.dirname(SNAPSHOT_PATH), { recursive: true });
-	await writeFile(SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2), "utf8");
+	const snapshotPath = path.resolve(
+		options.output ??
+			process.env.NOTION_SNAPSHOT_OUTPUT_PATH ??
+			DEFAULT_SNAPSHOT_PATH,
+	);
+	await writeJsonAtomically(snapshotPath, snapshot, {
+		allowedRoot:
+			process.env.NOTION_SNAPSHOT_OUTPUT_ROOT ??
+			path.dirname(DEFAULT_SNAPSHOT_PATH),
+	});
 
 	console.log(
-		`Wrote snapshot: ${snapshot.project_count} projects → ${SNAPSHOT_PATH}`,
+		`Wrote snapshot: ${snapshot.project_count} projects → ${snapshotPath}`,
 	);
 
 	const overdueCount = snapshot.projects.filter((p) => p.overdue).length;
@@ -315,7 +345,7 @@ export async function runExportProjectSnapshotCommand(options: {
 
 	const output = {
 		ok: true,
-		snapshotPath: SNAPSHOT_PATH,
+		snapshotPath,
 		projectCount: snapshot.project_count,
 		overdueCount,
 		needsReviewCount,
@@ -324,6 +354,101 @@ export async function runExportProjectSnapshotCommand(options: {
 	recordCommandOutputSummary(output, { status: "completed" });
 
 	console.log(JSON.stringify(output, null, 2));
+}
+
+export async function writeJsonAtomically(
+	destinationPath: string,
+	value: unknown,
+	options: { allowedRoot?: string } = {},
+): Promise<void> {
+	const bytes = `${JSON.stringify(value, null, 2)}\n`;
+	const requestedDestination = path.resolve(destinationPath);
+	const requestedRoot = path.resolve(
+		options.allowedRoot ?? path.dirname(requestedDestination),
+	);
+	const lexicalRelative = path.relative(requestedRoot, requestedDestination);
+	if (
+		lexicalRelative === "" ||
+		lexicalRelative.startsWith(`..${path.sep}`) ||
+		lexicalRelative === ".." ||
+		path.isAbsolute(lexicalRelative)
+	) {
+		throw new Error("Snapshot output path escapes the allowed root");
+	}
+	const rootInfo = await lstat(requestedRoot);
+	if (
+		rootInfo.isSymbolicLink() ||
+		!rootInfo.isDirectory() ||
+		rootInfo.uid !== process.getuid?.() ||
+		(rootInfo.mode & 0o022) !== 0
+	) {
+		throw new Error("Snapshot output root has unsafe ownership, type, or mode");
+	}
+	const physicalRoot = await realpath(requestedRoot);
+	const requestedDirectoryRelative = path.dirname(lexicalRelative);
+	let directory = physicalRoot;
+	if (requestedDirectoryRelative !== ".") {
+		for (const component of requestedDirectoryRelative.split(path.sep)) {
+			const nextDirectory = path.join(directory, component);
+			let directoryInfo;
+			try {
+				directoryInfo = await lstat(nextDirectory);
+			} catch (error) {
+				if (
+					typeof error !== "object" ||
+					error === null ||
+					!("code" in error) ||
+					error.code !== "ENOENT"
+				) throw error;
+				await mkdir(nextDirectory, { mode: 0o700 });
+				directoryInfo = await lstat(nextDirectory);
+			}
+			if (
+				directoryInfo.isSymbolicLink() ||
+				!directoryInfo.isDirectory() ||
+				directoryInfo.uid !== process.getuid?.() ||
+				(directoryInfo.mode & 0o022) !== 0
+			) {
+				throw new Error(
+					"Snapshot output directory has unsafe ownership, type, or mode",
+				);
+			}
+			directory = nextDirectory;
+		}
+	}
+	const resolvedDestination = path.join(
+		directory,
+		path.basename(requestedDestination),
+	);
+	const temporaryPath = path.join(
+		directory,
+		`.${path.basename(resolvedDestination)}.${process.pid}.${randomUUID()}.tmp`,
+	);
+
+	let fileHandle: Awaited<ReturnType<typeof open>> | undefined;
+	try {
+		fileHandle = await open(temporaryPath, "wx", 0o600);
+		await fileHandle.writeFile(bytes, "utf8");
+		await fileHandle.sync();
+		await fileHandle.close();
+		fileHandle = undefined;
+		await rename(temporaryPath, resolvedDestination);
+
+		const directoryHandle = await open(directory, "r");
+		try {
+			await directoryHandle.sync();
+		} finally {
+			await directoryHandle.close();
+		}
+	} catch (error) {
+		if (fileHandle) {
+			await fileHandle.close().catch(() => undefined);
+		}
+		await unlink(temporaryPath).catch((cleanupError: NodeJS.ErrnoException) => {
+			if (cleanupError.code !== "ENOENT") throw cleanupError;
+		});
+		throw error;
+	}
 }
 
 if (isDirectExecution(import.meta.url)) {

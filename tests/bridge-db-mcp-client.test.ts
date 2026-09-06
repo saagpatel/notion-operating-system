@@ -19,7 +19,6 @@ import {
 } from "../src/notion/bridge-db-mcp-client.js";
 import {
 	confirmShippedRowSynced,
-	markRowProcessed,
 	readShippedRows,
 } from "../src/notion/bridge-db-sync.js";
 
@@ -49,9 +48,6 @@ function makeSession() {
 		getShippedEvents: vi
 			.fn<() => Promise<ShippedEvent[]>>()
 			.mockResolvedValue([]),
-		markProcessed: vi
-			.fn<(id: number) => Promise<void>>()
-			.mockResolvedValue(undefined),
 		confirmShippedSync: vi
 			.fn<
 				(options: {
@@ -163,52 +159,6 @@ describe("readShippedRows", () => {
 });
 
 // ---------------------------------------------------------------------------
-// markRowProcessed
-// ---------------------------------------------------------------------------
-
-describe("markRowProcessed", () => {
-	let session: ReturnType<typeof makeSession>;
-
-	beforeEach(() => {
-		vi.clearAllMocks();
-		session = makeSession();
-		vi.mocked(BridgeDbMcpSession.open).mockResolvedValue(
-			session as unknown as BridgeDbMcpSession,
-		);
-	});
-
-	test("opens a session, calls markProcessed with rowId, and closes", async () => {
-		await markRowProcessed("/custom/bridge.db", 123);
-
-		expect(BridgeDbMcpSession.open).toHaveBeenCalledWith({
-			dbPath: "/custom/bridge.db",
-		});
-		expect(session.markProcessed).toHaveBeenCalledWith(123);
-		expect(session.close).toHaveBeenCalledOnce();
-	});
-
-	test("closes session even when markProcessed throws", async () => {
-		session.markProcessed.mockRejectedValue(new Error("DB locked"));
-
-		await expect(markRowProcessed("/ignored/path", 99)).rejects.toThrow(
-			"DB locked",
-		);
-		expect(session.close).toHaveBeenCalledOnce();
-	});
-
-	test("resolves without error on success", async () => {
-		await expect(markRowProcessed("/ignored/path", 1)).resolves.toBeUndefined();
-	});
-
-	test("forwards dbPath to the MCP session", async () => {
-		await markRowProcessed("/custom/bridge.db", 1);
-		expect(BridgeDbMcpSession.open).toHaveBeenCalledWith({
-			dbPath: "/custom/bridge.db",
-		});
-	});
-});
-
-// ---------------------------------------------------------------------------
 // confirmShippedRowSynced
 // ---------------------------------------------------------------------------
 
@@ -226,6 +176,7 @@ describe("confirmShippedRowSynced", () => {
 	test("opens a session, records downstream proof, and closes", async () => {
 		await confirmShippedRowSynced("/custom/bridge.db", {
 			rowId: 123,
+			caller: "cc",
 			downstreamRef: "notion-page-123",
 			notes: "Created Build Log page",
 		});
@@ -235,6 +186,7 @@ describe("confirmShippedRowSynced", () => {
 		});
 		expect(session.confirmShippedSync).toHaveBeenCalledWith({
 			activityId: 123,
+			caller: "cc",
 			downstreamRef: "notion-page-123",
 			notes: "Created Build Log page",
 		});
@@ -247,6 +199,7 @@ describe("confirmShippedRowSynced", () => {
 		await expect(
 			confirmShippedRowSynced("/ignored/path", {
 				rowId: 99,
+				caller: "cc",
 				downstreamRef: "page-99",
 			}),
 		).rejects.toThrow("receipt failed");
@@ -257,6 +210,7 @@ describe("confirmShippedRowSynced", () => {
 		await expect(
 			confirmShippedRowSynced("/ignored/path", {
 				rowId: 1,
+				caller: "cc",
 				downstreamRef: "page-1",
 			}),
 		).resolves.toBeUndefined();
@@ -360,11 +314,29 @@ describe("BridgeDbMcpSession interface", () => {
 		const s = await BridgeDbMcpSession.open();
 		expect(s).toBeDefined();
 		expect(typeof s.getShippedEvents).toBe("function");
-		expect(typeof s.markProcessed).toBe("function");
 		expect(typeof s.confirmShippedSync).toBe("function");
 		expect(typeof s.getStatus).toBe("function");
 		expect(typeof s.logActivity).toBe("function");
 		expect(typeof s.close).toBe("function");
+	});
+
+	// Guards the Option-B decision: the ops lane confirms nothing back to
+	// bridge-db, because its duplicate guard is the Build Log Sync Key. Asserted
+	// against the REAL class (the rest of this file uses a mocked session, where
+	// absence would only prove the mock lacks the method). bridge-db retired
+	// mark_shipped_processed, so re-adding a marking method here would call a
+	// tool that no longer exists.
+	test("exposes no row-marking method: the ops lane writes nothing back", async () => {
+		const actual = await vi.importActual<
+			typeof import("../src/notion/bridge-db-mcp-client.js")
+		>("../src/notion/bridge-db-mcp-client.js");
+
+		const proto = actual.BridgeDbMcpSession.prototype as unknown as Record<
+			string,
+			unknown
+		>;
+		expect(proto.markProcessed).toBeUndefined();
+		expect(Object.getOwnPropertyNames(proto)).not.toContain("markProcessed");
 	});
 
 	test("getStatus returns a status with required fields", async () => {

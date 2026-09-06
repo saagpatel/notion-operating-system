@@ -15,7 +15,7 @@
   - Normalized stale local truth where needed: `EarthPulse` local `main`, `AssistSupport` local `master`, and `TicketHandoff` scratch perf artifacts.
   - Updated the live operating truth so the remaining projects no longer carried generic PR-noise blocker language.
 - Fixes completed in this chat:
-  - `EarthPulse`: established a real colon-free worktree at `/Users/d/Projects/FunGamePrjs/EarthPulse`, restored the `pnpm` baseline, and captured fresh local review proof.
+  - `EarthPulse`: established a real colon-free worktree at `~/Projects/FunGamePrjs/EarthPulse`, restored the `pnpm` baseline, and captured fresh local review proof.
   - `AssistSupport`: restored the frontend `pnpm` baseline and repaired the dependency-watch and Dependabot automation configs.
   - `IncidentMgmt`: refreshed `pnpm-lock.yaml`, added the missing `sqlx::Row` imports, aligned stale Rust e2e fixtures to the current schema, and finished with clean local Rust proof.
   - `TicketHandoff`: refreshed the stale `package-lock.json`, restored the frontend JS baseline, and re-verified frontend test and build proof.
@@ -55,7 +55,7 @@
 ### Fixes completed in this chat
 
 - `EarthPulse`
-  - Resolved the colon-path blocker by shifting the active local lane to `/Users/d/Projects/FunGamePrjs/EarthPulse`.
+  - Resolved the colon-path blocker by shifting the active local lane to `~/Projects/FunGamePrjs/EarthPulse`.
   - Restored the `pnpm` dependency baseline and captured fresh proof.
 - `AssistSupport`
   - Restored the frontend dependency baseline.

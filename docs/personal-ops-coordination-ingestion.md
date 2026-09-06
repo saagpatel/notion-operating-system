@@ -58,7 +58,7 @@ On 2026-05-10, the manual green-loop proof passed end to end before the live gat
 
 - `personal-ops workflow morning --json` surfaced the Coordination section with `health: green`, current source freshness, 5 Notion handoff rows, and `planned_writes: 0`.
 - `personal-ops coordination diff --against last-green --json` reported 0 changes against the trusted green baseline.
-- `npm --prefix /Users/d/Projects/Notion run signals:coordination-snapshot -- --input <coordination-export.json> --json` validated the live Personal Ops export with 5 planned items, unique dedupe keys, evidence on every row, and zero Notion writes.
+- `npm --prefix ~/Projects/Notion run signals:coordination-snapshot -- --input <coordination-export.json> --json` validated the live Personal Ops export with 5 planned items, unique dedupe keys, evidence on every row, and zero Notion writes.
 - Contract fixtures live in `tests/fixtures/personal-ops-coordination-export.v1.json` and `tests/fixtures/personal-ops-coordination-ingestion-plan.v1.json` so future schema drift is caught before a live Notion lane is added.
 
 The installed `notion-os` binary was not on PATH in the shell used for this proof, so the repo-local npm alias was used as the verified command path.

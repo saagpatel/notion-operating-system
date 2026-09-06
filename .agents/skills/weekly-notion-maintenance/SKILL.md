@@ -12,7 +12,7 @@ description: Run the report-only weekly Notion maintenance review and recommend 
 
 ## Goal
 
-Produce one report-only weekly Notion maintenance review for `/Users/d/Projects/Notion`.
+Produce one report-only weekly Notion maintenance review for `~/Projects/Notion`.
 
 This skill is for observation and recommendation only. It must never perform repo mutation, Notion mutation, automation mutation, or any other external-system mutation.
 
@@ -51,7 +51,7 @@ npm run maintenance:weekly-refresh
 - Surface only net-new or still-unresolved drift worth attention this week.
 - Avoid re-reporting unchanged low-signal drift from prior runs.
 - Make it clear that the Command Center and weekly review packet may lag between manual live refreshes.
-- If weekly refresh depends on shared local state, stay on the primary checkout at `/Users/d/Projects/Notion`.
+- If weekly refresh depends on shared local state, stay on the primary checkout at `~/Projects/Notion`.
 
 ## Guardrails
 

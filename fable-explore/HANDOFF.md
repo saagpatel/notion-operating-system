@@ -64,4 +64,4 @@ At 2026-07-11 00:02:28, an external `git reset --hard` + `git clean -fd` wiped e
 
 ## File map
 
-Everything lives in `/Users/d/Projects/Notion/fable-explore/`: `INDEX.md` (ledger — read second), `01`-`06` findings, `07` improvement proposals (P1-P11, now implemented), `08` public-material plan, `09` web research, `10` essay draft 2, `11` explainer storyboard, `12` essay review, `13` PR-3 design spec, `explainer/` (the built interactive), and `diagrams/` (four standalone SVG source assets).
+Everything lives in `~/Projects/Notion/fable-explore/`: `INDEX.md` (ledger — read second), `01`-`06` findings, `07` improvement proposals (P1-P11, now implemented), `08` public-material plan, `09` web research, `10` essay draft 2, `11` explainer storyboard, `12` essay review, `13` PR-3 design spec, `explainer/` (the built interactive), and `diagrams/` (four standalone SVG source assets).
