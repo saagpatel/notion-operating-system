@@ -74,6 +74,15 @@ export interface ProjectSnapshot {
 
 export interface ProjectSnapshotEntry {
 	title: string;
+	// The Notion page id backing this row, normalized to dashed form. Additive in
+	// schema 2.0.0: consumers that predate it ignore an unknown key, and the
+	// snapshot's content_sha256 is recomputed over the entries rather than pinned,
+	// so no consumer digest is invalidated by its presence. Downstream systems
+	// (GithubRepoAuditor's project registry, and through it bridge-db's shipped-event
+	// sync) previously had to source page ids from a hand-maintained static map that
+	// covered 91 of 158 rows; the ids were always in hand here and simply dropped.
+	// Null only if the provider returned a row without a usable id.
+	page_id: string | null;
 	current_state: string;
 	portfolio_call: string;
 	category: string;
@@ -105,6 +114,7 @@ export interface PortfolioAttentionAuthority {
 function toSnapshotEntry(
 	project: ControlTowerProjectRecord,
 	today: string,
+	pageId: string | null,
 	sourceLastEditedAt: string | null,
 	attentionState: string | null,
 ): ProjectSnapshotEntry {
@@ -127,6 +137,7 @@ function toSnapshotEntry(
 
 	return {
 		title: project.title,
+		page_id: pageId,
 		current_state: project.currentState,
 		portfolio_call: project.portfolioCall,
 		category: project.category,
@@ -176,6 +187,7 @@ export function buildProjectSnapshot(input: {
 		toSnapshotEntry(
 			project,
 			input.today,
+			input.pages[index]?.id ?? null,
 			input.pages[index]?.lastEditedTime ?? null,
 			input.attentionAuthority?.byTitle.get(project.title) ?? null,
 		),

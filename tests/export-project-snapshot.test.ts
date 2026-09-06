@@ -320,6 +320,63 @@ describe("project snapshot provenance", () => {
 		);
 	});
 
+	test("carries each row's Notion page id through to the snapshot entry", async () => {
+		const config = await loadLocalPortfolioControlTowerConfig(
+			"./config/local-portfolio-control-tower.json",
+		);
+		const pages: DataSourcePageRef[] = [
+			{
+				id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				url: "https://notion.so/first",
+				title: "First",
+				properties: {},
+			},
+			{
+				id: "11111111-2222-3333-4444-555555555555",
+				url: "https://notion.so/second",
+				title: "Second",
+				properties: {},
+			},
+		];
+
+		const snapshot = buildProjectSnapshot({
+			pages,
+			dataSourceId: "source",
+			today: "2026-07-12",
+			generatedAt: "2026-07-12T10:00:00.000Z",
+			extractionRunId: "run-pageids",
+			config,
+		});
+
+		// Page ids must stay aligned with their own row, not merely present.
+		expect(
+			snapshot.projects.map((project) => [project.title, project.page_id]),
+		).toEqual([
+			["First", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"],
+			["Second", "11111111-2222-3333-4444-555555555555"],
+		]);
+	});
+
+	test("never substitutes a page id for a row the provider gave none", async () => {
+		const config = await loadLocalPortfolioControlTowerConfig(
+			"./config/local-portfolio-control-tower.json",
+		);
+		const pages = [
+			{ url: "https://notion.so/idless", title: "Idless", properties: {} },
+		] as unknown as DataSourcePageRef[];
+
+		const snapshot = buildProjectSnapshot({
+			pages,
+			dataSourceId: "source",
+			today: "2026-07-12",
+			generatedAt: "2026-07-12T10:00:00.000Z",
+			extractionRunId: "run-idless",
+			config,
+		});
+
+		expect(snapshot.projects[0]?.page_id).toBeNull();
+	});
+
 	test("does not invent a watermark when source timestamps are absent", async () => {
 		const config = await loadLocalPortfolioControlTowerConfig(
 			"./config/local-portfolio-control-tower.json",
