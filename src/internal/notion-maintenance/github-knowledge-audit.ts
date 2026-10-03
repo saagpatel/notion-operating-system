@@ -42,7 +42,7 @@ import { mapWithConcurrencyLimit } from "../../utils/async.js";
 const execFileAsync = promisify(execFile);
 const TODAY = losAngelesToday();
 const DEFAULT_OWNER = "saagpatel";
-const DEFAULT_REPO_LIMIT = 200;
+export const DEFAULT_REPO_LIMIT = 1000;
 
 export interface GitHubKnowledgeAuditFlags {
   live: boolean;
@@ -636,7 +636,7 @@ async function main(): Promise<void> {
             { flag: "--help, -h", description: "Show this help message." },
             { flag: "--live", description: "Write discovered changes back to Notion." },
             { flag: "--owner <name>", description: "GitHub owner to inspect. Defaults to saagpatel." },
-            { flag: "--limit <count>", description: "Maximum repositories to inspect. Defaults to 200." },
+            { flag: "--limit <count>", description: `Maximum repositories to inspect. Defaults to ${DEFAULT_REPO_LIMIT}.` },
             { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
             { flag: "--config <path>", description: "Path to the control-tower config file." },
             { flag: "--source-config <path>", description: "Path to the external-signal source config file." },
