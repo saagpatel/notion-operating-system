@@ -94,7 +94,9 @@ async function fixtureRepository(): Promise<{ root: string; commit: string }> {
 	return { root, commit };
 }
 
-describe("immutable Notion runtime generation script", () => {
+// These fixtures spawn npm, Git, and runtime generation subprocesses. Match
+// the existing reversal cases so host scheduling does not impose a 5s contract.
+describe("immutable Notion runtime generation script", { timeout: 30_000 }, () => {
 	test("reverses a first-install selector to inactive while retaining exact release and pointer custody", async () => {
 		const source = await fixtureRepository();
 		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-deactivate-"));
