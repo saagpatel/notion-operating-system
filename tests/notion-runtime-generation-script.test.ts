@@ -19,6 +19,8 @@ const installedNpmCliPath = realpathSync(
 const npmToolRoot = mkdtempSync(path.join(os.tmpdir(), "notion-runtime-npm-tool-"));
 cpSync(path.resolve(path.dirname(installedNpmCliPath), ".."), npmToolRoot, {
 	recursive: true,
+	// Keep package-relative helper links inside the copied package.
+	verbatimSymlinks: true,
 });
 const npmCliPath = path.join(npmToolRoot, "bin", "npm-cli.js");
 chmodSync(npmCliPath, 0o755);
