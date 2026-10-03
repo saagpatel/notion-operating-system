@@ -1,5 +1,5 @@
 import { chmod, mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { closeSync, existsSync, fsyncSync, openSync, readFileSync, readdirSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, cpSync, existsSync, fsyncSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -10,9 +10,20 @@ import { describe, expect, test } from "vitest";
 import { deactivate, reactivate, readback, withGenerationLock } from "../scripts/notion-runtime-generation.mjs";
 
 const scriptPath = path.resolve("scripts/notion-runtime-generation.mjs");
-const npmCliPath = realpathSync(
+const installedNpmCliPath = realpathSync(
 	process.env.npm_execpath ?? "/opt/homebrew/bin/npm",
 );
+// Hosted toolcache ownership and writable archive modes are outside the test's
+// control. Use an owned copy of the complete npm package; keep the runtime's
+// strict tool trust guard intact and never chmod the installed toolchain.
+const npmToolRoot = mkdtempSync(path.join(os.tmpdir(), "notion-runtime-npm-tool-"));
+cpSync(path.resolve(path.dirname(installedNpmCliPath), ".."), npmToolRoot, {
+	recursive: true,
+	// Keep package-relative helper links inside the copied package.
+	verbatimSymlinks: true,
+});
+const npmCliPath = path.join(npmToolRoot, "bin", "npm-cli.js");
+chmodSync(npmCliPath, 0o755);
 const runtimeBuilderEnv = {
 	...process.env,
 	NOTION_RUNTIME_NPM_PATH: npmCliPath,
@@ -94,7 +105,9 @@ async function fixtureRepository(): Promise<{ root: string; commit: string }> {
 	return { root, commit };
 }
 
-describe("immutable Notion runtime generation script", () => {
+// These fixtures spawn npm, Git, and runtime generation subprocesses. Match
+// the existing reversal cases so host scheduling does not impose a 5s contract.
+describe("immutable Notion runtime generation script", { timeout: 30_000 }, () => {
 	test("reverses a first-install selector to inactive while retaining exact release and pointer custody", async () => {
 		const source = await fixtureRepository();
 		const managedRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-deactivate-"));

@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
@@ -50,9 +50,10 @@ export interface ShippedEvent {
 /**
  * Minimum bridge-db schema version Notion OS is compatible with (F4).
  *
- * Notion's shipped-event sync depends on the `shipped_sync_receipts` table added in
- * schema v4 (via confirm_shipped_sync). Reading a bus older than this means the
- * receipt contract is absent, so the sync would silently misbehave rather than fail.
+ * Notion's shipped-event sync depends on the terminal disposition fields added in
+ * schema v4 and exposed through `record_disposition`. Reading a bus older than this
+ * means the receipt contract is absent, so the sync would silently misbehave rather
+ * than fail.
  * We assert `>=` (not exact equality) so additive schema bumps — v5 added a nullable
  * canonical_key column, future versions may add more — stay compatible without code
  * changes; only a too-old bus is rejected.
@@ -76,19 +77,32 @@ export interface BridgeDbStatus {
 
 export interface ConfirmShippedSyncOptions {
 	activityId: number;
-	/**
-	 * System recording the disposition. record_disposition requires a
-	 * channel-bound caller matching the event's own source, so this must be the
-	 * row's `source` ("cc", "codex", ...) and NOT the syncing process. Passing
-	 * "notion_os" for a cc-authored row is rejected by bridge-db.
-	 */
-	caller: string;
 	downstreamRef: string;
 	notes?: string;
 }
 
 export interface BridgeDbMcpSessionOptions {
 	dbPath?: string;
+}
+
+export function resolveBridgeDbMcpLauncher(): string {
+	const configuredValue = process.env["BRIDGE_DB_MCP_LAUNCHER"]?.trim();
+	const configured = configuredValue ? configuredValue : undefined;
+	const launcher =
+		configured ??
+		join(
+			homedir(),
+			".local",
+			"state",
+			"bridge-db",
+			"current",
+			"bin",
+			"bridge-db-mcp",
+		);
+	if (!isAbsolute(launcher)) {
+		throw new Error("BRIDGE_DB_MCP_LAUNCHER must be an absolute path");
+	}
+	return launcher;
 }
 
 export function buildBridgeDbMcpEnvironment(
@@ -184,6 +198,21 @@ export function assertDispositionRecorded(
 	}
 }
 
+export function buildNotionDispositionArguments(
+	options: ConfirmShippedSyncOptions,
+): Record<string, unknown> {
+	return {
+		// Notion OS is the connected actor. Foreign-source rows require an
+		// exact active BridgeDB delegation; never borrow the source caller.
+		caller: "notion_os",
+		activity_id: options.activityId,
+		disposition: "synced",
+		downstream_system: "notion",
+		downstream_ref: options.downstreamRef,
+		notes: options.notes ?? null,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Session class — one subprocess per command invocation
 // ---------------------------------------------------------------------------
@@ -195,15 +224,8 @@ export class BridgeDbMcpSession {
 		options: BridgeDbMcpSessionOptions = {},
 	): Promise<BridgeDbMcpSession> {
 		const transport = new StdioClientTransport({
-			command: "uv",
-			args: [
-				"run",
-				"--directory",
-				join(homedir(), "Projects", "bridge-db"),
-				"python",
-				"-m",
-				"bridge_db",
-			],
+			command: resolveBridgeDbMcpLauncher(),
+			args: [],
 			env: buildBridgeDbMcpEnvironment(options),
 		});
 		const client = new Client({ name: "notion-os", version: "1.0" });
@@ -226,14 +248,7 @@ export class BridgeDbMcpSession {
 	async confirmShippedSync(options: ConfirmShippedSyncOptions): Promise<void> {
 		const result = await this.client.callTool({
 			name: "record_disposition",
-			arguments: {
-				caller: options.caller,
-				activity_id: options.activityId,
-				disposition: "synced",
-				downstream_system: "notion",
-				downstream_ref: options.downstreamRef,
-				notes: options.notes ?? null,
-			},
+			arguments: buildNotionDispositionArguments(options),
 		});
 		assertDispositionRecorded(
 			parseBridgeDbToolResult(result),

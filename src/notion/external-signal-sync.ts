@@ -1370,6 +1370,7 @@ export async function upsertExternalSignalBriefPage(input: {
 				input.api.updatePageProperties({
 					pageId: existing.id,
 					properties: input.properties,
+					recordClientErrorAsFailure: false,
 				}),
 		});
 	} catch (error) {
@@ -1446,6 +1447,7 @@ async function createExternalSignalBriefPage(input: {
 					input.api.updatePageProperties({
 						pageId: created.id,
 						properties: nonTitleProperties,
+						recordClientErrorAsFailure: false,
 					}),
 			});
 		} catch (error) {

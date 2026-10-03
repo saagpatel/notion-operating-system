@@ -4,11 +4,12 @@ TypeScript CLI that bridges Notion project databases, GitHub external signals, a
 
 ## Stack / Architecture
 
-- Node/npm command suite with dry-run/live command separation
-- Notion API via `NOTION_TOKEN`; destination aliases in `config/destinations.json`
-- GitHub signal sync (`GITHUB_TOKEN`) and governed GitHub App action runner (`GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_PEM`)
-- JSON configs for destinations, policies, views, and control-tower rules
-- **Local Portfolio Projects** Notion database is the operational source of truth; manual fields and derived fields are conceptually separate — sync commands own derived fields only
+- Node/npm command suite with dry-run/live command separation.
+- Notion API via `NOTION_TOKEN`; destination aliases in `config/destinations.json`.
+- GitHub signal sync (`GITHUB_TOKEN`) and governed GitHub App action runner (`GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_PEM`).
+- JSON configs for destinations, policies, views, and control-tower rules.
+- The **Local Portfolio Projects** Notion database is the operational source of truth. Manual fields and derived fields stay conceptually separate: sync commands own derived fields only.
+- Roadmap: `docs/notion-roadmap.md`; compressed phase history: `docs/notion-phase-memory.md`.
 
 ## Build / Test / Run
 
@@ -57,11 +58,8 @@ npm run maintenance:weekly-refresh -- --fast [--live --confirm-full-live]
 
 ## Gotchas
 
-### Critical weekly sequencing
+- **Critical weekly sequencing.** Run `review-packet` before any lane that patches managed weekly sections. `external-signal-sync`, `recommendation-run`, and `action-request-sync` all patch the latest weekly page, so if the current week's page does not exist yet, those sections land on the wrong page. Correct weekly live order:
 
-**Run `review-packet` before lanes that patch managed weekly sections.** `external-signal-sync`, `recommendation-run`, and `action-request-sync` all patch the latest weekly page. If the current week's page does not yet exist, those sections land on the wrong page.
-
-Correct weekly live order:
 ```bash
 npm run portfolio-audit:control-tower-sync -- --live
 npm run portfolio-audit:review-packet -- --live
@@ -70,44 +68,15 @@ npm run portfolio-audit:recommendation-run -- --type weekly --live
 npm run portfolio-audit:action-request-sync -- --live
 ```
 
-### Actuation target fallback
-
-`config/local-portfolio-actuation-targets.json` has explicit per-repo rules AND a `defaults` block. If a linked active GitHub source does not match a specific target rule, `resolveActuationTarget()` falls back to defaults (allows all six GitHub actions, title prefix `[Portfolio]`, label `portfolio`). Any active linked GitHub repo source is potentially live-capable — be deliberate when approving requests against non-obvious targets.
-
-### Field ownership
-
-`control-tower-sync` owns: Operating Queue, Next Review Date, Evidence Freshness + Command Center markdown.
-`external-signal-sync` owns: External Signal Coverage, Latest External Activity, Latest Deployment Status, Open PR Count, Recent Failed Workflow Runs.
-`recommendation-run` owns: Recommendation Lane, Score, Confidence, Updated.
-`destinations:resolve` repairs resolved Notion IDs only — not schema drift.
-
-### dry-run for external-signal-sync
-
-Dry-run `external-signal-sync` recomputes from existing Notion rows — it does NOT fetch fresh GitHub data. Only `--live` mode polls GitHub.
-
-### GitHub App auth
-
-GitHub writes use a GitHub App (`GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_PEM`) with installation-scoped tokens minted per run (60-minute lifetime). Permissions: `issues = read_write`, `metadata = read_only`.
-
-### Governed GitHub pipeline
-
-GitHub mutations follow: action request → policy check → dry run → approval → live execution → audit trail. Safe-to-go-live signs after dry run: `Execution Intent = Ready for Live`, `Latest Execution Status = Dry Run Passed`, dry-run execution row `Status = Succeeded`. Compensation is corrective follow-up, not delete-in-place — no automated compensation runner.
-
-### Rate-limit awareness
-
-Retries and truncation warnings are surfaced clearly. Runner limits: `maxLivePerRun=1`, `maxDryRunsPerRun=5`, `minSecondsBetweenWrites=1`.
-
-### Webhook feedback
-
-Webhook feedback is currently `trusted_feedback` mode, but shadow/drain/reconcile machinery still exists. Do not assume the feedback loop is magically self-healing — verify execution rows and reconcile state.
-
-### Config update dependencies
-
-New destination alias → update `config/destinations.json`, run `destinations:resolve`. New GitHub action key → update `config/local-portfolio-governance-policies.json` AND `config/local-portfolio-github-action-families.json` AND `src/notion/local-portfolio-actuation.ts`. No one-shot global cross-config validator exists.
-
-### Fast weekly triage
-
-`maintenance:weekly-refresh -- --fast` scopes batches, skips blocked markdown, uses lower retry budget. If it reports drift: run the recommended `--only <step> --fast --live --confirm-full-live` for the specific lane, then repeat that lane's dry-run. Speed runbook: `docs/notion-api-speed-workflow.md`.
+- **Actuation target fallback.** `config/local-portfolio-actuation-targets.json` carries explicit per-repo rules AND a `defaults` block. If a linked active GitHub source matches no specific target rule, `resolveActuationTarget()` falls back to defaults, which allow all six GitHub actions with title prefix `[Portfolio]` and label `portfolio`. Any active linked GitHub repo source is potentially live-capable, so approve requests against non-obvious targets deliberately.
+- **Field ownership.** `control-tower-sync` owns Operating Queue, Next Review Date, Evidence Freshness, and Command Center markdown. `external-signal-sync` owns External Signal Coverage, Latest External Activity, Latest Deployment Status, Open PR Count, and Recent Failed Workflow Runs. `recommendation-run` owns Recommendation Lane, Score, Confidence, and Updated. `destinations:resolve` repairs resolved Notion IDs only, not schema drift.
+- **dry-run for `external-signal-sync`.** Dry-run recomputes from existing Notion rows; only `--live` mode polls GitHub for fresh data.
+- **GitHub App auth.** GitHub writes use a GitHub App (`GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_PEM`) with installation-scoped tokens minted per run (60-minute lifetime). Permissions: `issues = read_write`, `metadata = read_only`.
+- **Governed GitHub pipeline.** Mutations follow action request → policy check → dry run → approval → live execution → audit trail. Safe-to-go-live signs after a dry run: `Execution Intent = Ready for Live`, `Latest Execution Status = Dry Run Passed`, and dry-run execution row `Status = Succeeded`. Compensation is corrective follow-up, not delete-in-place; there is no automated compensation runner.
+- **Rate-limit awareness.** Retries and truncation warnings are surfaced clearly. Runner limits: `maxLivePerRun=1`, `maxDryRunsPerRun=5`, `minSecondsBetweenWrites=1`.
+- **Webhook feedback.** Currently `trusted_feedback` mode, with shadow/drain/reconcile machinery still in place. The feedback loop is not self-healing: verify execution rows and reconcile state directly.
+- **Config update dependencies.** A new destination alias means updating `config/destinations.json` then running `destinations:resolve`. A new GitHub action key means updating `config/local-portfolio-governance-policies.json` AND `config/local-portfolio-github-action-families.json` AND `src/notion/local-portfolio-actuation.ts`. No one-shot global cross-config validator exists.
+- **Fast weekly triage.** `maintenance:weekly-refresh -- --fast` scopes batches, skips blocked markdown, and uses a lower retry budget. If it reports drift, run the recommended `--only <step> --fast --live --confirm-full-live` for that specific lane, then repeat that lane's dry-run. Speed runbook: `docs/notion-api-speed-workflow.md`.
 
 ## Environment Variables
 
@@ -134,14 +103,12 @@ New destination alias → update `config/destinations.json`, run `destinations:r
 
 ## Conventions
 
-- Dry-run is the default for all commands. Pass `--live` (or `--mode live` for action-runner) only on explicit user request.
-- Use `npm run <script>` over direct Notion/GitHub API calls — commands encode safety defaults, validation, and audit trails.
-- Read `config/` before making assumptions; destination aliases, policies, and view definitions are all there.
-- After live writes, verify real Notion rows/pages — not just the JSON summary from the script.
-- Roadmap: `docs/notion-roadmap.md`; compressed phase history: `docs/notion-phase-memory.md`.
-- Everything is manually triggered — no cron/CI drives these workflows.
-- `allowDeletingContent` is `false` by default; enable only with explicit user approval.
-- MCP vs REST: direct REST for all data operations; Notion MCP for saved view operations; Playwright is fallback only when MCP auth is unavailable.
+- Dry-run is the default for every command. Pass `--live` (or `--mode live` for action-runner) only on explicit user request; the same gate applies to `allowDeletingContent`, which is `false` by default.
+- Reach for `npm run <script>` rather than direct Notion/GitHub API calls — the commands encode safety defaults, validation, and audit trails.
+- Read `config/` first; destination aliases, policies, and view definitions all live there.
+- After live writes, verify the real Notion rows and pages, not just the JSON summary the script prints.
+- Every workflow here is manually triggered; assume no cron or CI drives them.
+- MCP vs REST: direct REST for all data operations, Notion MCP for saved view operations, Playwright as fallback when MCP auth is unavailable.
 
 <!-- portfolio-context:start -->
 # Portfolio Context

@@ -59,7 +59,6 @@ describe("confirmShippedSync uses the live disposition verb", () => {
 
 		await session.confirmShippedSync({
 			activityId: 6318,
-			caller: "cc",
 			downstreamRef: "notion-page-6318",
 			notes: "Created Build Log page",
 		});
@@ -74,7 +73,6 @@ describe("confirmShippedSync uses the live disposition verb", () => {
 
 		await session.confirmShippedSync({
 			activityId: 6318,
-			caller: "cc",
 			downstreamRef: "notion-page-6318",
 		});
 
@@ -86,18 +84,17 @@ describe("confirmShippedSync uses the live disposition verb", () => {
 		});
 	});
 
-	test("binds the caller to the row's source rather than to notion_os", async () => {
-		// record_disposition rejects a caller that does not match the event's
-		// own source, so a hardcoded "notion_os" fails on every cc-authored row.
+	test("uses notion_os and never borrows the row source identity", async () => {
+		// Foreign-source rows require an exact active BridgeDB delegation. The
+		// sync worker remains honest about the principal bound to its channel.
 		const { session, calls } = sessionOver(okPayload);
 
 		await session.confirmShippedSync({
 			activityId: 42,
-			caller: "codex",
 			downstreamRef: "page-42",
 		});
 
-		expect(calls[0]?.arguments.caller).toBe("codex");
+		expect(calls[0]?.arguments.caller).toBe("notion_os");
 	});
 });
 
@@ -113,7 +110,6 @@ describe("a result that does not prove the write is a failure", () => {
 		await expect(
 			session.confirmShippedSync({
 				activityId: 6318,
-				caller: "cc",
 				downstreamRef: "page-6318",
 			}),
 		).rejects.toThrow(/Unknown tool/);
@@ -127,7 +123,6 @@ describe("a result that does not prove the write is a failure", () => {
 		await expect(
 			session.confirmShippedSync({
 				activityId: 6318,
-				caller: "cc",
 				downstreamRef: "page-6318",
 			}),
 		).rejects.toThrow(/was not confirmed/);
@@ -141,7 +136,6 @@ describe("a result that does not prove the write is a failure", () => {
 		await expect(
 			session.confirmShippedSync({
 				activityId: 6318,
-				caller: "cc",
 				downstreamRef: "page-6318",
 			}),
 		).rejects.toThrow(/confirmed activity 999 but 6318 was requested/);
@@ -155,7 +149,6 @@ describe("a result that does not prove the write is a failure", () => {
 		await expect(
 			session.confirmShippedSync({
 				activityId: 6318,
-				caller: "cc",
 				downstreamRef: "page-6318",
 			}),
 		).resolves.toBeUndefined();
