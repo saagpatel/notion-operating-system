@@ -16,7 +16,7 @@ The system connects three surfaces: **Notion** (databases, dashboards, weekly re
 
 ## First Operator Checkpoint
 
-Before anything else, run the health report to see the current governance posture:
+Once your operator workspace is configured, run the health report to see the current governance posture:
 
 ```bash
 npm run governance:health-report
@@ -45,14 +45,21 @@ npm ci
 
 ## First Run (New Machine)
 
+For credential-free development checks, use the [local setup and verification
+guide](CONTRIBUTING.md#local-setup), including its Node 24 prerequisite. The
+following path configures an operator workspace; doctor checks provider access
+when credentials are present.
+
 ```bash
 npm ci
 cp .env.example .env
 # fill in NOTION_TOKEN (required), GITHUB_TOKEN (for signal sync),
 # GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_PEM (for governed GitHub writes)
 npm run doctor
-npm run verify
 ```
+
+Run the [verification lanes](CONTRIBUTING.md#tests) in a separate checkout without
+operator credentials before using the tool.
 
 Then start with a dry-run publish:
 
@@ -289,6 +296,10 @@ notion-os --profile sandbox doctor
 ```
 
 The sandbox profile isolates tokens and Notion targets from your primary profile. The sandbox doctor fails if the sandbox token matches the primary token or if any sandbox target overlaps primary targets.
+
+`sandbox:smoke` performs real sandbox writes and provider reads. It requires
+explicit authorization for those effects; use the [fixture verification
+lane](CONTRIBUTING.md#tests) for local development checks.
 
 See [docs/sandbox-rehearsal-runbook.md](docs/sandbox-rehearsal-runbook.md) for the full rehearsal path.
 

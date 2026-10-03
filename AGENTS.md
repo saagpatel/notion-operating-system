@@ -127,7 +127,11 @@ The repo is an operational control system, not an ad hoc Notion script folder. T
 ## How To Run
 
 - Start with `npm run governance:health-report`.
-- Use `npm run doctor` and `npm run verify` for local setup checks.
+- Use [CONTRIBUTING.md](CONTRIBUTING.md#tests) for Node 24 prerequisites and
+  credential-free fixture checks. Full verification includes temporary package
+  installs; sandbox smoke includes real provider writes.
+- Use `npm run doctor` for explicitly requested operator setup; with credentials
+  it queries Notion access and destinations.
 - For targeted command-center work, prefer `npm run portfolio-audit:control-tower-sync` dry-run, then live only with explicit approval.
 - For a full weekly refresh, use `npm run maintenance:weekly-refresh -- --live --confirm-full-live` only after explicit approval.
 
