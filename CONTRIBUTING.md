@@ -2,11 +2,21 @@
 
 ## Local setup
 
-1. Install dependencies with `npm ci`
-2. Copy `.env.example` to `.env`
-3. Add the credentials you actually need
-4. Confirm the active profile points at the right config files
-5. Run `npm run doctor`
+Run development commands from the repository root with Node 24 and npm, matching
+CI and release preparation. The library declares Node
+`>=20`, but the locked Vitest 5 test runner requires `^22.12.0 || ^24.0.0 || >=26.0.0`;
+Node 20 is not a supported development/test runtime.
+
+Install the locked dependencies with `npm ci`. Its `prepare` hook runs the local
+TypeScript build; it does not install Git hooks. Registry access is needed for
+dependency installation. Local fixture tests do not require `.env`, Notion
+tokens, installed BridgeDB/runtime services, or an operator profile. Use a
+separate checkout without operator secrets for verification.
+
+For explicitly requested operator setup, copy `.env.example` to `.env`, add only
+the credentials you need, confirm the active profile's targets, then run
+`npm run doctor`. With a token, doctor queries Notion access and destinations;
+without one, its missing-token failure is expected, not a failed unit test.
 
 ## Repo governance
 
@@ -55,11 +65,45 @@ When adding or changing a covered command:
 
 ## Tests
 
-Before shipping changes, run:
+For a focused local check, select the test file for the behavior changed. For
+example, these config/doctor tests use temporary files and injected clients:
+
+```bash
+npm test -- tests/runtime-config.test.ts tests/doctor.test.ts
+```
+
+For runtime-generation changes, use `npm test -- tests/notion-runtime-generation-script.test.ts`.
+Those tests create their own temporary Git/npm/runtime fixtures and copy npm's
+package with contained helper links; they do not activate the installed runtime.
+They require a POSIX filesystem, `/usr/bin/git`, and npm launched through `npm test`.
+
+The broader local source checks are:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+The build writes `dist/`. There is no separate source lint/format npm script;
+GitHub Actions runs workflow lint with actionlint. The existing assertions and
+fixture timeouts apply unchanged.
+
+Before shipping code changes, run the full gate in a clean checkout without
+operator credentials:
 
 ```bash
 npm run verify
 ```
+
+This runs typecheck, all tests, build, and built/packed/Git-install CLI smoke
+checks. Install smokes create temporary consumers, install dependencies from the
+registry, and check exports/help; the Git install uses the local committed HEAD.
+Use a checkout path without spaces or URL-escaped characters: the current built
+CLI smoke resolves its root via a URL pathname. No Notion configuration or live
+publish is required. `npm run verify:fresh-clone` copies the workspace into a
+temporary clone, installs dependencies, runs the full gate, and checks the
+expected no-token doctor failure. CI runs both lanes on Ubuntu with Node 24.
 
 If you are touching package metadata, install posture, or release automation, also run:
 
@@ -67,15 +111,29 @@ If you are touching package metadata, install posture, or release automation, al
 npm run release:prepare
 ```
 
-If you are touching risky advanced workflows, also rehearse from the sandbox profile first.
+This adds local tarball/manifest generation under `tmp/release/`; it does not
+publish a release. See [the release process](docs/release-process.md) for the
+separately authorized manual GitHub workflow.
+
+For changed CLI behavior, add or update the corresponding CLI tests. For changed
+generated reports or Notion presentation, inspect fixture output first; a
+signed-in browser readback of an authorized sandbox page is a conditional
+provider check, separate from local test success.
+
+For explicitly authorized risky advanced workflow rehearsal, use the sandbox
+profile. This is a provider integration lane, not an offline fixture check.
 
 The repo already includes the tracked `sandbox` profile config. In most cases you only need a local `.env.sandbox`, which should remain untracked.
 
-Treat `notion-os --profile sandbox doctor` as the first proof gate and `npm run sandbox:smoke` as the fuller operational rehearsal. The smoke path runs from a temporary workspace copy so repo-tracked files do not get rewritten while you exercise the safe sandbox sequence.
+Treat `notion-os --profile sandbox doctor` as the first provider access/isolation
+gate and `npm run sandbox:smoke` as the fuller operational rehearsal. The smoke
+copies `.env` and `.env.sandbox` into a temporary workspace and includes real
+Notion writes (`--live`) plus GitHub signal reads. A temporary copy protects
+repo-tracked files, not external targets. Only run it with explicit authority
+for those sandbox effects; do not substitute maintenance, publish, runtime
+activation, or live commands for local verification.
 
 Before any live sandbox write, confirm the sandbox integration token and Notion targets are still isolated from the primary profile. The doctor now fails on token overlap, target overlap, and path masking.
-
-If you touch CLI behavior, add or update CLI tests.
 
 If you touch Notion publishing behavior, preserve existing dry-run and schema-validation safety expectations.
 
