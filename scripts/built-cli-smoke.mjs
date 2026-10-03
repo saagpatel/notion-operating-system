@@ -4,17 +4,20 @@ import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const cliPath = path.join(repoRoot, "dist", "src", "cli.js");
+
+let smokeWorkspace;
 
 await run();
 
 async function run() {
   const workspace = await createTempWorkspace();
+  smokeWorkspace = workspace;
 
   await expectSuccess(["--help"]);
   await expectSuccess(["profiles", "--help"]);
@@ -46,7 +49,7 @@ async function run() {
   if (doctor.exitCode !== 1) {
     throw new Error(`Expected doctor --json to exit 1 on the temp workspace, got ${doctor.exitCode}`);
   }
-  const doctorReport = JSON.parse(doctor.stdout);
+  const doctorReport = parseCliJson(doctor, "doctor --json");
   if (doctorReport.runtime?.profile?.name !== "default") {
     throw new Error("Built doctor smoke did not report the default profile.");
   }
@@ -60,7 +63,7 @@ async function run() {
   if (destinations.exitCode !== 0) {
     throw new Error(`Built destinations check failed:\n${destinations.stderr || destinations.stdout}`);
   }
-  const payload = JSON.parse(destinations.stdout);
+  const payload = parseCliJson(destinations, "destinations check");
   if (JSON.stringify(payload.aliases) !== JSON.stringify(["weekly_reviews", "command_center"])) {
     throw new Error(`Built destinations check returned unexpected aliases: ${JSON.stringify(payload)}`);
   }
@@ -74,7 +77,7 @@ async function run() {
   if (recentRuns.exitCode !== 0) {
     throw new Error(`Built logs recent failed:\n${recentRuns.stderr || recentRuns.stdout}`);
   }
-  const recentPayload = JSON.parse(recentRuns.stdout);
+  const recentPayload = parseCliJson(recentRuns, "logs recent --json");
   if (!Array.isArray(recentPayload.runs) || recentPayload.runs.length < 2) {
     throw new Error(`Built logs recent returned unexpected payload: ${JSON.stringify(recentPayload)}`);
   }
@@ -91,14 +94,31 @@ async function expectSuccess(argv) {
   }
 }
 
+function parseCliJson(result, command) {
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error(
+      `Built ${command} returned invalid JSON (exit ${result.exitCode}):\n${result.stderr || result.stdout || "No output received"}`,
+      { cause: error },
+    );
+  }
+}
+
 async function runCli(argv, options = {}) {
+  // Every child runs in the synthetic workspace, with no inherited operator
+  // profile, path overrides, or credentials that could turn doctor into live I/O.
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("NOTION_") || ["GITHUB_TOKEN", "VERCEL_TOKEN", "GOOGLE_CALENDAR_TOKEN"].includes(key)) {
+      delete env[key];
+    }
+  }
+  Object.assign(env, options.env ?? {});
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, [cliPath, ...argv], {
-      cwd: options.cwd,
-      env: {
-        ...process.env,
-        ...(options.env ?? {}),
-      },
+      cwd: options.cwd ?? smokeWorkspace,
+      env,
     });
     return {
       stdout,
