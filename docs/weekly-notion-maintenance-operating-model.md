@@ -1,6 +1,6 @@
 # Weekly Notion Maintenance Operating Model
 
-Updated: Saturday, June 6, 2026
+Updated: Sunday, August 23, 2026
 
 This document is the source of truth for the weekly Notion operating model.
 
@@ -24,13 +24,16 @@ The only active automation in this stream is:
 
 Its steady-state contract is:
 
-- Friday evening opportunistic check plus Sunday catch-up cadence
-- dedicated worktree execution
+- Friday 4:30 PM local-time cadence
+- primary-checkout execution from `/Users/d/Projects/Notion`
 - report-only behavior
 - exactly three report sections:
   - `Priority Summary`
   - `Dry-Run Drift`
   - `Manual Follow-Up`
+- exactly one delta line beginning `New:`, `Changed:`, or `No material change:`
+- no more than three manual follow-up actions
+- exactly one standalone terminal `can_auto_archive:` line
 
 The weekly method is defined in the repo-local Codex skill:
 
@@ -42,8 +45,11 @@ This automation is intentionally not daily. The machine is often unavailable on 
 
 Active schedule:
 
-- Friday 5:00 PM local time: opportunistic report-only check before the weekend work window.
-- Sunday 5:00 PM local time: report-only catch-up after missed weekday maintenance windows.
+- Friday 4:30 PM local time: one report-only check from the primary checkout.
+
+There is no Sunday catch-up schedule. A missed Friday run remains missing
+scheduler evidence; do not trigger, replay, or reschedule the automation to
+manufacture proof.
 
 If the automation reports drift, use targeted dry-run -> live -> dry-run repair for the drifting lane. Do not promote this lane to unattended live writes.
 
@@ -54,7 +60,7 @@ Live weekly refreshes are manual operator actions.
 Use this command only when the weekly digest recommends it:
 
 ```bash
-npm run maintenance:weekly-refresh -- --live --confirm-full-live --summary-first
+npm run maintenance:weekly-refresh -- --live --confirm-full-live
 ```
 
 The combined support-maintenance step remains dry-run-only even inside this
