@@ -68,7 +68,7 @@ Do not use when:
 
 Use when:
 
-- ownership needs to change
+- additional assignees are needed
 - the assignee delta is explicit in dry run
 
 Do not use when:
@@ -87,7 +87,7 @@ Use when:
 Use when:
 
 - the request is about a specific pull request
-- the comment belongs on the PR review thread or conversation
+- the comment belongs in the PR conversation (general comment, not a review-thread comment)
 
 Do not use when:
 

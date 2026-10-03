@@ -8,7 +8,7 @@ This guide is the fast path for getting `Notion Operating System` working safely
 npm ci
 ```
 
-You need Node.js 20 or newer.
+Use Node.js 24 for development, matching CI. The library declares Node.js >=20, but the locked Vitest 5 test runner does not support Node.js 20.
 
 ## 2. Pick or confirm the active profile
 
@@ -174,7 +174,7 @@ Shared CLI commands now write lifecycle events and run summaries to the active l
 
 - default log location: `./logs`
 - override with `NOTION_LOG_DIR`
-- use the active profile to confirm the resolved log path: `notion-os profiles show`
+- confirm the resolved log path in the doctor report: `npm run doctor` (`Log dir:`)
 
 ## Safety defaults
 

@@ -22,7 +22,7 @@ Once your operator workspace is configured, run the health report to see the cur
 npm run governance:health-report
 ```
 
-This shows live action-request coverage, execution status, dry-run staleness, and any attention items — without touching Notion or GitHub.
+This shows config-based policy, authentication, webhook, and target readiness warnings — without querying Notion or GitHub.
 
 ## Install
 
@@ -102,7 +102,7 @@ scope a dry run, add `--live` to apply the planned row updates, and add
 `--missing-repos-only` when you only want to move missing local-repo mappings
 into a decision posture.
 
-This is read-only. It groups stale `Active Build` projects by the most useful first repair reason and returns the next operator move before anyone changes project status.
+This is read-only by default. It groups stale `Active Build` projects by the most useful first repair reason and returns the next operator move before anyone changes project status.
 
 ### 4. Review the decision queue and repo mappings
 
@@ -154,7 +154,7 @@ GitHub mutations follow a strict three-step pipeline. Never skip steps.
 npm run portfolio-audit:action-dry-run -- --request <action-request-page-id>
 ```
 
-**Step 2 — Approval**: In Notion, set the action request row to `Status = Approved`, fill in `Approver` and `Decided At`.
+**Step 2 — Approval**: In Notion, set the action request row to `Status = Approved`, fill in `Approver` and `Decided At`. Repeat the dry run after approval if needed to reach `Execution Intent = Ready for Live` and `Latest Execution Status = Dry Run Passed`.
 
 **Step 3 — Live execution**:
 ```bash
@@ -172,7 +172,7 @@ Supported actions: `github.create_issue`, `github.update_issue`, `github.set_iss
 
 Same three-step pipeline as GitHub. Supported actions: `vercel.redeploy`, `vercel.rollback`, `vercel.promote`.
 
-Requires `VERCEL_TOKEN` in your `.env`. The live gate also requires a successful dry run within the last 24 hours.
+Requires `VERCEL_TOKEN` in your `.env`. The live gate also requires a successful dry run that passes the configured freshness gate (24 hours measured against the current UTC day's midnight).
 
 ### 10. Weekly live sequence (correct order)
 
@@ -262,17 +262,17 @@ credentials, call Notion, or provide scheduler proof.
 
 ## Safety Defaults
 
-- **Dry-run first.** Every command defaults to dry-run unless `--live` is explicitly passed.
-- **Governed writes only.** GitHub and Vercel mutations require: approved action request, non-expired request, active target, and a successful dry run (max 24 hours old).
+- **Dry-run first.** Publishing and syncs default to dry-run; action-runner uses `--mode live`. Action dry runs persist Notion execution records; `destinations:resolve` persists local IDs, and `phase-closeout` writes local artifacts and Notion records without a `--live` flag.
+- **Governed writes only.** GitHub and Vercel mutations require: approved action request, non-expired request, active target, and a successful dry run that passes the configured freshness gate (24 hours measured against the current UTC day's midnight).
 - **No hardcoded tokens.** All tokens come from environment variables.
-- **Additive posture.** Labels and assignees are additive-only — removal requires a new desired-state request.
+- **Additive posture.** Labels and assignees are additive-only — removal is not supported by these actions.
 - **Compensation is manual.** There is no automated compensation runner. Corrections are operator-driven.
 
 ## Environment Variables
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `NOTION_TOKEN` | Yes | Notion integration token |
+| `NOTION_TOKEN` | Live Notion access | Notion integration token |
 | `GITHUB_TOKEN` | For signal sync | GitHub PAT for polling PRs and workflow runs |
 | `GITHUB_APP_ID` | For governed GitHub writes | GitHub App ID |
 | `GITHUB_APP_PRIVATE_KEY_PEM` | For governed GitHub writes | GitHub App private key |
