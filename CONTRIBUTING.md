@@ -99,9 +99,9 @@ npm run verify
 This runs typecheck, all tests, build, and built/packed/Git-install CLI smoke
 checks. Install smokes create temporary consumers, install dependencies from the
 registry, and check exports/help; the Git install uses the local committed HEAD.
-Use a checkout path without spaces or URL-escaped characters: the current built
-CLI smoke resolves its root via a URL pathname. No Notion configuration or live
-publish is required. `npm run verify:fresh-clone` copies the workspace into a
+The built CLI smoke runs in a synthetic workspace and ignores inherited Notion
+credentials and profile overrides. No Notion configuration or live publish is
+required. `npm run verify:fresh-clone` copies the workspace into a
 temporary clone, installs dependencies, runs the full gate, and checks the
 expected no-token doctor failure. CI runs both lanes on Ubuntu with Node 24.
 

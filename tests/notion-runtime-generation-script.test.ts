@@ -32,7 +32,9 @@ const runtimeBuilderEnv = {
 function run(command: string, args: string[], cwd?: string, env = process.env) {
 	const result = spawnSync(command, args, { cwd, env, encoding: "utf8" });
 	if (result.status !== 0) {
-		throw new Error(`${command} ${args.join(" ")} failed: ${result.stderr || result.stdout}`);
+		throw new Error(
+      `${command} ${args.join(" ")} failed (status ${result.status}, signal ${result.signal}): ${result.error?.message || result.stderr || result.stdout || "No output received"}`,
+    );
 	}
 	return result.stdout.trim();
 }

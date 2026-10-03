@@ -3,15 +3,17 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { resolveOptionalControlTowerConfigPath } from "../src/cli/context.js";
 import { parseCliArgs } from "../src/cli/framework.js";
 import { runCli } from "../src/cli/runner.js";
+import { DirectNotionClient } from "../src/notion/direct-notion-client.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 afterEach(() => {
+  vi.restoreAllMocks();
   process.exitCode = undefined;
 });
 
@@ -252,6 +254,10 @@ describe("cli smoke tests", () => {
 
   test("keeps sandbox doctor isolated from default .env leakage during cli startup", async () => {
     const tempDir = await createSandboxCliWorkspace();
+    // The synthetic sandbox token exercises profile isolation, not provider access.
+    // Fail the access check deterministically without making a network request.
+    const verifyAccess = vi.spyOn(DirectNotionClient.prototype, "verifyAccess")
+      .mockRejectedValue(new Error("Synthetic sandbox token has no provider access"));
 
     const result = await runCliForTest(["doctor", "--json"], {
       cwd: tempDir,
@@ -266,6 +272,10 @@ describe("cli smoke tests", () => {
 
     expect(result.exitCode).toBe(1);
     const report = JSON.parse(result.stdout);
+    expect(verifyAccess).toHaveBeenCalledOnce();
+    expect(report.checks.find((check: { id: string }) => check.id === "notion-access")).toEqual(
+      expect.objectContaining({ status: "fail", message: expect.stringContaining("Synthetic sandbox token") }),
+    );
     expect(report.runtime.profile.name).toBe("sandbox");
     expect(report.runtime.paths.destinationsPath).toContain(
       path.join("config", "profiles", "sandbox", "destinations.json"),
