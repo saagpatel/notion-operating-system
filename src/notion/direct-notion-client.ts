@@ -332,6 +332,7 @@ export class DirectNotionClient implements NotionApi {
       body: {
         properties: input.properties,
       },
+      recordClientErrorAsFailure: input.recordClientErrorAsFailure,
     });
 
     return {

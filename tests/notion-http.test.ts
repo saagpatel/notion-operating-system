@@ -4,6 +4,7 @@ import {
 	getCommandRunSummary,
 	withCommandRunContext,
 } from "../src/cli/run-observability.js";
+import { DirectNotionClient } from "../src/notion/direct-notion-client.js";
 import { NotionHttp } from "../src/notion/http.js";
 
 describe("NotionHttp", () => {
@@ -206,6 +207,85 @@ describe("NotionHttp", () => {
 		);
 
 		expect(summary?.failureCategories).toEqual(["transport_error"]);
+		expect(summary?.status).toBe("failed");
+	});
+
+	test("lets a page-property fallback owner defer client-error classification", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify({ message: "invalid property" }), {
+						status: 400,
+					}),
+			),
+		);
+
+		let summary = undefined as ReturnType<typeof getCommandRunSummary>;
+		await withCommandRunContext(
+			{
+				commandPath: ["signals", "sync"],
+				parsed: {
+					options: { live: true },
+					positionals: [],
+					helpRequested: false,
+				},
+			},
+			async () => {
+				const client = new DirectNotionClient("test-token", undefined, {
+					maxAttempts: 1,
+				});
+				await expect(
+					client.updatePageProperties({
+						pageId: "existing-brief",
+						properties: { Name: { title: [] } },
+						recordClientErrorAsFailure: false,
+					}),
+				).rejects.toThrow("Notion request failed");
+				summary = getCommandRunSummary();
+			},
+		);
+
+		expect(summary?.failureCategories).toBeUndefined();
+		expect(summary?.status).toBe("completed");
+	});
+
+	test("keeps ordinary page-property client errors terminal by default", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify({ message: "invalid property" }), {
+						status: 400,
+					}),
+			),
+		);
+
+		let summary = undefined as ReturnType<typeof getCommandRunSummary>;
+		await withCommandRunContext(
+			{
+				commandPath: ["signals", "sync"],
+				parsed: {
+					options: { live: true },
+					positionals: [],
+					helpRequested: false,
+				},
+			},
+			async () => {
+				const client = new DirectNotionClient("test-token", undefined, {
+					maxAttempts: 1,
+				});
+				await expect(
+					client.updatePageProperties({
+						pageId: "ordinary-page",
+						properties: { Name: { title: [] } },
+					}),
+				).rejects.toThrow("Notion request failed");
+				summary = getCommandRunSummary();
+			},
+		);
+
+		expect(summary?.failureCategories).toEqual(["validation_error"]);
 		expect(summary?.status).toBe("failed");
 	});
 

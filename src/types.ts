@@ -218,6 +218,7 @@ export interface CreatePageInput {
 export interface PageUpdateInput {
 	pageId: string;
 	properties?: Record<string, unknown>;
+	recordClientErrorAsFailure?: boolean;
 }
 
 export interface MarkdownPatchInput {
