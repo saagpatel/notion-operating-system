@@ -18,7 +18,7 @@ npm run typecheck       # TypeScript type checking
 npm test                # Run Vitest tests
 ```
 
-Core workflow commands (dry-run by default; append `--live` to write):
+Core workflow commands (publishing and syncs default to dry-run; action dry runs persist Notion execution records, and `destinations:resolve` persists local IDs):
 
 ```bash
 # Publish content into Notion
@@ -58,7 +58,7 @@ npm run maintenance:weekly-refresh -- --fast [--live --confirm-full-live]
 
 ## Gotchas
 
-- **Critical weekly sequencing.** Run `review-packet` before any lane that patches managed weekly sections. `external-signal-sync`, `recommendation-run`, and `action-request-sync` all patch the latest weekly page, so if the current week's page does not exist yet, those sections land on the wrong page. Correct weekly live order:
+- **Critical weekly sequencing.** Run `review-packet` before any lane that patches managed weekly sections. `external-signal-sync` and `recommendation-run` patch the page titled `Week of <weekStart>`; `action-request-sync` patches the latest weekly page. If the current week's page does not exist, the first two skip its sections and `action-request-sync` can patch the previous week. Correct weekly live order:
 
 ```bash
 npm run portfolio-audit:control-tower-sync -- --live
@@ -69,8 +69,8 @@ npm run portfolio-audit:action-request-sync -- --live
 ```
 
 - **Actuation target fallback.** `config/local-portfolio-actuation-targets.json` carries explicit per-repo rules AND a `defaults` block. If a linked active GitHub source matches no specific target rule, `resolveActuationTarget()` falls back to defaults, which allow all six GitHub actions with title prefix `[Portfolio]` and label `portfolio`. Any active linked GitHub repo source is potentially live-capable, so approve requests against non-obvious targets deliberately.
-- **Field ownership.** `control-tower-sync` owns Operating Queue, Next Review Date, Evidence Freshness, and Command Center markdown. `external-signal-sync` owns External Signal Coverage, Latest External Activity, Latest Deployment Status, Open PR Count, and Recent Failed Workflow Runs. `recommendation-run` owns Recommendation Lane, Score, Confidence, and Updated. `destinations:resolve` repairs resolved Notion IDs only, not schema drift.
-- **dry-run for `external-signal-sync`.** Dry-run recomputes from existing Notion rows; only `--live` mode polls GitHub for fresh data.
+- **Field ownership.** `control-tower-sync` owns Operating Queue, Next Review Date, Evidence Freshness, and Command Center markdown. `external-signal-sync` owns External Signal Coverage, Latest External Activity, Latest Deployment Status, Open PR Count, and Recent Failed Workflow Runs. `intelligence-sync` and `external-signal-sync` write Recommendation Lane, Recommendation Score, Recommendation Confidence, and Recommendation Updated. `destinations:resolve` repairs resolved Notion IDs only, not schema drift.
+- **dry-run for `external-signal-sync`.** Full-scope dry-run polls enabled providers, including GitHub, and recomputes from Notion rows without persisting the sync writes. `--write-scope project-pages` and `--write-scope portfolio-sections` skip provider polling.
 - **GitHub App auth.** GitHub writes use a GitHub App (`GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_PEM`) with installation-scoped tokens minted per run (60-minute lifetime). Permissions: `issues = read_write`, `metadata = read_only`.
 - **Governed GitHub pipeline.** Mutations follow action request → policy check → dry run → approval → live execution → audit trail. Safe-to-go-live signs after a dry run: `Execution Intent = Ready for Live`, `Latest Execution Status = Dry Run Passed`, and dry-run execution row `Status = Succeeded`. Compensation is corrective follow-up, not delete-in-place; there is no automated compensation runner.
 - **Rate-limit awareness.** Retries and truncation warnings are surfaced clearly. Runner limits: `maxLivePerRun=1`, `maxDryRunsPerRun=5`, `minSecondsBetweenWrites=1`.
@@ -82,7 +82,7 @@ npm run portfolio-audit:action-request-sync -- --live
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `NOTION_TOKEN` | Yes | Notion integration token |
+| `NOTION_TOKEN` | Live Notion access | Notion integration token |
 | `GITHUB_TOKEN` | Signal sync | PAT for GitHub API polling |
 | `GITHUB_APP_ID` | Governed actions | GitHub App ID |
 | `GITHUB_APP_PRIVATE_KEY_PEM` | Governed actions | GitHub App private key (PEM) |
@@ -103,11 +103,11 @@ npm run portfolio-audit:action-request-sync -- --live
 
 ## Conventions
 
-- Dry-run is the default for every command. Pass `--live` (or `--mode live` for action-runner) only on explicit user request; the same gate applies to `allowDeletingContent`, which is `false` by default.
+- Publishing and sync commands default to dry-run. Pass `--live` (or `--mode live` for action-runner) only on explicit user request; the same gate applies to `allowDeletingContent`, which is `false` by default. Action dry runs persist Notion execution records; `destinations:resolve` persists local IDs, and `phase-closeout` writes local artifacts and Notion records without a `--live` flag.
 - Reach for `npm run <script>` rather than direct Notion/GitHub API calls — the commands encode safety defaults, validation, and audit trails.
 - Read `config/` first; destination aliases, policies, and view definitions all live there.
 - After live writes, verify the real Notion rows and pages, not just the JSON summary the script prints.
-- Every workflow here is manually triggered; assume no cron or CI drives them.
+- Operator Notion workflows are manually triggered. GitHub Actions runs CI on pushes and pull requests, scheduled dependency hygiene weekly, and releases through manual dispatch.
 - MCP vs REST: direct REST for all data operations, Notion MCP for saved view operations, Playwright as fallback when MCP auth is unavailable.
 
 <!-- portfolio-context:start -->
@@ -136,7 +136,7 @@ Notion Operating System is the local automation and rules layer that connects No
 ## How To Run
 
 - Start with `npm run governance:health-report`.
-- Use `npm run doctor` and `npm run verify` for local setup checks.
+- Use [CONTRIBUTING.md](CONTRIBUTING.md#tests) for credential-free local checks. `npm run verify` includes temporary dependency installs; `npm run doctor` queries Notion when credentials are present.
 - For targeted command-center work, prefer `npm run portfolio-audit:control-tower-sync` dry-run, then live only with explicit approval.
 - For a full weekly refresh, use `npm run maintenance:weekly-refresh -- --live --confirm-full-live` only after explicit approval.
 
