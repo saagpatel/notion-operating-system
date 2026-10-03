@@ -96,7 +96,7 @@ describe("package surface", () => {
 
     for (const file of activeSurfaces) {
       const content = await readFile(path.join(repoRoot, file), "utf8");
-      expect(content, file).not.toContain("/Users/d/Notion");
+      expect(content, file).not.toMatch(/\/Users\/[^/\s]+\/Notion\b/);
     }
   });
 
