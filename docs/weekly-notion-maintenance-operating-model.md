@@ -25,7 +25,7 @@ The only active automation in this stream is:
 Its steady-state contract is:
 
 - Friday 4:30 PM local-time cadence
-- primary-checkout execution from `/Users/d/Projects/Notion`
+- primary-checkout execution from `~/Projects/Notion`
 - report-only behavior
 - exactly three report sections:
   - `Priority Summary`
