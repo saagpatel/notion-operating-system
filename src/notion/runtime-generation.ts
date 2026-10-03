@@ -140,7 +140,12 @@ export function verifySnapshotRuntimeSource(
 	}
 	const productionRoot = realpathOrResolved(
 		options.productionRoot ??
-			"/Users/d/.local/state/notion-operating-system",
+			path.join(
+				os.userInfo().homedir,
+				".local",
+				"state",
+				"notion-operating-system",
+			),
 	);
 	const releaseRoot = path.dirname(manifestPath);
 	const expectedRelease = path.join(
