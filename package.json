@@ -168,12 +168,14 @@
 	},
 	"overrides": {
 		"uuid": "11.1.1",
-		"js-yaml": "3.15.0",
+		"proxy-addr": "2.0.8",
+		"source-map-js": "1.2.2",
+		"js-yaml": "3.15.2",
 		"minimatch@3.1.5": {
-			"brace-expansion": "1.1.18"
+			"brace-expansion": "1.1.21"
 		},
 		"minimatch@5.1.9": {
-			"brace-expansion": "2.1.4"
+			"brace-expansion": "2.1.7"
 		}
 	}
 }
