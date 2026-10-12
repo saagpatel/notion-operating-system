@@ -12,6 +12,7 @@ import {
 } from "../../notion/local-portfolio-external-signals.js";
 import {
   runGitHubKnowledgeAudit,
+  DEFAULT_REPO_LIMIT,
   type GitHubKnowledgeAuditFlags,
 } from "./github-knowledge-audit.js";
 import {
@@ -35,7 +36,7 @@ interface Flags {
 function parseFlags(argv: string[]): Flags {
   let live = false;
   let owner = DEFAULT_OWNER;
-  let limit = 200;
+  let limit = DEFAULT_REPO_LIMIT;
   let today = TODAY;
   let config = DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
   let sourceConfig = DEFAULT_LOCAL_PORTFOLIO_EXTERNAL_SIGNAL_SOURCES_PATH;
@@ -87,7 +88,7 @@ async function main(): Promise<void> {
             { flag: "--help, -h", description: "Show this help message." },
             { flag: "--live", description: "Denied: combined live authority is not inherited." },
             { flag: "--owner <name>", description: "GitHub owner to inspect. Defaults to saagpatel." },
-            { flag: "--limit <count>", description: "Maximum repositories to inspect. Defaults to 200." },
+            { flag: "--limit <count>", description: `Maximum repositories to inspect. Defaults to ${DEFAULT_REPO_LIMIT}.` },
             { flag: "--today <date>", description: "Override the date anchor in YYYY-MM-DD format." },
             { flag: "--config <path>", description: "Path to the control-tower config file." },
             { flag: "--source-config <path>", description: "Path to the external-signal source config file." },
