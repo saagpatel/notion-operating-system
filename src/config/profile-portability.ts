@@ -1,15 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import {
-  CURRENT_WORKSPACE_PROFILE_CONFIG_VERSION,
-  WORKSPACE_PROFILE_OWNED_FILES,
-  buildWorkspaceProfileDescriptor,
-  parseWorkspaceProfileDescriptor,
-  type WorkspaceProfile,
-  type WorkspaceProfileDescriptor,
-  type WorkspaceProfileOwnedPathKey,
-} from "./profiles.js";
+import { WORKSPACE_PROFILE_OWNED_FILES, buildWorkspaceProfileDescriptor, parseWorkspaceProfileDescriptor, type WorkspaceProfile, type WorkspaceProfileDescriptor, type WorkspaceProfileOwnedPathKey } from "./profiles.js";
 import { readJsonFile } from "../utils/files.js";
 import { AppError } from "../utils/errors.js";
 

@@ -7,12 +7,8 @@ import {
 } from "../utils/notion-id.js";
 import type { DirectNotionClient } from "./direct-notion-client.js";
 import type { LocalPortfolioControlTowerConfig } from "./local-portfolio-control-tower.js";
-import type {
-	DataSourcePageRef,
-	NotionPageProperty,
-} from "./local-portfolio-control-tower-live.js";
+import type { DataSourcePageRef } from "./local-portfolio-control-tower-live.js";
 import {
-	checkboxValue,
 	dateValue,
 	fetchAllPages,
 	numberValue,
@@ -787,16 +783,6 @@ function uniquePagesById(pages: DataSourcePageRef[]): DataSourcePageRef[] {
 	return unique;
 }
 
-function peopleIds(property?: NotionPageProperty): string[] {
-	return Array.isArray(property?.people)
-		? property.people
-				.map((person) =>
-					typeof person?.id === "string" ? normalizeNotionId(person.id) : "",
-				)
-				.filter(Boolean)
-		: [];
-}
-
 async function ensureDataSourceRef(input: {
 	sdk: Client;
 	existing:
@@ -888,12 +874,6 @@ function toRichText(
 			},
 		},
 	];
-}
-
-function colorize(
-	options: Array<[string, string]>,
-): Array<{ name: string; color: string }> {
-	return options.map(([name, color]) => ({ name, color }));
 }
 
 function mergeSelectOptions(

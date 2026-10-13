@@ -98,11 +98,6 @@ interface CohortFlags {
 	selectedTitles: CohortProjectTitle[];
 }
 
-interface LiveProjectContext {
-	page: DataSourcePageRef;
-	record: ControlTowerProjectRecord;
-}
-
 interface LiveSourceContext {
 	page: DataSourcePageRef;
 	record: ExternalSignalSourceRecord;

@@ -2,74 +2,65 @@ import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
-import { AppError, toErrorMessage } from "../utils/errors.js";
+import { AppError } from "../utils/errors.js";
 import {
-  loadLocalPortfolioControlTowerConfig,
-  DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+	loadLocalPortfolioControlTowerConfig,
+	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
 } from "./local-portfolio-control-tower.js";
 import {
-  loadLocalPortfolioExternalSignalViewPlan,
-  validateLocalPortfolioExternalSignalViewPlanAgainstSchemas,
+	loadLocalPortfolioExternalSignalViewPlan,
+	validateLocalPortfolioExternalSignalViewPlanAgainstSchemas,
 } from "./local-portfolio-external-signal-views.js";
 
 export interface ExternalSignalViewsValidateCommandOptions {
-  config?: string;
+	config?: string;
 }
 
 export async function runExternalSignalViewsValidateCommand(
-  options: ExternalSignalViewsValidateCommandOptions = {},
+	options: ExternalSignalViewsValidateCommandOptions = {},
 ): Promise<void> {
-  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for external signal view validation");
-  const config = await loadLocalPortfolioControlTowerConfig(
-    options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
-  );
-  if (!config.phase5ExternalSignals) {
-    throw new AppError("Control tower config is missing phase5ExternalSignals");
-  }
+	const token = resolveRequiredNotionToken(
+		"NOTION_TOKEN is required for external signal view validation",
+	);
+	const config = await loadLocalPortfolioControlTowerConfig(
+		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+	);
+	if (!config.phase5ExternalSignals) {
+		throw new AppError("Control tower config is missing phase5ExternalSignals");
+	}
 
-  const api = new DirectNotionClient(token);
-  const plan = await loadLocalPortfolioExternalSignalViewPlan();
+	const api = new DirectNotionClient(token);
+	const plan = await loadLocalPortfolioExternalSignalViewPlan();
 
-  const [sourcesSchema, eventsSchema, syncRunsSchema, projectsSchema] = await Promise.all([
-    api.retrieveDataSource(config.phase5ExternalSignals.sources.dataSourceId),
-    api.retrieveDataSource(config.phase5ExternalSignals.events.dataSourceId),
-    api.retrieveDataSource(config.phase5ExternalSignals.syncRuns.dataSourceId),
-    api.retrieveDataSource(config.database.dataSourceId),
-  ]);
+	const [sourcesSchema, eventsSchema, syncRunsSchema, projectsSchema] =
+		await Promise.all([
+			api.retrieveDataSource(config.phase5ExternalSignals.sources.dataSourceId),
+			api.retrieveDataSource(config.phase5ExternalSignals.events.dataSourceId),
+			api.retrieveDataSource(
+				config.phase5ExternalSignals.syncRuns.dataSourceId,
+			),
+			api.retrieveDataSource(config.database.dataSourceId),
+		]);
 
-  const summary = validateLocalPortfolioExternalSignalViewPlanAgainstSchemas({
-    plan,
-    schemas: {
-      sources: sourcesSchema,
-      events: eventsSchema,
-      syncRuns: syncRunsSchema,
-      projects: projectsSchema,
-    },
-  });
+	const summary = validateLocalPortfolioExternalSignalViewPlanAgainstSchemas({
+		plan,
+		schemas: {
+			sources: sourcesSchema,
+			events: eventsSchema,
+			syncRuns: syncRunsSchema,
+			projects: projectsSchema,
+		},
+	});
 
-  const output = { ok: true, ...summary };
-  recordCommandOutputSummary(output, {
-    metadata: {
-      validatedViews: summary.validatedViews.length,
-    },
-  });
-  console.log(JSON.stringify(output, null, 2));
-}
-
-async function main(): Promise<void> {
-  try {
-    await runExternalSignalViewsValidateCommand({
-      config:
-        process.argv[2]?.startsWith("--")
-          ? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH
-          : process.argv[2] ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
-    });
-  } catch (error) {
-    console.error(toErrorMessage(error));
-    process.exitCode = 1;
-  }
+	const output = { ok: true, ...summary };
+	recordCommandOutputSummary(output, {
+		metadata: {
+			validatedViews: summary.validatedViews.length,
+		},
+	});
+	console.log(JSON.stringify(output, null, 2));
 }
 
 if (isDirectExecution(import.meta.url)) {
-  void runLegacyCliPath(["signals", "views-validate"]);
+	void runLegacyCliPath(["signals", "views-validate"]);
 }
