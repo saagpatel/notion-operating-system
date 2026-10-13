@@ -177,5 +177,5 @@
 		},
 		"why-is-node-running": "3.2.2"
 	},
-	"packageManager": "npm@12.2.0"
+	"packageManager": "npm@11.21.0"
 }

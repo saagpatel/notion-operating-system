@@ -3,7 +3,7 @@
 ## Local setup
 
 Run development commands from the repository root with Node 26.11.1 (pinned in
-`.node-version`) and npm 12.2.0 (pinned by `packageManager` in `package.json`).
+`.node-version`) and npm 11.21.0 (pinned by `packageManager` in `package.json`).
 CI and dependency hygiene read `.node-version`; the library supports Node
 `>=26.11.1 <27`, and `@types/node` stays on major 26.
 
