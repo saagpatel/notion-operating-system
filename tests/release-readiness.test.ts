@@ -52,7 +52,7 @@ describe("release readiness", () => {
 			"node scripts/packed-install-smoke.mjs",
 		);
 		expect(packageJson.scripts?.["release:prepare"]).toBe(
-			"npm run verify && npm run pack:tarball",
+			"npm run check && npm run pack:tarball",
 		);
 	});
 
