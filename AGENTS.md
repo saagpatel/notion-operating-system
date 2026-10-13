@@ -55,8 +55,8 @@ resolve destination aliases before guessing IDs. Useful commands:
 Use the smallest credential-free fixture check that exercises the change.
 For full local verification, run typecheck, tests, build, the three install/CLI
 smokes, and fresh-clone verification as described in
-[CONTRIBUTING.md](CONTRIBUTING.md#tests). `npm run verify` includes temporary
-package installs. There is no separate source lint/format script yet.
+[CONTRIBUTING.md](CONTRIBUTING.md#tests). `make check` adds lint and format checking
+to `npm run verify`, which includes temporary package installs.
 
 `sandbox:smoke` performs real provider writes and reads; it needs explicit
 sandbox authority and isolated targets. Local tests do not establish live
