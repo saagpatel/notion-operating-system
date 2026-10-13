@@ -456,6 +456,67 @@ describe("cli smoke tests", () => {
     );
   });
 
+  test.each([
+    { live: true, dryRun: false },
+    { live: true, dryRun: true },
+    { dryRun: false },
+  ])(
+    "explicit dry-run overrides request-file mode %j without writer calls",
+    async (mode) => {
+      const fixture = await createPublishFixture(mode);
+      const result = await runCliForTest(
+        ["publish", "--request", fixture.requestPath, "--dry-run"],
+        fixture.options,
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout).dryRun).toBe(true);
+      expect(fixture.writer).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([
+    { mode: { live: true, dryRun: true }, dryRun: false },
+    { mode: { dryRun: false }, dryRun: false },
+    { mode: { dryRun: true }, dryRun: true },
+    { mode: {}, dryRun: true },
+  ])(
+    "preserves request-file mode without CLI flags: %j",
+    async ({ mode, dryRun }) => {
+      const fixture = await createPublishFixture(mode);
+      const result = await runCliForTest(
+        ["publish", "--request", fixture.requestPath],
+        fixture.options,
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout).dryRun).toBe(dryRun);
+      expect(fixture.writer).toHaveBeenCalledTimes(dryRun ? 0 : 1);
+    },
+  );
+
+  test.each([false, true])(
+    "rejects conflicting publish mode flags (request file: %s)",
+    async (useRequest) => {
+      const fixture = await createPublishFixture({ live: true });
+      const args = useRequest
+        ? ["--request", fixture.requestPath]
+        : ["--destination", "weekly_reviews", "--file", fixture.inputPath];
+      const result = await runCliForTest(
+        ["publish", ...args, "--dry-run", "--live"],
+        fixture.options,
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "--dry-run and --live cannot be used together",
+      );
+      expect(fixture.writer).not.toHaveBeenCalled();
+    },
+  );
+
   test("surfaces publish validation errors without making writes", async () => {
     const tempDir = await createTempWorkspace();
 
@@ -897,6 +958,63 @@ describe("profiles cli", () => {
     ).toEqual(expect.objectContaining({ configVersion: 1, name: "legacycopy" }));
   });
 });
+
+async function createPublishFixture(mode: {
+  live?: boolean;
+  dryRun?: boolean;
+}) {
+  const tempDir = await createTempWorkspace();
+  const tempHome = path.join(tempDir, "home");
+  await mkdir(tempHome);
+  vi.spyOn(os, "homedir").mockReturnValue(tempHome);
+  const inputPath = path.join(tempDir, "review.md");
+  const requestPath = path.join(tempDir, "request.json");
+  await writeFile(inputPath, "# Review\n\nFixture content.\n", "utf8");
+  await writeFile(
+    requestPath,
+    JSON.stringify({
+      destinationAlias: "weekly_reviews",
+      inputFile: inputPath,
+      ...mode,
+    }),
+    "utf8",
+  );
+  vi.spyOn(
+    DirectNotionClient.prototype,
+    "resolveDestination",
+  ).mockResolvedValue({
+    alias: "weekly_reviews",
+    sourceUrl: "https://www.notion.so/weekly",
+    destinationType: "page",
+    pageId: "fixture-parent",
+  });
+  const writer = vi
+    .spyOn(DirectNotionClient.prototype, "createPageWithMarkdown")
+    .mockResolvedValue({
+      id: "fixture-page",
+      url: "https://www.notion.so/fixture-page",
+    });
+  vi.spyOn(DirectNotionClient.prototype, "readPageMarkdown").mockResolvedValue({
+    markdown: "# Review\n\nFixture content.\n",
+    truncated: false,
+    unknownBlockIds: [],
+    raw: {},
+  });
+  return {
+    inputPath,
+    requestPath,
+    writer,
+    options: {
+      cwd: tempDir,
+      env: {
+        NOTION_TOKEN: "fixture-token",
+        NOTION_PROFILE: undefined,
+        NOTION_DESTINATIONS_PATH: "./config/destinations.json",
+        NOTION_LOG_DIR: "./logs",
+      },
+    },
+  };
+}
 
 async function createTempWorkspace(): Promise<string> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-cli-"));

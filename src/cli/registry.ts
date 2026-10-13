@@ -139,10 +139,16 @@ export const cliRegistry: CliCommandDefinition[] = [
 			{
 				name: "dryRun",
 				aliases: ["dry-run"],
-				description: "Force dry-run mode.",
+				description:
+					"Force dry-run mode, including request files; conflicts with --live.",
 				type: "boolean",
 			},
-			{ name: "live", description: "Run a live publish.", type: "boolean" },
+			{
+				name: "live",
+				description:
+					"Run a live publish without a request file; conflicts with --dry-run.",
+				type: "boolean",
+			},
 			{
 				name: "title",
 				description: "Override the destination title.",
