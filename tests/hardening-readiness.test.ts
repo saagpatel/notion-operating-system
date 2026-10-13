@@ -32,7 +32,12 @@ describe("hardening readiness", () => {
 
     expect(dependencyWorkflow).toContain("schedule:");
     expect(dependencyWorkflow).toContain("workflow_dispatch:");
-    expect(dependencyWorkflow).toContain("npm audit --json > tmp/npm-audit.json || true");
+    for (const workflow of [ciWorkflow, dependencyWorkflow]) {
+      expect(workflow).toContain("audit_status=0");
+      expect(workflow).toContain("npm audit --json > tmp/npm-audit.json || audit_status=$?");
+      expect(workflow).not.toContain("|| true");
+      expect(workflow).toContain('exit "$audit_status"');
+    }
     expect(dependencyWorkflow).toContain("--fail-on-vulnerabilities");
 
     expect(dependabot).toContain('package-ecosystem: "npm"');

@@ -19,7 +19,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version-file: .node-version
           cache: npm
 
       - name: Install dependencies
@@ -28,8 +28,13 @@ jobs:
       - name: Run npm audit
         run: |
           mkdir -p tmp
-          npm audit --json > tmp/npm-audit.json || true
+          audit_status=0
+          npm audit --json > tmp/npm-audit.json || audit_status=$?
           node scripts/audit-report.mjs tmp/npm-audit.json --fail-on-vulnerabilities
+          if [ "$audit_status" -ne 0 ]; then
+            echo "npm audit exited with status $audit_status" >&2
+            exit "$audit_status"
+          fi
 
       - name: Upload npm audit report
         if: always()
