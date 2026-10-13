@@ -209,7 +209,8 @@ export function buildProjectSnapshot(input: {
 		source: {
 			workspace: {
 				state: "unavailable",
-				reason: "Notion API response does not expose a stable workspace identifier",
+				reason:
+					"Notion API response does not expose a stable workspace identifier",
 			},
 			data_source_id: input.dataSourceId,
 			watermark,
@@ -233,8 +234,7 @@ export function buildProjectSnapshot(input: {
 
 export async function loadPortfolioAttentionAuthority(
 	truthPath: string = PORTFOLIO_TRUTH_PATH,
-	generationRoot: string =
-		process.env.PORTFOLIO_GENERATION_ROOT ??
+	generationRoot: string = process.env.PORTFOLIO_GENERATION_ROOT ??
 		process.env.PERSONAL_OPS_PORTFOLIO_GENERATION_ROOT ??
 		DEFAULT_PORTFOLIO_GENERATION_ROOT,
 ): Promise<PortfolioAttentionAuthority> {
@@ -399,7 +399,8 @@ export async function writeJsonAtomically(
 					error === null ||
 					!("code" in error) ||
 					error.code !== "ENOENT"
-				) throw error;
+				)
+					throw error;
 				await mkdir(nextDirectory, { mode: 0o700 });
 				directoryInfo = await lstat(nextDirectory);
 			}

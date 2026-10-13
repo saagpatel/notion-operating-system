@@ -474,8 +474,14 @@ function formatFocusPacket(
 	]
 		.filter(Boolean)
 		.join("; ");
-	const action = packet.nextTask || packet.goal || packet.whyNow || "Define the next concrete action.";
-	return [`- **${label}** — ${packet.title}${details ? ` (${details})` : ""}. Next: ${action}`];
+	const action =
+		packet.nextTask ||
+		packet.goal ||
+		packet.whyNow ||
+		"Define the next concrete action.";
+	return [
+		`- **${label}** — ${packet.title}${details ? ` (${details})` : ""}. Next: ${action}`,
+	];
 }
 
 function groupBySeverity(
@@ -598,36 +604,36 @@ export async function runMorningBriefCommand(
 
 	const [projectPages, weeklyPages, eventPages, packetPages, taskPages] =
 		await Promise.all([
-		fetchAllPages(
-			sdk,
-			config.database.dataSourceId,
-			projectSchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			config.relatedDataSources.weeklyReviewsId,
-			weeklySchema.titlePropertyName,
-		),
-		fetchAllPages(
-			sdk,
-			phase5.events.dataSourceId,
-			eventSchema.titlePropertyName,
-		),
-		config.phase2Execution && packetSchema
-			? fetchAllPages(
-					sdk,
-					config.phase2Execution.packets.dataSourceId,
-					packetSchema.titlePropertyName,
-				)
-			: Promise.resolve([]),
-		config.phase2Execution && taskSchema
-			? fetchAllPages(
-					sdk,
-					config.phase2Execution.tasks.dataSourceId,
-					taskSchema.titlePropertyName,
-				)
-			: Promise.resolve([]),
-	]);
+			fetchAllPages(
+				sdk,
+				config.database.dataSourceId,
+				projectSchema.titlePropertyName,
+			),
+			fetchAllPages(
+				sdk,
+				config.relatedDataSources.weeklyReviewsId,
+				weeklySchema.titlePropertyName,
+			),
+			fetchAllPages(
+				sdk,
+				phase5.events.dataSourceId,
+				eventSchema.titlePropertyName,
+			),
+			config.phase2Execution && packetSchema
+				? fetchAllPages(
+						sdk,
+						config.phase2Execution.packets.dataSourceId,
+						packetSchema.titlePropertyName,
+					)
+				: Promise.resolve([]),
+			config.phase2Execution && taskSchema
+				? fetchAllPages(
+						sdk,
+						config.phase2Execution.tasks.dataSourceId,
+						taskSchema.titlePropertyName,
+					)
+				: Promise.resolve([]),
+		]);
 
 	const projects = projectPages.map((page) =>
 		toIntelligenceProjectRecord(page),
@@ -787,7 +793,7 @@ function toPacketFocus(
 			)[0]?.title ?? "";
 	const projectName =
 		packet.localProjectIds.length === 1
-			? projectIndex.get(packet.localProjectIds[0] ?? "") ?? "unknown project"
+			? (projectIndex.get(packet.localProjectIds[0] ?? "") ?? "unknown project")
 			: `${packet.localProjectIds.length} linked projects`;
 	return {
 		title: packet.title || "Untitled packet",

@@ -1,281 +1,322 @@
-import { chmod, mkdir, mkdtemp, realpath, symlink, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	realpath,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, test } from "vitest";
 
-import { loadRuntimeConfig, safeLoadRuntimeConfig } from "../src/config/runtime-config.js";
+import {
+	loadRuntimeConfig,
+	safeLoadRuntimeConfig,
+} from "../src/config/runtime-config.js";
 
 const runtimeEnvKeys = [
-  "NOTION_PROFILE",
-  "NOTION_TOKEN",
-  "NOTION_ENV_FILE",
-  "NOTION_DESTINATIONS_PATH",
+	"NOTION_PROFILE",
+	"NOTION_TOKEN",
+	"NOTION_ENV_FILE",
+	"NOTION_DESTINATIONS_PATH",
 ] as const;
 
 afterEach(() => {
-  for (const key of runtimeEnvKeys) {
-    delete process.env[key];
-  }
+	for (const key of runtimeEnvKeys) {
+		delete process.env[key];
+	}
 });
 
 describe("runtime config", () => {
+	test("hydrates credentials from an explicit external env file without moving workspace config paths", async () => {
+		const runtimeDir = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-external-env-"),
+		);
+		const credentialDir = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-credential-"),
+		);
+		const envFile = path.join(credentialDir, "notion.env");
+		await writeFile(envFile, "NOTION_TOKEN=external-token\n", "utf8");
+		await chmod(envFile, 0o600);
 
-  test("hydrates credentials from an explicit external env file without moving workspace config paths", async () => {
-    const runtimeDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-external-env-"));
-    const credentialDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-credential-"));
-    const envFile = path.join(credentialDir, "notion.env");
-    await writeFile(envFile, "NOTION_TOKEN=external-token\n", "utf8");
-    await chmod(envFile, 0o600);
+		const config = loadRuntimeConfig({
+			cwd: runtimeDir,
+			env: { NOTION_ENV_FILE: envFile },
+		});
 
-    const config = loadRuntimeConfig({
-      cwd: runtimeDir,
-      env: { NOTION_ENV_FILE: envFile },
-    });
+		expect(config.notion.token).toBe("external-token");
+		expect(config.paths.envFile).toBe(await realpath(envFile));
+		expect(config.paths.controlTowerConfigPath).toBe(
+			path.resolve(runtimeDir, "./config/local-portfolio-control-tower.json"),
+		);
+	});
 
-    expect(config.notion.token).toBe("external-token");
-    expect(config.paths.envFile).toBe(await realpath(envFile));
-    expect(config.paths.controlTowerConfigPath).toBe(
-      path.resolve(runtimeDir, "./config/local-portfolio-control-tower.json"),
-    );
-  });
+	test("rejects relative, over-permissive, and symlinked external env files", async () => {
+		const runtimeDir = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-env-policy-"),
+		);
+		const credentialDir = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-env-policy-credential-"),
+		);
+		const envFile = path.join(credentialDir, "notion.env");
+		await writeFile(envFile, "NOTION_TOKEN=external-token\n", "utf8");
+		await chmod(envFile, 0o600);
 
-  test("rejects relative, over-permissive, and symlinked external env files", async () => {
-    const runtimeDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-env-policy-"));
-    const credentialDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-env-policy-credential-"));
-    const envFile = path.join(credentialDir, "notion.env");
-    await writeFile(envFile, "NOTION_TOKEN=external-token\n", "utf8");
-    await chmod(envFile, 0o600);
+		expect(() =>
+			loadRuntimeConfig({
+				cwd: runtimeDir,
+				env: { NOTION_ENV_FILE: "relative.env" },
+			}),
+		).toThrow("NOTION_ENV_FILE must be an absolute path");
 
-    expect(() =>
-      loadRuntimeConfig({
-        cwd: runtimeDir,
-        env: { NOTION_ENV_FILE: "relative.env" },
-      }),
-    ).toThrow("NOTION_ENV_FILE must be an absolute path");
+		await chmod(envFile, 0o640);
+		expect(() =>
+			loadRuntimeConfig({
+				cwd: runtimeDir,
+				env: { NOTION_ENV_FILE: envFile },
+			}),
+		).toThrow("must not grant group or world access");
 
-    await chmod(envFile, 0o640);
-    expect(() =>
-      loadRuntimeConfig({
-        cwd: runtimeDir,
-        env: { NOTION_ENV_FILE: envFile },
-      }),
-    ).toThrow("must not grant group or world access");
+		await chmod(envFile, 0o600);
+		const symlinkPath = path.join(credentialDir, "notion-link.env");
+		await symlink(envFile, symlinkPath);
+		expect(() =>
+			loadRuntimeConfig({
+				cwd: runtimeDir,
+				env: { NOTION_ENV_FILE: symlinkPath },
+			}),
+		).toThrow("non-symlink, owner-bound regular file");
+	});
+	test("loads defaults and resolves runtime paths from the provided cwd", () => {
+		const config = loadRuntimeConfig({
+			cwd: "/tmp/notion-os",
+			env: {},
+		});
 
-    await chmod(envFile, 0o600);
-    const symlinkPath = path.join(credentialDir, "notion-link.env");
-    await symlink(envFile, symlinkPath);
-    expect(() =>
-      loadRuntimeConfig({
-        cwd: runtimeDir,
-        env: { NOTION_ENV_FILE: symlinkPath },
-      }),
-    ).toThrow("non-symlink, owner-bound regular file");
-  });
-  test("loads defaults and resolves runtime paths from the provided cwd", () => {
-    const config = loadRuntimeConfig({
-      cwd: "/tmp/notion-os",
-      env: {},
-    });
+		expect(config.profile.configVersion).toBe(1);
+		expect(config.profile.sourceConfigVersion).toBe(1);
+		expect(config.notion.retryMaxAttempts).toBe(5);
+		expect(config.notion.httpTimeoutMs).toBe(90_000);
+		expect(config.profile.name).toBe("default");
+		expect(config.profile.kind).toBe("primary");
+		expect(config.paths.logDir).toBe(path.resolve("/tmp/notion-os", "./logs"));
+		expect(config.paths.destinationsPath).toBe(
+			path.resolve("/tmp/notion-os", "./config/destinations.json"),
+		);
+		expect(config.paths.controlTowerConfigPath).toBe(
+			path.resolve(
+				"/tmp/notion-os",
+				"./config/local-portfolio-control-tower.json",
+			),
+		);
+	});
 
-    expect(config.profile.configVersion).toBe(1);
-    expect(config.profile.sourceConfigVersion).toBe(1);
-    expect(config.notion.retryMaxAttempts).toBe(5);
-    expect(config.notion.httpTimeoutMs).toBe(90_000);
-    expect(config.profile.name).toBe("default");
-    expect(config.profile.kind).toBe("primary");
-    expect(config.paths.logDir).toBe(path.resolve("/tmp/notion-os", "./logs"));
-    expect(config.paths.destinationsPath).toBe(path.resolve("/tmp/notion-os", "./config/destinations.json"));
-    expect(config.paths.controlTowerConfigPath).toBe(
-      path.resolve("/tmp/notion-os", "./config/local-portfolio-control-tower.json"),
-    );
-  });
+	test("reports invalid numeric env values through the safe loader", () => {
+		const result = safeLoadRuntimeConfig({
+			cwd: "/tmp/notion-os",
+			env: {
+				NOTION_RETRY_MAX_ATTEMPTS: "zero",
+			},
+		});
 
-  test("reports invalid numeric env values through the safe loader", () => {
-    const result = safeLoadRuntimeConfig({
-      cwd: "/tmp/notion-os",
-      env: {
-        NOTION_RETRY_MAX_ATTEMPTS: "zero",
-      },
-    });
+		expect(result.success).toBe(false);
+		if (result.success) {
+			throw new Error("Expected runtime config parsing to fail");
+		}
 
-    expect(result.success).toBe(false);
-    if (result.success) {
-      throw new Error("Expected runtime config parsing to fail");
-    }
+		expect(result.issues.join(" ")).toContain("NOTION_RETRY_MAX_ATTEMPTS");
+	});
 
-    expect(result.issues.join(" ")).toContain("NOTION_RETRY_MAX_ATTEMPTS");
-  });
+	test("resolves an explicit named profile and lets the option override env selection", async () => {
+		const tempDir = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-profile-"),
+		);
+		const profileDir = path.join(tempDir, "config", "profiles");
+		await mkdir(profileDir, { recursive: true });
+		await writeFile(
+			path.join(tempDir, "config", "profiles.json"),
+			JSON.stringify({
+				version: 1,
+				defaultProfile: "alpha",
+				profiles: ["alpha", "beta"],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(profileDir, "alpha.json"),
+			JSON.stringify({
+				name: "alpha",
+				label: "Alpha Workspace",
+				envFile: ".env.alpha",
+				destinationsPath: "./config/profiles/alpha/destinations.json",
+				controlTowerConfigPath:
+					"./config/profiles/alpha/local-portfolio-control-tower.json",
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(profileDir, "beta.json"),
+			JSON.stringify({
+				name: "beta",
+				label: "Beta Workspace",
+				envFile: ".env.beta",
+				destinationsPath: "./config/profiles/beta/destinations.json",
+				controlTowerConfigPath:
+					"./config/profiles/beta/local-portfolio-control-tower.json",
+			}),
+			"utf8",
+		);
 
-  test("resolves an explicit named profile and lets the option override env selection", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-profile-"));
-    const profileDir = path.join(tempDir, "config", "profiles");
-    await mkdir(profileDir, { recursive: true });
-    await writeFile(
-      path.join(tempDir, "config", "profiles.json"),
-      JSON.stringify({
-        version: 1,
-        defaultProfile: "alpha",
-        profiles: ["alpha", "beta"],
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(profileDir, "alpha.json"),
-      JSON.stringify({
-        name: "alpha",
-        label: "Alpha Workspace",
-        envFile: ".env.alpha",
-        destinationsPath: "./config/profiles/alpha/destinations.json",
-        controlTowerConfigPath: "./config/profiles/alpha/local-portfolio-control-tower.json",
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(profileDir, "beta.json"),
-      JSON.stringify({
-        name: "beta",
-        label: "Beta Workspace",
-        envFile: ".env.beta",
-        destinationsPath: "./config/profiles/beta/destinations.json",
-        controlTowerConfigPath: "./config/profiles/beta/local-portfolio-control-tower.json",
-      }),
-      "utf8",
-    );
+		const config = loadRuntimeConfig({
+			cwd: tempDir,
+			env: {
+				NOTION_PROFILE: "alpha",
+			},
+			profile: "beta",
+		});
 
-    const config = loadRuntimeConfig({
-      cwd: tempDir,
-      env: {
-        NOTION_PROFILE: "alpha",
-      },
-      profile: "beta",
-    });
+		expect(config.profile.name).toBe("beta");
+		expect(config.profile.kind).toBe("primary");
+		expect(config.profile.configVersion).toBe(1);
+		expect(config.profile.sourceConfigVersion).toBe(0);
+		expect(config.paths.envFile).toBe(path.resolve(tempDir, ".env.beta"));
+		expect(config.paths.destinationsPath).toBe(
+			path.resolve(tempDir, "./config/profiles/beta/destinations.json"),
+		);
+		expect(config.paths.controlTowerConfigPath).toBe(
+			path.resolve(
+				tempDir,
+				"./config/profiles/beta/local-portfolio-control-tower.json",
+			),
+		);
+	});
 
-    expect(config.profile.name).toBe("beta");
-    expect(config.profile.kind).toBe("primary");
-    expect(config.profile.configVersion).toBe(1);
-    expect(config.profile.sourceConfigVersion).toBe(0);
-    expect(config.paths.envFile).toBe(path.resolve(tempDir, ".env.beta"));
-    expect(config.paths.destinationsPath).toBe(
-      path.resolve(tempDir, "./config/profiles/beta/destinations.json"),
-    );
-    expect(config.paths.controlTowerConfigPath).toBe(
-      path.resolve(tempDir, "./config/profiles/beta/local-portfolio-control-tower.json"),
-    );
-  });
+	test("does not mutate the provided env object while hydrating profile env files", async () => {
+		const tempDir = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-mutation-"),
+		);
+		const profileDir = path.join(tempDir, "config", "profiles");
+		await mkdir(profileDir, { recursive: true });
+		await writeFile(
+			path.join(tempDir, "config", "profiles.json"),
+			JSON.stringify({
+				version: 1,
+				defaultProfile: "sandbox",
+				profiles: ["sandbox"],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(profileDir, "sandbox.json"),
+			JSON.stringify({
+				configVersion: 1,
+				name: "sandbox",
+				label: "Sandbox Workspace",
+				kind: "sandbox",
+				envFile: ".env.sandbox",
+				destinationsPath: "./config/profiles/sandbox/destinations.json",
+				controlTowerConfigPath:
+					"./config/profiles/sandbox/local-portfolio-control-tower.json",
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(tempDir, ".env.sandbox"),
+			[
+				"NOTION_TOKEN=sandbox-token",
+				"NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
+			].join("\n"),
+			"utf8",
+		);
 
-  test("does not mutate the provided env object while hydrating profile env files", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-mutation-"));
-    const profileDir = path.join(tempDir, "config", "profiles");
-    await mkdir(profileDir, { recursive: true });
-    await writeFile(
-      path.join(tempDir, "config", "profiles.json"),
-      JSON.stringify({
-        version: 1,
-        defaultProfile: "sandbox",
-        profiles: ["sandbox"],
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(profileDir, "sandbox.json"),
-      JSON.stringify({
-        configVersion: 1,
-        name: "sandbox",
-        label: "Sandbox Workspace",
-        kind: "sandbox",
-        envFile: ".env.sandbox",
-        destinationsPath: "./config/profiles/sandbox/destinations.json",
-        controlTowerConfigPath: "./config/profiles/sandbox/local-portfolio-control-tower.json",
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(tempDir, ".env.sandbox"),
-      ["NOTION_TOKEN=sandbox-token", "NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json"].join("\n"),
-      "utf8",
-    );
+		const env = { NOTION_PROFILE: "sandbox" } as NodeJS.ProcessEnv;
+		const config = loadRuntimeConfig({
+			cwd: tempDir,
+			env,
+		});
 
-    const env = { NOTION_PROFILE: "sandbox" } as NodeJS.ProcessEnv;
-    const config = loadRuntimeConfig({
-      cwd: tempDir,
-      env,
-    });
+		expect(config.profile.name).toBe("sandbox");
+		expect(config.notion.token).toBe("sandbox-token");
+		expect(config.paths.destinationsPath).toBe(
+			path.resolve(tempDir, "./config/profiles/sandbox/destinations.json"),
+		);
+		expect(env.NOTION_TOKEN).toBeUndefined();
+		expect(env.NOTION_DESTINATIONS_PATH).toBeUndefined();
+	});
 
-    expect(config.profile.name).toBe("sandbox");
-    expect(config.notion.token).toBe("sandbox-token");
-    expect(config.paths.destinationsPath).toBe(
-      path.resolve(tempDir, "./config/profiles/sandbox/destinations.json"),
-    );
-    expect(env.NOTION_TOKEN).toBeUndefined();
-    expect(env.NOTION_DESTINATIONS_PATH).toBeUndefined();
-  });
+	test("selected profile env files override inherited process env values", async () => {
+		const tempDir = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-override-"),
+		);
+		const profileDir = path.join(tempDir, "config", "profiles");
+		await mkdir(profileDir, { recursive: true });
+		await writeFile(
+			path.join(tempDir, "config", "profiles.json"),
+			JSON.stringify({
+				version: 1,
+				defaultProfile: "default",
+				profiles: ["default", "sandbox"],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(profileDir, "default.json"),
+			JSON.stringify({
+				configVersion: 1,
+				name: "default",
+				label: "Default Workspace",
+				kind: "primary",
+				envFile: ".env",
+				destinationsPath: "./config/destinations.json",
+				controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(profileDir, "sandbox.json"),
+			JSON.stringify({
+				configVersion: 1,
+				name: "sandbox",
+				label: "Sandbox Workspace",
+				kind: "sandbox",
+				envFile: ".env.sandbox",
+				destinationsPath: "./config/profiles/sandbox/destinations.json",
+				controlTowerConfigPath:
+					"./config/profiles/sandbox/local-portfolio-control-tower.json",
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(tempDir, ".env"),
+			[
+				"NOTION_TOKEN=default-token",
+				"NOTION_DESTINATIONS_PATH=./config/destinations.json",
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
+			path.join(tempDir, ".env.sandbox"),
+			[
+				"NOTION_TOKEN=sandbox-token",
+				"NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
+			].join("\n"),
+			"utf8",
+		);
 
-  test("selected profile env files override inherited process env values", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-override-"));
-    const profileDir = path.join(tempDir, "config", "profiles");
-    await mkdir(profileDir, { recursive: true });
-    await writeFile(
-      path.join(tempDir, "config", "profiles.json"),
-      JSON.stringify({
-        version: 1,
-        defaultProfile: "default",
-        profiles: ["default", "sandbox"],
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(profileDir, "default.json"),
-      JSON.stringify({
-        configVersion: 1,
-        name: "default",
-        label: "Default Workspace",
-        kind: "primary",
-        envFile: ".env",
-        destinationsPath: "./config/destinations.json",
-        controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(profileDir, "sandbox.json"),
-      JSON.stringify({
-        configVersion: 1,
-        name: "sandbox",
-        label: "Sandbox Workspace",
-        kind: "sandbox",
-        envFile: ".env.sandbox",
-        destinationsPath: "./config/profiles/sandbox/destinations.json",
-        controlTowerConfigPath: "./config/profiles/sandbox/local-portfolio-control-tower.json",
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(tempDir, ".env"),
-      ["NOTION_TOKEN=default-token", "NOTION_DESTINATIONS_PATH=./config/destinations.json"].join("\n"),
-      "utf8",
-    );
-    await writeFile(
-      path.join(tempDir, ".env.sandbox"),
-      [
-        "NOTION_TOKEN=sandbox-token",
-        "NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
-      ].join("\n"),
-      "utf8",
-    );
+		process.env.NOTION_PROFILE = "sandbox";
+		process.env.NOTION_TOKEN = "default-token";
+		process.env.NOTION_DESTINATIONS_PATH = "./config/destinations.json";
 
-    process.env.NOTION_PROFILE = "sandbox";
-    process.env.NOTION_TOKEN = "default-token";
-    process.env.NOTION_DESTINATIONS_PATH = "./config/destinations.json";
+		const config = loadRuntimeConfig({
+			cwd: tempDir,
+		});
 
-    const config = loadRuntimeConfig({
-      cwd: tempDir,
-    });
-
-    expect(config.profile.name).toBe("sandbox");
-    expect(config.notion.token).toBe("sandbox-token");
-    expect(config.paths.destinationsPath).toBe(
-      path.resolve(tempDir, "./config/profiles/sandbox/destinations.json"),
-    );
-  });
+		expect(config.profile.name).toBe("sandbox");
+		expect(config.notion.token).toBe("sandbox-token");
+		expect(config.paths.destinationsPath).toBe(
+			path.resolve(tempDir, "./config/profiles/sandbox/destinations.json"),
+		);
+	});
 });

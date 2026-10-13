@@ -804,7 +804,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 				commonOptions.config,
 				{
 					name: "limit",
-					description: "Maximum number of stale active projects to include and update.",
+					description:
+						"Maximum number of stale active projects to include and update.",
 					type: "number",
 					valueName: "count",
 				},
@@ -835,7 +836,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 				commonOptions.config,
 				{
 					name: "projects-root",
-					description: "Local projects root to compare against Notion mappings.",
+					description:
+						"Local projects root to compare against Notion mappings.",
 					type: "string",
 					valueName: "path",
 				},
@@ -873,7 +875,9 @@ export const cliRegistry: CliCommandDefinition[] = [
 						positionals: parsed.positionals,
 					}),
 					projectsRoot: asString(parsed.options["projects-root"]),
-					projectRegistryPath: asString(parsed.options["project-registry-path"]),
+					projectRegistryPath: asString(
+						parsed.options["project-registry-path"],
+					),
 					limit: asNumber(parsed.options.limit),
 					includeAllGaps: asBoolean(parsed.options["include-all-gaps"]),
 					liveNormalizeLocalPaths: asBoolean(
@@ -892,13 +896,15 @@ export const cliRegistry: CliCommandDefinition[] = [
 				commonOptions.config,
 				{
 					name: "project-limit",
-					description: "Limit project-page brief writes for a scoped execution repair batch.",
+					description:
+						"Limit project-page brief writes for a scoped execution repair batch.",
 					type: "number",
 					valueName: "count",
 				},
 				{
 					name: "project-offset",
-					description: "Offset project-page brief writes for a scoped execution repair batch.",
+					description:
+						"Offset project-page brief writes for a scoped execution repair batch.",
 					type: "number",
 					valueName: "count",
 				},
@@ -910,7 +916,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 				},
 				{
 					name: "skip-known-blocked-markdown",
-					description: "Skip project-page markdown writes listed in the blocked markdown registry.",
+					description:
+						"Skip project-page markdown writes listed in the blocked markdown registry.",
 					type: "boolean",
 				},
 			],
@@ -925,7 +932,9 @@ export const cliRegistry: CliCommandDefinition[] = [
 					projectLimit: asNumber(parsed.options["project-limit"]),
 					projectOffset: asNumber(parsed.options["project-offset"]),
 					projectConcurrency: asNumber(parsed.options["project-concurrency"]),
-					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
+					skipKnownBlockedMarkdown: asBoolean(
+						parsed.options["skip-known-blocked-markdown"],
+					),
 				}),
 		),
 		{
@@ -972,13 +981,15 @@ export const cliRegistry: CliCommandDefinition[] = [
 					commonOptions.config,
 					{
 						name: "project-limit",
-						description: "Limit project-page brief writes for a scoped intelligence repair batch.",
+						description:
+							"Limit project-page brief writes for a scoped intelligence repair batch.",
 						type: "number",
 						valueName: "count",
 					},
 					{
 						name: "project-offset",
-						description: "Offset project-page brief writes for a scoped intelligence repair batch.",
+						description:
+							"Offset project-page brief writes for a scoped intelligence repair batch.",
 						type: "number",
 						valueName: "count",
 					},
@@ -990,7 +1001,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 					},
 					{
 						name: "skip-known-blocked-markdown",
-						description: "Skip project-page markdown writes listed in the blocked markdown registry.",
+						description:
+							"Skip project-page markdown writes listed in the blocked markdown registry.",
 						type: "boolean",
 					},
 				],
@@ -1005,7 +1017,9 @@ export const cliRegistry: CliCommandDefinition[] = [
 						projectLimit: asNumber(parsed.options["project-limit"]),
 						projectOffset: asNumber(parsed.options["project-offset"]),
 						projectConcurrency: asNumber(parsed.options["project-concurrency"]),
-						skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
+						skipKnownBlockedMarkdown: asBoolean(
+							parsed.options["skip-known-blocked-markdown"],
+						),
 					}),
 			),
 			buildConfigCommand(
@@ -1042,10 +1056,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 						today: asString(parsed.options.today),
 						type:
 							(asString(parsed.options.type) as
-								| "weekly"
-								| "daily"
-								| "adhoc"
-								| undefined) ?? "weekly",
+								"weekly" | "daily" | "adhoc" | undefined) ?? "weekly",
 						config: resolveOptionalControlTowerConfigPath({
 							config: asString(parsed.options.config),
 							positionals: parsed.positionals,
@@ -1111,13 +1122,15 @@ export const cliRegistry: CliCommandDefinition[] = [
 				},
 				{
 					name: "project-limit",
-					description: "Maximum number of project pages to refresh in project-pages scope.",
+					description:
+						"Maximum number of project pages to refresh in project-pages scope.",
 					type: "number",
 					valueName: "count",
 				},
 				{
 					name: "project-offset",
-					description: "Stable project-page batch offset for project-pages scope.",
+					description:
+						"Stable project-page batch offset for project-pages scope.",
 					type: "number",
 					valueName: "count",
 				},
@@ -1129,7 +1142,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 				},
 				{
 					name: "skip-known-blocked-markdown",
-					description: "Skip project-page markdown writes listed in the blocked markdown registry.",
+					description:
+						"Skip project-page markdown writes listed in the blocked markdown registry.",
 					type: "boolean",
 				},
 			],
@@ -1157,7 +1171,9 @@ export const cliRegistry: CliCommandDefinition[] = [
 					projectLimit: asNumber(parsed.options["project-limit"]),
 					projectOffset: asNumber(parsed.options["project-offset"]),
 					projectConcurrency: asNumber(parsed.options["project-concurrency"]),
-					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
+					skipKnownBlockedMarkdown: asBoolean(
+						parsed.options["skip-known-blocked-markdown"],
+					),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
@@ -1251,7 +1267,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 				},
 				{
 					name: "write-scope",
-					description: "Limit live writes to the approved coordination ingestion stage.",
+					description:
+						"Limit live writes to the approved coordination ingestion stage.",
 					type: "enum",
 					valueName: "scope",
 					choices: ["none", "events"],
@@ -1269,12 +1286,14 @@ export const cliRegistry: CliCommandDefinition[] = [
 				},
 				{
 					name: "display",
-					description: "Include the read-only Notion display model for the coordination ledger pilot.",
+					description:
+						"Include the read-only Notion display model for the coordination ledger pilot.",
 					type: "boolean",
 				},
 				{
 					name: "read-back",
-					description: "Read back External Signal Events by dedupe key without writing.",
+					description:
+						"Read back External Signal Events by dedupe key without writing.",
 					type: "boolean",
 				},
 			],
@@ -1286,7 +1305,8 @@ export const cliRegistry: CliCommandDefinition[] = [
 					display: asBoolean(parsed.options.display),
 					readBack: asBoolean(parsed.options["read-back"]),
 					writeScope:
-						(asString(parsed.options["write-scope"]) as "none" | "events" | undefined) ?? "none",
+						(asString(parsed.options["write-scope"]) as
+							"none" | "events" | undefined) ?? "none",
 					confirmLive: asBoolean(parsed.options["confirm-live"]),
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
@@ -1481,10 +1501,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 				runWebhookReconcileCommand({
 					provider:
 						(asString(parsed.options.provider) as
-							| "github"
-							| "vercel"
-							| "google_calendar"
-							| undefined) ?? "github",
+							"github" | "vercel" | "google_calendar" | undefined) ?? "github",
 					config: resolveOptionalControlTowerConfigPath({
 						config: asString(parsed.options.config),
 						positionals: parsed.positionals,
@@ -1807,8 +1824,7 @@ export const cliRegistry: CliCommandDefinition[] = [
 				},
 				{
 					name: "max-step-attempts",
-					description:
-						"Override retry attempts for each weekly child command.",
+					description: "Override retry attempts for each weekly child command.",
 					type: "number",
 					valueName: "count",
 				},
@@ -1854,7 +1870,9 @@ export const cliRegistry: CliCommandDefinition[] = [
 					stepTimeoutMinutes: asNumber(parsed.options["step-timeout-minutes"]),
 					maxStepAttempts: asNumber(parsed.options["max-step-attempts"]),
 					summaryFirst: asBoolean(parsed.options["summary-first"]),
-					skipKnownBlockedMarkdown: asBoolean(parsed.options["skip-known-blocked-markdown"]),
+					skipKnownBlockedMarkdown: asBoolean(
+						parsed.options["skip-known-blocked-markdown"],
+					),
 					streamChildOutput: asBoolean(parsed.options["stream-child-output"]),
 				}),
 		),

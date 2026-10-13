@@ -29,9 +29,10 @@ interface ToolCall {
  * Build a session over a fake MCP client. The constructor is private to
  * TypeScript only; at runtime it is an ordinary one-argument constructor.
  */
-function sessionOver(
-	respond: (call: ToolCall) => unknown,
-): { session: BridgeDbMcpSession; calls: ToolCall[] } {
+function sessionOver(respond: (call: ToolCall) => unknown): {
+	session: BridgeDbMcpSession;
+	calls: ToolCall[];
+} {
 	const calls: ToolCall[] = [];
 	const client = {
 		callTool: async (call: ToolCall) => {

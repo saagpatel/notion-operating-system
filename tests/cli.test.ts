@@ -10,1285 +10,1579 @@ import { parseCliArgs } from "../src/cli/framework.js";
 import { runCli } from "../src/cli/runner.js";
 import { DirectNotionClient } from "../src/notion/direct-notion-client.js";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(
+	path.dirname(fileURLToPath(import.meta.url)),
+	"..",
+);
 
 afterEach(() => {
-  vi.restoreAllMocks();
-  process.exitCode = undefined;
+	vi.restoreAllMocks();
+	process.exitCode = undefined;
 });
 
 describe("cli smoke tests", () => {
-  test("renders root help", async () => {
-    const result = await runCliForTest(["--help"]);
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Notion Operating System CLI");
-    expect(result.stdout).toContain("--profile <name>");
-    expect(result.stdout).toContain("control-tower");
-    expect(result.stdout).toContain("logs");
-    expect(result.stderr).toBe("");
-  });
-
-  test("renders help for each major command family", async () => {
-    const families = [
-      ["publish", "publish"],
-      ["doctor", "doctor"],
-      ["destinations", "check"],
-      ["profiles", "show"],
-      ["logs", "recent"],
-      ["control-tower", "sync"],
-      ["execution", "views-validate"],
-      ["intelligence", "views-validate"],
-      ["signals", "provider-expansion-audit"],
-      ["governance", "webhook-reconcile"],
-      ["rollout", "operational"],
-      ["maintenance", "weekly-refresh"],
-    ] as const;
-
-    for (const [family, expectedSubcommand] of families) {
-      const result = await runCliForTest([family, "--help"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain(family);
-      expect(result.stdout).toContain(expectedSubcommand);
-      expect(result.stderr).toBe("");
-    }
-  });
-
-  test("renders help for the new profile portability commands", async () => {
-    const commands = [
-      ["profiles", "diff"],
-      ["profiles", "clone"],
-      ["profiles", "bootstrap"],
-      ["profiles", "upgrade"],
-    ];
-
-    for (const command of commands) {
-      const result = await runCliForTest([...command, "--help"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain(command[command.length - 1]!);
-      expect(result.stderr).toBe("");
-    }
-  });
-
-  test("renders help for the migrated durable subcommands", async () => {
-    const commands = [
-      ["governance", "audit"],
-      ["governance", "health-report"],
-      ["governance", "views-validate"],
-      ["governance", "actuation-audit"],
-      ["governance", "webhook-shadow-drain"],
-      ["governance", "webhook-reconcile"],
-      ["execution", "views-validate"],
-      ["intelligence", "views-validate"],
-      ["signals", "views-validate"],
-      ["signals", "provider-expansion-audit"],
-    ];
-
-    for (const command of commands) {
-      const result = await runCliForTest([...command, "--help"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain(command[command.length - 1]!);
-      expect(result.stderr).toBe("");
-    }
-  });
-
-  test("signals sync exposes scoped refresh options and validates batch flags", async () => {
-    const help = await runCliForTest(["signals", "sync", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("--write-scope <scope>");
-    expect(help.stdout).toContain("full, providers, project-pages, portfolio-sections");
-    expect(help.stdout).toContain("--project-limit <count>");
-    expect(help.stdout).toContain("--project-offset <count>");
-    expect(help.stdout).toContain("--project-concurrency <count>");
-
-    const invalidScope = await runCliForTest(["signals", "sync", "--write-scope", "nope"]);
-    expect(invalidScope.exitCode).toBe(1);
-    expect(invalidScope.stderr).toContain('Expected one of full, providers, project-pages, portfolio-sections');
-
-    const invalidBatchScope = await runCliForTest(["signals", "sync", "--project-limit", "10"], {
-      env: { NOTION_TOKEN: undefined },
-    });
-    expect(invalidBatchScope.exitCode).toBe(1);
-    expect(invalidBatchScope.stderr).toContain(
-      "--project-limit and --project-offset require --write-scope project-pages",
-    );
-  });
-
-  test("weekly refresh exposes targeted fast-maintenance controls", async () => {
-    const help = await runCliForTest(["maintenance", "weekly-refresh", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("--only <step>");
-    expect(help.stdout).toContain("--skip <step>");
-    expect(help.stdout).toContain("--max-project-pages <count>");
-    expect(help.stdout).toContain("--project-offset <count>");
-    expect(help.stdout).toContain("--project-concurrency <count>");
-    expect(help.stdout).toContain("--step-timeout-minutes <minutes>");
-    expect(help.stdout).toContain("--max-step-attempts <count>");
-    expect(help.stdout).toContain("--fast");
-    expect(help.stdout).toContain("--summary-first");
-    expect(help.stdout).toContain("--skip-known-blocked-markdown");
-    expect(help.stdout).toContain("--stream-child-output");
-  });
-
-  test("control tower exposes stale active rescue reporting", async () => {
-    const help = await runCliForTest(["control-tower", "stale-active-rescue", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("stale-active-rescue");
-    expect(help.stdout).toContain("--live");
-    expect(help.stdout).toContain("--limit <count>");
-    expect(help.stdout).toContain("--missing-repos-only");
-  });
-
-  test("control tower exposes review recovery", async () => {
-    const help = await runCliForTest(["control-tower", "review-recovery", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("review-recovery");
-    expect(help.stdout).toContain("--live");
-    expect(help.stdout).toContain("--limit <count>");
-    expect(help.stdout).toContain("--include-metadata-gaps");
-	expect(help.stdout).toContain("--project-title <title>");
-  });
-
-  test("control tower exposes packet follow-through reporting", async () => {
-    const help = await runCliForTest(["control-tower", "packet-follow-through", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("packet-follow-through");
-    expect(help.stdout).toContain("--live");
-    expect(help.stdout).toContain("--limit <count>");
-    expect(help.stdout).toContain("--include-all-open");
-    expect(help.stdout).toContain("--create-signal-tasks");
-  });
-
-  test("control tower exposes packet staleness in operator brief", async () => {
-    const help = await runCliForTest(["control-tower", "operator-brief", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("operator-brief");
-    expect(help.stdout).toContain("--lookback-days <days>");
-    expect(help.stdout).toContain("--packet-stale-days <days>");
-  });
-
-  test("control tower exposes packet prioritizer reporting", async () => {
-    const help = await runCliForTest(["control-tower", "packet-prioritizer", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("packet-prioritizer");
-    expect(help.stdout).toContain("--limit <count>");
-    expect(help.stdout).toContain("--lookback-days <days>");
-  });
-
-  test("control tower exposes daily focus reporting", async () => {
-    const help = await runCliForTest(["control-tower", "today", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("today");
-    expect(help.stdout).toContain("--live");
-    expect(help.stdout).toContain("--limit <count>");
-    expect(help.stdout).toContain("--lookback-days <days>");
-  });
-
-  test("control tower exposes managed section block audit", async () => {
-    const help = await runCliForTest(["control-tower", "managed-section-audit", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("managed-section-audit");
-    expect(help.stdout).toContain("--section <name>");
-  });
-
-  test("control tower exposes repo mapping audit reporting", async () => {
-    const help = await runCliForTest(["control-tower", "repo-mapping-audit", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("repo-mapping-audit");
-    expect(help.stdout).toContain("--projects-root <path>");
-    expect(help.stdout).toContain("--include-all-gaps");
-    expect(help.stdout).toContain("--live-normalize-local-paths");
-  });
-
-  test("bridge-db sync exposes queue filters", async () => {
-    const help = await runCliForTest(["bridge-db", "sync", "--help"]);
-
-    expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("--shipped-only");
-    expect(help.stdout).toContain("--ops-only");
-  });
-
-  test("execution and intelligence sync expose project-page batch controls", async () => {
-    const executionHelp = await runCliForTest(["execution", "sync", "--help"]);
-    const intelligenceHelp = await runCliForTest(["intelligence", "sync", "--help"]);
-
-    expect(executionHelp.exitCode).toBe(0);
-    expect(executionHelp.stdout).toContain("--project-limit <count>");
-    expect(executionHelp.stdout).toContain("--project-offset <count>");
-    expect(executionHelp.stdout).toContain("--project-concurrency <count>");
-    expect(executionHelp.stdout).toContain("--skip-known-blocked-markdown");
-    expect(intelligenceHelp.exitCode).toBe(0);
-    expect(intelligenceHelp.stdout).toContain("--project-limit <count>");
-    expect(intelligenceHelp.stdout).toContain("--project-offset <count>");
-    expect(intelligenceHelp.stdout).toContain("--project-concurrency <count>");
-    expect(intelligenceHelp.stdout).toContain("--skip-known-blocked-markdown");
-  });
-
-  test("runs doctor json output safely on a fresh machine", async () => {
-    const tempDir = await createTempWorkspace();
-
-    const result = await runCliForTest(["doctor", "--json"], {
-      cwd: tempDir,
-      env: {
-        NOTION_DESTINATIONS_PATH: "./config/destinations.json",
-      },
-    });
-
-    expect(result.exitCode).toBe(1);
-    const report = JSON.parse(result.stdout);
-    expect(report.ok).toBe(false);
-    expect(report.runtime.profile.name).toBe("default");
-    expect(report.checks.some((check: { id: string }) => check.id === "runtime-config")).toBe(true);
-    expect(report.checks.some((check: { id: string }) => check.id === "destinations-schema")).toBe(true);
-  });
-
-  test("keeps sandbox doctor isolated from default .env leakage during cli startup", async () => {
-    const tempDir = await createSandboxCliWorkspace();
-    // The synthetic sandbox token exercises profile isolation, not provider access.
-    // Fail the access check deterministically without making a network request.
-    const verifyAccess = vi.spyOn(DirectNotionClient.prototype, "verifyAccess")
-      .mockRejectedValue(new Error("Synthetic sandbox token has no provider access"));
-
-    const result = await runCliForTest(["doctor", "--json"], {
-      cwd: tempDir,
-      env: {
-        NOTION_PROFILE: "sandbox",
-        NOTION_TOKEN: undefined,
-        NOTION_DESTINATIONS_PATH: undefined,
-        NOTION_LOG_DIR: undefined,
-        NOTION_RETRY_MAX_ATTEMPTS: undefined,
-      },
-    });
-
-    expect(result.exitCode).toBe(1);
-    const report = JSON.parse(result.stdout);
-    expect(verifyAccess).toHaveBeenCalledOnce();
-    expect(report.checks.find((check: { id: string }) => check.id === "notion-access")).toEqual(
-      expect.objectContaining({ status: "fail", message: expect.stringContaining("Synthetic sandbox token") }),
-    );
-    expect(report.runtime.profile.name).toBe("sandbox");
-    expect(report.runtime.paths.destinationsPath).toContain(
-      path.join("config", "profiles", "sandbox", "destinations.json"),
-    );
-    expect(report.checks.find((check: { id: string }) => check.id === "sandbox-path-overrides")).toEqual(
-      expect.objectContaining({ status: "pass" }),
-    );
-    expect(report.checks.find((check: { id: string }) => check.id === "sandbox-token-isolation")).toEqual(
-      expect.objectContaining({ status: "pass" }),
-    );
-  });
-
-  test("records command lifecycle events for successful runs", async () => {
-    const tempDir = await createTempWorkspace();
-    const logDir = path.join(tempDir, "logs");
-
-    const result = await runCliForTest(["doctor", "--json"], {
-      cwd: tempDir,
-      env: {
-        NOTION_DESTINATIONS_PATH: "./config/destinations.json",
-        NOTION_LOG_DIR: "./logs",
-      },
-    });
-
-    expect(result.exitCode).toBe(1);
-    const [logFileName] = await readdir(logDir);
-    expect(logFileName).toBeTruthy();
-    const logLines = (await readFile(path.join(logDir, logFileName!), "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as { action: string });
-
-    expect(logLines.map((line) => line.action)).toContain("command_started");
-    expect(logLines.map((line) => line.action)).toContain("command_completed");
-  });
-
-  test("lists configured destination aliases", async () => {
-    const tempDir = await createTempWorkspace();
-
-    const result = await runCliForTest(["destinations", "check"], {
-      cwd: tempDir,
-      env: {
-        NOTION_DESTINATIONS_PATH: "./config/destinations.json",
-      },
-    });
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
-      version: 1,
-      aliases: ["weekly_reviews", "command_center"],
-    });
-  });
-
-  test("lists recent runs in json and respects the limit", async () => {
-    const tempDir = await createTempWorkspace();
-    const logDir = path.join(tempDir, "logs");
-    await mkdir(logDir, { recursive: true });
-    await writeFile(
-      path.join(logDir, "older.jsonl"),
-      JSON.stringify({
-        action: "command_completed",
-        details: {
-          commandPath: "doctor",
-          profile: "default",
-          logFilePath: path.join(logDir, "older.jsonl"),
-          startedAt: "2026-03-29T10:00:00.000Z",
-          completedAt: "2026-03-29T10:00:01.000Z",
-          durationMs: 1000,
-          summary: { status: "completed", warningsCount: 0, failureCount: 0 },
-        },
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(logDir, "newer.jsonl"),
-      JSON.stringify({
-        action: "command_failed",
-        details: {
-          commandPath: "signals sync",
-          profile: "default",
-          logFilePath: path.join(logDir, "newer.jsonl"),
-          startedAt: "2026-03-29T11:00:00.000Z",
-          completedAt: "2026-03-29T11:00:02.000Z",
-          durationMs: 2000,
-          summary: { status: "failed", warningsCount: 0, failureCount: 1, failureCategories: ["provider_error"] },
-        },
-      }),
-      "utf8",
-    );
-
-    const result = await runCliForTest(["logs", "recent", "--json", "--limit", "1"], {
-      cwd: tempDir,
-      env: {
-        NOTION_LOG_DIR: "./logs",
-      },
-    });
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
-      ok: true,
-      runs: [
-        expect.objectContaining({
-          commandPath: "signals sync",
-          summary: expect.objectContaining({
-            status: "failed",
-          }),
-        }),
-      ],
-    });
-  });
-
-  test("skips malformed run logs safely", async () => {
-    const tempDir = await createTempWorkspace();
-    const logDir = path.join(tempDir, "logs");
-    await mkdir(logDir, { recursive: true });
-    await writeFile(path.join(logDir, "broken.jsonl"), "{nope}\n", "utf8");
-    await writeFile(
-      path.join(logDir, "good.jsonl"),
-      JSON.stringify({
-        action: "command_completed",
-        details: {
-          commandPath: "doctor",
-          profile: "default",
-          logFilePath: path.join(logDir, "good.jsonl"),
-          startedAt: "2026-03-29T09:00:00.000Z",
-          completedAt: "2026-03-29T09:00:01.000Z",
-          durationMs: 1000,
-          summary: { status: "completed", warningsCount: 0, failureCount: 0 },
-        },
-      }),
-      "utf8",
-    );
-
-    const result = await runCliForTest(["logs", "recent", "--json"], {
-      cwd: tempDir,
-      env: {
-        NOTION_LOG_DIR: "./logs",
-      },
-    });
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
-      ok: true,
-      runs: [
-        expect.objectContaining({
-          commandPath: "doctor",
-        }),
-      ],
-    });
-  });
-
-  test("runs migrated safe audit commands through the shared CLI", async () => {
-    const governance = await runCliForTest(["governance", "audit"], { cwd: repoRoot });
-    const actuation = await runCliForTest(["governance", "actuation-audit"], { cwd: repoRoot });
-    const providerExpansion = await runCliForTest(["signals", "provider-expansion-audit"], {
-      cwd: repoRoot,
-    });
-
-    expect(governance.exitCode).toBe(0);
-    expect(JSON.parse(governance.stdout)).toEqual(
-      expect.objectContaining({
-        ok: true,
-      }),
-    );
-
-    expect(actuation.exitCode).toBe(0);
-    expect(JSON.parse(actuation.stdout)).toEqual(
-      expect.objectContaining({
-        ok: true,
-      }),
-    );
-
-    expect(providerExpansion.exitCode).toBe(0);
-    expect(JSON.parse(providerExpansion.stdout)).toEqual(
-      expect.objectContaining({
-        ok: true,
-      }),
-    );
-  });
-
-  test.each([
-    { live: true, dryRun: false },
-    { live: true, dryRun: true },
-    { dryRun: false },
-  ])(
-    "explicit dry-run overrides request-file mode %j without writer calls",
-    async (mode) => {
-      const fixture = await createPublishFixture(mode);
-      const result = await runCliForTest(
-        ["publish", "--request", fixture.requestPath, "--dry-run"],
-        fixture.options,
-      );
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stderr).toBe("");
-      expect(JSON.parse(result.stdout).dryRun).toBe(true);
-      expect(fixture.writer).not.toHaveBeenCalled();
-    },
-  );
-
-  test.each([
-    { mode: { live: true, dryRun: true }, dryRun: false },
-    { mode: { dryRun: false }, dryRun: false },
-    { mode: { dryRun: true }, dryRun: true },
-    { mode: {}, dryRun: true },
-  ])(
-    "preserves request-file mode without CLI flags: %j",
-    async ({ mode, dryRun }) => {
-      const fixture = await createPublishFixture(mode);
-      const result = await runCliForTest(
-        ["publish", "--request", fixture.requestPath],
-        fixture.options,
-      );
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stderr).toBe("");
-      expect(JSON.parse(result.stdout).dryRun).toBe(dryRun);
-      expect(fixture.writer).toHaveBeenCalledTimes(dryRun ? 0 : 1);
-    },
-  );
-
-  test.each([false, true])(
-    "rejects conflicting publish mode flags (request file: %s)",
-    async (useRequest) => {
-      const fixture = await createPublishFixture({ live: true });
-      const args = useRequest
-        ? ["--request", fixture.requestPath]
-        : ["--destination", "weekly_reviews", "--file", fixture.inputPath];
-      const result = await runCliForTest(
-        ["publish", ...args, "--dry-run", "--live"],
-        fixture.options,
-      );
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        "--dry-run and --live cannot be used together",
-      );
-      expect(fixture.writer).not.toHaveBeenCalled();
-    },
-  );
-
-  test("surfaces publish validation errors without making writes", async () => {
-    const tempDir = await createTempWorkspace();
-
-    const result = await runCliForTest(["publish"], {
-      cwd: tempDir,
-      env: {
-        NOTION_DESTINATIONS_PATH: "./config/destinations.json",
-      },
-    });
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("destinationAlias");
-  });
-
-  test("records command failures in the run log", async () => {
-    const tempDir = await createTempWorkspace();
-    const logDir = path.join(tempDir, "logs");
-
-    const result = await runCliForTest(["publish"], {
-      cwd: tempDir,
-      env: {
-        NOTION_DESTINATIONS_PATH: "./config/destinations.json",
-        NOTION_LOG_DIR: "./logs",
-      },
-    });
-
-    expect(result.exitCode).toBe(1);
-    const [logFileName] = await readdir(logDir);
-    expect(logFileName).toBeTruthy();
-    const logLines = (await readFile(path.join(logDir, logFileName!), "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as { action: string });
-
-    expect(logLines.map((line) => line.action)).toContain("command_failed");
-  });
+	test("renders root help", async () => {
+		const result = await runCliForTest(["--help"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain("Notion Operating System CLI");
+		expect(result.stdout).toContain("--profile <name>");
+		expect(result.stdout).toContain("control-tower");
+		expect(result.stdout).toContain("logs");
+		expect(result.stderr).toBe("");
+	});
+
+	test("renders help for each major command family", async () => {
+		const families = [
+			["publish", "publish"],
+			["doctor", "doctor"],
+			["destinations", "check"],
+			["profiles", "show"],
+			["logs", "recent"],
+			["control-tower", "sync"],
+			["execution", "views-validate"],
+			["intelligence", "views-validate"],
+			["signals", "provider-expansion-audit"],
+			["governance", "webhook-reconcile"],
+			["rollout", "operational"],
+			["maintenance", "weekly-refresh"],
+		] as const;
+
+		for (const [family, expectedSubcommand] of families) {
+			const result = await runCliForTest([family, "--help"]);
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout).toContain(family);
+			expect(result.stdout).toContain(expectedSubcommand);
+			expect(result.stderr).toBe("");
+		}
+	});
+
+	test("renders help for the new profile portability commands", async () => {
+		const commands = [
+			["profiles", "diff"],
+			["profiles", "clone"],
+			["profiles", "bootstrap"],
+			["profiles", "upgrade"],
+		];
+
+		for (const command of commands) {
+			const result = await runCliForTest([...command, "--help"]);
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout).toContain(command[command.length - 1]!);
+			expect(result.stderr).toBe("");
+		}
+	});
+
+	test("renders help for the migrated durable subcommands", async () => {
+		const commands = [
+			["governance", "audit"],
+			["governance", "health-report"],
+			["governance", "views-validate"],
+			["governance", "actuation-audit"],
+			["governance", "webhook-shadow-drain"],
+			["governance", "webhook-reconcile"],
+			["execution", "views-validate"],
+			["intelligence", "views-validate"],
+			["signals", "views-validate"],
+			["signals", "provider-expansion-audit"],
+		];
+
+		for (const command of commands) {
+			const result = await runCliForTest([...command, "--help"]);
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout).toContain(command[command.length - 1]!);
+			expect(result.stderr).toBe("");
+		}
+	});
+
+	test("signals sync exposes scoped refresh options and validates batch flags", async () => {
+		const help = await runCliForTest(["signals", "sync", "--help"]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("--write-scope <scope>");
+		expect(help.stdout).toContain(
+			"full, providers, project-pages, portfolio-sections",
+		);
+		expect(help.stdout).toContain("--project-limit <count>");
+		expect(help.stdout).toContain("--project-offset <count>");
+		expect(help.stdout).toContain("--project-concurrency <count>");
+
+		const invalidScope = await runCliForTest([
+			"signals",
+			"sync",
+			"--write-scope",
+			"nope",
+		]);
+		expect(invalidScope.exitCode).toBe(1);
+		expect(invalidScope.stderr).toContain(
+			"Expected one of full, providers, project-pages, portfolio-sections",
+		);
+
+		const invalidBatchScope = await runCliForTest(
+			["signals", "sync", "--project-limit", "10"],
+			{
+				env: { NOTION_TOKEN: undefined },
+			},
+		);
+		expect(invalidBatchScope.exitCode).toBe(1);
+		expect(invalidBatchScope.stderr).toContain(
+			"--project-limit and --project-offset require --write-scope project-pages",
+		);
+	});
+
+	test("weekly refresh exposes targeted fast-maintenance controls", async () => {
+		const help = await runCliForTest([
+			"maintenance",
+			"weekly-refresh",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("--only <step>");
+		expect(help.stdout).toContain("--skip <step>");
+		expect(help.stdout).toContain("--max-project-pages <count>");
+		expect(help.stdout).toContain("--project-offset <count>");
+		expect(help.stdout).toContain("--project-concurrency <count>");
+		expect(help.stdout).toContain("--step-timeout-minutes <minutes>");
+		expect(help.stdout).toContain("--max-step-attempts <count>");
+		expect(help.stdout).toContain("--fast");
+		expect(help.stdout).toContain("--summary-first");
+		expect(help.stdout).toContain("--skip-known-blocked-markdown");
+		expect(help.stdout).toContain("--stream-child-output");
+	});
+
+	test("control tower exposes stale active rescue reporting", async () => {
+		const help = await runCliForTest([
+			"control-tower",
+			"stale-active-rescue",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("stale-active-rescue");
+		expect(help.stdout).toContain("--live");
+		expect(help.stdout).toContain("--limit <count>");
+		expect(help.stdout).toContain("--missing-repos-only");
+	});
+
+	test("control tower exposes review recovery", async () => {
+		const help = await runCliForTest([
+			"control-tower",
+			"review-recovery",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("review-recovery");
+		expect(help.stdout).toContain("--live");
+		expect(help.stdout).toContain("--limit <count>");
+		expect(help.stdout).toContain("--include-metadata-gaps");
+		expect(help.stdout).toContain("--project-title <title>");
+	});
+
+	test("control tower exposes packet follow-through reporting", async () => {
+		const help = await runCliForTest([
+			"control-tower",
+			"packet-follow-through",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("packet-follow-through");
+		expect(help.stdout).toContain("--live");
+		expect(help.stdout).toContain("--limit <count>");
+		expect(help.stdout).toContain("--include-all-open");
+		expect(help.stdout).toContain("--create-signal-tasks");
+	});
+
+	test("control tower exposes packet staleness in operator brief", async () => {
+		const help = await runCliForTest([
+			"control-tower",
+			"operator-brief",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("operator-brief");
+		expect(help.stdout).toContain("--lookback-days <days>");
+		expect(help.stdout).toContain("--packet-stale-days <days>");
+	});
+
+	test("control tower exposes packet prioritizer reporting", async () => {
+		const help = await runCliForTest([
+			"control-tower",
+			"packet-prioritizer",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("packet-prioritizer");
+		expect(help.stdout).toContain("--limit <count>");
+		expect(help.stdout).toContain("--lookback-days <days>");
+	});
+
+	test("control tower exposes daily focus reporting", async () => {
+		const help = await runCliForTest(["control-tower", "today", "--help"]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("today");
+		expect(help.stdout).toContain("--live");
+		expect(help.stdout).toContain("--limit <count>");
+		expect(help.stdout).toContain("--lookback-days <days>");
+	});
+
+	test("control tower exposes managed section block audit", async () => {
+		const help = await runCliForTest([
+			"control-tower",
+			"managed-section-audit",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("managed-section-audit");
+		expect(help.stdout).toContain("--section <name>");
+	});
+
+	test("control tower exposes repo mapping audit reporting", async () => {
+		const help = await runCliForTest([
+			"control-tower",
+			"repo-mapping-audit",
+			"--help",
+		]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("repo-mapping-audit");
+		expect(help.stdout).toContain("--projects-root <path>");
+		expect(help.stdout).toContain("--include-all-gaps");
+		expect(help.stdout).toContain("--live-normalize-local-paths");
+	});
+
+	test("bridge-db sync exposes queue filters", async () => {
+		const help = await runCliForTest(["bridge-db", "sync", "--help"]);
+
+		expect(help.exitCode).toBe(0);
+		expect(help.stdout).toContain("--shipped-only");
+		expect(help.stdout).toContain("--ops-only");
+	});
+
+	test("execution and intelligence sync expose project-page batch controls", async () => {
+		const executionHelp = await runCliForTest(["execution", "sync", "--help"]);
+		const intelligenceHelp = await runCliForTest([
+			"intelligence",
+			"sync",
+			"--help",
+		]);
+
+		expect(executionHelp.exitCode).toBe(0);
+		expect(executionHelp.stdout).toContain("--project-limit <count>");
+		expect(executionHelp.stdout).toContain("--project-offset <count>");
+		expect(executionHelp.stdout).toContain("--project-concurrency <count>");
+		expect(executionHelp.stdout).toContain("--skip-known-blocked-markdown");
+		expect(intelligenceHelp.exitCode).toBe(0);
+		expect(intelligenceHelp.stdout).toContain("--project-limit <count>");
+		expect(intelligenceHelp.stdout).toContain("--project-offset <count>");
+		expect(intelligenceHelp.stdout).toContain("--project-concurrency <count>");
+		expect(intelligenceHelp.stdout).toContain("--skip-known-blocked-markdown");
+	});
+
+	test("runs doctor json output safely on a fresh machine", async () => {
+		const tempDir = await createTempWorkspace();
+
+		const result = await runCliForTest(["doctor", "--json"], {
+			cwd: tempDir,
+			env: {
+				NOTION_DESTINATIONS_PATH: "./config/destinations.json",
+			},
+		});
+
+		expect(result.exitCode).toBe(1);
+		const report = JSON.parse(result.stdout);
+		expect(report.ok).toBe(false);
+		expect(report.runtime.profile.name).toBe("default");
+		expect(
+			report.checks.some(
+				(check: { id: string }) => check.id === "runtime-config",
+			),
+		).toBe(true);
+		expect(
+			report.checks.some(
+				(check: { id: string }) => check.id === "destinations-schema",
+			),
+		).toBe(true);
+	});
+
+	test("keeps sandbox doctor isolated from default .env leakage during cli startup", async () => {
+		const tempDir = await createSandboxCliWorkspace();
+		// The synthetic sandbox token exercises profile isolation, not provider access.
+		// Fail the access check deterministically without making a network request.
+		const verifyAccess = vi
+			.spyOn(DirectNotionClient.prototype, "verifyAccess")
+			.mockRejectedValue(
+				new Error("Synthetic sandbox token has no provider access"),
+			);
+
+		const result = await runCliForTest(["doctor", "--json"], {
+			cwd: tempDir,
+			env: {
+				NOTION_PROFILE: "sandbox",
+				NOTION_TOKEN: undefined,
+				NOTION_DESTINATIONS_PATH: undefined,
+				NOTION_LOG_DIR: undefined,
+				NOTION_RETRY_MAX_ATTEMPTS: undefined,
+			},
+		});
+
+		expect(result.exitCode).toBe(1);
+		const report = JSON.parse(result.stdout);
+		expect(verifyAccess).toHaveBeenCalledOnce();
+		expect(
+			report.checks.find(
+				(check: { id: string }) => check.id === "notion-access",
+			),
+		).toEqual(
+			expect.objectContaining({
+				status: "fail",
+				message: expect.stringContaining("Synthetic sandbox token"),
+			}),
+		);
+		expect(report.runtime.profile.name).toBe("sandbox");
+		expect(report.runtime.paths.destinationsPath).toContain(
+			path.join("config", "profiles", "sandbox", "destinations.json"),
+		);
+		expect(
+			report.checks.find(
+				(check: { id: string }) => check.id === "sandbox-path-overrides",
+			),
+		).toEqual(expect.objectContaining({ status: "pass" }));
+		expect(
+			report.checks.find(
+				(check: { id: string }) => check.id === "sandbox-token-isolation",
+			),
+		).toEqual(expect.objectContaining({ status: "pass" }));
+	});
+
+	test("records command lifecycle events for successful runs", async () => {
+		const tempDir = await createTempWorkspace();
+		const logDir = path.join(tempDir, "logs");
+
+		const result = await runCliForTest(["doctor", "--json"], {
+			cwd: tempDir,
+			env: {
+				NOTION_DESTINATIONS_PATH: "./config/destinations.json",
+				NOTION_LOG_DIR: "./logs",
+			},
+		});
+
+		expect(result.exitCode).toBe(1);
+		const [logFileName] = await readdir(logDir);
+		expect(logFileName).toBeTruthy();
+		const logLines = (await readFile(path.join(logDir, logFileName!), "utf8"))
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line) as { action: string });
+
+		expect(logLines.map((line) => line.action)).toContain("command_started");
+		expect(logLines.map((line) => line.action)).toContain("command_completed");
+	});
+
+	test("lists configured destination aliases", async () => {
+		const tempDir = await createTempWorkspace();
+
+		const result = await runCliForTest(["destinations", "check"], {
+			cwd: tempDir,
+			env: {
+				NOTION_DESTINATIONS_PATH: "./config/destinations.json",
+			},
+		});
+
+		expect(result.exitCode).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			version: 1,
+			aliases: ["weekly_reviews", "command_center"],
+		});
+	});
+
+	test("lists recent runs in json and respects the limit", async () => {
+		const tempDir = await createTempWorkspace();
+		const logDir = path.join(tempDir, "logs");
+		await mkdir(logDir, { recursive: true });
+		await writeFile(
+			path.join(logDir, "older.jsonl"),
+			JSON.stringify({
+				action: "command_completed",
+				details: {
+					commandPath: "doctor",
+					profile: "default",
+					logFilePath: path.join(logDir, "older.jsonl"),
+					startedAt: "2026-03-29T10:00:00.000Z",
+					completedAt: "2026-03-29T10:00:01.000Z",
+					durationMs: 1000,
+					summary: { status: "completed", warningsCount: 0, failureCount: 0 },
+				},
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(logDir, "newer.jsonl"),
+			JSON.stringify({
+				action: "command_failed",
+				details: {
+					commandPath: "signals sync",
+					profile: "default",
+					logFilePath: path.join(logDir, "newer.jsonl"),
+					startedAt: "2026-03-29T11:00:00.000Z",
+					completedAt: "2026-03-29T11:00:02.000Z",
+					durationMs: 2000,
+					summary: {
+						status: "failed",
+						warningsCount: 0,
+						failureCount: 1,
+						failureCategories: ["provider_error"],
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const result = await runCliForTest(
+			["logs", "recent", "--json", "--limit", "1"],
+			{
+				cwd: tempDir,
+				env: {
+					NOTION_LOG_DIR: "./logs",
+				},
+			},
+		);
+
+		expect(result.exitCode).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			ok: true,
+			runs: [
+				expect.objectContaining({
+					commandPath: "signals sync",
+					summary: expect.objectContaining({
+						status: "failed",
+					}),
+				}),
+			],
+		});
+	});
+
+	test("skips malformed run logs safely", async () => {
+		const tempDir = await createTempWorkspace();
+		const logDir = path.join(tempDir, "logs");
+		await mkdir(logDir, { recursive: true });
+		await writeFile(path.join(logDir, "broken.jsonl"), "{nope}\n", "utf8");
+		await writeFile(
+			path.join(logDir, "good.jsonl"),
+			JSON.stringify({
+				action: "command_completed",
+				details: {
+					commandPath: "doctor",
+					profile: "default",
+					logFilePath: path.join(logDir, "good.jsonl"),
+					startedAt: "2026-03-29T09:00:00.000Z",
+					completedAt: "2026-03-29T09:00:01.000Z",
+					durationMs: 1000,
+					summary: { status: "completed", warningsCount: 0, failureCount: 0 },
+				},
+			}),
+			"utf8",
+		);
+
+		const result = await runCliForTest(["logs", "recent", "--json"], {
+			cwd: tempDir,
+			env: {
+				NOTION_LOG_DIR: "./logs",
+			},
+		});
+
+		expect(result.exitCode).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			ok: true,
+			runs: [
+				expect.objectContaining({
+					commandPath: "doctor",
+				}),
+			],
+		});
+	});
+
+	test("runs migrated safe audit commands through the shared CLI", async () => {
+		const governance = await runCliForTest(["governance", "audit"], {
+			cwd: repoRoot,
+		});
+		const actuation = await runCliForTest(["governance", "actuation-audit"], {
+			cwd: repoRoot,
+		});
+		const providerExpansion = await runCliForTest(
+			["signals", "provider-expansion-audit"],
+			{
+				cwd: repoRoot,
+			},
+		);
+
+		expect(governance.exitCode).toBe(0);
+		expect(JSON.parse(governance.stdout)).toEqual(
+			expect.objectContaining({
+				ok: true,
+			}),
+		);
+
+		expect(actuation.exitCode).toBe(0);
+		expect(JSON.parse(actuation.stdout)).toEqual(
+			expect.objectContaining({
+				ok: true,
+			}),
+		);
+
+		expect(providerExpansion.exitCode).toBe(0);
+		expect(JSON.parse(providerExpansion.stdout)).toEqual(
+			expect.objectContaining({
+				ok: true,
+			}),
+		);
+	});
+
+	test.each([
+		{ live: true, dryRun: false },
+		{ live: true, dryRun: true },
+		{ dryRun: false },
+	])(
+		"explicit dry-run overrides request-file mode %j without writer calls",
+		async (mode) => {
+			const fixture = await createPublishFixture(mode);
+			const result = await runCliForTest(
+				["publish", "--request", fixture.requestPath, "--dry-run"],
+				fixture.options,
+			);
+
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(JSON.parse(result.stdout).dryRun).toBe(true);
+			expect(fixture.writer).not.toHaveBeenCalled();
+		},
+	);
+
+	test.each([
+		{ mode: { live: true, dryRun: true }, dryRun: false },
+		{ mode: { dryRun: false }, dryRun: false },
+		{ mode: { dryRun: true }, dryRun: true },
+		{ mode: {}, dryRun: true },
+	])(
+		"preserves request-file mode without CLI flags: %j",
+		async ({ mode, dryRun }) => {
+			const fixture = await createPublishFixture(mode);
+			const result = await runCliForTest(
+				["publish", "--request", fixture.requestPath],
+				fixture.options,
+			);
+
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(JSON.parse(result.stdout).dryRun).toBe(dryRun);
+			expect(fixture.writer).toHaveBeenCalledTimes(dryRun ? 0 : 1);
+		},
+	);
+
+	test.each([false, true])(
+		"rejects conflicting publish mode flags (request file: %s)",
+		async (useRequest) => {
+			const fixture = await createPublishFixture({ live: true });
+			const args = useRequest
+				? ["--request", fixture.requestPath]
+				: ["--destination", "weekly_reviews", "--file", fixture.inputPath];
+			const result = await runCliForTest(
+				["publish", ...args, "--dry-run", "--live"],
+				fixture.options,
+			);
+
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(
+				"--dry-run and --live cannot be used together",
+			);
+			expect(fixture.writer).not.toHaveBeenCalled();
+		},
+	);
+
+	test("surfaces publish validation errors without making writes", async () => {
+		const tempDir = await createTempWorkspace();
+
+		const result = await runCliForTest(["publish"], {
+			cwd: tempDir,
+			env: {
+				NOTION_DESTINATIONS_PATH: "./config/destinations.json",
+			},
+		});
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("destinationAlias");
+	});
+
+	test("records command failures in the run log", async () => {
+		const tempDir = await createTempWorkspace();
+		const logDir = path.join(tempDir, "logs");
+
+		const result = await runCliForTest(["publish"], {
+			cwd: tempDir,
+			env: {
+				NOTION_DESTINATIONS_PATH: "./config/destinations.json",
+				NOTION_LOG_DIR: "./logs",
+			},
+		});
+
+		expect(result.exitCode).toBe(1);
+		const [logFileName] = await readdir(logDir);
+		expect(logFileName).toBeTruthy();
+		const logLines = (await readFile(path.join(logDir, logFileName!), "utf8"))
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line) as { action: string });
+
+		expect(logLines.map((line) => line.action)).toContain("command_failed");
+	});
 });
 
 describe("cli parser", () => {
-  test("parses booleans and repeated values", () => {
-    const parsed = parseCliArgs(["--live", "--property", "a=1", "--property", "b=true"], [
-      { name: "live", description: "live", type: "boolean" },
-      { name: "property", description: "property", type: "string-array" },
-    ]);
+	test("parses booleans and repeated values", () => {
+		const parsed = parseCliArgs(
+			["--live", "--property", "a=1", "--property", "b=true"],
+			[
+				{ name: "live", description: "live", type: "boolean" },
+				{ name: "property", description: "property", type: "string-array" },
+			],
+		);
 
-    expect(parsed.options.live).toBe(true);
-    expect(parsed.options.property).toEqual(["a=1", "b=true"]);
-  });
+		expect(parsed.options.live).toBe(true);
+		expect(parsed.options.property).toEqual(["a=1", "b=true"]);
+	});
 
-  test("maps option aliases to their canonical option names", () => {
-    const parsed = parseCliArgs(["--dry-run"], [
-      {
-        name: "dryRun",
-        aliases: ["dry-run"],
-        description: "dry",
-        type: "boolean",
-      },
-    ]);
+	test("maps option aliases to their canonical option names", () => {
+		const parsed = parseCliArgs(
+			["--dry-run"],
+			[
+				{
+					name: "dryRun",
+					aliases: ["dry-run"],
+					description: "dry",
+					type: "boolean",
+				},
+			],
+		);
 
-    expect(parsed.options.dryRun).toBe(true);
-    expect(parsed.options["dry-run"]).toBeUndefined();
-  });
+		expect(parsed.options.dryRun).toBe(true);
+		expect(parsed.options["dry-run"]).toBeUndefined();
+	});
 
-  test("keeps canonical camelCase flags working when aliases exist", () => {
-    const parsed = parseCliArgs(["--dryRun"], [
-      {
-        name: "dryRun",
-        aliases: ["dry-run"],
-        description: "dry",
-        type: "boolean",
-      },
-    ]);
+	test("keeps canonical camelCase flags working when aliases exist", () => {
+		const parsed = parseCliArgs(
+			["--dryRun"],
+			[
+				{
+					name: "dryRun",
+					aliases: ["dry-run"],
+					description: "dry",
+					type: "boolean",
+				},
+			],
+		);
 
-    expect(parsed.options.dryRun).toBe(true);
-  });
+		expect(parsed.options.dryRun).toBe(true);
+	});
 
-  test("keeps a legacy positional config path compatible with named flags", () => {
-    const parsed = parseCliArgs(["./control-tower.json", "--today", "2026-03-28"], [
-      { name: "today", description: "today", type: "string" },
-      { name: "config", description: "config", type: "string" },
-    ]);
+	test("keeps a legacy positional config path compatible with named flags", () => {
+		const parsed = parseCliArgs(
+			["./control-tower.json", "--today", "2026-03-28"],
+			[
+				{ name: "today", description: "today", type: "string" },
+				{ name: "config", description: "config", type: "string" },
+			],
+		);
 
-    expect(
-      resolveOptionalControlTowerConfigPath({
-        config: parsed.options.config as string | undefined,
-        positionals: parsed.positionals,
-      }),
-    ).toBe("./control-tower.json");
-  });
+		expect(
+			resolveOptionalControlTowerConfigPath({
+				config: parsed.options.config as string | undefined,
+				positionals: parsed.positionals,
+			}),
+		).toBe("./control-tower.json");
+	});
 
-  test("rejects unknown flags", () => {
-    expect(() => parseCliArgs(["--mystery"], [])).toThrow('Unknown flag "--mystery"');
-  });
+	test("rejects unknown flags", () => {
+		expect(() => parseCliArgs(["--mystery"], [])).toThrow(
+			'Unknown flag "--mystery"',
+		);
+	});
 });
 
 describe("profiles cli", () => {
-  test("lists an implicit default profile on a legacy workspace", async () => {
-    const tempDir = await createTempWorkspace();
+	test("lists an implicit default profile on a legacy workspace", async () => {
+		const tempDir = await createTempWorkspace();
 
-    const result = await runCliForTest(["profiles", "list"], { cwd: tempDir });
+		const result = await runCliForTest(["profiles", "list"], { cwd: tempDir });
 
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
-      ok: true,
-      profiles: [
-        expect.objectContaining({
-          name: "default",
-          kind: "primary",
-          implicit: true,
-          configVersion: 1,
-          isActive: true,
-        }),
-      ],
-    });
-  });
+		expect(result.exitCode).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			ok: true,
+			profiles: [
+				expect.objectContaining({
+					name: "default",
+					kind: "primary",
+					implicit: true,
+					configVersion: 1,
+					isActive: true,
+				}),
+			],
+		});
+	});
 
-  test("shows an explicitly selected profile", async () => {
-    const tempDir = await createProfiledWorkspace();
+	test("shows an explicitly selected profile", async () => {
+		const tempDir = await createProfiledWorkspace();
 
-    const result = await runCliForTest(["--profile", "work", "profiles", "show"], { cwd: tempDir });
-    const payload = JSON.parse(result.stdout);
+		const result = await runCliForTest(
+			["--profile", "work", "profiles", "show"],
+			{ cwd: tempDir },
+		);
+		const payload = JSON.parse(result.stdout);
 
-    expect(result.exitCode).toBe(0);
-    expect(payload.profile.name).toBe("work");
-    expect(payload.profile.kind).toBe("primary");
-    expect(payload.profile.implicit).toBe(false);
-    expect(payload.profile.configVersion).toBe(1);
-    expect(payload.profile.sourceConfigVersion).toBe(0);
-    expect(payload.profile.destinationsPath).toContain(path.join("config", "profiles", "work", "destinations.json"));
-  });
+		expect(result.exitCode).toBe(0);
+		expect(payload.profile.name).toBe("work");
+		expect(payload.profile.kind).toBe("primary");
+		expect(payload.profile.implicit).toBe(false);
+		expect(payload.profile.configVersion).toBe(1);
+		expect(payload.profile.sourceConfigVersion).toBe(0);
+		expect(payload.profile.destinationsPath).toContain(
+			path.join("config", "profiles", "work", "destinations.json"),
+		);
+	});
 
-  test("migrates a legacy workspace in preview first and then writes the profile files", async () => {
-    const tempDir = await createTempWorkspace();
+	test("migrates a legacy workspace in preview first and then writes the profile files", async () => {
+		const tempDir = await createTempWorkspace();
 
-    const preview = await runCliForTest(["profiles", "migrate"], { cwd: tempDir });
-    expect(preview.exitCode).toBe(0);
-    expect(JSON.parse(preview.stdout)).toEqual(
-      expect.objectContaining({
-        wrote: false,
-        alreadyMaterialized: false,
-      }),
-    );
+		const preview = await runCliForTest(["profiles", "migrate"], {
+			cwd: tempDir,
+		});
+		expect(preview.exitCode).toBe(0);
+		expect(JSON.parse(preview.stdout)).toEqual(
+			expect.objectContaining({
+				wrote: false,
+				alreadyMaterialized: false,
+			}),
+		);
 
-    const written = await runCliForTest(["profiles", "migrate", "--write"], { cwd: tempDir });
-    expect(written.exitCode).toBe(0);
-    expect(JSON.parse(written.stdout)).toEqual(
-      expect.objectContaining({
-        wrote: true,
-      }),
-    );
+		const written = await runCliForTest(["profiles", "migrate", "--write"], {
+			cwd: tempDir,
+		});
+		expect(written.exitCode).toBe(0);
+		expect(JSON.parse(written.stdout)).toEqual(
+			expect.objectContaining({
+				wrote: true,
+			}),
+		);
 
-    const registry = JSON.parse(await readFile(path.join(tempDir, "config", "profiles.json"), "utf8"));
-    expect(registry.profiles).toContain("default");
-  });
+		const registry = JSON.parse(
+			await readFile(path.join(tempDir, "config", "profiles.json"), "utf8"),
+		);
+		expect(registry.profiles).toContain("default");
+	});
 
-  test("exports a non-secret profile bundle and imports it preview-first", async () => {
-    const sourceDir = await createProfiledWorkspace();
-    await writeFile(path.join(sourceDir, ".env.work"), "NOTION_TOKEN=secret_value\n", "utf8");
-    const bundlePath = path.join(sourceDir, "tmp", "work-profile.bundle.json");
+	test("exports a non-secret profile bundle and imports it preview-first", async () => {
+		const sourceDir = await createProfiledWorkspace();
+		await writeFile(
+			path.join(sourceDir, ".env.work"),
+			"NOTION_TOKEN=secret_value\n",
+			"utf8",
+		);
+		const bundlePath = path.join(sourceDir, "tmp", "work-profile.bundle.json");
 
-    const exportResult = await runCliForTest(
-      ["--profile", "work", "profiles", "export", "--output", bundlePath],
-      { cwd: sourceDir },
-    );
-    expect(exportResult.exitCode).toBe(0);
+		const exportResult = await runCliForTest(
+			["--profile", "work", "profiles", "export", "--output", bundlePath],
+			{ cwd: sourceDir },
+		);
+		expect(exportResult.exitCode).toBe(0);
 
-    const bundleText = await readFile(bundlePath, "utf8");
-    expect(bundleText).not.toContain("secret_value");
-    const bundle = JSON.parse(bundleText);
-    expect(bundle.version).toBe(2);
-    expect(bundle.profile.configVersion).toBe(1);
-    expect(bundle.files.some((file: { relativePath: string }) => file.relativePath === "env.template")).toBe(true);
+		const bundleText = await readFile(bundlePath, "utf8");
+		expect(bundleText).not.toContain("secret_value");
+		const bundle = JSON.parse(bundleText);
+		expect(bundle.version).toBe(2);
+		expect(bundle.profile.configVersion).toBe(1);
+		expect(
+			bundle.files.some(
+				(file: { relativePath: string }) =>
+					file.relativePath === "env.template",
+			),
+		).toBe(true);
 
-    const targetDir = await createTempWorkspace();
-    const previewImport = await runCliForTest(
-      ["profiles", "import", "--bundle", bundlePath, "--target", "imported"],
-      { cwd: targetDir },
-    );
-    expect(previewImport.exitCode).toBe(0);
-    expect(JSON.parse(previewImport.stdout)).toEqual(
-      expect.objectContaining({
-        wrote: false,
-        targetProfile: "imported",
-      }),
-    );
+		const targetDir = await createTempWorkspace();
+		const previewImport = await runCliForTest(
+			["profiles", "import", "--bundle", bundlePath, "--target", "imported"],
+			{ cwd: targetDir },
+		);
+		expect(previewImport.exitCode).toBe(0);
+		expect(JSON.parse(previewImport.stdout)).toEqual(
+			expect.objectContaining({
+				wrote: false,
+				targetProfile: "imported",
+			}),
+		);
 
-    const writeImport = await runCliForTest(
-      ["profiles", "import", "--bundle", bundlePath, "--target", "imported", "--write"],
-      { cwd: targetDir },
-    );
-    expect(writeImport.exitCode).toBe(0);
+		const writeImport = await runCliForTest(
+			[
+				"profiles",
+				"import",
+				"--bundle",
+				bundlePath,
+				"--target",
+				"imported",
+				"--write",
+			],
+			{ cwd: targetDir },
+		);
+		expect(writeImport.exitCode).toBe(0);
 
-    const importedDescriptor = JSON.parse(
-      await readFile(path.join(targetDir, "config", "profiles", "imported.json"), "utf8"),
-    );
-    expect(importedDescriptor.configVersion).toBe(1);
-    expect(importedDescriptor.name).toBe("imported");
-    expect(await readFile(path.join(targetDir, ".env.imported"), "utf8")).toContain("NOTION_TOKEN");
-  });
+		const importedDescriptor = JSON.parse(
+			await readFile(
+				path.join(targetDir, "config", "profiles", "imported.json"),
+				"utf8",
+			),
+		);
+		expect(importedDescriptor.configVersion).toBe(1);
+		expect(importedDescriptor.name).toBe("imported");
+		expect(
+			await readFile(path.join(targetDir, ".env.imported"), "utf8"),
+		).toContain("NOTION_TOKEN");
+	});
 
-  test("diffs the active profile against another profile and a bundle", async () => {
-    const tempDir = await createProfiledWorkspace();
-    const secondProfileDir = path.join(tempDir, "config", "profiles", "personal");
-    await mkdir(secondProfileDir, { recursive: true });
-    await writeFile(
-      path.join(tempDir, "config", "profiles.json"),
-      JSON.stringify({
-        version: 1,
-        defaultProfile: "work",
-        profiles: ["personal", "work"],
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(tempDir, "config", "profiles", "personal.json"),
-      JSON.stringify({
-        configVersion: 1,
-        name: "personal",
-        label: "Personal Workspace",
-        envFile: ".env.personal",
-        destinationsPath: "./config/profiles/personal/destinations.json",
-        controlTowerConfigPath: "./config/profiles/personal/local-portfolio-control-tower.json",
-      }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(secondProfileDir, "destinations.json"),
-      JSON.stringify({ version: 1, destinations: [] }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(secondProfileDir, "local-portfolio-control-tower.json"),
-      JSON.stringify({ version: 1, profile: "personal" }),
-      "utf8",
-    );
-    const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
-    await runCliForTest(["--profile", "work", "profiles", "export", "--output", bundlePath], { cwd: tempDir });
+	test("diffs the active profile against another profile and a bundle", async () => {
+		const tempDir = await createProfiledWorkspace();
+		const secondProfileDir = path.join(
+			tempDir,
+			"config",
+			"profiles",
+			"personal",
+		);
+		await mkdir(secondProfileDir, { recursive: true });
+		await writeFile(
+			path.join(tempDir, "config", "profiles.json"),
+			JSON.stringify({
+				version: 1,
+				defaultProfile: "work",
+				profiles: ["personal", "work"],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(tempDir, "config", "profiles", "personal.json"),
+			JSON.stringify({
+				configVersion: 1,
+				name: "personal",
+				label: "Personal Workspace",
+				envFile: ".env.personal",
+				destinationsPath: "./config/profiles/personal/destinations.json",
+				controlTowerConfigPath:
+					"./config/profiles/personal/local-portfolio-control-tower.json",
+			}),
+			"utf8",
+		);
+		await writeFile(
+			path.join(secondProfileDir, "destinations.json"),
+			JSON.stringify({ version: 1, destinations: [] }),
+			"utf8",
+		);
+		await writeFile(
+			path.join(secondProfileDir, "local-portfolio-control-tower.json"),
+			JSON.stringify({ version: 1, profile: "personal" }),
+			"utf8",
+		);
+		const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
+		await runCliForTest(
+			["--profile", "work", "profiles", "export", "--output", bundlePath],
+			{ cwd: tempDir },
+		);
 
-    const profileDiff = await runCliForTest(
-      ["--profile", "work", "profiles", "diff", "--against-profile", "personal", "--json"],
-      { cwd: tempDir },
-    );
-    expect(profileDiff.exitCode).toBe(0);
-    expect(JSON.parse(profileDiff.stdout)).toEqual(
-      expect.objectContaining({
-        ok: true,
-        targetType: "profile",
-        descriptorDifferences: expect.arrayContaining([
-          expect.objectContaining({ field: "name", target: "personal" }),
-        ]),
-        files: expect.arrayContaining([
-          expect.objectContaining({ status: "changed" }),
-        ]),
-      }),
-    );
+		const profileDiff = await runCliForTest(
+			[
+				"--profile",
+				"work",
+				"profiles",
+				"diff",
+				"--against-profile",
+				"personal",
+				"--json",
+			],
+			{ cwd: tempDir },
+		);
+		expect(profileDiff.exitCode).toBe(0);
+		expect(JSON.parse(profileDiff.stdout)).toEqual(
+			expect.objectContaining({
+				ok: true,
+				targetType: "profile",
+				descriptorDifferences: expect.arrayContaining([
+					expect.objectContaining({ field: "name", target: "personal" }),
+				]),
+				files: expect.arrayContaining([
+					expect.objectContaining({ status: "changed" }),
+				]),
+			}),
+		);
 
-    const bundleDiff = await runCliForTest(
-      ["--profile", "work", "profiles", "diff", "--against-bundle", bundlePath, "--json"],
-      { cwd: tempDir },
-    );
-    expect(bundleDiff.exitCode).toBe(0);
-    expect(JSON.parse(bundleDiff.stdout)).toEqual(
-      expect.objectContaining({
-        ok: true,
-        targetType: "bundle",
-      }),
-    );
-  });
+		const bundleDiff = await runCliForTest(
+			[
+				"--profile",
+				"work",
+				"profiles",
+				"diff",
+				"--against-bundle",
+				bundlePath,
+				"--json",
+			],
+			{ cwd: tempDir },
+		);
+		expect(bundleDiff.exitCode).toBe(0);
+		expect(JSON.parse(bundleDiff.stdout)).toEqual(
+			expect.objectContaining({
+				ok: true,
+				targetType: "bundle",
+			}),
+		);
+	});
 
-  test("clones a profile preview-first and defaults sandbox targets to sandbox kind on write", async () => {
-    const tempDir = await createProfiledWorkspace();
-    await writeFile(path.join(tempDir, ".env.sandbox"), "NOTION_TOKEN=keep_me\n", "utf8");
+	test("clones a profile preview-first and defaults sandbox targets to sandbox kind on write", async () => {
+		const tempDir = await createProfiledWorkspace();
+		await writeFile(
+			path.join(tempDir, ".env.sandbox"),
+			"NOTION_TOKEN=keep_me\n",
+			"utf8",
+		);
 
-    const preview = await runCliForTest(
-      ["profiles", "clone", "--source", "work", "--target", "sandbox", "--json"],
-      { cwd: tempDir },
-    );
-    expect(preview.exitCode).toBe(0);
-    expect(JSON.parse(preview.stdout)).toEqual(
-      expect.objectContaining({
-        wrote: false,
-        actions: expect.arrayContaining([
-          expect.objectContaining({ action: "create" }),
-          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.sandbox") }),
-        ]),
-      }),
-    );
+		const preview = await runCliForTest(
+			[
+				"profiles",
+				"clone",
+				"--source",
+				"work",
+				"--target",
+				"sandbox",
+				"--json",
+			],
+			{ cwd: tempDir },
+		);
+		expect(preview.exitCode).toBe(0);
+		expect(JSON.parse(preview.stdout)).toEqual(
+			expect.objectContaining({
+				wrote: false,
+				actions: expect.arrayContaining([
+					expect.objectContaining({ action: "create" }),
+					expect.objectContaining({
+						action: "preserve",
+						path: expect.stringContaining(".env.sandbox"),
+					}),
+				]),
+			}),
+		);
 
-    const written = await runCliForTest(
-      ["profiles", "clone", "--source", "work", "--target", "sandbox", "--write", "--json"],
-      { cwd: tempDir },
-    );
-    expect(written.exitCode).toBe(0);
-    const clonedDescriptor = JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "sandbox.json"), "utf8"));
-    expect(clonedDescriptor.configVersion).toBe(1);
-    expect(clonedDescriptor.kind).toBe("sandbox");
-    expect(
-      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "sandbox", "destinations.json"), "utf8")),
-    ).toEqual(expect.objectContaining({ version: 1 }));
-    expect(await readFile(path.join(tempDir, ".env.sandbox"), "utf8")).toContain("keep_me");
-  });
+		const written = await runCliForTest(
+			[
+				"profiles",
+				"clone",
+				"--source",
+				"work",
+				"--target",
+				"sandbox",
+				"--write",
+				"--json",
+			],
+			{ cwd: tempDir },
+		);
+		expect(written.exitCode).toBe(0);
+		const clonedDescriptor = JSON.parse(
+			await readFile(
+				path.join(tempDir, "config", "profiles", "sandbox.json"),
+				"utf8",
+			),
+		);
+		expect(clonedDescriptor.configVersion).toBe(1);
+		expect(clonedDescriptor.kind).toBe("sandbox");
+		expect(
+			JSON.parse(
+				await readFile(
+					path.join(
+						tempDir,
+						"config",
+						"profiles",
+						"sandbox",
+						"destinations.json",
+					),
+					"utf8",
+				),
+			),
+		).toEqual(expect.objectContaining({ version: 1 }));
+		expect(
+			await readFile(path.join(tempDir, ".env.sandbox"), "utf8"),
+		).toContain("keep_me");
+	});
 
-  test("preserves the source profile kind when cloning a sandbox profile to a non-sandbox name", async () => {
-    const tempDir = await createSandboxCliWorkspace();
+	test("preserves the source profile kind when cloning a sandbox profile to a non-sandbox name", async () => {
+		const tempDir = await createSandboxCliWorkspace();
 
-    const written = await runCliForTest(
-      ["profiles", "clone", "--source", "sandbox", "--target", "rehearsal", "--write", "--json"],
-      { cwd: tempDir },
-    );
+		const written = await runCliForTest(
+			[
+				"profiles",
+				"clone",
+				"--source",
+				"sandbox",
+				"--target",
+				"rehearsal",
+				"--write",
+				"--json",
+			],
+			{ cwd: tempDir },
+		);
 
-    expect(written.exitCode).toBe(0);
-    const clonedDescriptor = JSON.parse(
-      await readFile(path.join(tempDir, "config", "profiles", "rehearsal.json"), "utf8"),
-    );
-    expect(clonedDescriptor.kind).toBe("sandbox");
-  });
+		expect(written.exitCode).toBe(0);
+		const clonedDescriptor = JSON.parse(
+			await readFile(
+				path.join(tempDir, "config", "profiles", "rehearsal.json"),
+				"utf8",
+			),
+		);
+		expect(clonedDescriptor.kind).toBe("sandbox");
+	});
 
-  test("bootstraps only missing files from defaults or a bundle and preserves sandbox kind", async () => {
-    const tempDir = await createProfiledWorkspace();
-    const bootstrapDir = path.join(tempDir, "config", "profiles", "bootstrap");
-    await mkdir(bootstrapDir, { recursive: true });
-    await writeFile(path.join(tempDir, ".env.bootstrap"), "NOTION_TOKEN=existing\n", "utf8");
-    await writeFile(
-      path.join(tempDir, "config", "profiles", "bootstrap.json"),
-      JSON.stringify({
-        configVersion: 1,
-        name: "bootstrap",
-        label: "Bootstrap Workspace",
-        envFile: ".env.bootstrap",
-        destinationsPath: "./config/profiles/bootstrap/destinations.json",
-        controlTowerConfigPath: "./config/profiles/bootstrap/local-portfolio-control-tower.json",
-      }),
-      "utf8",
-    );
+	test("bootstraps only missing files from defaults or a bundle and preserves sandbox kind", async () => {
+		const tempDir = await createProfiledWorkspace();
+		const bootstrapDir = path.join(tempDir, "config", "profiles", "bootstrap");
+		await mkdir(bootstrapDir, { recursive: true });
+		await writeFile(
+			path.join(tempDir, ".env.bootstrap"),
+			"NOTION_TOKEN=existing\n",
+			"utf8",
+		);
+		await writeFile(
+			path.join(tempDir, "config", "profiles", "bootstrap.json"),
+			JSON.stringify({
+				configVersion: 1,
+				name: "bootstrap",
+				label: "Bootstrap Workspace",
+				envFile: ".env.bootstrap",
+				destinationsPath: "./config/profiles/bootstrap/destinations.json",
+				controlTowerConfigPath:
+					"./config/profiles/bootstrap/local-portfolio-control-tower.json",
+			}),
+			"utf8",
+		);
 
-    const preview = await runCliForTest(["profiles", "bootstrap", "--target", "bootstrap", "--json"], {
-      cwd: tempDir,
-    });
-    expect(preview.exitCode).toBe(0);
-    expect(JSON.parse(preview.stdout)).toEqual(
-      expect.objectContaining({
-        wrote: false,
-        actions: expect.arrayContaining([
-          expect.objectContaining({ action: "preserve", path: expect.stringContaining(".env.bootstrap") }),
-        ]),
-      }),
-    );
+		const preview = await runCliForTest(
+			["profiles", "bootstrap", "--target", "bootstrap", "--json"],
+			{
+				cwd: tempDir,
+			},
+		);
+		expect(preview.exitCode).toBe(0);
+		expect(JSON.parse(preview.stdout)).toEqual(
+			expect.objectContaining({
+				wrote: false,
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						action: "preserve",
+						path: expect.stringContaining(".env.bootstrap"),
+					}),
+				]),
+			}),
+		);
 
-    const writeResult = await runCliForTest(["profiles", "bootstrap", "--target", "bootstrap", "--write", "--json"], {
-      cwd: tempDir,
-    });
-    expect(writeResult.exitCode).toBe(0);
-    expect(JSON.parse(await readFile(path.join(bootstrapDir, "destinations.json"), "utf8"))).toEqual(
-      expect.objectContaining({ version: 1 }),
-    );
-    expect(await readFile(path.join(tempDir, ".env.bootstrap"), "utf8")).toContain("existing");
+		const writeResult = await runCliForTest(
+			["profiles", "bootstrap", "--target", "bootstrap", "--write", "--json"],
+			{
+				cwd: tempDir,
+			},
+		);
+		expect(writeResult.exitCode).toBe(0);
+		expect(
+			JSON.parse(
+				await readFile(path.join(bootstrapDir, "destinations.json"), "utf8"),
+			),
+		).toEqual(expect.objectContaining({ version: 1 }));
+		expect(
+			await readFile(path.join(tempDir, ".env.bootstrap"), "utf8"),
+		).toContain("existing");
 
-    const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
-    await runCliForTest(["--profile", "work", "profiles", "export", "--output", bundlePath], { cwd: tempDir });
-    const bundleBootstrap = await runCliForTest(
-      ["profiles", "bootstrap", "--target", "bundlecopy", "--kind", "sandbox", "--from-bundle", bundlePath, "--write", "--json"],
-      { cwd: tempDir },
-    );
-    expect(bundleBootstrap.exitCode).toBe(0);
-    expect(
-      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "bundlecopy.json"), "utf8")),
-    ).toEqual(expect.objectContaining({ kind: "sandbox" }));
-    expect(
-      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "bundlecopy", "destinations.json"), "utf8")),
-    ).toEqual(expect.objectContaining({ version: 1 }));
-  });
+		const bundlePath = path.join(tempDir, "tmp", "work-profile.bundle.json");
+		await runCliForTest(
+			["--profile", "work", "profiles", "export", "--output", bundlePath],
+			{ cwd: tempDir },
+		);
+		const bundleBootstrap = await runCliForTest(
+			[
+				"profiles",
+				"bootstrap",
+				"--target",
+				"bundlecopy",
+				"--kind",
+				"sandbox",
+				"--from-bundle",
+				bundlePath,
+				"--write",
+				"--json",
+			],
+			{ cwd: tempDir },
+		);
+		expect(bundleBootstrap.exitCode).toBe(0);
+		expect(
+			JSON.parse(
+				await readFile(
+					path.join(tempDir, "config", "profiles", "bundlecopy.json"),
+					"utf8",
+				),
+			),
+		).toEqual(expect.objectContaining({ kind: "sandbox" }));
+		expect(
+			JSON.parse(
+				await readFile(
+					path.join(
+						tempDir,
+						"config",
+						"profiles",
+						"bundlecopy",
+						"destinations.json",
+					),
+					"utf8",
+				),
+			),
+		).toEqual(expect.objectContaining({ version: 1 }));
+	});
 
-  test("upgrades legacy descriptors and still imports legacy bundles", async () => {
-    const tempDir = await createProfiledWorkspace();
+	test("upgrades legacy descriptors and still imports legacy bundles", async () => {
+		const tempDir = await createProfiledWorkspace();
 
-    const previewUpgrade = await runCliForTest(["--profile", "work", "profiles", "upgrade", "--json"], {
-      cwd: tempDir,
-    });
-    expect(previewUpgrade.exitCode).toBe(0);
-    expect(JSON.parse(previewUpgrade.stdout)).toEqual(
-      expect.objectContaining({
-        wrote: false,
-        alreadyCurrent: false,
-        fromConfigVersion: 0,
-        toConfigVersion: 1,
-      }),
-    );
+		const previewUpgrade = await runCliForTest(
+			["--profile", "work", "profiles", "upgrade", "--json"],
+			{
+				cwd: tempDir,
+			},
+		);
+		expect(previewUpgrade.exitCode).toBe(0);
+		expect(JSON.parse(previewUpgrade.stdout)).toEqual(
+			expect.objectContaining({
+				wrote: false,
+				alreadyCurrent: false,
+				fromConfigVersion: 0,
+				toConfigVersion: 1,
+			}),
+		);
 
-    const writeUpgrade = await runCliForTest(["--profile", "work", "profiles", "upgrade", "--write", "--json"], {
-      cwd: tempDir,
-    });
-    expect(writeUpgrade.exitCode).toBe(0);
-    expect(JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "work.json"), "utf8"))).toEqual(
-      expect.objectContaining({ configVersion: 1 }),
-    );
+		const writeUpgrade = await runCliForTest(
+			["--profile", "work", "profiles", "upgrade", "--write", "--json"],
+			{
+				cwd: tempDir,
+			},
+		);
+		expect(writeUpgrade.exitCode).toBe(0);
+		expect(
+			JSON.parse(
+				await readFile(
+					path.join(tempDir, "config", "profiles", "work.json"),
+					"utf8",
+				),
+			),
+		).toEqual(expect.objectContaining({ configVersion: 1 }));
 
-    const legacyBundlePath = path.join(tempDir, "tmp", "legacy.bundle.json");
-    await mkdir(path.dirname(legacyBundlePath), { recursive: true });
-    await writeFile(
-      legacyBundlePath,
-      JSON.stringify({
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        profile: {
-          name: "legacy",
-          label: "Legacy Workspace",
-          envFile: ".env.legacy",
-          destinationsPath: "./config/profiles/legacy/destinations.json",
-          controlTowerConfigPath: "./config/profiles/legacy/local-portfolio-control-tower.json",
-        },
-        files: [
-          {
-            kind: "json",
-            relativePath: "config/profiles/legacy/destinations.json",
-            content: { version: 1, destinations: [] },
-          },
-          {
-            kind: "json",
-            relativePath: "config/profiles/legacy/local-portfolio-control-tower.json",
-            content: { version: 1, profile: "legacy" },
-          },
-          {
-            kind: "text",
-            relativePath: "env.template",
-            content: "NOTION_TOKEN=\n",
-          },
-        ],
-      }),
-      "utf8",
-    );
+		const legacyBundlePath = path.join(tempDir, "tmp", "legacy.bundle.json");
+		await mkdir(path.dirname(legacyBundlePath), { recursive: true });
+		await writeFile(
+			legacyBundlePath,
+			JSON.stringify({
+				version: 1,
+				exportedAt: new Date().toISOString(),
+				profile: {
+					name: "legacy",
+					label: "Legacy Workspace",
+					envFile: ".env.legacy",
+					destinationsPath: "./config/profiles/legacy/destinations.json",
+					controlTowerConfigPath:
+						"./config/profiles/legacy/local-portfolio-control-tower.json",
+				},
+				files: [
+					{
+						kind: "json",
+						relativePath: "config/profiles/legacy/destinations.json",
+						content: { version: 1, destinations: [] },
+					},
+					{
+						kind: "json",
+						relativePath:
+							"config/profiles/legacy/local-portfolio-control-tower.json",
+						content: { version: 1, profile: "legacy" },
+					},
+					{
+						kind: "text",
+						relativePath: "env.template",
+						content: "NOTION_TOKEN=\n",
+					},
+				],
+			}),
+			"utf8",
+		);
 
-    const legacyImport = await runCliForTest(
-      ["profiles", "import", "--bundle", legacyBundlePath, "--target", "legacycopy", "--write"],
-      { cwd: tempDir },
-    );
-    expect(legacyImport.exitCode).toBe(0);
-    expect(
-      JSON.parse(await readFile(path.join(tempDir, "config", "profiles", "legacycopy.json"), "utf8")),
-    ).toEqual(expect.objectContaining({ configVersion: 1, name: "legacycopy" }));
-  });
+		const legacyImport = await runCliForTest(
+			[
+				"profiles",
+				"import",
+				"--bundle",
+				legacyBundlePath,
+				"--target",
+				"legacycopy",
+				"--write",
+			],
+			{ cwd: tempDir },
+		);
+		expect(legacyImport.exitCode).toBe(0);
+		expect(
+			JSON.parse(
+				await readFile(
+					path.join(tempDir, "config", "profiles", "legacycopy.json"),
+					"utf8",
+				),
+			),
+		).toEqual(
+			expect.objectContaining({ configVersion: 1, name: "legacycopy" }),
+		);
+	});
 });
 
 async function createPublishFixture(mode: {
-  live?: boolean;
-  dryRun?: boolean;
+	live?: boolean;
+	dryRun?: boolean;
 }) {
-  const tempDir = await createTempWorkspace();
-  const tempHome = path.join(tempDir, "home");
-  await mkdir(tempHome);
-  vi.spyOn(os, "homedir").mockReturnValue(tempHome);
-  const inputPath = path.join(tempDir, "review.md");
-  const requestPath = path.join(tempDir, "request.json");
-  await writeFile(inputPath, "# Review\n\nFixture content.\n", "utf8");
-  await writeFile(
-    requestPath,
-    JSON.stringify({
-      destinationAlias: "weekly_reviews",
-      inputFile: inputPath,
-      ...mode,
-    }),
-    "utf8",
-  );
-  vi.spyOn(
-    DirectNotionClient.prototype,
-    "resolveDestination",
-  ).mockResolvedValue({
-    alias: "weekly_reviews",
-    sourceUrl: "https://www.notion.so/weekly",
-    destinationType: "page",
-    pageId: "fixture-parent",
-  });
-  const writer = vi
-    .spyOn(DirectNotionClient.prototype, "createPageWithMarkdown")
-    .mockResolvedValue({
-      id: "fixture-page",
-      url: "https://www.notion.so/fixture-page",
-    });
-  vi.spyOn(DirectNotionClient.prototype, "readPageMarkdown").mockResolvedValue({
-    markdown: "# Review\n\nFixture content.\n",
-    truncated: false,
-    unknownBlockIds: [],
-    raw: {},
-  });
-  return {
-    inputPath,
-    requestPath,
-    writer,
-    options: {
-      cwd: tempDir,
-      env: {
-        NOTION_TOKEN: "fixture-token",
-        NOTION_PROFILE: undefined,
-        NOTION_DESTINATIONS_PATH: "./config/destinations.json",
-        NOTION_LOG_DIR: "./logs",
-      },
-    },
-  };
+	const tempDir = await createTempWorkspace();
+	const tempHome = path.join(tempDir, "home");
+	await mkdir(tempHome);
+	vi.spyOn(os, "homedir").mockReturnValue(tempHome);
+	const inputPath = path.join(tempDir, "review.md");
+	const requestPath = path.join(tempDir, "request.json");
+	await writeFile(inputPath, "# Review\n\nFixture content.\n", "utf8");
+	await writeFile(
+		requestPath,
+		JSON.stringify({
+			destinationAlias: "weekly_reviews",
+			inputFile: inputPath,
+			...mode,
+		}),
+		"utf8",
+	);
+	vi.spyOn(
+		DirectNotionClient.prototype,
+		"resolveDestination",
+	).mockResolvedValue({
+		alias: "weekly_reviews",
+		sourceUrl: "https://www.notion.so/weekly",
+		destinationType: "page",
+		pageId: "fixture-parent",
+	});
+	const writer = vi
+		.spyOn(DirectNotionClient.prototype, "createPageWithMarkdown")
+		.mockResolvedValue({
+			id: "fixture-page",
+			url: "https://www.notion.so/fixture-page",
+		});
+	vi.spyOn(DirectNotionClient.prototype, "readPageMarkdown").mockResolvedValue({
+		markdown: "# Review\n\nFixture content.\n",
+		truncated: false,
+		unknownBlockIds: [],
+		raw: {},
+	});
+	return {
+		inputPath,
+		requestPath,
+		writer,
+		options: {
+			cwd: tempDir,
+			env: {
+				NOTION_TOKEN: "fixture-token",
+				NOTION_PROFILE: undefined,
+				NOTION_DESTINATIONS_PATH: "./config/destinations.json",
+				NOTION_LOG_DIR: "./logs",
+			},
+		},
+	};
 }
 
 async function createTempWorkspace(): Promise<string> {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-cli-"));
-  const configDir = path.join(tempDir, "config");
-  await mkdir(configDir, { recursive: true });
-  await writeFile(
-    path.join(tempDir, ".env"),
-    "",
-    "utf8",
-  );
-  await writeFile(
-    path.join(configDir, "destinations.json"),
-    JSON.stringify({
-      version: 1,
-      destinations: [
-        {
-          alias: "weekly_reviews",
-          destinationType: "page",
-          sourceUrl: "https://www.notion.so/weekly",
-          templateMode: "none",
-          titleRule: { source: "filename" },
-          fixedProperties: {},
-          defaultProperties: {},
-          mode: "create_new_page",
-          safeDefaults: {
-            allowDeletingContent: false,
-            templatePollIntervalMs: 1000,
-            templatePollTimeoutMs: 5000,
-          },
-        },
-        {
-          alias: "command_center",
-          destinationType: "page",
-          sourceUrl: "https://www.notion.so/command-center",
-          templateMode: "none",
-          titleRule: { source: "literal", value: "Command Center" },
-          fixedProperties: {},
-          defaultProperties: {},
-          mode: "create_new_page",
-          safeDefaults: {
-            allowDeletingContent: false,
-            templatePollIntervalMs: 1000,
-            templatePollTimeoutMs: 5000,
-          },
-        },
-      ],
-    }),
-    "utf8",
-  );
+	const tempDir = await mkdtemp(path.join(os.tmpdir(), "notion-cli-"));
+	const configDir = path.join(tempDir, "config");
+	await mkdir(configDir, { recursive: true });
+	await writeFile(path.join(tempDir, ".env"), "", "utf8");
+	await writeFile(
+		path.join(configDir, "destinations.json"),
+		JSON.stringify({
+			version: 1,
+			destinations: [
+				{
+					alias: "weekly_reviews",
+					destinationType: "page",
+					sourceUrl: "https://www.notion.so/weekly",
+					templateMode: "none",
+					titleRule: { source: "filename" },
+					fixedProperties: {},
+					defaultProperties: {},
+					mode: "create_new_page",
+					safeDefaults: {
+						allowDeletingContent: false,
+						templatePollIntervalMs: 1000,
+						templatePollTimeoutMs: 5000,
+					},
+				},
+				{
+					alias: "command_center",
+					destinationType: "page",
+					sourceUrl: "https://www.notion.so/command-center",
+					templateMode: "none",
+					titleRule: { source: "literal", value: "Command Center" },
+					fixedProperties: {},
+					defaultProperties: {},
+					mode: "create_new_page",
+					safeDefaults: {
+						allowDeletingContent: false,
+						templatePollIntervalMs: 1000,
+						templatePollTimeoutMs: 5000,
+					},
+				},
+			],
+		}),
+		"utf8",
+	);
 
-  return tempDir;
+	return tempDir;
 }
 
 async function createProfiledWorkspace(): Promise<string> {
-  const tempDir = await createTempWorkspace();
-  const profileConfigDir = path.join(tempDir, "config", "profiles", "work");
-  await mkdir(profileConfigDir, { recursive: true });
-  await writeFile(
-    path.join(tempDir, "config", "profiles.json"),
-    JSON.stringify({
-      version: 1,
-      defaultProfile: "work",
-      profiles: ["work"],
-    }),
-    "utf8",
-  );
-  await writeFile(
-    path.join(tempDir, "config", "profiles", "work.json"),
-    JSON.stringify({
-      name: "work",
-      label: "Work Workspace",
-      envFile: ".env.work",
-      destinationsPath: "./config/profiles/work/destinations.json",
-      controlTowerConfigPath: "./config/profiles/work/local-portfolio-control-tower.json",
-    }),
-    "utf8",
-  );
-  await writeFile(
-    path.join(profileConfigDir, "destinations.json"),
-    await readFile(path.join(tempDir, "config", "destinations.json"), "utf8"),
-    "utf8",
-  );
-  await writeFile(
-    path.join(profileConfigDir, "local-portfolio-control-tower.json"),
-    JSON.stringify({ version: 1, profile: "work" }),
-    "utf8",
-  );
-  await writeFile(
-    path.join(profileConfigDir, "local-portfolio-views.json"),
-    JSON.stringify({ version: 1, views: [] }),
-    "utf8",
-  );
-  await writeFile(path.join(tempDir, ".env.work"), "", "utf8");
+	const tempDir = await createTempWorkspace();
+	const profileConfigDir = path.join(tempDir, "config", "profiles", "work");
+	await mkdir(profileConfigDir, { recursive: true });
+	await writeFile(
+		path.join(tempDir, "config", "profiles.json"),
+		JSON.stringify({
+			version: 1,
+			defaultProfile: "work",
+			profiles: ["work"],
+		}),
+		"utf8",
+	);
+	await writeFile(
+		path.join(tempDir, "config", "profiles", "work.json"),
+		JSON.stringify({
+			name: "work",
+			label: "Work Workspace",
+			envFile: ".env.work",
+			destinationsPath: "./config/profiles/work/destinations.json",
+			controlTowerConfigPath:
+				"./config/profiles/work/local-portfolio-control-tower.json",
+		}),
+		"utf8",
+	);
+	await writeFile(
+		path.join(profileConfigDir, "destinations.json"),
+		await readFile(path.join(tempDir, "config", "destinations.json"), "utf8"),
+		"utf8",
+	);
+	await writeFile(
+		path.join(profileConfigDir, "local-portfolio-control-tower.json"),
+		JSON.stringify({ version: 1, profile: "work" }),
+		"utf8",
+	);
+	await writeFile(
+		path.join(profileConfigDir, "local-portfolio-views.json"),
+		JSON.stringify({ version: 1, views: [] }),
+		"utf8",
+	);
+	await writeFile(path.join(tempDir, ".env.work"), "", "utf8");
 
-  return tempDir;
+	return tempDir;
 }
 
 async function createSandboxCliWorkspace(): Promise<string> {
-  const tempDir = await createTempWorkspace();
-  const sandboxDir = path.join(tempDir, "config", "profiles", "sandbox");
-  await mkdir(sandboxDir, { recursive: true });
+	const tempDir = await createTempWorkspace();
+	const sandboxDir = path.join(tempDir, "config", "profiles", "sandbox");
+	await mkdir(sandboxDir, { recursive: true });
 
-  await writeFile(
-    path.join(tempDir, "config", "profiles.json"),
-    JSON.stringify({
-      version: 1,
-      defaultProfile: "sandbox",
-      profiles: ["default", "sandbox"],
-    }),
-    "utf8",
-  );
-  await mkdir(path.join(tempDir, "config", "profiles"), { recursive: true });
-  await writeFile(
-    path.join(tempDir, "config", "profiles", "default.json"),
-    JSON.stringify({
-      configVersion: 1,
-      name: "default",
-      label: "Default Workspace",
-      kind: "primary",
-      envFile: ".env",
-      destinationsPath: "./config/destinations.json",
-      controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
-    }),
-    "utf8",
-  );
-  await writeFile(
-    path.join(tempDir, "config", "profiles", "sandbox.json"),
-    JSON.stringify({
-      configVersion: 1,
-      name: "sandbox",
-      label: "Sandbox Workspace",
-      kind: "sandbox",
-      envFile: ".env.sandbox",
-      destinationsPath: "./config/profiles/sandbox/destinations.json",
-      controlTowerConfigPath: "./config/profiles/sandbox/local-portfolio-control-tower.json",
-    }),
-    "utf8",
-  );
-  await writeFile(
-    path.join(tempDir, ".env"),
-    ["NOTION_TOKEN=default-token", "NOTION_DESTINATIONS_PATH=./config/destinations.json"].join("\n"),
-    "utf8",
-  );
-  await writeFile(
-    path.join(tempDir, ".env.sandbox"),
-    [
-      "NOTION_TOKEN=sandbox-token",
-      "NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
-    ].join("\n"),
-    "utf8",
-  );
-  await writeFile(
-    path.join(tempDir, "config", "local-portfolio-control-tower.json"),
-    JSON.stringify({
-      version: 1,
-      relatedDataSources: {
-        buildLogId: "11111111-1111-1111-1111-111111111111",
-      },
-    }),
-    "utf8",
-  );
-  await writeFile(
-    path.join(sandboxDir, "local-portfolio-control-tower.json"),
-    JSON.stringify({
-      version: 1,
-      relatedDataSources: {
-        buildLogId: "22222222-2222-2222-2222-222222222222",
-      },
-    }),
-    "utf8",
-  );
-  await writeFile(
-    path.join(sandboxDir, "destinations.json"),
-    JSON.stringify({
-      version: 1,
-      destinations: [
-        {
-          alias: "sandbox_center",
-          destinationType: "page",
-          sourceUrl: "https://www.notion.so/sandbox-center-22222222222222222222222222222222",
-          templateMode: "none",
-          titleRule: { source: "literal", value: "Sandbox Center" },
-          fixedProperties: {},
-          defaultProperties: {},
-          mode: "create_new_page",
-          safeDefaults: {
-            allowDeletingContent: false,
-            templatePollIntervalMs: 1000,
-            templatePollTimeoutMs: 5000,
-          },
-        },
-      ],
-    }),
-    "utf8",
-  );
+	await writeFile(
+		path.join(tempDir, "config", "profiles.json"),
+		JSON.stringify({
+			version: 1,
+			defaultProfile: "sandbox",
+			profiles: ["default", "sandbox"],
+		}),
+		"utf8",
+	);
+	await mkdir(path.join(tempDir, "config", "profiles"), { recursive: true });
+	await writeFile(
+		path.join(tempDir, "config", "profiles", "default.json"),
+		JSON.stringify({
+			configVersion: 1,
+			name: "default",
+			label: "Default Workspace",
+			kind: "primary",
+			envFile: ".env",
+			destinationsPath: "./config/destinations.json",
+			controlTowerConfigPath: "./config/local-portfolio-control-tower.json",
+		}),
+		"utf8",
+	);
+	await writeFile(
+		path.join(tempDir, "config", "profiles", "sandbox.json"),
+		JSON.stringify({
+			configVersion: 1,
+			name: "sandbox",
+			label: "Sandbox Workspace",
+			kind: "sandbox",
+			envFile: ".env.sandbox",
+			destinationsPath: "./config/profiles/sandbox/destinations.json",
+			controlTowerConfigPath:
+				"./config/profiles/sandbox/local-portfolio-control-tower.json",
+		}),
+		"utf8",
+	);
+	await writeFile(
+		path.join(tempDir, ".env"),
+		[
+			"NOTION_TOKEN=default-token",
+			"NOTION_DESTINATIONS_PATH=./config/destinations.json",
+		].join("\n"),
+		"utf8",
+	);
+	await writeFile(
+		path.join(tempDir, ".env.sandbox"),
+		[
+			"NOTION_TOKEN=sandbox-token",
+			"NOTION_DESTINATIONS_PATH=./config/profiles/sandbox/destinations.json",
+		].join("\n"),
+		"utf8",
+	);
+	await writeFile(
+		path.join(tempDir, "config", "local-portfolio-control-tower.json"),
+		JSON.stringify({
+			version: 1,
+			relatedDataSources: {
+				buildLogId: "11111111-1111-1111-1111-111111111111",
+			},
+		}),
+		"utf8",
+	);
+	await writeFile(
+		path.join(sandboxDir, "local-portfolio-control-tower.json"),
+		JSON.stringify({
+			version: 1,
+			relatedDataSources: {
+				buildLogId: "22222222-2222-2222-2222-222222222222",
+			},
+		}),
+		"utf8",
+	);
+	await writeFile(
+		path.join(sandboxDir, "destinations.json"),
+		JSON.stringify({
+			version: 1,
+			destinations: [
+				{
+					alias: "sandbox_center",
+					destinationType: "page",
+					sourceUrl:
+						"https://www.notion.so/sandbox-center-22222222222222222222222222222222",
+					templateMode: "none",
+					titleRule: { source: "literal", value: "Sandbox Center" },
+					fixedProperties: {},
+					defaultProperties: {},
+					mode: "create_new_page",
+					safeDefaults: {
+						allowDeletingContent: false,
+						templatePollIntervalMs: 1000,
+						templatePollTimeoutMs: 5000,
+					},
+				},
+			],
+		}),
+		"utf8",
+	);
 
-  return tempDir;
+	return tempDir;
 }
 
 async function runCliForTest(
-  argv: string[],
-  options: {
-    cwd?: string;
-    env?: Record<string, string | undefined>;
-  } = {},
+	argv: string[],
+	options: {
+		cwd?: string;
+		env?: Record<string, string | undefined>;
+	} = {},
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  let exitCode = 0;
-  const previousCwd = process.cwd();
-  const restoreEnv = applyEnvOverrides(options.env);
-  const previousLog = console.log;
-  const previousError = console.error;
+	const stdout: string[] = [];
+	const stderr: string[] = [];
+	let exitCode = 0;
+	const previousCwd = process.cwd();
+	const restoreEnv = applyEnvOverrides(options.env);
+	const previousLog = console.log;
+	const previousError = console.error;
 
-  try {
-    if (options.cwd) {
-      process.chdir(options.cwd);
-    }
+	try {
+		if (options.cwd) {
+			process.chdir(options.cwd);
+		}
 
-    console.log = (...values: unknown[]) => {
-      stdout.push(values.map((value) => String(value)).join(" "));
-    };
-    console.error = (...values: unknown[]) => {
-      stderr.push(values.map((value) => String(value)).join(" "));
-    };
+		console.log = (...values: unknown[]) => {
+			stdout.push(values.map((value) => String(value)).join(" "));
+		};
+		console.error = (...values: unknown[]) => {
+			stderr.push(values.map((value) => String(value)).join(" "));
+		};
 
-    await runCli(argv, {
-      stdout: (value) => stdout.push(value),
-      stderr: (value) => stderr.push(value),
-      setExitCode: (code) => {
-        exitCode = code;
-      },
-    });
-  } finally {
-    if (typeof process.exitCode === "number" && process.exitCode !== 0) {
-      exitCode = process.exitCode;
-    }
+		await runCli(argv, {
+			stdout: (value) => stdout.push(value),
+			stderr: (value) => stderr.push(value),
+			setExitCode: (code) => {
+				exitCode = code;
+			},
+		});
+	} finally {
+		if (typeof process.exitCode === "number" && process.exitCode !== 0) {
+			exitCode = process.exitCode;
+		}
 
-    console.log = previousLog;
-    console.error = previousError;
-    process.chdir(previousCwd);
-    restoreEnv();
-    process.exitCode = undefined;
-  }
+		console.log = previousLog;
+		console.error = previousError;
+		process.chdir(previousCwd);
+		restoreEnv();
+		process.exitCode = undefined;
+	}
 
-  return {
-    stdout: stdout.join("\n"),
-    stderr: stderr.join("\n"),
-    exitCode,
-  };
+	return {
+		stdout: stdout.join("\n"),
+		stderr: stderr.join("\n"),
+		exitCode,
+	};
 }
 
-function applyEnvOverrides(overrides: Record<string, string | undefined> | undefined): () => void {
-  if (!overrides) {
-    return () => {};
-  }
+function applyEnvOverrides(
+	overrides: Record<string, string | undefined> | undefined,
+): () => void {
+	if (!overrides) {
+		return () => {};
+	}
 
-  const previous = new Map<string, string | undefined>();
-  for (const [key, value] of Object.entries(overrides)) {
-    previous.set(key, process.env[key]);
-    if (value === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = value;
-    }
-  }
+	const previous = new Map<string, string | undefined>();
+	for (const [key, value] of Object.entries(overrides)) {
+		previous.set(key, process.env[key]);
+		if (value === undefined) {
+			delete process.env[key];
+		} else {
+			process.env[key] = value;
+		}
+	}
 
-  return () => {
-    for (const [key, value] of previous.entries()) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
-  };
+	return () => {
+		for (const [key, value] of previous.entries()) {
+			if (value === undefined) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	};
 }

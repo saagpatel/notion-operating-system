@@ -78,8 +78,9 @@ describe("review recovery", () => {
 		});
 
 		expect(
-			filterReviewRecoveryPlansByProjectTitles(plans, [" Project Two "])
-				.map((plan) => plan.title),
+			filterReviewRecoveryPlansByProjectTitles(plans, [" Project Two "]).map(
+				(plan) => plan.title,
+			),
 		).toEqual(["Project Two"]);
 	});
 

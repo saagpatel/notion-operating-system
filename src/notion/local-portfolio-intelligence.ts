@@ -31,11 +31,7 @@ export const DEFAULT_LOCAL_PORTFOLIO_INTELLIGENCE_VIEWS_PATH =
 	"./config/local-portfolio-intelligence-views.json";
 
 export type RecommendationLane =
-	| "Resume"
-	| "Finish"
-	| "Investigate"
-	| "Defer"
-	| "Monitor";
+	"Resume" | "Finish" | "Investigate" | "Defer" | "Monitor";
 export type RecommendationConfidence = "High" | "Medium" | "Low";
 
 export interface IntelligenceProjectRecord extends ControlTowerProjectRecord {

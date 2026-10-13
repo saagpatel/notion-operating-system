@@ -666,7 +666,7 @@ describe("managed markdown sync", () => {
 
 	test("normalizes nested Notion links after canonicalizing app and www URLs", () => {
 		const stored =
-			'- \\[2026-07-11 - \\[Codex\\] TradeOffAtlas — 2026-07-11\\]([https://www.notion.so/39bc21f1caf081268e62f28edd1183e2](https://app.notion.com/p/39bc21f1caf081268e62f28edd1183e2))';
+			"- \\[2026-07-11 - \\[Codex\\] TradeOffAtlas — 2026-07-11\\]([https://www.notion.so/39bc21f1caf081268e62f28edd1183e2](https://app.notion.com/p/39bc21f1caf081268e62f28edd1183e2))";
 		const rendered =
 			"- [2026-07-11 - [Codex] TradeOffAtlas — 2026-07-11](https://www.notion.so/39bc21f1caf081268e62f28edd1183e2)";
 

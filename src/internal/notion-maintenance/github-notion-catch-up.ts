@@ -211,11 +211,26 @@ async function main(): Promise<void> {
 					"Compare GitHub repos against Notion project rows and prepare catch-up actions.",
 				options: [
 					{ flag: "--help, -h", description: "Show this help message." },
-					{ flag: "--live", description: "Apply the catch-up updates in Notion." },
-					{ flag: "--owner <login>", description: "GitHub owner or org to audit." },
-					{ flag: "--limit <n>", description: "Limit the number of repos inspected." },
-					{ flag: "--today <date>", description: "Override the YYYY-MM-DD date anchor." },
-					{ flag: "--config <path>", description: "Path to the control-tower config file." },
+					{
+						flag: "--live",
+						description: "Apply the catch-up updates in Notion.",
+					},
+					{
+						flag: "--owner <login>",
+						description: "GitHub owner or org to audit.",
+					},
+					{
+						flag: "--limit <n>",
+						description: "Limit the number of repos inspected.",
+					},
+					{
+						flag: "--today <date>",
+						description: "Override the YYYY-MM-DD date anchor.",
+					},
+					{
+						flag: "--config <path>",
+						description: "Path to the control-tower config file.",
+					},
 					{
 						flag: "--source-config <path>",
 						description: "Path to the external signal source config file.",
@@ -242,7 +257,11 @@ async function main(): Promise<void> {
 	const [repos, localProjects, intakeProjects, sourceRows] = await Promise.all([
 		listGitHubRepos(flags.owner, flags.limit),
 		fetchAllPages(sdk, config.database.dataSourceId, "Name"),
-		fetchAllPages(sdk, workspaceIds.getDataSource("intakeProjects"), "Project Name"),
+		fetchAllPages(
+			sdk,
+			workspaceIds.getDataSource("intakeProjects"),
+			"Project Name",
+		),
 		fetchAllPages(
 			sdk,
 			config.phase5ExternalSignals!.sources.dataSourceId,

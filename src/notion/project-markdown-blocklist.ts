@@ -8,9 +8,7 @@ export const DEFAULT_PROJECT_MARKDOWN_BLOCKLIST_PATH =
 	"./config/local-portfolio-blocked-markdown-pages.json";
 
 export type ProjectMarkdownLane =
-	| "execution"
-	| "intelligence"
-	| "external-signals";
+	"execution" | "intelligence" | "external-signals";
 
 export interface ProjectMarkdownBlocklistEntry {
 	title: string;
@@ -75,7 +73,9 @@ export function isKnownBlockedProjectMarkdown(
 	});
 }
 
-export function partitionKnownBlockedProjectMarkdown<T extends ProjectMarkdownTarget>(
+export function partitionKnownBlockedProjectMarkdown<
+	T extends ProjectMarkdownTarget,
+>(
 	targets: T[],
 	blocklist: ProjectMarkdownBlocklist,
 	lane: ProjectMarkdownLane,
@@ -96,7 +96,9 @@ function normalizeEntry(
 	entry: ProjectMarkdownBlocklistEntry,
 ): ProjectMarkdownBlocklistEntry {
 	if (!entry.title?.trim() && !entry.pageId?.trim()) {
-		throw new AppError("Project markdown blocklist entries need a title or pageId");
+		throw new AppError(
+			"Project markdown blocklist entries need a title or pageId",
+		);
 	}
 	if (entry.lanes?.some((lane) => !isProjectMarkdownLane(lane))) {
 		throw new AppError(
@@ -111,7 +113,11 @@ function normalizeEntry(
 }
 
 function isProjectMarkdownLane(value: string): value is ProjectMarkdownLane {
-	return value === "execution" || value === "intelligence" || value === "external-signals";
+	return (
+		value === "execution" ||
+		value === "intelligence" ||
+		value === "external-signals"
+	);
 }
 
 function normalizeTitle(title: string): string {

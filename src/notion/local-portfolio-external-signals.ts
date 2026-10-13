@@ -26,24 +26,12 @@ export type ExternalProviderKey =
 	| "repo_auditor"
 	| "personal_ops";
 export type ExternalSignalCoverage =
-	| "None"
-	| "Repo Only"
-	| "Repo + Deploy"
-	| "Calendar Only"
-	| "Mixed";
+	"None" | "Repo Only" | "Repo + Deploy" | "Calendar Only" | "Mixed";
 export type ExternalProviderScopeType = "Personal" | "Team";
 export type LatestDeploymentStatus =
-	| "Success"
-	| "Failed"
-	| "Building"
-	| "Canceled"
-	| "Unknown"
-	| "Not Deployed";
+	"Success" | "Failed" | "Building" | "Canceled" | "Unknown" | "Not Deployed";
 export type ExternalSourceStatus =
-	| "Active"
-	| "Paused"
-	| "Needs Mapping"
-	| "Needs Review";
+	"Active" | "Paused" | "Needs Mapping" | "Needs Review";
 export type ExternalSignalSeverity = "Info" | "Watch" | "Risk";
 export type ExternalSignalProviderName =
 	| "GitHub"
@@ -56,10 +44,7 @@ export type ExternalSignalProviderName =
 	| "Repo Auditor"
 	| "Personal Ops";
 export type ExternalSourceType =
-	| "Repo"
-	| "Deployment Project"
-	| "Calendar"
-	| "Event Log";
+	"Repo" | "Deployment Project" | "Calendar" | "Event Log";
 export type ExternalSignalType =
 	| "Pull Request"
 	| "Workflow Run"
@@ -71,10 +56,7 @@ export type ExternalSignalType =
 	| "Notification"
 	| "Audit";
 export type ExternalSignalSyncStatus =
-	| "Started"
-	| "Succeeded"
-	| "Partial"
-	| "Failed";
+	"Started" | "Succeeded" | "Partial" | "Failed";
 
 export interface ExternalSignalDatabaseRef {
 	name: string;
@@ -597,7 +579,11 @@ function buildExternalSignalSeedPlanKey(
 function providerSupportsGlobalManualSeed(
 	provider: ExternalSignalProviderName,
 ): boolean {
-	return provider === "Notification Hub" || provider === "Repo Auditor" || provider === "Personal Ops";
+	return (
+		provider === "Notification Hub" ||
+		provider === "Repo Auditor" ||
+		provider === "Personal Ops"
+	);
 }
 
 export function selectPriorityProjectsForExternalSignals(input: {

@@ -15,10 +15,15 @@ import {
 	type NotionPageProperty,
 } from "./local-portfolio-control-tower-live.js";
 import { requirePhase5ExternalSignals } from "./local-portfolio-external-signals.js";
-import { UNTRUSTED_CONTENT_NOTICE, untrustedMarkdownEvidence } from "./untrusted-content.js";
+import {
+	UNTRUSTED_CONTENT_NOTICE,
+	untrustedMarkdownEvidence,
+} from "./untrusted-content.js";
 
-export const COORDINATION_NOTION_EXPORT_SCHEMA_VERSION = "personal_ops.coordination_notion_export.v1" as const;
-export const COORDINATION_NOTION_SIGNAL_SCHEMA_VERSION = "personal_ops.coordination_notion_signal.v1" as const;
+export const COORDINATION_NOTION_EXPORT_SCHEMA_VERSION =
+	"personal_ops.coordination_notion_export.v1" as const;
+export const COORDINATION_NOTION_SIGNAL_SCHEMA_VERSION =
+	"personal_ops.coordination_notion_signal.v1" as const;
 
 export type CoordinationSignalStatus = "ok" | "needs_attention" | "deferred";
 export type CoordinationSignalUrgency = "low" | "medium" | "high";
@@ -185,24 +190,45 @@ export interface CoordinationSnapshotEventReader {
 	}): Promise<CoordinationSnapshotReadBackResult>;
 }
 
-function assertCoordinationExport(value: unknown): PersonalOpsCoordinationNotionExport {
-	const parsed = value as Partial<{ coordination_notion_export: unknown }> & Partial<PersonalOpsCoordinationNotionExport>;
-	const payload = (parsed.coordination_notion_export ?? parsed) as Partial<PersonalOpsCoordinationNotionExport>;
+function assertCoordinationExport(
+	value: unknown,
+): PersonalOpsCoordinationNotionExport {
+	const parsed = value as Partial<{ coordination_notion_export: unknown }> &
+		Partial<PersonalOpsCoordinationNotionExport>;
+	const payload = (parsed.coordination_notion_export ??
+		parsed) as Partial<PersonalOpsCoordinationNotionExport>;
 	if (payload.schema_version !== COORDINATION_NOTION_EXPORT_SCHEMA_VERSION) {
-		throw new AppError("Coordination export must use personal_ops.coordination_notion_export.v1.");
+		throw new AppError(
+			"Coordination export must use personal_ops.coordination_notion_export.v1.",
+		);
 	}
-	if (payload.mode !== "export_only" || payload.destination !== "notion_external_signal_provider") {
-		throw new AppError("Coordination export must be export_only for notion_external_signal_provider.");
+	if (
+		payload.mode !== "export_only" ||
+		payload.destination !== "notion_external_signal_provider"
+	) {
+		throw new AppError(
+			"Coordination export must be export_only for notion_external_signal_provider.",
+		);
 	}
-	if (!payload.snapshot_id || !payload.generated_at || !Array.isArray(payload.rows)) {
-		throw new AppError("Coordination export is missing snapshot metadata or rows.");
+	if (
+		!payload.snapshot_id ||
+		!payload.generated_at ||
+		!Array.isArray(payload.rows)
+	) {
+		throw new AppError(
+			"Coordination export is missing snapshot metadata or rows.",
+		);
 	}
 	if (
 		payload.source_snapshot?.schema_version !== "1.0.0" ||
 		!payload.source_snapshot.generated_at ||
-		!["green", "yellow", "red"].includes(String(payload.source_snapshot.overall))
+		!["green", "yellow", "red"].includes(
+			String(payload.source_snapshot.overall),
+		)
 	) {
-		throw new AppError("Coordination export is missing valid source snapshot metadata.");
+		throw new AppError(
+			"Coordination export is missing valid source snapshot metadata.",
+		);
 	}
 	if (
 		payload.handoff?.consumer !== "notion" ||
@@ -210,7 +236,9 @@ function assertCoordinationExport(value: unknown): PersonalOpsCoordinationNotion
 		payload.handoff.source_owner !== "personal_ops" ||
 		payload.handoff.ledger_owner !== "notion"
 	) {
-		throw new AppError("Coordination export handoff must keep Notion ingestion dry-run-only.");
+		throw new AppError(
+			"Coordination export handoff must keep Notion ingestion dry-run-only.",
+		);
 	}
 	if (!payload.summary || payload.summary.rows_total !== payload.rows.length) {
 		throw new AppError("Coordination export summary does not match rows.");
@@ -218,25 +246,41 @@ function assertCoordinationExport(value: unknown): PersonalOpsCoordinationNotion
 	const dedupeKeys = new Set<string>();
 	for (const [index, row] of payload.rows.entries()) {
 		if (row?.schema_version !== COORDINATION_NOTION_SIGNAL_SCHEMA_VERSION) {
-			throw new AppError(`Coordination export row ${index} has an unsupported schema version.`);
+			throw new AppError(
+				`Coordination export row ${index} has an unsupported schema version.`,
+			);
 		}
 		if (row.snapshot_id !== payload.snapshot_id) {
-			throw new AppError(`Coordination export row ${index} does not match the payload snapshot id.`);
+			throw new AppError(
+				`Coordination export row ${index} does not match the payload snapshot id.`,
+			);
 		}
 		if (!row.dedupe_key || dedupeKeys.has(row.dedupe_key)) {
-			throw new AppError(`Coordination export row ${index} has a missing or duplicate dedupe key.`);
+			throw new AppError(
+				`Coordination export row ${index} has a missing or duplicate dedupe key.`,
+			);
 		}
 		dedupeKeys.add(row.dedupe_key);
-		if (!row.project_title || !row.summary || !Array.isArray(row.evidence_refs) || row.evidence_refs.length === 0) {
-			throw new AppError(`Coordination export row ${index} is missing title, summary, or evidence refs.`);
+		if (
+			!row.project_title ||
+			!row.summary ||
+			!Array.isArray(row.evidence_refs) ||
+			row.evidence_refs.length === 0
+		) {
+			throw new AppError(
+				`Coordination export row ${index} is missing title, summary, or evidence refs.`,
+			);
 		}
 	}
 	return payload as PersonalOpsCoordinationNotionExport;
 }
 
-function severityForRow(row: PersonalOpsCoordinationSignalRow): CoordinationSnapshotIngestionPlanItem["severity"] {
+function severityForRow(
+	row: PersonalOpsCoordinationSignalRow,
+): CoordinationSnapshotIngestionPlanItem["severity"] {
 	if (row.urgency === "high" || row.status === "needs_attention") return "Risk";
-	if (row.urgency === "medium" || row.needs_review || row.status === "deferred") return "Watch";
+	if (row.urgency === "medium" || row.needs_review || row.status === "deferred")
+		return "Watch";
 	return "Info";
 }
 
@@ -249,10 +293,14 @@ export function buildCoordinationSnapshotIngestionPlan(
 	const mode = options.mode ?? "dry_run";
 	const writeScope = options.writeScope ?? "none";
 	if (mode === "dry_run" && writeScope !== "none") {
-		throw new AppError("Dry-run coordination ingestion must use write_scope none.");
+		throw new AppError(
+			"Dry-run coordination ingestion must use write_scope none.",
+		);
 	}
 	if (mode === "live" && writeScope !== "events") {
-		throw new AppError("Live coordination ingestion must use write_scope events.");
+		throw new AppError(
+			"Live coordination ingestion must use write_scope events.",
+		);
 	}
 	const items = payload.rows.map((row) => ({
 		dedupe_key: row.dedupe_key,
@@ -271,7 +319,8 @@ export function buildCoordinationSnapshotIngestionPlan(
 			id: "schema",
 			title: "Schema and snapshot identity",
 			state: "pass",
-			message: "Payload and row schema versions are supported and row snapshot ids match the export.",
+			message:
+				"Payload and row schema versions are supported and row snapshot ids match the export.",
 		},
 		{
 			id: "dedupe",
@@ -287,7 +336,8 @@ export function buildCoordinationSnapshotIngestionPlan(
 		},
 		{
 			id: "dry_run",
-			title: mode === "dry_run" ? "Dry-run contract" : "Approved write contract",
+			title:
+				mode === "dry_run" ? "Dry-run contract" : "Approved write contract",
 			state: "pass",
 			message:
 				mode === "dry_run"
@@ -307,8 +357,10 @@ export function buildCoordinationSnapshotIngestionPlan(
 			items_planned: items.length,
 			planned_writes: mode === "live" ? items.length : 0,
 			needs_review: payload.rows.filter((row) => row.needs_review).length,
-			archive_candidates: payload.rows.filter((row) => row.archive_candidate).length,
-			deferred_rows: payload.rows.filter((row) => row.status === "deferred").length,
+			archive_candidates: payload.rows.filter((row) => row.archive_candidate)
+				.length,
+			deferred_rows: payload.rows.filter((row) => row.status === "deferred")
+				.length,
 			highest_urgency: payload.summary.highest_urgency,
 			dry_run_contract_verified: mode === "dry_run",
 		},
@@ -331,11 +383,17 @@ export function buildCoordinationSnapshotDisplayModel(
 	plan: CoordinationSnapshotIngestionPlan,
 	now = new Date(),
 ): CoordinationSnapshotDisplayModel {
-	const needsReview = plan.items.filter((item) => item.status === "needs_attention" || item.severity === "Risk");
-	const watch = plan.items.filter(
-		(item) => !needsReview.includes(item) && (item.status === "deferred" || item.severity === "Watch"),
+	const needsReview = plan.items.filter(
+		(item) => item.status === "needs_attention" || item.severity === "Risk",
 	);
-	const archive = plan.items.filter((item) => !needsReview.includes(item) && !watch.includes(item));
+	const watch = plan.items.filter(
+		(item) =>
+			!needsReview.includes(item) &&
+			(item.status === "deferred" || item.severity === "Watch"),
+	);
+	const archive = plan.items.filter(
+		(item) => !needsReview.includes(item) && !watch.includes(item),
+	);
 	const toDisplayItem = (item: CoordinationSnapshotIngestionPlanItem) => ({
 		title: item.title,
 		status: item.status,
@@ -359,9 +417,17 @@ export function buildCoordinationSnapshotDisplayModel(
 			approved_write_scope: "events",
 		},
 		sections: [
-			{ title: "Needs Review", count: needsReview.length, items: needsReview.map(toDisplayItem) },
+			{
+				title: "Needs Review",
+				count: needsReview.length,
+				items: needsReview.map(toDisplayItem),
+			},
 			{ title: "Watch", count: watch.length, items: watch.map(toDisplayItem) },
-			{ title: "Archive Candidates", count: archive.length, items: archive.map(toDisplayItem) },
+			{
+				title: "Archive Candidates",
+				count: archive.length,
+				items: archive.map(toDisplayItem),
+			},
 		],
 		next_actions: [
 			"Display this model in Notion as the current Coordination Snapshot ledger view.",
@@ -391,13 +457,20 @@ export function buildCoordinationSnapshotReadBackResult(input: {
 		rows_found: eventIds.length,
 		missing_dedupe_keys: missing,
 		event_ids: eventIds,
-		next_actions: state === "pass"
-			? ["Record this snapshot as displayed in Personal Ops if this proof is part of the approved ledger pilot."]
-			: ["Run the approved live event write or inspect missing External Signal Events before recording display proof."],
+		next_actions:
+			state === "pass"
+				? [
+						"Record this snapshot as displayed in Personal Ops if this proof is part of the approved ledger pilot.",
+					]
+				: [
+						"Run the approved live event write or inspect missing External Signal Events before recording display proof.",
+					],
 	};
 }
 
-export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapshotIngestionPlan): string {
+export function formatCoordinationSnapshotIngestionPlan(
+	plan: CoordinationSnapshotIngestionPlan,
+): string {
 	const lines: string[] = [];
 	lines.push("Personal Ops Coordination Ingestion Plan");
 	lines.push(`Generated: ${plan.generated_at}`);
@@ -407,7 +480,9 @@ export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapsh
 	lines.push(`Rows: ${plan.summary.rows_seen}`);
 	lines.push(`Planned writes: ${plan.summary.planned_writes}`);
 	lines.push(`Deferred rows: ${plan.summary.deferred_rows}`);
-	lines.push(`Dry-run contract: ${plan.summary.dry_run_contract_verified ? "verified" : "not verified"}`);
+	lines.push(
+		`Dry-run contract: ${plan.summary.dry_run_contract_verified ? "verified" : "not verified"}`,
+	);
 	lines.push("");
 	lines.push("Quality Checks");
 	for (const check of plan.checks) {
@@ -418,7 +493,9 @@ export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapsh
 	lines.push("Signals");
 	lines.push(UNTRUSTED_CONTENT_NOTICE);
 	for (const item of plan.items) {
-		lines.push(`- ${item.severity}: signal ${item.dedupe_key} (${item.status})`);
+		lines.push(
+			`- ${item.severity}: signal ${item.dedupe_key} (${item.status})`,
+		);
 		lines.push(...untrustedMarkdownEvidence("Title", item.title));
 		lines.push(...untrustedMarkdownEvidence("Summary", item.summary));
 	}
@@ -428,7 +505,9 @@ export function formatCoordinationSnapshotIngestionPlan(plan: CoordinationSnapsh
 	return lines.join("\n");
 }
 
-export function formatCoordinationSnapshotDisplayModel(model: CoordinationSnapshotDisplayModel): string {
+export function formatCoordinationSnapshotDisplayModel(
+	model: CoordinationSnapshotDisplayModel,
+): string {
 	const lines: string[] = [];
 	lines.push("Personal Ops Coordination Display");
 	lines.push(`Generated: ${model.generated_at}`);
@@ -441,7 +520,9 @@ export function formatCoordinationSnapshotDisplayModel(model: CoordinationSnapsh
 			lines.push("- none");
 		} else {
 			for (const item of section.items) {
-				lines.push(`- ${item.severity}: signal ${item.dedupe_key} (${item.status})`);
+				lines.push(
+					`- ${item.severity}: signal ${item.dedupe_key} (${item.status})`,
+				);
 				lines.push(...untrustedMarkdownEvidence("Title", item.title));
 				lines.push(...untrustedMarkdownEvidence("Summary", item.summary));
 			}
@@ -481,7 +562,9 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 		throw new AppError("Live coordination ingestion requires --confirm-live.");
 	}
 	if (live && writeScope !== "events") {
-		throw new AppError("Live coordination ingestion requires --write-scope events.");
+		throw new AppError(
+			"Live coordination ingestion requires --write-scope events.",
+		);
 	}
 	const raw = await readFile(options.input, "utf8");
 	const parsed = JSON.parse(raw);
@@ -490,17 +573,23 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 		mode,
 		writeScope,
 	});
-	const display = options.display ? buildCoordinationSnapshotDisplayModel(plan) : undefined;
+	const display = options.display
+		? buildCoordinationSnapshotDisplayModel(plan)
+		: undefined;
 	let writeResult: CoordinationSnapshotLiveWriteResult | undefined;
 	let readBackResult: CoordinationSnapshotReadBackResult | undefined;
 	if (live) {
 		const payload = assertCoordinationExport(parsed);
-		const writer = options.writer ?? (await createNotionCoordinationSnapshotEventWriter(options.config));
+		const writer =
+			options.writer ??
+			(await createNotionCoordinationSnapshotEventWriter(options.config));
 		writeResult = await writer.upsertEvents({ payload, plan });
 	}
 	if (options.readBack) {
 		const payload = assertCoordinationExport(parsed);
-		const reader = options.reader ?? (await createNotionCoordinationSnapshotEventReader(options.config));
+		const reader =
+			options.reader ??
+			(await createNotionCoordinationSnapshotEventReader(options.config));
 		readBackResult = await reader.readBack({ payload, plan });
 	}
 	if (options.json) {
@@ -509,8 +598,12 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 				{
 					coordination_snapshot_ingestion_plan: plan,
 					...(display ? { coordination_snapshot_display: display } : {}),
-					...(writeResult ? { coordination_snapshot_write_result: writeResult } : {}),
-					...(readBackResult ? { coordination_snapshot_read_back: readBackResult } : {}),
+					...(writeResult
+						? { coordination_snapshot_write_result: writeResult }
+						: {}),
+					...(readBackResult
+						? { coordination_snapshot_read_back: readBackResult }
+						: {}),
 				},
 				null,
 				2,
@@ -534,14 +627,18 @@ export async function runCoordinationSnapshotIngestionPlanCommand(options: {
 		console.log("");
 		console.log("Read-Back Result");
 		console.log(`- State: ${readBackResult.state}`);
-		console.log(`- Rows found: ${readBackResult.rows_found}/${readBackResult.rows_expected}`);
+		console.log(
+			`- Rows found: ${readBackResult.rows_found}/${readBackResult.rows_expected}`,
+		);
 	}
 }
 
 async function createNotionCoordinationSnapshotEventWriter(
 	configPath?: string,
 ): Promise<CoordinationSnapshotEventWriter> {
-	const token = resolveRequiredNotionToken("NOTION_TOKEN is required for live coordination snapshot ingestion");
+	const token = resolveRequiredNotionToken(
+		"NOTION_TOKEN is required for live coordination snapshot ingestion",
+	);
 	const config = await loadLocalPortfolioControlTowerConfig(configPath);
 	const phase5 = requirePhase5ExternalSignals(config);
 	const api = new DirectNotionClient(token);
@@ -563,17 +660,25 @@ async function createNotionCoordinationSnapshotEventWriter(
 			}
 			const sourceStatus = selectValue(sourcePage.properties?.Status);
 			if (sourceStatus !== "Active") {
-				throw new AppError("The personal_ops_coordination_snapshot source row must be Active before live writes.");
+				throw new AppError(
+					"The personal_ops_coordination_snapshot source row must be Active before live writes.",
+				);
 			}
-			const localProjectIds = relationIds(sourcePage.properties?.["Local Project"]);
+			const localProjectIds = relationIds(
+				sourcePage.properties?.["Local Project"],
+			);
 
 			let createdEvents = 0;
 			let updatedEvents = 0;
 			const writtenEventIds: string[] = [];
 			for (const item of plan.items) {
-				const row = payload.rows.find((candidate) => candidate.dedupe_key === item.dedupe_key);
+				const row = payload.rows.find(
+					(candidate) => candidate.dedupe_key === item.dedupe_key,
+				);
 				if (!row) {
-					throw new AppError(`No source row found for planned dedupe key ${item.dedupe_key}.`);
+					throw new AppError(
+						`No source row found for planned dedupe key ${item.dedupe_key}.`,
+					);
 				}
 				const existing = await findCoordinationEventByKey({
 					api,
@@ -615,7 +720,9 @@ async function createNotionCoordinationSnapshotEventWriter(
 					eventKey: item.dedupe_key,
 				});
 				if (!readBack) {
-					throw new AppError(`Read-back verification failed for coordination event ${item.dedupe_key}.`);
+					throw new AppError(
+						`Read-back verification failed for coordination event ${item.dedupe_key}.`,
+					);
 				}
 				readBackVerified += 1;
 			}
@@ -636,7 +743,9 @@ async function createNotionCoordinationSnapshotEventWriter(
 async function createNotionCoordinationSnapshotEventReader(
 	configPath?: string,
 ): Promise<CoordinationSnapshotEventReader> {
-	const token = resolveRequiredNotionToken("NOTION_TOKEN is required for coordination snapshot read-back");
+	const token = resolveRequiredNotionToken(
+		"NOTION_TOKEN is required for coordination snapshot read-back",
+	);
 	const config = await loadLocalPortfolioControlTowerConfig(configPath);
 	const phase5 = requirePhase5ExternalSignals(config);
 	const api = new DirectNotionClient(token);
@@ -684,21 +793,27 @@ async function findPersonalOpsCoordinationSource(input: {
 			],
 		},
 	});
-	return (response.results?.[0] as
-		| {
-				id: string;
-				url: string;
-				title?: string;
-				properties?: Record<string, NotionPageProperty>;
-		  }
-		| undefined) ?? null;
+	return (
+		(response.results?.[0] as
+			| {
+					id: string;
+					url: string;
+					title?: string;
+					properties?: Record<string, NotionPageProperty>;
+			  }
+			| undefined) ?? null
+	);
 }
 
 async function findCoordinationEventByKey(input: {
 	api: DirectNotionClient;
 	dataSourceId: string;
 	eventKey: string;
-}): Promise<{ id: string; url: string; properties?: Record<string, unknown> } | null> {
+}): Promise<{
+	id: string;
+	url: string;
+	properties?: Record<string, unknown>;
+} | null> {
 	const response = await input.api.queryDataSourcePages({
 		dataSourceId: input.dataSourceId,
 		pageSize: 1,
@@ -723,7 +838,9 @@ function buildCoordinationEventProperties(input: {
 		Source: relationValue([input.sourcePageId]),
 		Provider: selectPropertyValue("Personal Ops"),
 		"Signal Type": selectPropertyValue("Audit"),
-		"Occurred At": datePropertyValue(input.row.freshness_at ?? input.row.generated_at),
+		"Occurred At": datePropertyValue(
+			input.row.freshness_at ?? input.row.generated_at,
+		),
 		Status: richTextValue(input.row.status),
 		Environment: selectPropertyValue("N/A"),
 		Severity: selectPropertyValue(input.item.severity),
@@ -757,9 +874,15 @@ function renderCoordinationEventMarkdown(
 		...untrustedMarkdownEvidence("Summary", row.summary),
 		"",
 		"## Evidence References",
-		...row.evidence_refs.flatMap((ref, index) => untrustedMarkdownEvidence(`Evidence reference ${index + 1}`, ref)),
+		...row.evidence_refs.flatMap((ref, index) =>
+			untrustedMarkdownEvidence(`Evidence reference ${index + 1}`, ref),
+		),
 		"",
 		"## Raw Excerpt",
-		...untrustedMarkdownEvidence("Raw excerpt", row.raw_excerpt, "No raw excerpt captured."),
+		...untrustedMarkdownEvidence(
+			"Raw excerpt",
+			row.raw_excerpt,
+			"No raw excerpt captured.",
+		),
 	].join("\n");
 }

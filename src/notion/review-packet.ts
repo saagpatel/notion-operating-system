@@ -297,7 +297,10 @@ export function limitRelationIds(ids: string[], maxCount: number): string[] {
 	return ids.slice(0, maxCount);
 }
 
-export function stripLeadingMarkdownTitle(markdown: string, title: string): string {
+export function stripLeadingMarkdownTitle(
+	markdown: string,
+	title: string,
+): string {
 	return stripLeadingMarkdownTitleValue(markdown, title);
 }
 

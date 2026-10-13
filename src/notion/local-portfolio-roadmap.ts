@@ -31,7 +31,7 @@ export function buildRoadmapPhases(
 		currentPhase > 1 || phaseOneCompleted
 			? "Completed"
 			: currentPhase === 1 &&
-					currentPhaseStatus.toLowerCase().includes("progress")
+				  currentPhaseStatus.toLowerCase().includes("progress")
 				? normalizedCurrentStatus
 				: "Planned";
 	const phase2Status =

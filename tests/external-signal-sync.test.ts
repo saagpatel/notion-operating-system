@@ -455,8 +455,7 @@ describe("external signal sync hardening", () => {
 			request: async ({ body }: { body: Record<string, unknown> }) => {
 				calls.push(body);
 				const filter = body.filter as
-					| { relation?: { contains?: string } }
-					| undefined;
+					{ relation?: { contains?: string } } | undefined;
 				const projectId = filter?.relation?.contains;
 				return {
 					results: projectId === projectOne ? [eventOne, eventTwo] : [eventTwo],

@@ -45,11 +45,11 @@ describe("local portfolio external signals", () => {
 		const providerConfig =
 			parseLocalPortfolioExternalSignalProviderConfig(providersRaw);
 		const viewPlan = parseLocalPortfolioExternalSignalViewPlan(viewsRaw);
-		const intentionallyPausedSources = sourceConfig.manualSeeds.filter(
-			(seed) =>
-				["SecondBrain - GitHub Repo", "claude-code-harness - GitHub Repo"].includes(
-					seed.title,
-				),
+		const intentionallyPausedSources = sourceConfig.manualSeeds.filter((seed) =>
+			[
+				"SecondBrain - GitHub Repo",
+				"claude-code-harness - GitHub Repo",
+			].includes(seed.title),
 		);
 
 		expect(sourceConfig.sourceTemplates).toHaveLength(2);
@@ -59,8 +59,9 @@ describe("local portfolio external signals", () => {
 		]);
 		expect(providerConfig.providers).toHaveLength(5);
 		expect(
-			providerConfig.providers.find((provider) => provider.key === "repo_auditor")
-				?.enabled,
+			providerConfig.providers.find(
+				(provider) => provider.key === "repo_auditor",
+			)?.enabled,
 		).toBe(false);
 		expect(viewPlan.collections).toHaveLength(4);
 	});

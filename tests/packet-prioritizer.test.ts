@@ -105,7 +105,9 @@ describe("packet prioritizer", () => {
 
 		expect(report.items[0]?.factors.recommendationSource).toBe("estimated");
 		expect(report.items[0]?.factors.taskStalenessDays).toBeNull();
-		expect(report.items[0]?.nextAction).toContain("Create the first concrete task");
+		expect(report.items[0]?.nextAction).toContain(
+			"Create the first concrete task",
+		);
 		expect(report.markdown).toContain("Do not add new Notion fields");
 	});
 });

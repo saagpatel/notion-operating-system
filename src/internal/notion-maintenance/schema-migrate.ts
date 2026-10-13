@@ -106,7 +106,10 @@ async function main() {
 					"Run the historical Local Portfolio Projects schema migration that replaces manual count fields with native rollups.",
 				options: [
 					{ flag: "--help, -h", description: "Show this help message." },
-					{ flag: "--live", description: "Apply the irreversible schema changes in Notion." },
+					{
+						flag: "--live",
+						description: "Apply the irreversible schema changes in Notion.",
+					},
 				],
 				notes: [
 					"Run schema-migrate-probe first before using --live.",
@@ -262,8 +265,7 @@ async function main() {
 	console.log("");
 	console.log("[schema-migrate] Step 4: Verifying exact provider schema...");
 	let providerReadback:
-		| ReturnType<typeof verifySchemaMigrationReadback>
-		| undefined;
+		ReturnType<typeof verifySchemaMigrationReadback> | undefined;
 	try {
 		const afterSchema = (await sdk.request({
 			path: `data_sources/${dataSourceId}`,
@@ -431,10 +433,7 @@ export function assertMigrationPropertyIdentity(
 ): void {
 	for (const target of targets) {
 		const current = properties[target.name];
-		if (
-			current?.id !== target.provider_id ||
-			current.type !== target.type
-		) {
+		if (current?.id !== target.provider_id || current.type !== target.type) {
 			throw new Error(
 				`schema-migrate property identity changed for "${target.name}"`,
 			);
@@ -491,9 +490,7 @@ async function patchProperties(
 	});
 }
 
-function printDryRunPlan(
-	plan: ReturnType<typeof schemaMigrationPlan>,
-): void {
+function printDryRunPlan(plan: ReturnType<typeof schemaMigrationPlan>): void {
 	console.log("[schema-migrate] DRY RUN — would apply the following changes:");
 	console.log("");
 	console.log("  Step 1 — DELETE deprecated properties:");
@@ -525,7 +522,9 @@ function printDryRunPlan(
 		);
 	}
 	console.log("");
-	console.log("  Step 4 — VERIFY exact provider ids and rollup schema (reads only)");
+	console.log(
+		"  Step 4 — VERIFY exact provider ids and rollup schema (reads only)",
+	);
 }
 
 if (isDirectExecution(import.meta.url)) {

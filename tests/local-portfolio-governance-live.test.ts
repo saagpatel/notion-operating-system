@@ -112,8 +112,7 @@ describe("ensurePhase6GovernanceSchema", () => {
 		for (const title of expectedTitles) {
 			const found = creates.some((c) => {
 				const body = c.body as
-					| { title?: Array<{ text?: { content?: string } }> }
-					| undefined;
+					{ title?: Array<{ text?: { content?: string } }> } | undefined;
 				return body?.title?.[0]?.text?.content === title;
 			});
 			expect(

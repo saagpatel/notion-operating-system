@@ -19,7 +19,10 @@ import {
 } from "./local-portfolio-control-tower-live.js";
 import { toIntelligenceProjectRecord } from "./local-portfolio-intelligence-live.js";
 import { createNotionSdkClient } from "./notion-sdk.js";
-import { WorkspaceIds, type BuildLogProjectRelation } from "../config/workspace-ids.js";
+import {
+	WorkspaceIds,
+	type BuildLogProjectRelation,
+} from "../config/workspace-ids.js";
 
 export interface BridgeDbSyncOptions {
 	live?: boolean;
@@ -87,12 +90,15 @@ export async function runBridgeDbSyncCommand(
 		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
 	const config = await loadLocalPortfolioControlTowerConfig(configPath);
 	const workspaceIds = await WorkspaceIds.load();
-	const projectPortfolioDataSourceId = workspaceIds.getDataSource("projectPortfolio");
+	const projectPortfolioDataSourceId =
+		workspaceIds.getDataSource("projectPortfolio");
 	const operationalProjectAliases = new Map<string, OperationalProjectAlias>(
-		workspaceIds.operationalAliases.map(({ repoKey, targetTitle, relationProperty }) => [
-			repoKey,
-			{ targetTitle, relationProperty },
-		]),
+		workspaceIds.operationalAliases.map(
+			({ repoKey, targetTitle, relationProperty }) => [
+				repoKey,
+				{ targetTitle, relationProperty },
+			],
+		),
 	);
 	const dbPath =
 		options.dbPath ?? process.env["BRIDGE_DB_PATH"] ?? BRIDGE_DB_DEFAULT_PATH;
@@ -116,11 +122,12 @@ export async function runBridgeDbSyncCommand(
 	const api = new DirectNotionClient(token);
 
 	// Fetch project lists and build log schema
-	const [projectSchema, projectPortfolioSchema, buildSchema] = await Promise.all([
-		api.retrieveDataSource(config.database.dataSourceId),
-		api.retrieveDataSource(projectPortfolioDataSourceId),
-		api.retrieveDataSource(config.relatedDataSources.buildLogId),
-	]);
+	const [projectSchema, projectPortfolioSchema, buildSchema] =
+		await Promise.all([
+			api.retrieveDataSource(config.database.dataSourceId),
+			api.retrieveDataSource(projectPortfolioDataSourceId),
+			api.retrieveDataSource(config.relatedDataSources.buildLogId),
+		]);
 	assertDataSourceSchemaProperties("Local Portfolio Projects", projectSchema, [
 		{ name: projectSchema.titlePropertyName, type: "title" },
 	]);
@@ -225,7 +232,10 @@ export async function runBridgeDbSyncCommand(
 			operationalProjectAliases,
 		);
 		if (!projectTarget) {
-			const alias = resolveOperationalProjectAlias(row.project_name, operationalProjectAliases);
+			const alias = resolveOperationalProjectAlias(
+				row.project_name,
+				operationalProjectAliases,
+			);
 			result.rowsSkipped += 1;
 			if (alias) {
 				result.notes.push(
@@ -785,7 +795,10 @@ function resolveBuildLogProjectTarget(
 		return { id: portfolioProjectId, relationProperty: "Project" };
 	}
 
-	const alias = resolveOperationalProjectAlias(projectName, operationalProjectAliases);
+	const alias = resolveOperationalProjectAlias(
+		projectName,
+		operationalProjectAliases,
+	);
 	if (!alias) {
 		return undefined;
 	}

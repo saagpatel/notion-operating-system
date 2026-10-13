@@ -28,7 +28,9 @@ describe("command center replacement fallback", () => {
 	test("keeps the current page when read-back proves the lost acknowledgment converged", async () => {
 		const calls: string[] = [];
 		const api = {
-			readPageMarkdown: async () => ({ markdown: "# Command Center\n\nCurrent body" }),
+			readPageMarkdown: async () => ({
+				markdown: "# Command Center\n\nCurrent body",
+			}),
 			createPageWithMarkdown: async () => {
 				calls.push("create");
 				return { id: "new", url: "https://notion.so/new" };

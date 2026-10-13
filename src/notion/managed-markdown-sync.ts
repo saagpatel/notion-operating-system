@@ -22,8 +22,7 @@ type ManagedMarkdownSyncMode =
 	| "skipped_by_env";
 
 export type ManagedMarkdownSyncWithReadBackMode =
-	| ManagedMarkdownSyncMode
-	| "read_back_converged";
+	ManagedMarkdownSyncMode | "read_back_converged";
 
 function shouldSkipManagedMarkdownPatch(): boolean {
 	return process.env.NOTION_SKIP_MANAGED_MARKDOWN_PATCH === "1";

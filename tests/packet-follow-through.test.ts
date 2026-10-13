@@ -177,18 +177,20 @@ describe("packet follow-through", () => {
 			projects: [],
 			packets: [],
 			tasks: [],
-			staleSupportReviewQueue: [{
-				kind: "research",
-				title: "Old research note",
-				id: "support-1",
-				url: "https://notion.example/support-1",
-				linkedProjectCount: 0,
-				linkedProjectTitles: [],
-				reviewReason: "No linked local projects",
-				freshnessDate: "2026-01-01",
-				classification: "actionable",
-				classificationReason: "No intentional exception is recorded",
-			}],
+			staleSupportReviewQueue: [
+				{
+					kind: "research",
+					title: "Old research note",
+					id: "support-1",
+					url: "https://notion.example/support-1",
+					linkedProjectCount: 0,
+					linkedProjectTitles: [],
+					reviewReason: "No linked local projects",
+					freshnessDate: "2026-01-01",
+					classification: "actionable",
+					classificationReason: "No intentional exception is recorded",
+				},
+			],
 		});
 
 		expect(report.items[0]).toMatchObject({

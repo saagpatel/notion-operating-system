@@ -1,556 +1,624 @@
 import type {
-  ContentUpdate,
-  CreatePageInput,
-  DataSourceSchemaSnapshot,
-  DestinationConfig,
-  MarkdownPatchInput,
-  MarkdownReadResult,
-  NotionApi,
-  PageSnapshot,
-  PageUpdateInput,
-  PropertySchema,
-  ResolvedDestination,
-  SearchPageOptions,
-  TemplateDescriptor,
+	ContentUpdate,
+	CreatePageInput,
+	DataSourceSchemaSnapshot,
+	DestinationConfig,
+	MarkdownPatchInput,
+	MarkdownReadResult,
+	NotionApi,
+	PageSnapshot,
+	PageUpdateInput,
+	PropertySchema,
+	ResolvedDestination,
+	SearchPageOptions,
+	TemplateDescriptor,
 } from "../types.js";
 import { loadRuntimeConfig } from "../config/runtime-config.js";
-import { extractNotionIdFromUrl, normalizeNotionId } from "../utils/notion-id.js";
+import {
+	extractNotionIdFromUrl,
+	normalizeNotionId,
+} from "../utils/notion-id.js";
 import { AppError } from "../utils/errors.js";
 import { NotionHttp } from "./http.js";
 import type { RunLogger } from "../logging/run-logger.js";
 import { getCurrentCommandLogger } from "../cli/run-observability.js";
 
 export interface NotionBlockChild {
-  id: string;
-  type: string;
-  plainText: string;
-  hasChildren: boolean;
-  archived: boolean;
-  inTrash: boolean;
+	id: string;
+	type: string;
+	plainText: string;
+	hasChildren: boolean;
+	archived: boolean;
+	inTrash: boolean;
 }
 
 export interface DirectNotionPageState {
-  id: string;
-  url: string;
-  title?: string;
-  parent?: { page_id?: string; data_source_id?: string };
-  parentDataSourceId?: string;
-  lastEditedTime?: string;
-  properties: Record<string, unknown>;
+	id: string;
+	url: string;
+	title?: string;
+	parent?: { page_id?: string; data_source_id?: string };
+	parentDataSourceId?: string;
+	lastEditedTime?: string;
+	properties: Record<string, unknown>;
 }
 
 export class DirectNotionClient implements NotionApi {
-  private readonly http: NotionHttp;
+	private readonly http: NotionHttp;
 
-  public constructor(
-    token: string,
-    logger?: RunLogger,
-    options: { maxAttempts?: number; timeoutMs?: number } = {},
-  ) {
-    const runtimeConfig = loadRuntimeConfig();
-    const resolvedLogger = logger ?? getCurrentCommandLogger();
-    this.http = new NotionHttp({
-      token,
-      notionVersion: runtimeConfig.notion.version,
-      logger: resolvedLogger,
-      maxAttempts: options.maxAttempts,
-      timeoutMs: options.timeoutMs,
-    });
-  }
+	public constructor(
+		token: string,
+		logger?: RunLogger,
+		options: { maxAttempts?: number; timeoutMs?: number } = {},
+	) {
+		const runtimeConfig = loadRuntimeConfig();
+		const resolvedLogger = logger ?? getCurrentCommandLogger();
+		this.http = new NotionHttp({
+			token,
+			notionVersion: runtimeConfig.notion.version,
+			logger: resolvedLogger,
+			maxAttempts: options.maxAttempts,
+			timeoutMs: options.timeoutMs,
+		});
+	}
 
-  public async verifyAccess(): Promise<{ id: string; name: string; type: string }> {
-    const user = await this.http.requestJson<{
-      id: string;
-      name?: string;
-      type?: string;
-      bot?: { owner?: { type?: string } };
-    }>("/users/me");
+	public async verifyAccess(): Promise<{
+		id: string;
+		name: string;
+		type: string;
+	}> {
+		const user = await this.http.requestJson<{
+			id: string;
+			name?: string;
+			type?: string;
+			bot?: { owner?: { type?: string } };
+		}>("/users/me");
 
-    return {
-      id: normalizeNotionId(user.id),
-      name: user.name ?? "Unknown Notion identity",
-      type: user.type ?? user.bot?.owner?.type ?? "unknown",
-    };
-  }
+		return {
+			id: normalizeNotionId(user.id),
+			name: user.name ?? "Unknown Notion identity",
+			type: user.type ?? user.bot?.owner?.type ?? "unknown",
+		};
+	}
 
-  public async resolveDestination(destination: DestinationConfig): Promise<ResolvedDestination> {
-    if (destination.destinationType === "page") {
-      const pageId = normalizeNotionId(
-        destination.resolvedId ?? extractRequiredId(destination.sourceUrl, destination.alias),
-      );
-      const page = await this.retrievePage(pageId);
-      return {
-        alias: destination.alias,
-        sourceUrl: destination.sourceUrl,
-        destinationType: "page",
-        pageId: page.id,
-      };
-    }
+	public async resolveDestination(
+		destination: DestinationConfig,
+	): Promise<ResolvedDestination> {
+		if (destination.destinationType === "page") {
+			const pageId = normalizeNotionId(
+				destination.resolvedId ??
+					extractRequiredId(destination.sourceUrl, destination.alias),
+			);
+			const page = await this.retrievePage(pageId);
+			return {
+				alias: destination.alias,
+				sourceUrl: destination.sourceUrl,
+				destinationType: "page",
+				pageId: page.id,
+			};
+		}
 
-    const storedId = destination.resolvedId ? normalizeNotionId(destination.resolvedId) : undefined;
-    if (storedId) {
-      const dataSource = await this.retrieveDataSource(storedId);
-      return {
-        alias: destination.alias,
-        sourceUrl: destination.sourceUrl,
-        destinationType: "data_source",
-        dataSourceId: dataSource.id,
-      };
-    }
+		const storedId = destination.resolvedId
+			? normalizeNotionId(destination.resolvedId)
+			: undefined;
+		if (storedId) {
+			const dataSource = await this.retrieveDataSource(storedId);
+			return {
+				alias: destination.alias,
+				sourceUrl: destination.sourceUrl,
+				destinationType: "data_source",
+				dataSourceId: dataSource.id,
+			};
+		}
 
-    if (destination.sourceUrl.startsWith("collection://")) {
-      return {
-        alias: destination.alias,
-        sourceUrl: destination.sourceUrl,
-        destinationType: "data_source",
-      dataSourceId: normalizeNotionId(destination.sourceUrl.split("://")[1] ?? ""),
-      };
-    }
+		if (destination.sourceUrl.startsWith("collection://")) {
+			return {
+				alias: destination.alias,
+				sourceUrl: destination.sourceUrl,
+				destinationType: "data_source",
+				dataSourceId: normalizeNotionId(
+					destination.sourceUrl.split("://")[1] ?? "",
+				),
+			};
+		}
 
-    const objectId = extractRequiredId(destination.sourceUrl, destination.alias);
+		const objectId = extractRequiredId(
+			destination.sourceUrl,
+			destination.alias,
+		);
 
-    try {
-      const dataSource = await this.retrieveDataSource(objectId);
-      return {
-        alias: destination.alias,
-        sourceUrl: destination.sourceUrl,
-        destinationType: "data_source",
-        dataSourceId: dataSource.id,
-      };
-    } catch {
-      const database = await this.http.requestJson<{
-        id: string;
-        data_sources?: Array<{ id: string }>;
-      }>(`/databases/${objectId}`);
+		try {
+			const dataSource = await this.retrieveDataSource(objectId);
+			return {
+				alias: destination.alias,
+				sourceUrl: destination.sourceUrl,
+				destinationType: "data_source",
+				dataSourceId: dataSource.id,
+			};
+		} catch {
+			const database = await this.http.requestJson<{
+				id: string;
+				data_sources?: Array<{ id: string }>;
+			}>(`/databases/${objectId}`);
 
-      const firstDataSource = database.data_sources?.[0];
-      if (!firstDataSource) {
-        throw new AppError(`Database for alias "${destination.alias}" has no data sources`);
-      }
+			const firstDataSource = database.data_sources?.[0];
+			if (!firstDataSource) {
+				throw new AppError(
+					`Database for alias "${destination.alias}" has no data sources`,
+				);
+			}
 
-      if ((database.data_sources?.length ?? 0) > 1) {
-        throw new AppError(
-          `Database for alias "${destination.alias}" exposes multiple data sources; store a resolvedId instead of only a database URL`,
-        );
-      }
+			if ((database.data_sources?.length ?? 0) > 1) {
+				throw new AppError(
+					`Database for alias "${destination.alias}" exposes multiple data sources; store a resolvedId instead of only a database URL`,
+				);
+			}
 
-      return {
-        alias: destination.alias,
-        sourceUrl: destination.sourceUrl,
-        destinationType: "data_source",
-        dataSourceId: normalizeNotionId(firstDataSource.id),
-      };
-    }
-  }
+			return {
+				alias: destination.alias,
+				sourceUrl: destination.sourceUrl,
+				destinationType: "data_source",
+				dataSourceId: normalizeNotionId(firstDataSource.id),
+			};
+		}
+	}
 
-  public async retrievePage(pageId: string): Promise<PageSnapshot> {
-    const response = await this.retrievePageState(pageId);
-    return {
-      id: response.id,
-      url: response.url,
-      title: response.title,
-      parent: response.parent,
-    };
-  }
+	public async retrievePage(pageId: string): Promise<PageSnapshot> {
+		const response = await this.retrievePageState(pageId);
+		return {
+			id: response.id,
+			url: response.url,
+			title: response.title,
+			parent: response.parent,
+		};
+	}
 
-  public async retrievePageState(pageId: string): Promise<DirectNotionPageState> {
-    const response = await this.http.requestJson<{
-      id: string;
-      url: string;
-      last_edited_time?: string;
-      parent?: { page_id?: string; data_source_id?: string };
-      properties?: Record<
-        string,
-        { type?: string; title?: Array<{ plain_text?: string }> }
-      >;
-    }>(`/pages/${pageId}`);
-    const title = findPageTitle(response.properties);
-    return {
-      id: normalizeNotionId(response.id),
-      url: response.url,
-      title,
-      parent: normalizePageParent(response.parent),
-      parentDataSourceId: response.parent?.data_source_id
-        ? normalizeNotionId(response.parent.data_source_id)
-        : undefined,
-      lastEditedTime: response.last_edited_time,
-      properties: response.properties ?? {},
-    };
-  }
+	public async retrievePageState(
+		pageId: string,
+	): Promise<DirectNotionPageState> {
+		const response = await this.http.requestJson<{
+			id: string;
+			url: string;
+			last_edited_time?: string;
+			parent?: { page_id?: string; data_source_id?: string };
+			properties?: Record<
+				string,
+				{ type?: string; title?: Array<{ plain_text?: string }> }
+			>;
+		}>(`/pages/${pageId}`);
+		const title = findPageTitle(response.properties);
+		return {
+			id: normalizeNotionId(response.id),
+			url: response.url,
+			title,
+			parent: normalizePageParent(response.parent),
+			parentDataSourceId: response.parent?.data_source_id
+				? normalizeNotionId(response.parent.data_source_id)
+				: undefined,
+			lastEditedTime: response.last_edited_time,
+			properties: response.properties ?? {},
+		};
+	}
 
-  public async retrievePagePropertyItems(input: {
-    pageId: string;
-    propertyId: string;
-    startCursor?: string;
-  }): Promise<{
-    relationIds: string[];
-    hasMore: boolean;
-    nextCursor?: string;
-  }> {
-    const params = new URLSearchParams({ page_size: "100" });
-    if (input.startCursor) {
-      params.set("start_cursor", input.startCursor);
-    }
-    const response = await this.http.requestJson<{
-      results?: Array<{
-        type?: string;
-        relation?: { id?: string };
-      }>;
-      has_more?: boolean;
-      next_cursor?: string | null;
-    }>(
-      `/pages/${encodeNotionPathSegment(input.pageId)}/properties/${encodeNotionPathSegment(input.propertyId)}?${params.toString()}`,
-    );
-    return {
-      relationIds: (response.results ?? [])
-        .flatMap((item) => {
-          const relationId = item.relation?.id;
-          return item.type === "relation" && typeof relationId === "string"
-            ? [normalizeNotionId(relationId)]
-            : [];
-        }),
-      hasMore: Boolean(response.has_more),
-      nextCursor: response.next_cursor ?? undefined,
-    };
-  }
+	public async retrievePagePropertyItems(input: {
+		pageId: string;
+		propertyId: string;
+		startCursor?: string;
+	}): Promise<{
+		relationIds: string[];
+		hasMore: boolean;
+		nextCursor?: string;
+	}> {
+		const params = new URLSearchParams({ page_size: "100" });
+		if (input.startCursor) {
+			params.set("start_cursor", input.startCursor);
+		}
+		const response = await this.http.requestJson<{
+			results?: Array<{
+				type?: string;
+				relation?: { id?: string };
+			}>;
+			has_more?: boolean;
+			next_cursor?: string | null;
+		}>(
+			`/pages/${encodeNotionPathSegment(input.pageId)}/properties/${encodeNotionPathSegment(input.propertyId)}?${params.toString()}`,
+		);
+		return {
+			relationIds: (response.results ?? []).flatMap((item) => {
+				const relationId = item.relation?.id;
+				return item.type === "relation" && typeof relationId === "string"
+					? [normalizeNotionId(relationId)]
+					: [];
+			}),
+			hasMore: Boolean(response.has_more),
+			nextCursor: response.next_cursor ?? undefined,
+		};
+	}
 
-  public async retrieveDataSource(dataSourceId: string): Promise<DataSourceSchemaSnapshot> {
-    const response = await this.http.requestJson<{
-      id: string;
-      title?: unknown;
-      name?: string;
-      properties: Record<string, { id?: string; name?: string; type: string }>;
-    }>(`/data_sources/${dataSourceId}`);
+	public async retrieveDataSource(
+		dataSourceId: string,
+	): Promise<DataSourceSchemaSnapshot> {
+		const response = await this.http.requestJson<{
+			id: string;
+			title?: unknown;
+			name?: string;
+			properties: Record<string, { id?: string; name?: string; type: string }>;
+		}>(`/data_sources/${dataSourceId}`);
 
-    const properties = Object.fromEntries(
-      Object.entries(response.properties).map(([name, property]) => [
-        name,
-        mapPropertySchema(name, property),
-      ]),
-    );
+		const properties = Object.fromEntries(
+			Object.entries(response.properties).map(([name, property]) => [
+				name,
+				mapPropertySchema(name, property),
+			]),
+		);
 
-    const titlePropertyName = Object.values(properties).find((property) => property.type === "title")?.name;
-    if (!titlePropertyName) {
-      throw new AppError(`Data source ${dataSourceId} does not expose a title property`);
-    }
+		const titlePropertyName = Object.values(properties).find(
+			(property) => property.type === "title",
+		)?.name;
+		if (!titlePropertyName) {
+			throw new AppError(
+				`Data source ${dataSourceId} does not expose a title property`,
+			);
+		}
 
-    return {
-      id: normalizeNotionId(response.id),
-      title: response.name ?? richTextToPlainText(response.title) ?? "Untitled data source",
-      titlePropertyName,
-      properties,
-    };
-  }
+		return {
+			id: normalizeNotionId(response.id),
+			title:
+				response.name ??
+				richTextToPlainText(response.title) ??
+				"Untitled data source",
+			titlePropertyName,
+			properties,
+		};
+	}
 
-  public async listTemplates(dataSourceId: string): Promise<TemplateDescriptor[]> {
-    const response = await this.http.requestJson<{
-      results?: Array<{ id: string; name?: string; is_default?: boolean }>;
-    }>(`/data_sources/${dataSourceId}/templates`);
+	public async listTemplates(
+		dataSourceId: string,
+	): Promise<TemplateDescriptor[]> {
+		const response = await this.http.requestJson<{
+			results?: Array<{ id: string; name?: string; is_default?: boolean }>;
+		}>(`/data_sources/${dataSourceId}/templates`);
 
-    return (response.results ?? []).map((template) => ({
-      id: normalizeNotionId(template.id),
-      name: template.name ?? template.id,
-      isDefault: Boolean(template.is_default),
-    }));
-  }
+		return (response.results ?? []).map((template) => ({
+			id: normalizeNotionId(template.id),
+			name: template.name ?? template.id,
+			isDefault: Boolean(template.is_default),
+		}));
+	}
 
-  public async searchPage(options: SearchPageOptions): Promise<PageSnapshot | null> {
-    if (options.dataSourceId && options.exactTitle) {
-      const filter = {
-        property: options.titleProperty ?? "title",
-        title: {
-          equals: options.exactTitle,
-        },
-      };
-      const response = await this.http.requestJson<{
-        results?: Array<{ id: string; url: string; properties?: Record<string, unknown> }>;
-      }>(`/data_sources/${options.dataSourceId}/query`, {
-        method: "post",
-        body: {
-          filter,
-          page_size: 1,
-        },
-      });
-      const result = response.results?.[0];
-      return result
-        ? {
-            id: normalizeNotionId(result.id),
-            url: result.url,
-            title: options.exactTitle,
-          }
-        : null;
-    }
+	public async searchPage(
+		options: SearchPageOptions,
+	): Promise<PageSnapshot | null> {
+		if (options.dataSourceId && options.exactTitle) {
+			const filter = {
+				property: options.titleProperty ?? "title",
+				title: {
+					equals: options.exactTitle,
+				},
+			};
+			const response = await this.http.requestJson<{
+				results?: Array<{
+					id: string;
+					url: string;
+					properties?: Record<string, unknown>;
+				}>;
+			}>(`/data_sources/${options.dataSourceId}/query`, {
+				method: "post",
+				body: {
+					filter,
+					page_size: 1,
+				},
+			});
+			const result = response.results?.[0];
+			return result
+				? {
+						id: normalizeNotionId(result.id),
+						url: result.url,
+						title: options.exactTitle,
+					}
+				: null;
+		}
 
-    if (!options.query && !options.exactTitle) {
-      return null;
-    }
+		if (!options.query && !options.exactTitle) {
+			return null;
+		}
 
-    const response = await this.http.requestJson<{
-      results: Array<{ id: string; url: string }>;
-    }>("/search", {
-      method: "post",
-      body: {
-        query: options.query ?? options.exactTitle ?? "",
-        filter: {
-          property: "object",
-          value: "page",
-        },
-        page_size: 10,
-      },
-    });
+		const response = await this.http.requestJson<{
+			results: Array<{ id: string; url: string }>;
+		}>("/search", {
+			method: "post",
+			body: {
+				query: options.query ?? options.exactTitle ?? "",
+				filter: {
+					property: "object",
+					value: "page",
+				},
+				page_size: 10,
+			},
+		});
 
-    const result = response.results[0] as { id: string; url: string } | undefined;
-    return result
-      ? {
-          id: normalizeNotionId(result.id),
-          url: result.url,
-          title: options.exactTitle ?? options.query,
-        }
-      : null;
-  }
+		const result = response.results[0] as
+			{ id: string; url: string } | undefined;
+		return result
+			? {
+					id: normalizeNotionId(result.id),
+					url: result.url,
+					title: options.exactTitle ?? options.query,
+				}
+			: null;
+	}
 
-  public async createPageWithMarkdown(input: CreatePageInput): Promise<PageSnapshot> {
-    const response = await this.http.requestJson<{ id: string; url: string }>("/pages", {
-      method: "POST",
-      body: {
-        parent: input.parent,
-        properties: input.properties,
-        markdown: input.markdown,
-        template: input.template,
-      },
-    });
+	public async createPageWithMarkdown(
+		input: CreatePageInput,
+	): Promise<PageSnapshot> {
+		const response = await this.http.requestJson<{ id: string; url: string }>(
+			"/pages",
+			{
+				method: "POST",
+				body: {
+					parent: input.parent,
+					properties: input.properties,
+					markdown: input.markdown,
+					template: input.template,
+				},
+			},
+		);
 
-    return {
-      id: normalizeNotionId(response.id),
-      url: response.url,
-    };
-  }
+		return {
+			id: normalizeNotionId(response.id),
+			url: response.url,
+		};
+	}
 
-  public async updatePageProperties(input: PageUpdateInput): Promise<PageSnapshot> {
-    const response = await this.http.requestJson<{ id: string; url: string }>(`/pages/${input.pageId}`, {
-      method: "PATCH",
-      body: {
-        properties: input.properties,
-      },
-      recordClientErrorAsFailure: input.recordClientErrorAsFailure,
-    });
+	public async updatePageProperties(
+		input: PageUpdateInput,
+	): Promise<PageSnapshot> {
+		const response = await this.http.requestJson<{ id: string; url: string }>(
+			`/pages/${input.pageId}`,
+			{
+				method: "PATCH",
+				body: {
+					properties: input.properties,
+				},
+				recordClientErrorAsFailure: input.recordClientErrorAsFailure,
+			},
+		);
 
-    return {
-      id: normalizeNotionId(response.id),
-      url: response.url,
-    };
-  }
+		return {
+			id: normalizeNotionId(response.id),
+			url: response.url,
+		};
+	}
 
-  public async archivePage(pageId: string): Promise<void> {
-    await this.http.requestJson(`/pages/${pageId}`, {
-      method: "PATCH",
-      body: {
-        in_trash: true,
-      },
-    });
-  }
+	public async archivePage(pageId: string): Promise<void> {
+		await this.http.requestJson(`/pages/${pageId}`, {
+			method: "PATCH",
+			body: {
+				in_trash: true,
+			},
+		});
+	}
 
-  public async queryDataSourcePages(input: {
-    dataSourceId: string;
-    pageSize?: number;
-    startCursor?: string;
-    filter?: Record<string, unknown>;
-    sorts?: Array<Record<string, unknown>>;
-  }): Promise<{
-    results?: Array<{
-      id: string;
-      url: string;
-      created_time?: string;
-      last_edited_time?: string;
-      in_trash?: boolean;
-      archived?: boolean;
-      properties?: Record<string, unknown>;
-    }>;
-    has_more?: boolean;
-    next_cursor?: string | null;
-  }> {
-    return this.http.requestJson(`/data_sources/${input.dataSourceId}/query`, {
-      method: "post",
-      body: {
-        page_size: input.pageSize ?? 100,
-        start_cursor: input.startCursor,
-        filter: input.filter,
-        sorts: input.sorts,
-      },
-    });
-  }
+	public async queryDataSourcePages(input: {
+		dataSourceId: string;
+		pageSize?: number;
+		startCursor?: string;
+		filter?: Record<string, unknown>;
+		sorts?: Array<Record<string, unknown>>;
+	}): Promise<{
+		results?: Array<{
+			id: string;
+			url: string;
+			created_time?: string;
+			last_edited_time?: string;
+			in_trash?: boolean;
+			archived?: boolean;
+			properties?: Record<string, unknown>;
+		}>;
+		has_more?: boolean;
+		next_cursor?: string | null;
+	}> {
+		return this.http.requestJson(`/data_sources/${input.dataSourceId}/query`, {
+			method: "post",
+			body: {
+				page_size: input.pageSize ?? 100,
+				start_cursor: input.startCursor,
+				filter: input.filter,
+				sorts: input.sorts,
+			},
+		});
+	}
 
-  public async readPageMarkdown(pageId: string): Promise<MarkdownReadResult> {
-    const response = await this.http.requestJson<Record<string, unknown>>(`/pages/${pageId}/markdown`);
-    const markdown = typeof response.markdown === "string" ? response.markdown : "";
-    const unknownBlockIds = Array.isArray(response.unknown_block_ids)
-      ? response.unknown_block_ids.filter((value): value is string => typeof value === "string")
-      : [];
+	public async readPageMarkdown(pageId: string): Promise<MarkdownReadResult> {
+		const response = await this.http.requestJson<Record<string, unknown>>(
+			`/pages/${pageId}/markdown`,
+		);
+		const markdown =
+			typeof response.markdown === "string" ? response.markdown : "";
+		const unknownBlockIds = Array.isArray(response.unknown_block_ids)
+			? response.unknown_block_ids.filter(
+					(value): value is string => typeof value === "string",
+				)
+			: [];
 
-    return {
-      markdown,
-      raw: response,
-      truncated: Boolean(response.truncated),
-      unknownBlockIds,
-    };
-  }
+		return {
+			markdown,
+			raw: response,
+			truncated: Boolean(response.truncated),
+			unknownBlockIds,
+		};
+	}
 
-  public async listBlockChildren(input: {
-    blockId: string;
-    pageSize?: number;
-    startCursor?: string;
-  }): Promise<{
-    results: NotionBlockChild[];
-    hasMore: boolean;
-    nextCursor?: string;
-  }> {
-    const params = new URLSearchParams({
-      page_size: String(input.pageSize ?? 100),
-    });
-    if (input.startCursor) {
-      params.set("start_cursor", input.startCursor);
-    }
-    const response = await this.http.requestJson<{
-      results?: Array<Record<string, unknown>>;
-      has_more?: boolean;
-      next_cursor?: string | null;
-    }>(`/blocks/${input.blockId}/children?${params.toString()}`);
+	public async listBlockChildren(input: {
+		blockId: string;
+		pageSize?: number;
+		startCursor?: string;
+	}): Promise<{
+		results: NotionBlockChild[];
+		hasMore: boolean;
+		nextCursor?: string;
+	}> {
+		const params = new URLSearchParams({
+			page_size: String(input.pageSize ?? 100),
+		});
+		if (input.startCursor) {
+			params.set("start_cursor", input.startCursor);
+		}
+		const response = await this.http.requestJson<{
+			results?: Array<Record<string, unknown>>;
+			has_more?: boolean;
+			next_cursor?: string | null;
+		}>(`/blocks/${input.blockId}/children?${params.toString()}`);
 
-    return {
-      results: (response.results ?? []).map(mapNotionBlockChild),
-      hasMore: Boolean(response.has_more),
-      nextCursor: response.next_cursor ?? undefined,
-    };
-  }
+		return {
+			results: (response.results ?? []).map(mapNotionBlockChild),
+			hasMore: Boolean(response.has_more),
+			nextCursor: response.next_cursor ?? undefined,
+		};
+	}
 
-  public async patchPageMarkdown(input: MarkdownPatchInput): Promise<void> {
-    const body =
-      input.command === "replace_content"
-        ? {
-            type: "replace_content",
-            replace_content: {
-              new_str: input.newMarkdown ?? "",
-              allow_deleting_content: false,
-            },
-          }
-        : {
-            type: "update_content",
-            update_content: {
-              content_updates: (input.contentUpdates ?? []).map((update: ContentUpdate) => ({
-                old_str: update.oldStr,
-                new_str: update.newStr,
-                replace_all_matches: update.replaceAllMatches,
-              })),
-              allow_deleting_content: false,
-            },
-          };
+	public async patchPageMarkdown(input: MarkdownPatchInput): Promise<void> {
+		const body =
+			input.command === "replace_content"
+				? {
+						type: "replace_content",
+						replace_content: {
+							new_str: input.newMarkdown ?? "",
+							allow_deleting_content: false,
+						},
+					}
+				: {
+						type: "update_content",
+						update_content: {
+							content_updates: (input.contentUpdates ?? []).map(
+								(update: ContentUpdate) => ({
+									old_str: update.oldStr,
+									new_str: update.newStr,
+									replace_all_matches: update.replaceAllMatches,
+								}),
+							),
+							allow_deleting_content: false,
+						},
+					};
 
-    await this.http.requestJson(`/pages/${input.pageId}/markdown`, {
-      method: "PATCH",
-      body,
-      maxAttempts: input.maxAttempts,
-      recordClientErrorAsFailure: input.recordClientErrorAsFailure,
-    });
-  }
+		await this.http.requestJson(`/pages/${input.pageId}/markdown`, {
+			method: "PATCH",
+			body,
+			maxAttempts: input.maxAttempts,
+			recordClientErrorAsFailure: input.recordClientErrorAsFailure,
+		});
+	}
 }
 
 function mapNotionBlockChild(block: Record<string, unknown>): NotionBlockChild {
-  const type = typeof block.type === "string" ? block.type : "unknown";
-  const payload =
-    type !== "unknown" && typeof block[type] === "object" && block[type] !== null
-      ? (block[type] as Record<string, unknown>)
-      : undefined;
-  return {
-    id: normalizeNotionId(String(block.id ?? "")),
-    type,
-    plainText: richTextToPlainText(payload?.rich_text) ?? "",
-    hasChildren: Boolean(block.has_children),
-    archived: Boolean(block.archived),
-    inTrash: Boolean(block.in_trash),
-  };
+	const type = typeof block.type === "string" ? block.type : "unknown";
+	const payload =
+		type !== "unknown" &&
+		typeof block[type] === "object" &&
+		block[type] !== null
+			? (block[type] as Record<string, unknown>)
+			: undefined;
+	return {
+		id: normalizeNotionId(String(block.id ?? "")),
+		type,
+		plainText: richTextToPlainText(payload?.rich_text) ?? "",
+		hasChildren: Boolean(block.has_children),
+		archived: Boolean(block.archived),
+		inTrash: Boolean(block.in_trash),
+	};
 }
 
 function encodeNotionPathSegment(value: string): string {
-  try {
-    return encodeURIComponent(decodeURIComponent(value));
-  } catch {
-    return encodeURIComponent(value);
-  }
+	try {
+		return encodeURIComponent(decodeURIComponent(value));
+	} catch {
+		return encodeURIComponent(value);
+	}
 }
 
 function extractRequiredId(sourceUrl: string, alias: string): string {
-  const id = extractNotionIdFromUrl(sourceUrl);
-  if (!id) {
-    throw new AppError(`Could not resolve a Notion ID from destination "${alias}"`);
-  }
+	const id = extractNotionIdFromUrl(sourceUrl);
+	if (!id) {
+		throw new AppError(
+			`Could not resolve a Notion ID from destination "${alias}"`,
+		);
+	}
 
-  return id;
+	return id;
 }
 
-function mapPropertySchema(name: string, property: { id?: string; name?: string; type: string }): PropertySchema {
-  return {
-    id: property.id,
-    name: property.name ?? name,
-    type: property.type,
-    writable: !NON_WRITABLE_PROPERTY_TYPES.has(property.type),
-  };
+function mapPropertySchema(
+	name: string,
+	property: { id?: string; name?: string; type: string },
+): PropertySchema {
+	return {
+		id: property.id,
+		name: property.name ?? name,
+		type: property.type,
+		writable: !NON_WRITABLE_PROPERTY_TYPES.has(property.type),
+	};
 }
 
 const NON_WRITABLE_PROPERTY_TYPES = new Set([
-  "formula",
-  "rollup",
-  "created_time",
-  "created_by",
-  "last_edited_time",
-  "last_edited_by",
-  "unique_id",
-  "verification",
-  "button",
+	"formula",
+	"rollup",
+	"created_time",
+	"created_by",
+	"last_edited_time",
+	"last_edited_by",
+	"unique_id",
+	"verification",
+	"button",
 ]);
 
 function findPageTitle(
-  properties?: Record<string, { type?: string; title?: Array<{ plain_text?: string }> }>,
+	properties?: Record<
+		string,
+		{ type?: string; title?: Array<{ plain_text?: string }> }
+	>,
 ): string | undefined {
-  if (!properties) {
-    return undefined;
-  }
+	if (!properties) {
+		return undefined;
+	}
 
-  for (const property of Object.values(properties)) {
-    if (property.type === "title" && property.title) {
-      return property.title.map((part) => part.plain_text ?? "").join("");
-    }
-  }
+	for (const property of Object.values(properties)) {
+		if (property.type === "title" && property.title) {
+			return property.title.map((part) => part.plain_text ?? "").join("");
+		}
+	}
 
-  return undefined;
+	return undefined;
 }
 
-function normalizePageParent(
-  parent?: { page_id?: string; data_source_id?: string },
-): { page_id?: string; data_source_id?: string } | undefined {
-  if (!parent) {
-    return undefined;
-  }
-  return {
-    page_id: parent.page_id ? normalizeNotionId(parent.page_id) : undefined,
-    data_source_id: parent.data_source_id
-      ? normalizeNotionId(parent.data_source_id)
-      : undefined,
-  };
+function normalizePageParent(parent?: {
+	page_id?: string;
+	data_source_id?: string;
+}): { page_id?: string; data_source_id?: string } | undefined {
+	if (!parent) {
+		return undefined;
+	}
+	return {
+		page_id: parent.page_id ? normalizeNotionId(parent.page_id) : undefined,
+		data_source_id: parent.data_source_id
+			? normalizeNotionId(parent.data_source_id)
+			: undefined,
+	};
 }
 
 function richTextToPlainText(value: unknown): string | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
 
-  const plainText = value
-    .map((item) =>
-      typeof item === "object" && item !== null && typeof (item as { plain_text?: unknown }).plain_text === "string"
-        ? (item as { plain_text: string }).plain_text
-        : "",
-    )
-    .join("")
-    .trim();
+	const plainText = value
+		.map((item) =>
+			typeof item === "object" &&
+			item !== null &&
+			typeof (item as { plain_text?: unknown }).plain_text === "string"
+				? (item as { plain_text: string }).plain_text
+				: "",
+		)
+		.join("")
+		.trim();
 
-  return plainText || undefined;
+	return plainText || undefined;
 }

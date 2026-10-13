@@ -43,9 +43,7 @@ import {
 } from "./untrusted-content.js";
 
 export type OperationalRolloutClassification =
-	| "keep Notion-only"
-	| "move to GitHub next"
-	| "not worth migrating yet";
+	"keep Notion-only" | "move to GitHub next" | "not worth migrating yet";
 
 export type PriorityQueue = "Resume Now" | "Worth Finishing" | "Needs Decision";
 
@@ -262,8 +260,7 @@ export async function runOperationalRolloutCommand(
 	);
 
 	let pilotRequest:
-		| Awaited<ReturnType<typeof ensurePilotActionRequest>>
-		| undefined;
+		Awaited<ReturnType<typeof ensurePilotActionRequest>> | undefined;
 	const pilotRuns: Record<string, unknown> = {};
 	const pilotRunFailures: RolloutCommandFailure[] = [];
 
@@ -450,14 +447,14 @@ export function classifyOperationalRolloutProject(input: {
 
 	const hasKnownRepo = Boolean(
 		projectSource?.identifier ||
-			projectSource?.sourceUrl ||
-			targetRule?.sourceIdentifier ||
-			targetRule?.sourceUrl,
+		projectSource?.sourceUrl ||
+		targetRule?.sourceIdentifier ||
+		targetRule?.sourceUrl,
 	);
 	const hasActiveMapping = Boolean(
 		projectSource &&
-			projectSource.status === "Active" &&
-			(projectSource.identifier || projectSource.sourceUrl),
+		projectSource.status === "Active" &&
+		(projectSource.identifier || projectSource.sourceUrl),
 	);
 	const matureForGitHub = [
 		"Feature Complete",
@@ -591,7 +588,7 @@ function rankingScore(candidate: OperationalRolloutCandidate): number {
 function isPriorityProject(project: ControlTowerProjectRecord): boolean {
 	return Boolean(
 		project.operatingQueue &&
-			PRIORITY_QUEUE_SET.has(project.operatingQueue as PriorityQueue),
+		PRIORITY_QUEUE_SET.has(project.operatingQueue as PriorityQueue),
 	);
 }
 
@@ -879,17 +876,13 @@ export async function ensureGitHubActionRequest(
 	status: string;
 }> {
 	if (!input.config.phase6Governance || !input.config.phase2Execution) {
-		throw new AppError(
-			"GitHub action requests require phases 2 and 6",
-		);
+		throw new AppError("GitHub action requests require phases 2 and 6");
 	}
 	const policy = input.policies.find(
 		(entry) => entry.title === input.actionKey,
 	);
 	if (!policy) {
-		throw new AppError(
-			`Could not find the "${input.actionKey}" action policy`,
-		);
+		throw new AppError(`Could not find the "${input.actionKey}" action policy`);
 	}
 	const source = input.githubSources.find(
 		(entry) => entry.id === input.sourceId,
@@ -952,9 +945,7 @@ export async function ensureGitHubActionRequest(
 		"Payload Body": richTextValue(input.payloadBody),
 		"Target Number": { number: input.targetNumber ?? null },
 		"Target Labels": richTextValue((input.targetLabels ?? []).join(", ")),
-		"Target Assignees": richTextValue(
-			(input.targetAssignees ?? []).join(", "),
-		),
+		"Target Assignees": richTextValue((input.targetAssignees ?? []).join(", ")),
 		"Provider Request Key": richTextValue(input.providerRequestKey),
 		"Approval Reason": richTextValue(
 			input.approve

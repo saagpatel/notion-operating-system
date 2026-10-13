@@ -262,7 +262,9 @@ export function buildPacketFollowThroughReport(input: {
 	includeAllOpen?: boolean;
 	staleSupportReviewQueue?: StaleSupportCandidate[];
 }): PacketFollowThroughReport {
-	const projectById = new Map(input.projects.map((project) => [project.id, project]));
+	const projectById = new Map(
+		input.projects.map((project) => [project.id, project]),
+	);
 	const tasksByPacketId = groupTasksByPacketId(input.tasks);
 	const openPackets = input.packets.filter(
 		(packet) => !isWorkPacketClosed(packet.status),
@@ -279,7 +281,9 @@ export function buildPacketFollowThroughReport(input: {
 		.filter((item) => input.includeAllOpen || item.score >= 20)
 		.sort(comparePacketFollowThroughItems);
 	const allItems = [
-		...(input.staleSupportReviewQueue ?? []).map(buildStaleSupportFollowThroughItem),
+		...(input.staleSupportReviewQueue ?? []).map(
+			buildStaleSupportFollowThroughItem,
+		),
 		...packetItems,
 	].sort(comparePacketFollowThroughItems);
 	const items = allItems.slice(0, input.limit ?? 12);
@@ -294,8 +298,9 @@ export function buildPacketFollowThroughReport(input: {
 		today: input.today,
 		totalOpenPackets: openPackets.length,
 		reportedPackets: items.length,
-		orphanKickoffPackets: allItems.filter((item) => item.lane === "orphan-kickoff")
-			.length,
+		orphanKickoffPackets: allItems.filter(
+			(item) => item.lane === "orphan-kickoff",
+		).length,
 		signalRiskPackets: allItems.filter(
 			(item) => item.lane === "signal-risk-repair",
 		).length,
@@ -307,7 +312,9 @@ export function buildPacketFollowThroughReport(input: {
 	};
 }
 
-function buildStaleSupportFollowThroughItem(candidate: StaleSupportCandidate): PacketFollowThroughItem {
+function buildStaleSupportFollowThroughItem(
+	candidate: StaleSupportCandidate,
+): PacketFollowThroughItem {
 	return {
 		packetId: candidate.id,
 		packetTitle: candidate.title,
@@ -429,7 +436,11 @@ function classifyPacketLane(input: {
 	today: string;
 }): PacketFollowThroughLane {
 	const title = input.packet.title.toLowerCase();
-	if (title.startsWith("kickoff:") && input.project && isOperatingOrphan(input.project)) {
+	if (
+		title.startsWith("kickoff:") &&
+		input.project &&
+		isOperatingOrphan(input.project)
+	) {
 		return "orphan-kickoff";
 	}
 	if (title.includes("signal risk repair")) {
@@ -444,7 +455,10 @@ function classifyPacketLane(input: {
 	) {
 		return "overdue-packet";
 	}
-	if (input.packet.priority === "Now" || input.packet.status === "In Progress") {
+	if (
+		input.packet.priority === "Now" ||
+		input.packet.status === "In Progress"
+	) {
 		return "active-packet";
 	}
 	if (
@@ -629,11 +643,11 @@ function renderPacketFollowThroughMarkdown(input: {
 			input.allItems.filter((item) => item.lane === "orphan-kickoff").length
 		}`,
 		`- Signal-risk repair packets: ${
-			input.allItems.filter((item) => item.lane === "signal-risk-repair")
-				.length
+			input.allItems.filter((item) => item.lane === "signal-risk-repair").length
 		}`,
 		`- Stale support reviews: ${
-			input.allItems.filter((item) => item.lane === "stale-support-review").length
+			input.allItems.filter((item) => item.lane === "stale-support-review")
+				.length
 		}`,
 		`- Blocked packets or packets with blocked tasks: ${
 			input.allItems.filter((item) => item.blockedTaskCount > 0).length
@@ -779,7 +793,9 @@ function comparePacketFollowThroughItems(
 	return left.packetTitle.localeCompare(right.packetTitle);
 }
 
-function isPacketMissingOperatingEvidence(item: PacketFollowThroughItem): boolean {
+function isPacketMissingOperatingEvidence(
+	item: PacketFollowThroughItem,
+): boolean {
 	return (
 		item.openTaskCount === 0 &&
 		item.completedTaskCount === 0 &&

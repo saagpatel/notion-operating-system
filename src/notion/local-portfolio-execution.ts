@@ -192,7 +192,9 @@ export function calculateExecutionMetrics(input: {
 		(packet) => packet.status === "Blocked",
 	);
 	const blockedTasks = input.tasks.filter((task) => task.status === "Blocked");
-	const packetById = new Map(input.packets.map((packet) => [packet.id, packet]));
+	const packetById = new Map(
+		input.packets.map((packet) => [packet.id, packet]),
+	);
 	const overdueTasks = input.tasks.filter(
 		(task) =>
 			task.dueDate &&
@@ -903,7 +905,12 @@ function formatOperatorFocusBullets(input: {
 	projects: ControlTowerProjectRecord[];
 }): string[] {
 	return [
-		formatOperatorFocusBullet("Now", input.nowPacket, input.tasks, input.projects),
+		formatOperatorFocusBullet(
+			"Now",
+			input.nowPacket,
+			input.tasks,
+			input.projects,
+		),
 		formatOperatorFocusBullet(
 			"Standby",
 			input.standbyPacket,
@@ -951,7 +958,10 @@ function pickNextTaskForPacket(
 				!isExecutionTaskClosed(task.status),
 		)
 		.sort((left, right) =>
-			compareIsoDate(left.dueDate || "9999-12-31", right.dueDate || "9999-12-31"),
+			compareIsoDate(
+				left.dueDate || "9999-12-31",
+				right.dueDate || "9999-12-31",
+			),
 		)[0];
 }
 
