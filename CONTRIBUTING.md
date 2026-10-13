@@ -2,10 +2,10 @@
 
 ## Local setup
 
-Run development commands from the repository root with Node 24 and npm, matching
-CI and release preparation. The library declares Node
-`>=20`, but the locked Vitest 5 test runner requires `^22.12.0 || ^24.0.0 || >=26.0.0`;
-Node 20 is not a supported development/test runtime.
+Run development commands from the repository root with Node 26.11.1 (pinned in
+`.node-version`) and npm 11.21.0 (pinned by `packageManager` in `package.json`).
+CI and dependency hygiene read `.node-version`; the library supports Node
+`>=26.11.1 <27`, and `@types/node` stays on major 26.
 
 Install the locked dependencies with `npm ci`. Its `prepare` hook runs the local
 TypeScript build; it does not install Git hooks. Registry access is needed for
@@ -103,7 +103,8 @@ The built CLI smoke runs in a synthetic workspace and ignores inherited Notion
 credentials and profile overrides. No Notion configuration or live publish is
 required. `npm run verify:fresh-clone` copies the workspace into a
 temporary clone, installs dependencies, runs the full gate, and checks the
-expected no-token doctor failure. CI runs both lanes on Ubuntu with Node 24.
+expected no-token doctor failure. CI runs both lanes on Ubuntu with the Node
+version in `.node-version`.
 
 If you are touching package metadata, install posture, or release automation, also run:
 

@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: npm
 
       - name: Install dependencies
@@ -55,8 +55,13 @@ jobs:
       - name: Collect npm audit report
         run: |
           mkdir -p tmp
-          npm audit --json > tmp/npm-audit.json || true
+          audit_status=0
+          npm audit --json > tmp/npm-audit.json || audit_status=$?
           node scripts/audit-report.mjs tmp/npm-audit.json
+          if [ "$audit_status" -gt 1 ]; then
+            echo "npm audit failed with status $audit_status" >&2
+            exit "$audit_status"
+          fi
 
       - name: Upload npm audit report
         if: always()
@@ -75,7 +80,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: npm
 
       - name: Verify from a fresh workspace copy

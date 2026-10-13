@@ -1,150 +1,177 @@
-# Notion Publisher Repo Instructions
+# Notion Operating System Agent Guide
 
 ## Purpose
 
-This repo exists to make future Codex sessions short and safe when publishing local files into Notion.
+Make local publishing and portfolio operations safe, scoped, and easy to resume.
+The system connects Notion databases, provider signals, and governed actions;
+config files define destinations, policies, schemas, views, and rollout rules.
+See README `Status` for the recorded project context.
 
-## Preferred workflow
+## Layout
 
-1. Load `.env` and `config/destinations.json`.
-2. Dry-run first unless the user clearly asks for a live write.
-3. Resolve destination aliases before guessing IDs.
-4. Validate properties against the live parent schema before any write.
-5. Use markdown REST endpoints for create/read/update.
-6. Read back final markdown after a live publish and summarize what changed.
+- `src/cli/`: shared command registry and command implementations.
+- `src/publishing/` and `src/notion/`: publishing, provider clients, and syncs.
+- `config/`: destination aliases, policies, schemas, saved views, and control-tower rules.
+- `scripts/` and `tests/`: verification commands and credential-free fixtures.
+- `docs/notion-roadmap.md`: roadmap; `docs/notion-phase-memory.md`: phase history.
+- `docs/notion-api-speed-workflow.md`: detailed targeted-repair speed runbook.
 
-## Targeted repair workflow
+`Local Portfolio Projects` is the operating database for active/completed work.
+`Project Portfolio` is pre-start intake. Do not blur their roles or manual fields
+with sync-owned derived fields.
 
-- Do not use `npm run maintenance:weekly-refresh -- --live` as a targeted repair tool.
-- For one broken lane, run that lane's dry-run, then that lane's live command, then the same dry-run again.
-- Prefer `npm run maintenance:weekly-refresh -- --fast` for first-pass triage. It keeps project-page batches scoped, skips pages already known to be markdown-blocked, streams child-command progress, and uses a lower retry budget.
-- Use the broad weekly live refresh only for full weekly maintenance, never as the default follow-up to a repair.
-- Broad weekly live refresh requires both explicit user approval and the CLI guard flag `--confirm-full-live`.
-- If a fast dry-run reports drift, run only the drifting lane with `--only <step> --fast --live --confirm-full-live`, then repeat the same `--only <step> --fast` dry-run.
-- If the goal is Command Center repair, prefer:
-  - `npm run control-tower:sync -- --today <date>`
-  - `npm run control-tower:sync -- --today <date> --live`
-  - `npm run control-tower:sync -- --today <date>`
-- If a project-page markdown loop fails, stop after the failing lane and diagnose that lane directly instead of rerunning the full weekly sequence.
-- Use subagents or separate chats for read-only work only: blocker classification, log review, migration planning, and test review. Do not run multiple live Notion writers in parallel against the same integration.
-- Use the signed-in browser as a visual confirmation surface for current pages and Command Center replacements, not for bulk edits.
-- Durable speed target: move generated project briefs toward child/linked records or structured properties so the workflow stops depending on direct project-page markdown patches.
-- Detailed speed runbook: `docs/notion-api-speed-workflow.md`.
+Current destination aliases: `weekly_reviews`, `build_log`, `project_portfolio`,
+`local_portfolio_projects`, `local_portfolio_command_center`, `skills_library`,
+`research_library`, and `ai_tool_site_matrix`.
 
-## Safety defaults
+Saved view definitions and the eight live view IDs are in
+`config/local-portfolio-views.json`. Phase-one rules and mutable phase state are
+in `config/local-portfolio-control-tower.json`. Prefer REST for data, Notion MCP
+for saved views, and Playwright only when MCP authentication is unavailable.
 
-- Never hardcode the Notion token.
-- Keep `allowDeletingContent=false` unless the user explicitly approves a destructive replacement.
-- Treat template-based destinations as asynchronous and wait for template readiness before markdown patching.
-- Surface rate-limit retries and truncation warnings clearly.
+## Setup
 
-## Commands
+Use Node from `.node-version` and npm from `packageManager` in `package.json`.
+Run `npm ci`; its prepare hook builds TypeScript without installing Git hooks.
+See [CONTRIBUTING.md](CONTRIBUTING.md#local-setup) for credential-free setup.
+Start operator orientation with `npm run governance:health-report`.
+Run `npm run doctor` only for requested operator setup; with credentials it
+queries Notion access and destinations.
+
+For authorized publishing, load `.env` and `config/destinations.json`, then
+resolve destination aliases before guessing IDs. Useful commands:
 
 - `npm run destinations:check`
-- `npm run destinations:resolve`
+- `npm run destinations:resolve` (persists local IDs; does not repair schema drift)
 - `npm run publish:notion -- --request <file>`
 - `npm run publish:notion -- --destination <alias> --file <path> --dry-run`
-- `npm run maintenance:weekly-refresh`
-- `npm run maintenance:weekly-refresh -- --fast`
-- `npm run maintenance:weekly-refresh -- --live --confirm-full-live`
-- `npm run portfolio-audit:views-plan`
-- `npm run portfolio-audit:views-validate`
-- `npm run portfolio-audit:control-tower-sync`
-- `npm run portfolio-audit:external-signal-seed-mappings`
+- `npm run portfolio-audit:views-plan` (exact saved-view plan)
+- `npm run portfolio-audit:views-validate` (validate live parent schema before MCP view sync)
 - `npm run portfolio-audit:provider-expansion-audit`
 - `npm run portfolio-audit:operational-rollout`
-- `npm run portfolio-audit:review-packet`
-- `npm run portfolio-audit:phase-closeout`
 
-## Current aliases
+## Checks
 
-- `weekly_reviews`
-- `build_log`
-- `project_portfolio`
-- `local_portfolio_projects`
-- `local_portfolio_command_center`
-- `skills_library`
-- `research_library`
-- `ai_tool_site_matrix`
+Use the smallest credential-free fixture check that exercises the change.
+For full local verification, run typecheck, tests, build, the three install/CLI
+smokes, and fresh-clone verification as described in
+[CONTRIBUTING.md](CONTRIBUTING.md#tests). `npm run verify` includes temporary
+package installs. There is no separate source lint/format script yet.
 
-## Project database roles
+`sandbox:smoke` performs real provider writes and reads; it needs explicit
+sandbox authority and isolated targets. Local tests do not establish live
+provider, scheduler, or human acceptance.
 
-- `Local Portfolio Projects` is the operating database for projects that are completed or in some kind of build-status workflow.
-- `Project Portfolio` is for projects that have not been started yet.
-- Do not blur the two systems: use `Local Portfolio Projects` for active/completed operating work and `Project Portfolio` for pre-start portfolio intake.
+## Boundaries
 
-## Scoped operations rule for single-project pipeline pushes
+### Publishing and governed writes
 
-- When a session is pushing a single project through the Notion and GitHub pipeline, do not finish by running `npm run maintenance:weekly-refresh`, `npm run portfolio-audit:external-signal-sync`, or `npm run portfolio-audit:control-tower-sync` unless the user explicitly asks for a portfolio-wide refresh.
-- Treat requests such as "refresh everything live", "run the weekly sequence", and "catch me up" as explicit permission to use the portfolio-wide commands.
-- Preferred fast path for one project: explore the project and search Notion for an existing row, create or push the GitHub repo if needed, publish the build log and any skills, research, or tool records, run `npm run portfolio-audit:external-signal-seed-mappings -- --live --limit <N>` to create the source row, then do one Notion MCP property update that sets counts, state fields, and any needed derived fields.
-- For this single-project lane only, direct Notion MCP property updates are preferred over repo-wide sync commands because there is no single-project CLI for those field updates today.
-- This exception only changes how Notion-side project fields are finalized after a single-project push. Governed GitHub writes still use the normal approval pipeline.
+- Dry-run first unless the user clearly asks for a live write. Publishing and
+  syncs default to dry-run; action-runner uses `--mode live`.
+- Explicit publish `--dry-run` overrides request-file mode. Do not combine it
+  with `--live`; without CLI mode flags, request files retain their mode.
+- Never hardcode Notion or GitHub tokens. Preserve non-secret profile bundles
+  and never export live `.env` secrets.
+- Validate properties against the live parent schema before any write.
+- Use markdown REST endpoints for create/read/update.
+- Keep `allowDeletingContent=false` unless the user explicitly approves a
+  destructive replacement. Do not change its contract without an owner decision.
+- Templates are asynchronous: wait for readiness before markdown patching.
+- Surface rate-limit retries and truncation warnings clearly.
+- Governed GitHub writes follow request, policy check, dry run, approval, live
+  execution, and audit trail. A ready request has `Execution Intent = Ready for
+  Live`, `Latest Execution Status = Dry Run Passed`, and a succeeded dry-run
+  execution row. Compensation is manual corrective follow-up, not deletion.
+- Actuation fallback warning: `config/local-portfolio-actuation-targets.json`
+  has per-repo rules AND defaults. An active linked GitHub source with no
+  specific match falls back to defaults, permitting all six GitHub actions
+  with title prefix `[Portfolio]` and label `portfolio`. Such sources are
+  potentially live-capable; approve non-obvious targets deliberately.
+- Action dry runs persist Notion execution records; `destinations:resolve`
+  persists local IDs. `phase-closeout` writes local artifacts and Notion
+  records without a `--live` flag.
+- Webhook feedback is recorded as `trusted_feedback`, with shadow/drain/reconcile
+  machinery retained. Verify execution rows and reconcile state directly;
+  do not assume the loop is self-healing.
 
-## When blocked
+### Targeted repairs
 
-Only stop for:
+- Do not use `npm run maintenance:weekly-refresh -- --live` as a repair tool.
+  Broad weekly live refresh is only for explicitly requested full weekly
+  maintenance, never the default follow-up to a repair. It requires explicit
+  user approval AND `--confirm-full-live`.
+- For one broken lane: run its dry-run, its authorized live command, then the
+  same dry-run again.
+- Prefer `npm run maintenance:weekly-refresh -- --fast` for initial triage.
+  It scopes project batches, skips known markdown-blocked pages, streams child
+  progress, and lowers retry budgets. It uses project concurrency 2; lower it
+  to 1 under rate limits and increase batch size before concurrency.
+- If fast triage reports drift, run only that lane with
+  `--only <step> --fast --live --confirm-full-live`, then repeat the same
+  `--only <step> --fast` dry-run.
+- For Command Center repair, run `npm run control-tower:sync -- --today <date>`,
+  then the same command with authorized `--live`, then the original dry-run.
+- If a project-page markdown loop fails, stop after that lane and diagnose it
+  directly instead of rerunning the full weekly sequence.
+- Use helpers or separate chats only for read-only blocker classification,
+  log review, migration planning, or test review. Never run multiple live
+  Notion writers in parallel against the same integration.
+- Use the signed-in browser to visually confirm pages and Command Center
+  replacements, not for bulk edits.
+- Move generated project briefs toward child/linked records or structured
+  properties so repairs stop relying on direct project-page markdown patches.
+- For narrower portfolio-wide requests, use targeted shared CLI commands such
+  as `portfolio-audit:control-tower-sync`; keep dry-run default and use `--live`
+  only with explicit approval.
 
-- missing Notion token
-- missing integration access to a page or data source
-- a required live-write approval
+### Single-project pipeline
 
-## Local Portfolio Projects
+- Never finish a single-project push with `maintenance:weekly-refresh`,
+  `portfolio-audit:external-signal-sync`, or `portfolio-audit:control-tower-sync`
+  unless the user explicitly requests a portfolio-wide refresh.
+- Requests such as “refresh everything live”, “run the weekly sequence”, and
+  “catch me up” authorize portfolio-wide commands within that requested scope.
+- Preferred scoped path: explore the project and search Notion for its row;
+  create/push GitHub only when authorized; publish Build Log, skills, research,
+  and tool records; run `portfolio-audit:external-signal-seed-mappings -- --live
+  --limit <N>` for its source row; then use one Notion MCP property update for
+  counts, state, and derived fields.
+- Direct Notion MCP property updates are preferred for this lane because no
+  single-project field-update CLI exists. This exception only covers Notion
+  finalization; governed GitHub writes still use the approval pipeline.
 
-- Use `npm run maintenance:weekly-refresh` only when the user explicitly wants the portfolio-wide weekly refresh sequence.
-- Use targeted shared-CLI commands such as `npm run portfolio-audit:control-tower-sync` when the user asks for a narrower portfolio-wide refresh.
-- Do not use portfolio-wide refresh commands as the default follow-up after publishing or wiring a single project. For single-project pushes, follow the scoped rule above and set the project fields directly.
-- Saved view definitions live in `config/local-portfolio-views.json`.
-- The view config now also stores the live Notion view IDs for the target eight views.
-- Use `npm run portfolio-audit:views-plan` to print the exact saved-view plan for future sessions.
-- Use `npm run portfolio-audit:views-validate` to confirm the config still matches the live data source schema before an MCP view sync.
-- Preferred view-sync strategy: direct REST for data, Notion MCP for saved views, Playwright only as fallback if MCP auth is unavailable.
-- Phase-one control-tower rules and mutable phase state live in `config/local-portfolio-control-tower.json`.
-- `portfolio-audit:control-tower-sync` should stay dry-run by default and only write live when `--live` is explicit.
-- Do not run `portfolio-audit:control-tower-sync` or `portfolio-audit:external-signal-sync` as the default final step for a single-project push. Save those commands for explicit portfolio-wide refresh requests.
-- `portfolio-audit:review-packet` should publish the current weekly review from build-log and project state rather than manual reconstruction.
-- `portfolio-audit:phase-closeout` is responsible for keeping `docs/notion-roadmap.md` and the Build Log aligned on the exact next-phase brief.
+### Weekly sequencing
 
-<!-- portfolio-context:start -->
-# Portfolio Context
+Create the current weekly page with `review-packet` before managed-section
+patchers. `external-signal-sync` and `recommendation-run` target `Week of
+<weekStart>` and skip sections when it is missing. `action-request-sync` targets
+the latest weekly page and can patch the previous week instead. Correct order
+for an explicitly authorized full live pass:
 
-## What This Project Is
+1. `npm run portfolio-audit:control-tower-sync -- --live`
+2. `npm run portfolio-audit:review-packet -- --live`
+3. `npm run portfolio-audit:external-signal-sync -- --provider github --live`
+4. `npm run portfolio-audit:recommendation-run -- --type weekly --live`
+5. `npm run portfolio-audit:action-request-sync -- --live`
 
-Notion Operating System is the local automation and rules layer that connects Notion project databases, GitHub external signals, and governed action workflows. It publishes markdown into Notion, refreshes portfolio control-tower fields, generates weekly review packets, syncs GitHub signals, and executes approved GitHub actions through a dry-run-first governance pipeline.
+Full-scope signal dry-runs poll enabled providers, including GitHub, without
+persisting sync writes. `--write-scope project-pages` and `portfolio-sections`
+skip polling.
 
-## Current State
+## Delivery
 
-The repo is an operational control system, not an ad hoc Notion script folder. The Local Portfolio Projects database is the main operating surface; config files define destinations, policies, schemas, views, and rollout rules. Broad weekly maintenance is available but should only run when explicitly requested.
+Read back final markdown after every live publish and summarize the change.
+Verify real Notion rows/pages after authorized live writes, not just CLI JSON.
+Keep manual and derived field ownership separate: control-tower owns Operating
+Queue, Next Review Date, Evidence Freshness, and Command Center markdown;
+external signals own coverage, latest activity/deployment, PR counts, and failed
+workflow counts. Intelligence and external signals own recommendation fields.
 
-## Stack
+`portfolio-audit:review-packet` builds the current review from Build Log and
+project state rather than manual reconstruction. `portfolio-audit:phase-closeout`
+keeps the roadmap and Build Log aligned on the exact next-phase brief.
 
-- Node/npm command suite
-- Notion API integration and destination aliases
-- GitHub signal sync and governed GitHub action runner
-- JSON config for destinations, policies, views, and control-tower rules
-- Dry-run/live command separation with explicit live guards
-
-## How To Run
-
-- Start with `npm run governance:health-report`.
-- Use [CONTRIBUTING.md](CONTRIBUTING.md#tests) for Node 24 prerequisites and
-  credential-free fixture checks. Full verification includes temporary package
-  installs; sandbox smoke includes real provider writes.
-- Use `npm run doctor` for explicitly requested operator setup; with credentials
-  it queries Notion access and destinations.
-- For targeted command-center work, prefer `npm run portfolio-audit:control-tower-sync` dry-run, then live only with explicit approval.
-- For a full weekly refresh, use `npm run maintenance:weekly-refresh -- --live --confirm-full-live` only after explicit approval.
-
-## Known Risks
-
-- Never hardcode Notion or GitHub tokens.
-- Do not run broad weekly live refresh as a targeted repair tool.
-- Keep Notion writes dry-run-first and live-only on explicit approval.
-- Do not blur manual project fields with derived sync-owned fields.
-- Governed GitHub writes must follow request, dry run, approval, live execution, and audit trail.
-
-## Next Recommended Move
-
-Use targeted dry-run commands for narrow repairs. Reserve portfolio-wide live maintenance for explicit weekly-refresh requests and report drift before writing.
-
-<!-- portfolio-context:end -->
+For authorized provider work, report missing token, missing integration access,
+or missing required live-write approval as the specific blocker. Continue
+independent local work. Land changes through review and required checks per
+CONTRIBUTING; report what was verified and any remaining limitation.

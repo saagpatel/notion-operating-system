@@ -7,6 +7,7 @@ import { DirectNotionClient } from "../notion/direct-notion-client.js";
 import { Publisher } from "../publishing/publisher.js";
 import { PublishRequestSchema } from "../types.js";
 import { readJsonFile } from "../utils/files.js";
+import { AppError } from "../utils/errors.js";
 import { recordCommandOutputSummary } from "./command-summary.js";
 
 export async function runPublishCommand(options: {
@@ -18,19 +19,30 @@ export async function runPublishCommand(options: {
   title?: string;
   property?: string[];
 }): Promise<void> {
+  if (options.dryRun && options.live) {
+    throw new AppError("--dry-run and --live cannot be used together");
+  }
+
   const context = createCommandRuntimeContext();
   const logger = await createCommandLogger(context);
   const registry = await loadCommandDestinationRegistry(context);
   const request = options.request
-    ? registry.parseRequestFile(await readJsonFile<unknown>(path.resolve(options.request)))
+    ? registry.parseRequestFile(
+        await readJsonFile<unknown>(path.resolve(options.request)),
+      )
     : PublishRequestSchema.parse({
         destinationAlias: options.destination,
         inputFile: options.file,
-        dryRun: options.live ? false : options.dryRun ?? true,
+        dryRun: options.live ? false : (options.dryRun ?? true),
         live: options.live,
         titleOverride: options.title,
         propertyOverrides: parsePropertyOverrides(options.property),
       });
+
+  if (options.dryRun) {
+    request.dryRun = true;
+    request.live = false;
+  }
 
   const destination = registry.getDestination(request.destinationAlias);
   const notionToken = context.runtimeConfig.notion.token;

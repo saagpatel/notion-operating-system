@@ -4,6 +4,60 @@ A local automation layer that turns Notion into a real project and portfolio con
 
 The system connects three surfaces: **Notion** (databases, dashboards, weekly reviews), **GitHub** (open PRs, workflow runs, issue/comment actuation), and **Vercel** (redeploy, rollback, promote). All automation is config-driven, auditable, and dry-run-first.
 
+## Status
+
+This repository is the local automation and rules layer for Notion publishing,
+portfolio control-tower fields, weekly reviews, provider signals, and governed
+actions. `Local Portfolio Projects` is the operating database; `Project
+Portfolio` holds pre-start intake. Config files define destinations, policies,
+schemas, views, and rollout rules. Broad weekly maintenance is available only
+when explicitly requested.
+
+The recorded roadmap context identifies Phase 12 (Managed Write Reliability
+and Daily Driver Hardening) as active and phases 1–11 as complete. It records
+Phase 9 provider expansion as complete, GitHub and Vercel actuation as live and
+policy-backed, and Google Calendar scaffolding as disabled. These are recorded
+delivery states, not fresh provider verification.
+
+The recorded portfolio snapshot contained 117 tracked projects, zero overdue
+reviews, and six orphaned projects. Current counts require a fresh refresh.
+“Orphaned” means `buildSessionCount`, `relatedResearchCount`,
+`supportingSkillsCount`, and `linkedToolCount` are all zero. Missing linked
+operating records do not imply corruption or prevent a scoped authorized sync.
+
+### Stack
+
+- Node/npm command suite with dry-run/live separation and explicit live guards.
+- Notion API integration and destination aliases.
+- GitHub external signals and governed GitHub/Vercel action runners.
+- JSON configuration for destinations, policies, schemas, saved views, and control-tower rules.
+- Direct REST for data, Notion MCP for saved views, and Playwright fallback when MCP authentication is unavailable.
+
+### Known risks
+
+- Never hardcode Notion or GitHub tokens.
+- Keep publishing and syncs dry-run-first; live writes need explicit authority.
+- Use targeted repairs; broad weekly live refresh requires explicit approval and `--confirm-full-live`.
+- Keep manual project fields separate from sync-owned derived fields.
+- Governed mutations require request, policy check, dry run, approval, live execution, and audit trail.
+- Webhook feedback is recorded as `trusted_feedback`, with shadow/drain/reconcile machinery retained. Verify execution rows and reconcile state; the loop is not self-healing.
+- Actuation defaults can permit all six GitHub actions for unmatched active linked sources. Review fallback targets deliberately; see [AGENTS.md](AGENTS.md#boundaries).
+
+### Next steps
+
+Start with `npm run governance:health-report`. Follow
+[CONTRIBUTING.md](CONTRIBUTING.md#tests) for the pinned toolchain and
+credential-free checks; full verification installs temporary packages, while
+sandbox smoke performs real provider writes. Run `npm run doctor` only for
+requested operator setup because credentials enable provider queries.
+
+Use targeted dry-runs for narrow repairs and report drift before writing.
+For Command Center work, prefer `portfolio-audit:control-tower-sync` dry-run,
+then an explicitly authorized live run and the same dry-run again. Reserve
+`maintenance:weekly-refresh -- --live --confirm-full-live` for an explicitly
+approved full weekly refresh. Move generated project briefs toward linked
+records or structured properties to reduce direct project-page markdown patches.
+
 ## What It Does
 
 - Publishes local Markdown files into the right Notion pages and databases
@@ -46,7 +100,7 @@ npm ci
 ## First Run (New Machine)
 
 For credential-free development checks, use the [local setup and verification
-guide](CONTRIBUTING.md#local-setup), including its Node 24 prerequisite. The
+guide](CONTRIBUTING.md#local-setup), including its pinned Node/npm prerequisites. The
 following path configures an operator workspace; doctor checks provider access
 when credentials are present.
 
@@ -138,12 +192,16 @@ Run this **before** any command that patches the "latest weekly" managed section
 ### 7. Sync GitHub signals
 
 ```bash
-# Recompute from existing Notion rows (no GitHub fetch)
+# Preview the full sync: polls enabled providers, including GitHub, without persisting sync writes
 npm run portfolio-audit:external-signal-sync
 
 # Fetch fresh data from GitHub
 npm run portfolio-audit:external-signal-sync -- --provider github --live
 ```
+
+The default `full` scope polls providers even in dry-run mode.
+`--write-scope project-pages` and `--write-scope portfolio-sections` recompute
+from existing Notion rows and skip provider polling.
 
 ### 8. Governed GitHub actions (dry-run → approval → live)
 
