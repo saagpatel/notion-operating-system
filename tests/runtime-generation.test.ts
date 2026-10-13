@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readFile,
+	realpath,
+	writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,8 +20,15 @@ function sha256(value: Buffer): string {
 
 describe("snapshot runtime generation identity", () => {
 	test("accepts the canonical checkout without a runtime manifest", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-canonical-runtime-"));
-		const source = path.join(root, "src", "notion", "export-project-snapshot.ts");
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-canonical-runtime-"),
+		);
+		const source = path.join(
+			root,
+			"src",
+			"notion",
+			"export-project-snapshot.ts",
+		);
 		await mkdir(path.dirname(source), { recursive: true });
 		await writeFile(source, "fixture", "utf8");
 
@@ -30,7 +44,9 @@ describe("snapshot runtime generation identity", () => {
 	});
 
 	test("accepts only the exact manifest-bound immutable module and detects drift", async () => {
-		const productionRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-root-"));
+		const productionRoot = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-root-"),
+		);
 		const commit = "a".repeat(40);
 		const release = path.join(productionRoot, "releases", commit);
 		const files = [
@@ -38,7 +54,10 @@ describe("snapshot runtime generation identity", () => {
 			"dist/src/notion/export-project-snapshot.js",
 			"package-lock.json",
 		];
-		const records: Record<string, { kind: "file"; mode: string; sha256: string; size: number }> = {};
+		const records: Record<
+			string,
+			{ kind: "file"; mode: string; sha256: string; size: number }
+		> = {};
 		for (const relative of files) {
 			const destination = path.join(release, relative);
 			await mkdir(path.dirname(destination), { recursive: true });
@@ -72,15 +91,23 @@ describe("snapshot runtime generation identity", () => {
 			path.join(release, "dist", "src"),
 			path.join(release, "dist"),
 			release,
-		]) await chmod(directory, 0o555);
+		])
+			await chmod(directory, 0o555);
 		const manifestSha = sha256(await readFile(manifestPath));
-		await writeFile(path.join(productionRoot, "current.json"), JSON.stringify({
-			schema: "NotionRuntimePointerV1",
-			current: { source_commit: commit, manifest_sha256: manifestSha },
-			previous: null,
-			updated_at: "2026-08-28T00:01:00Z",
-		}), { mode: 0o600 });
-		const source = path.join(release, "dist/src/notion/export-project-snapshot.js");
+		await writeFile(
+			path.join(productionRoot, "current.json"),
+			JSON.stringify({
+				schema: "NotionRuntimePointerV1",
+				current: { source_commit: commit, manifest_sha256: manifestSha },
+				previous: null,
+				updated_at: "2026-08-28T00:01:00Z",
+			}),
+			{ mode: 0o600 },
+		);
+		const source = path.join(
+			release,
+			"dist/src/notion/export-project-snapshot.js",
+		);
 
 		expect(
 			verifySnapshotRuntimeSource(source, {
@@ -90,29 +117,42 @@ describe("snapshot runtime generation identity", () => {
 				manifestSha256: manifestSha,
 			}),
 		).toMatchObject({
-				mode: "immutable-generation",
-				sourceCommit: commit,
-				manifestSha256: manifestSha,
+			mode: "immutable-generation",
+			sourceCommit: commit,
+			manifestSha256: manifestSha,
 		});
 
-		await writeFile(path.join(productionRoot, "current.json"), JSON.stringify({
-			schema: "NotionRuntimePointerV1",
-			current: { source_commit: "e".repeat(40), manifest_sha256: manifestSha },
-			previous: null,
-			updated_at: "2026-08-28T00:02:00Z",
-		}), { mode: 0o600 });
-		expect(() => verifySnapshotRuntimeSource(source, {
-			canonicalRoot: path.join(productionRoot, "absent-canonical"),
-			productionRoot,
-			manifestPath,
-			manifestSha256: manifestSha,
-		})).toThrow("not selected by the current pointer");
-		await writeFile(path.join(productionRoot, "current.json"), JSON.stringify({
-			schema: "NotionRuntimePointerV1",
-			current: { source_commit: commit, manifest_sha256: manifestSha },
-			previous: null,
-			updated_at: "2026-08-28T00:03:00Z",
-		}), { mode: 0o600 });
+		await writeFile(
+			path.join(productionRoot, "current.json"),
+			JSON.stringify({
+				schema: "NotionRuntimePointerV1",
+				current: {
+					source_commit: "e".repeat(40),
+					manifest_sha256: manifestSha,
+				},
+				previous: null,
+				updated_at: "2026-08-28T00:02:00Z",
+			}),
+			{ mode: 0o600 },
+		);
+		expect(() =>
+			verifySnapshotRuntimeSource(source, {
+				canonicalRoot: path.join(productionRoot, "absent-canonical"),
+				productionRoot,
+				manifestPath,
+				manifestSha256: manifestSha,
+			}),
+		).toThrow("not selected by the current pointer");
+		await writeFile(
+			path.join(productionRoot, "current.json"),
+			JSON.stringify({
+				schema: "NotionRuntimePointerV1",
+				current: { source_commit: commit, manifest_sha256: manifestSha },
+				previous: null,
+				updated_at: "2026-08-28T00:03:00Z",
+			}),
+			{ mode: 0o600 },
+		);
 
 		await chmod(source, 0o644);
 		await writeFile(source, "drift\n", "utf8");
@@ -128,16 +168,26 @@ describe("snapshot runtime generation identity", () => {
 	});
 
 	test("rejects canonical execution without explicit development opt-in", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-canonical-runtime-denied-"));
-		const source = path.join(root, "src", "notion", "export-project-snapshot.ts");
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-canonical-runtime-denied-"),
+		);
+		const source = path.join(
+			root,
+			"src",
+			"notion",
+			"export-project-snapshot.ts",
+		);
 		await mkdir(path.dirname(source), { recursive: true });
 		await writeFile(source, "fixture", "utf8");
-		expect(() => verifySnapshotRuntimeSource(source, { canonicalRoot: root }))
-			.toThrow("development-only opt-in");
+		expect(() =>
+			verifySnapshotRuntimeSource(source, { canonicalRoot: root }),
+		).toThrow("development-only opt-in");
 	});
 
 	test("rejects undeclared dependency files and package-lock binding drift", async () => {
-		const productionRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-completeness-"));
+		const productionRoot = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-completeness-"),
+		);
 		const commit = "f".repeat(40);
 		const release = path.join(productionRoot, "releases", commit);
 		const files = [
@@ -145,16 +195,29 @@ describe("snapshot runtime generation identity", () => {
 			"dist/src/notion/export-project-snapshot.js",
 			"package-lock.json",
 		];
-		const records: Record<string, { kind: "file"; mode: string; sha256: string; size: number }> = {};
+		const records: Record<
+			string,
+			{ kind: "file"; mode: string; sha256: string; size: number }
+		> = {};
 		for (const relative of files) {
 			const destination = path.join(release, relative);
 			await mkdir(path.dirname(destination), { recursive: true });
 			const bytes = Buffer.from(`fixture:${relative}\n`);
 			await writeFile(destination, bytes);
 			await chmod(destination, 0o444);
-			records[relative] = { kind: "file", mode: "0444", sha256: sha256(bytes), size: bytes.length };
+			records[relative] = {
+				kind: "file",
+				mode: "0444",
+				sha256: sha256(bytes),
+				size: bytes.length,
+			};
 		}
-		const dependencyPath = path.join(release, "node_modules", "dependency", "index.js");
+		const dependencyPath = path.join(
+			release,
+			"node_modules",
+			"dependency",
+			"index.js",
+		);
 		await mkdir(path.dirname(dependencyPath), { recursive: true });
 		await writeFile(dependencyPath, "export default true;\n", "utf8");
 		await chmod(dependencyPath, 0o444);
@@ -165,7 +228,8 @@ describe("snapshot runtime generation identity", () => {
 			path.join(release, "node_modules", "dependency"),
 			path.join(release, "node_modules"),
 			release,
-		]) await chmod(directory, 0o555);
+		])
+			await chmod(directory, 0o555);
 		const manifestPath = path.join(release, "notion-runtime-generation.json");
 		const manifest = {
 			schema: "NotionRuntimeGenerationV1",
@@ -185,25 +249,33 @@ describe("snapshot runtime generation identity", () => {
 		await chmod(release, 0o555);
 
 		const manifestSha = sha256(await readFile(manifestPath));
-		await writeFile(path.join(productionRoot, "current.json"), JSON.stringify({
-			schema: "NotionRuntimePointerV1",
-			current: { source_commit: commit, manifest_sha256: manifestSha },
-			previous: null,
-			updated_at: "2026-08-28T00:01:00Z",
-		}), { mode: 0o600 });
-		expect(() => verifySnapshotRuntimeSource(
-			path.join(release, "dist/src/notion/export-project-snapshot.js"),
-			{
-				canonicalRoot: path.join(productionRoot, "absent"),
-				productionRoot,
-				manifestPath,
-				manifestSha256: manifestSha,
-			},
-		)).toThrow("file manifest is incomplete");
+		await writeFile(
+			path.join(productionRoot, "current.json"),
+			JSON.stringify({
+				schema: "NotionRuntimePointerV1",
+				current: { source_commit: commit, manifest_sha256: manifestSha },
+				previous: null,
+				updated_at: "2026-08-28T00:01:00Z",
+			}),
+			{ mode: 0o600 },
+		);
+		expect(() =>
+			verifySnapshotRuntimeSource(
+				path.join(release, "dist/src/notion/export-project-snapshot.js"),
+				{
+					canonicalRoot: path.join(productionRoot, "absent"),
+					productionRoot,
+					manifestPath,
+					manifestSha256: manifestSha,
+				},
+			),
+		).toThrow("file manifest is incomplete");
 	});
 
 	test("rejects a valid manifest placed outside its commit release", async () => {
-		const productionRoot = await mkdtemp(path.join(os.tmpdir(), "notion-runtime-path-"));
+		const productionRoot = await mkdtemp(
+			path.join(os.tmpdir(), "notion-runtime-path-"),
+		);
 		const outside = path.join(productionRoot, "outside");
 		await mkdir(outside, { recursive: true });
 		const source = path.join(outside, "export-project-snapshot.js");

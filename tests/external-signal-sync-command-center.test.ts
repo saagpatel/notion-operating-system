@@ -31,7 +31,10 @@ describe("external signal sync command center markdown", () => {
 				patchInputs.push(input);
 				const update = input.contentUpdates?.[0];
 				if (update) {
-					currentMarkdown = currentMarkdown.replace(update.oldStr, update.newStr);
+					currentMarkdown = currentMarkdown.replace(
+						update.oldStr,
+						update.newStr,
+					);
 				}
 			},
 			readPageMarkdown: async () => ({

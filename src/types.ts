@@ -155,8 +155,7 @@ export interface ResolvedDataSourceDestination extends ResolvedDestinationBase {
 }
 
 export type ResolvedDestination =
-	| ResolvedPageDestination
-	| ResolvedDataSourceDestination;
+	ResolvedPageDestination | ResolvedDataSourceDestination;
 
 export interface TemplateDescriptor {
 	id: string;

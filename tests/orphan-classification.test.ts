@@ -172,8 +172,14 @@ describe("getGovernedOrphanAction", () => {
 describe("filterOrphanResultsByProjectTitles", () => {
 	test("returns all orphan results when no title filters are supplied", () => {
 		const results = [
-			classifyOrphan(baseProject({ id: "proj-one", title: "Project One" }), TODAY),
-			classifyOrphan(baseProject({ id: "proj-two", title: "Project Two" }), TODAY),
+			classifyOrphan(
+				baseProject({ id: "proj-one", title: "Project One" }),
+				TODAY,
+			),
+			classifyOrphan(
+				baseProject({ id: "proj-two", title: "Project Two" }),
+				TODAY,
+			),
 		];
 
 		expect(filterOrphanResultsByProjectTitles(results)).toBe(results);
@@ -181,9 +187,18 @@ describe("filterOrphanResultsByProjectTitles", () => {
 
 	test("filters to exact matching project titles after trimming filter input", () => {
 		const results = [
-			classifyOrphan(baseProject({ id: "proj-one", title: "Project One" }), TODAY),
-			classifyOrphan(baseProject({ id: "proj-two", title: "Project Two" }), TODAY),
-			classifyOrphan(baseProject({ id: "proj-three", title: "Project Three" }), TODAY),
+			classifyOrphan(
+				baseProject({ id: "proj-one", title: "Project One" }),
+				TODAY,
+			),
+			classifyOrphan(
+				baseProject({ id: "proj-two", title: "Project Two" }),
+				TODAY,
+			),
+			classifyOrphan(
+				baseProject({ id: "proj-three", title: "Project Three" }),
+				TODAY,
+			),
 		];
 
 		expect(
@@ -196,7 +211,10 @@ describe("filterOrphanResultsByProjectTitles", () => {
 
 	test("fails loudly when a requested title does not match an orphan result", () => {
 		const results = [
-			classifyOrphan(baseProject({ id: "proj-one", title: "Project One" }), TODAY),
+			classifyOrphan(
+				baseProject({ id: "proj-one", title: "Project One" }),
+				TODAY,
+			),
 		];
 
 		expect(() =>
@@ -286,7 +304,9 @@ describe("buildKickoffPacketDraft", () => {
 	});
 });
 
-function basePacket(overrides: Partial<WorkPacketRecord> = {}): WorkPacketRecord {
+function basePacket(
+	overrides: Partial<WorkPacketRecord> = {},
+): WorkPacketRecord {
 	return {
 		id: "packet-test",
 		url: "",

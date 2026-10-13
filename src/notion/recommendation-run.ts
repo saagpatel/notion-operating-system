@@ -4,7 +4,7 @@ import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { losAngelesToday, startOfWeekMonday } from "../utils/date.js";
-import { AppError } from "../utils/errors.js";
+
 import {
 	assertSafeReplacement,
 	buildReplaceCommand,

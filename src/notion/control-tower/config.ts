@@ -639,11 +639,7 @@ function parseWeeklyMaintenance(
 			"weeklyMaintenance.weeklyRefreshLastRunAt",
 		),
 		weeklyRefreshLastStatus: weeklyRefreshLastStatus as
-			| "clean"
-			| "completed"
-			| "partial"
-			| "failed"
-			| undefined,
+			"clean" | "completed" | "partial" | "failed" | undefined,
 		weeklyRefreshLastSummary: optionalLooseMetrics(
 			value.weeklyRefreshLastSummary,
 			"weeklyMaintenance.weeklyRefreshLastSummary",

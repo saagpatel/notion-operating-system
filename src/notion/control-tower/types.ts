@@ -398,10 +398,7 @@ export interface LocalPortfolioControlTowerConfig {
 			comment: "No Write" | "Single Approval" | "Dual Approval" | "Emergency";
 			issue: "No Write" | "Single Approval" | "Dual Approval" | "Emergency";
 			deploymentControl:
-				| "No Write"
-				| "Single Approval"
-				| "Dual Approval"
-				| "Emergency";
+				"No Write" | "Single Approval" | "Dual Approval" | "Emergency";
 		};
 		envRefs: {
 			githubAppId: string;

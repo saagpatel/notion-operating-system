@@ -34,7 +34,9 @@ describe("project markdown refresh contract", () => {
 			summaryCounts: {
 				blockedMarkdownProjectPages: 1,
 			},
-			warnings: ["Recommendation brief markdown remained blocked for 1 project page(s): Example."],
+			warnings: [
+				"Recommendation brief markdown remained blocked for 1 project page(s): Example.",
+			],
 		});
 
 		expect(contract.status).toBe("partial");

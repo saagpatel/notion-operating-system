@@ -135,7 +135,7 @@ interface InventoryProject {
 	sourceBucket: string;
 }
 
-interface WorkbookRow extends Record<CanonicalColumn, string> {}
+type WorkbookRow = Record<CanonicalColumn, string>;
 
 interface RegistryEntry {
 	status?: string;
@@ -1215,8 +1215,8 @@ async function inspectProjectSignals(
 		filenames.has("pyproject.toml") || filenames.has("requirements.txt");
 	const hasTests = Boolean(
 		(await safeStat(path.join(projectPath, "tests"))) ||
-			(await safeStat(path.join(projectPath, "test"))) ||
-			(await safeStat(path.join(projectPath, "__tests__"))),
+		(await safeStat(path.join(projectPath, "test"))) ||
+		(await safeStat(path.join(projectPath, "__tests__"))),
 	);
 
 	const contextDocs = [

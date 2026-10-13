@@ -67,8 +67,8 @@ function stableJson(value: unknown): string {
 		return `[${value.map((item) => stableJson(item)).join(",")}]`;
 	}
 	if (typeof value === "object" && value !== null) {
-		const entries = Object.entries(value as JsonObject).sort(([left], [right]) =>
-			left < right ? -1 : left > right ? 1 : 0,
+		const entries = Object.entries(value as JsonObject).sort(
+			([left], [right]) => (left < right ? -1 : left > right ? 1 : 0),
 		);
 		return `{${entries
 			.map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
@@ -93,7 +93,8 @@ function requiredText(value: unknown, label: string): string {
 }
 
 function pointerEntry(value: unknown, label: string): PointerEntry {
-	if (!isObject(value)) throw new Error(`pointer ${label} must be a JSON object`);
+	if (!isObject(value))
+		throw new Error(`pointer ${label} must be a JSON object`);
 	exactKeys(value, ["generation_id", "manifest_sha256"], `pointer ${label}`);
 	const generationId = requiredText(
 		value.generation_id,
@@ -203,7 +204,9 @@ export async function readPortfolioTruth(options: {
 			previous.generation_id === current.generation_id &&
 			previous.manifest_sha256 === current.manifest_sha256
 		) {
-			throw new Error("current and previous portfolio generations are identical");
+			throw new Error(
+				"current and previous portfolio generations are identical",
+			);
 		}
 	}
 
@@ -213,7 +216,10 @@ export async function readPortfolioTruth(options: {
 		current.generation_id,
 	);
 	const generationMetadata = await lstat(generationDir);
-	if (generationMetadata.isSymbolicLink() || !generationMetadata.isDirectory()) {
+	if (
+		generationMetadata.isSymbolicLink() ||
+		!generationMetadata.isDirectory()
+	) {
 		throw new Error("portfolio generation directory is not immutable");
 	}
 	const manifestBytes = await readRegular(
@@ -256,8 +262,11 @@ export async function readPortfolioTruth(options: {
 	) {
 		throw new Error("portfolio generation id is not content-derived");
 	}
-	const { generation_id: _generationId, content_identity_sha256: _identity, ...core } =
-		manifest;
+	const {
+		generation_id: _generationId,
+		content_identity_sha256: _identity,
+		...core
+	} = manifest;
 	if (sha256(`${stableJson(core)}\n`) !== identity) {
 		throw new Error("portfolio generation content identity mismatch");
 	}
@@ -266,7 +275,9 @@ export async function readPortfolioTruth(options: {
 	}
 	const records = manifest.artifacts.map(artifactRecord);
 	if (new Set(records.map((item) => item.name)).size !== records.length) {
-		throw new Error("portfolio generation manifest contains duplicate artifacts");
+		throw new Error(
+			"portfolio generation manifest contains duplicate artifacts",
+		);
 	}
 	for (const candidate of records) {
 		if (candidate.media_type !== "application/json") continue;

@@ -30,9 +30,7 @@ import type { WorkPacketRecord } from "./local-portfolio-execution.js";
 import { toWorkPacketRecord } from "./local-portfolio-execution-live.js";
 
 export type OrphanDisposition =
-	| "already_parked"
-	| "archive_candidate"
-	| "viable_needs_kickoff";
+	"already_parked" | "archive_candidate" | "viable_needs_kickoff";
 
 export interface OrphanClassificationResult {
 	projectId: string;
@@ -251,9 +249,9 @@ function renderMarkdownTable(
 		"",
 		...(requestedTitles.length > 0
 			? [
-				`Scope: ${requestedTitles.map((title) => `"${title}"`).join(", ")}`,
-				"",
-			]
+					`Scope: ${requestedTitles.map((title) => `"${title}"`).join(", ")}`,
+					"",
+				]
 			: []),
 		"| Project | Category | Portfolio Call | Last Active | Disposition | Reason | Governed Action |",
 		"|---|---|---|---|---|---|---|",
@@ -274,15 +272,25 @@ function renderMarkdownTable(
 	}
 
 	if (visible.length === 0) {
-		lines.push("| — | — | — | — | — | No orphan projects requiring action. | — |");
+		lines.push(
+			"| — | — | — | — | — | No orphan projects requiring action. | — |",
+		);
 	}
 
 	lines.push(
 		"",
 		"### Governed Next Commands",
 		"",
-		`- Request approvals: ` + "`" + `npm run governance:orphan-classify -- --live --request-approval${renderProjectTitleFlags(requestedTitles)}` + "`" + ``,
-		`- Create approved kickoff packets: ` + "`" + `npm run governance:orphan-classify -- --live --create-approved-packets${renderProjectTitleFlags(requestedTitles)}` + "`" + ``,
+		`- Request approvals: ` +
+			"`" +
+			`npm run governance:orphan-classify -- --live --request-approval${renderProjectTitleFlags(requestedTitles)}` +
+			"`" +
+			``,
+		`- Create approved kickoff packets: ` +
+			"`" +
+			`npm run governance:orphan-classify -- --live --create-approved-packets${renderProjectTitleFlags(requestedTitles)}` +
+			"`" +
+			``,
 	);
 
 	return lines.join("\n");
@@ -292,7 +300,7 @@ function renderProjectTitleFlags(projectTitles: string[]): string {
 	return projectTitles
 		.map(
 			(title) =>
-				` --project-title "${title.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`,
+				` --project-title "${title.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`,
 		)
 		.join("");
 }
@@ -436,10 +444,6 @@ function findMatchingApprovalRequest(
 	);
 }
 
-function isClosedPacketStatus(status: string): boolean {
-	return ["Done", "Dropped", "Canceled", "Cancelled"].includes(status);
-}
-
 export async function runOrphanClassificationCommand(
 	options: OrphanClassificationCommandOptions = {},
 ): Promise<void> {
@@ -506,7 +510,9 @@ export async function runOrphanClassificationCommand(
 			packetPages.map((page) => toWorkPacketRecord(page)),
 		);
 	}
-	const projectTitleFilters = normalizeProjectTitleFilters(options.projectTitles);
+	const projectTitleFilters = normalizeProjectTitleFilters(
+		options.projectTitles,
+	);
 	const allOrphanCount = results.length;
 	results = filterOrphanResultsByProjectTitles(results, projectTitleFilters);
 
@@ -596,7 +602,8 @@ export async function runOrphanClassificationCommand(
 				} else {
 					const created = await api.createPageWithMarkdown({
 						parent: {
-							data_source_id: config.phase6Governance.actionRequests.dataSourceId,
+							data_source_id:
+								config.phase6Governance.actionRequests.dataSourceId,
 						},
 						properties: {
 							[requestSchema.titlePropertyName]: titleValue(draft.title),

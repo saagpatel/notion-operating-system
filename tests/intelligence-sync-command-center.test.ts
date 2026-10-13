@@ -14,7 +14,10 @@ describe("intelligence sync command center markdown", () => {
 			"<!-- codex:notion-intelligence-command-center:end -->",
 			"Tail",
 		].join("\n");
-		const nextMarkdown = previousMarkdown.replace("- Old metric", "- New metric");
+		const nextMarkdown = previousMarkdown.replace(
+			"- Old metric",
+			"- New metric",
+		);
 		const patchInputs: Array<{
 			command: string;
 			contentUpdates?: Array<{ oldStr: string; newStr: string }>;

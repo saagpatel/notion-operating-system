@@ -1,7 +1,6 @@
 import type { RunLogger } from "../logging/run-logger.js";
 import type {
 	DestinationConfig,
-	MarkdownPatchInput,
 	NotionApi,
 	PageSnapshot,
 	PublishRequest,

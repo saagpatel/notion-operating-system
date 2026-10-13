@@ -95,6 +95,7 @@ npm install github:saagpatel/notion-operating-system#v0.2.0
 
 # local repo development
 npm ci
+make check
 ```
 
 ## First Run (New Machine)
@@ -303,6 +304,7 @@ credentials, call Notion, or provide scheduler proof.
 | `npm run portfolio-audit:action-runner -- --mode live --request <id>` | Execute an approved action |
 | `npm run portfolio-audit:operational-rollout` | Operational rollout plan |
 | `npm run typecheck` | TypeScript type checking |
+| `make check` | Lint, format check, typecheck, tests, build, and three CLI/install smokes |
 | `npm test` | Run Vitest tests |
 | `npm run verify` | Full local release gate (typecheck + test + build + smoke) |
 | `npm run verify:fresh-clone` | Fresh-machine confidence check |

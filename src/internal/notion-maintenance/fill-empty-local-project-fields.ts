@@ -10,7 +10,7 @@ import {
 	type ProjectIntelligenceRow,
 } from "../../portfolio-audit/project-intelligence.js";
 import { losAngelesToday } from "../../utils/date.js";
-import { AppError, toErrorMessage } from "../../utils/errors.js";
+import { toErrorMessage } from "../../utils/errors.js";
 import { DirectNotionClient } from "../../notion/direct-notion-client.js";
 import {
 	type ControlTowerBuildSessionRecord,
@@ -35,7 +35,6 @@ import {
 import {
 	buildExternalSignalSummary,
 	type ExternalSignalEventRecord,
-	type ExternalSignalSourceRecord,
 	type ExternalSignalSummary,
 } from "../../notion/local-portfolio-external-signals.js";
 import {
@@ -166,7 +165,10 @@ async function main(): Promise<void> {
 				options: [
 					{ flag: "--help, -h", description: "Show this help message." },
 					{ flag: "--live", description: "Apply the field updates in Notion." },
-					{ flag: "--today <date>", description: "Override the YYYY-MM-DD date anchor." },
+					{
+						flag: "--today <date>",
+						description: "Override the YYYY-MM-DD date anchor.",
+					},
 				],
 			}),
 		);
@@ -1182,24 +1184,6 @@ function deriveMergedInto(
 		return "Canonical staging surface for this project.";
 	}
 	return "No merge target; treat this row as the canonical operating surface.";
-}
-
-function deriveRegistryStatus(
-	live: LiveProjectSnapshot,
-	intelligence?: ProjectIntelligenceRow,
-): string {
-	const state = (
-		live.currentState ||
-		intelligence?.currentState ||
-		""
-	).toLowerCase();
-	if (state === "archived") {
-		return "archived";
-	}
-	if (state === "parked") {
-		return "parked";
-	}
-	return "active";
 }
 
 function deriveStartHere(

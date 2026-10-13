@@ -12,19 +12,19 @@ import { describe, expect, test } from "vitest";
 import { runGitHubSupportMaintenance } from "../src/internal/notion-maintenance/github-support-maintenance.js";
 
 describe("combined GitHub support maintenance", () => {
-  test("live execution is denied before any product action runs", async () => {
-    await expect(
-      runGitHubSupportMaintenance({
-        live: true,
-        owner: "fixture-owner",
-        limit: 1,
-        today: "2026-01-01",
-        // Paths that do not exist: reaching them at all would mean the guard
-        // let the run start, so the denial must happen before any file or
-        // network access is attempted.
-        config: "/nonexistent/control-tower.json",
-        sourceConfig: "/nonexistent/sources.json",
-      }),
-    ).rejects.toThrow(/authority cannot be inherited across product actions/i);
-  });
+	test("live execution is denied before any product action runs", async () => {
+		await expect(
+			runGitHubSupportMaintenance({
+				live: true,
+				owner: "fixture-owner",
+				limit: 1,
+				today: "2026-01-01",
+				// Paths that do not exist: reaching them at all would mean the guard
+				// let the run start, so the denial must happen before any file or
+				// network access is attempted.
+				config: "/nonexistent/control-tower.json",
+				sourceConfig: "/nonexistent/sources.json",
+			}),
+		).rejects.toThrow(/authority cannot be inherited across product actions/i);
+	});
 });

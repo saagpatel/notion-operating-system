@@ -6,6 +6,9 @@ Run development commands from the repository root with Node 26.11.1 (pinned in
 `.node-version`) and npm 11.21.0 (pinned by `packageManager` in `package.json`).
 CI and dependency hygiene read `.node-version`; the library supports Node
 `>=26.11.1 <27`, and `@types/node` stays on major 26.
+The `@typescript/native` alias retains TypeScript 7's `tsc` for builds and
+typechecks; the `typescript` alias provides TypeScript 6's API for ESLint,
+following [TypeScript's compatibility guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0).
 
 Install the locked dependencies with `npm ci`. Its `prepare` hook runs the local
 TypeScript build; it does not install Git hooks. Registry access is needed for
@@ -31,6 +34,9 @@ without one, its missing-token failure is expected, not a failed unit test.
 
 ```bash
 npm run typecheck
+npm run lint
+npm run format:check
+make check
 npm test
 npm run build
 npm run verify
@@ -85,20 +91,25 @@ npm test
 npm run build
 ```
 
-The build writes `dist/`. There is no separate source lint/format npm script;
-GitHub Actions runs workflow lint with actionlint. The existing assertions and
-fixture timeouts apply unchanged.
+The build writes `dist/`. ESLint checks source, tests, and JavaScript tooling.
+Prettier uses tabs and double quotes for code; `npm run format` formats source,
+tests, scripts, and root tool configs. Runtime `config/` data and recorded reports
+are excluded. GitHub Actions also runs workflow lint with actionlint. The existing
+assertions and fixture timeouts apply unchanged.
 
 Before shipping code changes, run the full gate in a clean checkout without
 operator credentials:
 
 ```bash
-npm run verify
+make check
 ```
 
-This runs typecheck, all tests, build, and built/packed/Git-install CLI smoke
-checks. Install smokes create temporary consumers, install dependencies from the
-registry, and check exports/help; the Git install uses the local committed HEAD.
+This runs lint, format check, typecheck, all tests, build, and
+built/packed/Git-install CLI smoke checks without reinstalling the workspace or
+rewriting source/configuration. It requires `npm ci` first. `npm run verify`
+remains the typecheck/test/build/smoke lane. Install smokes create temporary
+consumers, install dependencies from the registry, and check exports/help; the
+Git install uses the local committed HEAD.
 The built CLI smoke runs in a synthetic workspace and ignores inherited Notion
 credentials and profile overrides. No Notion configuration or live publish is
 required. `npm run verify:fresh-clone` copies the workspace into a

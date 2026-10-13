@@ -201,10 +201,7 @@ export async function hydrateCompleteRelationProperties(
 					if (!response.hasMore) {
 						break;
 					}
-					if (
-						!response.nextCursor ||
-						seenCursors.has(response.nextCursor)
-					) {
+					if (!response.nextCursor || seenCursors.has(response.nextCursor)) {
 						throw new Error(
 							`Incomplete relation ${page.id}:${propertyName} returned an invalid provider cursor`,
 						);

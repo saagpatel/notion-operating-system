@@ -135,9 +135,7 @@ describe("buildMorningBriefPriorityProjects", () => {
 		);
 
 		expect(priorities[0]?.projectName).toBe("Alpha");
-		expect(priorities[0]?.score).toBeGreaterThan(
-			priorities[1]?.score ?? 0,
-		);
+		expect(priorities[0]?.score).toBeGreaterThan(priorities[1]?.score ?? 0);
 		expect(priorities[0]?.reasons).toContain("failed external status");
 		expect(priorities.some((p) => p.projectName === "Beta")).toBe(true);
 	});

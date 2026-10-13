@@ -1,5 +1,15 @@
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readFile,
+	readdir,
+	rm,
+	stat,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -97,9 +107,7 @@ describe("project snapshot provenance", () => {
 			);
 			const configPath = path.join(root, "control-tower.json");
 			await writeFile(configPath, source);
-			const expectedSha256 = createHash("sha256")
-				.update(source)
-				.digest("hex");
+			const expectedSha256 = createHash("sha256").update(source).digest("hex");
 
 			await expect(
 				loadLocalPortfolioControlTowerConfig(configPath, {
@@ -119,7 +127,9 @@ describe("project snapshot provenance", () => {
 	});
 
 	test("binds attention authority to the current content-addressed portfolio generation", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-portfolio-generation-"));
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-portfolio-generation-"),
+		);
 		try {
 			const { truthSha } = await writePortfolioGenerationFixture(root);
 			const legacyPath = path.join(root, "legacy.json");
@@ -139,7 +149,9 @@ describe("project snapshot provenance", () => {
 	});
 
 	test("fails closed on legacy truth when no authoritative generation pointer exists", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-portfolio-legacy-"));
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-portfolio-legacy-"),
+		);
 		try {
 			const legacyPath = path.join(root, "legacy.json");
 			const legacyBytes = Buffer.from(
@@ -157,14 +169,18 @@ describe("project snapshot provenance", () => {
 
 			await expect(
 				loadPortfolioAttentionAuthority(legacyPath, root),
-			).rejects.toThrow("Authoritative portfolio generation pointer is required");
+			).rejects.toThrow(
+				"Authoritative portfolio generation pointer is required",
+			);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
 
 	test("atomically publishes isolated output with owner-only mode and no temp residue", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-output-"));
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-snapshot-output-"),
+		);
 		try {
 			const outputPath = path.join(root, "isolated", "project-snapshot.json");
 			await writeJsonAtomically(
@@ -187,7 +203,9 @@ describe("project snapshot provenance", () => {
 	});
 
 	test("does not replace a prior snapshot when serialization fails", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-atomic-failure-"));
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-snapshot-atomic-failure-"),
+		);
 		try {
 			const outputPath = path.join(root, "project-snapshot.json");
 			await writeFile(outputPath, "prior\n", { mode: 0o600 });
@@ -203,11 +221,15 @@ describe("project snapshot provenance", () => {
 	});
 
 	test("rejects a group-writable output directory before creating a snapshot", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-unsafe-output-"));
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-snapshot-unsafe-output-"),
+		);
 		try {
 			await chmod(root, 0o770);
 			await expect(
-				writeJsonAtomically(path.join(root, "project-snapshot.json"), { ok: true }),
+				writeJsonAtomically(path.join(root, "project-snapshot.json"), {
+					ok: true,
+				}),
 			).rejects.toThrow("unsafe ownership, type, or mode");
 			expect(await readdir(root)).toEqual([]);
 		} finally {
@@ -217,22 +239,30 @@ describe("project snapshot provenance", () => {
 	});
 
 	test("rejects lexical escapes and symlinked output parents", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-output-root-"));
-		const outside = await mkdtemp(path.join(os.tmpdir(), "notion-snapshot-output-outside-"));
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-snapshot-output-root-"),
+		);
+		const outside = await mkdtemp(
+			path.join(os.tmpdir(), "notion-snapshot-output-outside-"),
+		);
 		try {
-			await expect(writeJsonAtomically(
-				path.join(root, "..", "escaped.json"),
-				{ ok: true },
-				{ allowedRoot: root },
-			)).rejects.toThrow("escapes the allowed root");
+			await expect(
+				writeJsonAtomically(
+					path.join(root, "..", "escaped.json"),
+					{ ok: true },
+					{ allowedRoot: root },
+				),
+			).rejects.toThrow("escapes the allowed root");
 
 			const linkedParent = path.join(root, "linked");
 			await symlink(outside, linkedParent);
-			await expect(writeJsonAtomically(
-				path.join(linkedParent, "created", "project-snapshot.json"),
-				{ ok: true },
-				{ allowedRoot: root },
-			)).rejects.toThrow("unsafe ownership, type, or mode");
+			await expect(
+				writeJsonAtomically(
+					path.join(linkedParent, "created", "project-snapshot.json"),
+					{ ok: true },
+					{ allowedRoot: root },
+				),
+			).rejects.toThrow("unsafe ownership, type, or mode");
 			expect(await readdir(outside)).toEqual([]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -241,7 +271,9 @@ describe("project snapshot provenance", () => {
 	});
 
 	test("fails closed when the current generation manifest digest drifts", async () => {
-		const root = await mkdtemp(path.join(os.tmpdir(), "notion-portfolio-invalid-"));
+		const root = await mkdtemp(
+			path.join(os.tmpdir(), "notion-portfolio-invalid-"),
+		);
 		try {
 			const { generationDir } = await writePortfolioGenerationFixture(root);
 			await writeFile(

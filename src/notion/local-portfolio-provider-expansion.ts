@@ -177,9 +177,9 @@ function summarizeProviderExpansion(input: {
 		blockers.length === 0
 			? "ready"
 			: policies.length > 0 ||
-					Boolean(externalProvider) ||
-					Boolean(webhookProvider) ||
-					targetCount > 0
+				  Boolean(externalProvider) ||
+				  Boolean(webhookProvider) ||
+				  targetCount > 0
 				? "scaffolded"
 				: "blocked";
 
@@ -249,7 +249,11 @@ function isActionKeyRunnerSupported(actionKey: string): boolean {
 function normalizeExternalProviderKey(
 	key: ExternalProviderKey,
 ): GovernanceProviderKey {
-	if (key === "notification_hub" || key === "repo_auditor" || key === "personal_ops") {
+	if (
+		key === "notification_hub" ||
+		key === "repo_auditor" ||
+		key === "personal_ops"
+	) {
 		// local providers with no governance policy — treat as vercel (scaffolded)
 		return "vercel";
 	}

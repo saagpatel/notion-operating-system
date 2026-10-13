@@ -14,10 +14,7 @@ import {
 	toBuildSessionRecord,
 	toControlTowerProjectRecord,
 } from "./local-portfolio-control-tower-live.js";
-import {
-	requirePhase5ExternalSignals,
-	type ExternalSignalEventRecord,
-} from "./local-portfolio-external-signals.js";
+import { requirePhase5ExternalSignals } from "./local-portfolio-external-signals.js";
 import { toExternalSignalEventRecord } from "./local-portfolio-external-signals-live.js";
 import {
 	attachExistingKickoffPackets,
@@ -69,17 +66,18 @@ export async function runOperatorBriefCommand(
 	const api = new DirectNotionClient(token);
 	const phase5 = requirePhase5ExternalSignals(config);
 
-	const [projectSchema, eventSchema, packetSchema, taskSchema, buildPages] = await Promise.all([
-		api.retrieveDataSource(config.database.dataSourceId),
-		api.retrieveDataSource(phase5.events.dataSourceId),
-		config.phase2Execution
-			? api.retrieveDataSource(config.phase2Execution.packets.dataSourceId)
-			: Promise.resolve(undefined),
-		config.phase2Execution
-			? api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId)
-			: Promise.resolve(undefined),
-		fetchAllPages(api, config.relatedDataSources.buildLogId, "Session Title"),
-	]);
+	const [projectSchema, eventSchema, packetSchema, taskSchema, buildPages] =
+		await Promise.all([
+			api.retrieveDataSource(config.database.dataSourceId),
+			api.retrieveDataSource(phase5.events.dataSourceId),
+			config.phase2Execution
+				? api.retrieveDataSource(config.phase2Execution.packets.dataSourceId)
+				: Promise.resolve(undefined),
+			config.phase2Execution
+				? api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId)
+				: Promise.resolve(undefined),
+			fetchAllPages(api, config.relatedDataSources.buildLogId, "Session Title"),
+		]);
 	const [projectPages, eventPages, packetPages, taskPages] = await Promise.all([
 		fetchAllPages(
 			api,
@@ -124,10 +122,14 @@ export async function runOperatorBriefCommand(
 	const events = eventPages
 		.map((page) => toExternalSignalEventRecord(page))
 		.filter((event) => diffDays(event.occurredAt, today) <= lookbackDays);
-	const projectIndex = new Map(projects.map((project) => [project.id, project.title]));
+	const projectIndex = new Map(
+		projects.map((project) => [project.id, project.title]),
+	);
 	const activeProjectIds = new Set(
 		projects
-			.filter((project) => !["Cold Storage", "Parked"].includes(project.currentState))
+			.filter(
+				(project) => !["Cold Storage", "Parked"].includes(project.currentState),
+			)
 			.map((project) => project.id),
 	);
 	const coveredProjectIds = new Set(
@@ -168,7 +170,9 @@ export async function runOperatorBriefCommand(
 			!result.existingKickoffPacketId,
 	);
 	const overdueProjects = projects
-		.filter((project) => project.nextReviewDate && project.nextReviewDate <= today)
+		.filter(
+			(project) => project.nextReviewDate && project.nextReviewDate <= today,
+		)
 		.sort((left, right) =>
 			(left.nextReviewDate || "").localeCompare(right.nextReviewDate || ""),
 		)
@@ -179,8 +183,9 @@ export async function runOperatorBriefCommand(
 		priorityProjects,
 		staleActiveCount: staleActive.length,
 		actionableOrphans: actionableOrphans.length,
-		orphansWithKickoff: orphanResults.filter((result) => result.existingKickoffPacketId)
-			.length,
+		orphansWithKickoff: orphanResults.filter(
+			(result) => result.existingKickoffPacketId,
+		).length,
 		packetStaleDays,
 		packetStalenessItems,
 		overdueProjects,
@@ -193,7 +198,9 @@ export async function runOperatorBriefCommand(
 				today,
 				totalProjects: metrics.totalProjects,
 				overdueReviews: metrics.overdueReviews,
-				topRiskProjects: priorityProjects.slice(0, 3).map((project) => project.projectName),
+				topRiskProjects: priorityProjects
+					.slice(0, 3)
+					.map((project) => project.projectName),
 				staleActiveProjects: staleActive.length,
 				actionableOrphans: actionableOrphans.length,
 				orphansWithKickoff: orphanResults.filter(
@@ -225,7 +232,9 @@ export function renderOperatorBrief(input: {
 	packetStalenessItems: PacketStalenessItem[];
 	overdueProjects: ControlTowerProjectRecord[];
 }): string {
-	const atRiskPackets = input.packetStalenessItems.filter((item) => item.isAtRisk);
+	const atRiskPackets = input.packetStalenessItems.filter(
+		(item) => item.isAtRisk,
+	);
 	const lines = [
 		`## Operator Brief — ${input.today}`,
 		"",
@@ -240,7 +249,10 @@ export function renderOperatorBrief(input: {
 		...formatPriorityProjects(input.priorityProjects.slice(0, 5)),
 		"",
 		"### Packet Staleness",
-		...formatPacketStalenessItems(input.packetStalenessItems, input.packetStaleDays),
+		...formatPacketStalenessItems(
+			input.packetStalenessItems,
+			input.packetStaleDays,
+		),
 		"",
 		"### Review Recovery",
 		...formatReviewProjects(input.overdueProjects),
@@ -264,13 +276,17 @@ export function buildPacketStalenessItems(input: {
 	limit?: number;
 }): PacketStalenessItem[] {
 	const staleAfterDays = input.staleAfterDays ?? 14;
-	const projectById = new Map(input.projects.map((project) => [project.id, project]));
+	const projectById = new Map(
+		input.projects.map((project) => [project.id, project]),
+	);
 	const tasksByPacketId = groupTasksByPacketId(input.tasks);
 	return input.packets
 		.filter((packet) => !isWorkPacketClosed(packet.status))
 		.map((packet) => {
 			const tasks = tasksByPacketId.get(packet.id) ?? [];
-			const openTasks = tasks.filter((task) => !isExecutionTaskClosed(task.status));
+			const openTasks = tasks.filter(
+				(task) => !isExecutionTaskClosed(task.status),
+			);
 			const latestTaskActivity = latestTaskActivityDate({
 				tasks,
 				taskCreatedAtById: input.taskCreatedAtById ?? new Map(),
@@ -407,7 +423,9 @@ function formatPacketStalenessItems(
 	staleAfterDays: number,
 ): string[] {
 	if (items.length === 0) {
-		return [`- No packets are stale by task activity at ${staleAfterDays}+ days.`];
+		return [
+			`- No packets are stale by task activity at ${staleAfterDays}+ days.`,
+		];
 	}
 	return items.slice(0, 5).map((item) => {
 		const age =

@@ -223,7 +223,9 @@ export async function ensurePhase3IntelligenceSchema(
 							]),
 						},
 					},
-					"Source": { select: { options: colorize([["intelligence-sync", "blue"]]) } },
+					Source: {
+						select: { options: colorize([["intelligence-sync", "blue"]]) },
+					},
 					"Storage Version": { rich_text: {} },
 					"Brief Hash": { rich_text: {} },
 				},

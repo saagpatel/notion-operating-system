@@ -33,7 +33,6 @@ import {
 import {
 	datePropertyValue,
 	fetchAllPages,
-	relationIds,
 	relationValue,
 	richTextValue,
 	selectPropertyValue,
@@ -202,10 +201,7 @@ export interface ExternalSignalSyncCommandOptions {
 }
 
 export type ExternalSignalSyncWriteScope =
-	| "full"
-	| "providers"
-	| "project-pages"
-	| "portfolio-sections";
+	"full" | "providers" | "project-pages" | "portfolio-sections";
 
 interface ProjectBriefRefresh {
 	projectId: string;
@@ -2108,57 +2104,6 @@ export async function syncExternalSignalCommandCenterMarkdown(input: {
 	return currentMarkdown;
 }
 
-function normalizedSignalEventToRecord(
-	event: NormalizedSignalEvent,
-	resultIndex: number,
-	eventIndex: number,
-): ExternalSignalEventRecord {
-	return {
-		id: `preview-event-${resultIndex}-${eventIndex}`,
-		url:
-			event.sourceUrl ||
-			`https://preview.local/events/${resultIndex}-${eventIndex}`,
-		title: event.title,
-		localProjectIds: [event.localProjectId],
-		sourceIds: [event.sourceId],
-		provider: event.provider,
-		signalType: event.signalType,
-		occurredAt: event.occurredAt,
-		status: event.status,
-		environment: event.environment,
-		severity: event.severity,
-		sourceIdValue: event.sourceIdValue,
-		sourceUrl: event.sourceUrl,
-		syncRunIds: [],
-		eventKey: event.eventKey,
-		summary: event.summary,
-		rawExcerpt: event.rawExcerpt,
-	};
-}
-
-function previewSyncRunRecord(
-	result: ProviderSyncResult,
-	today: string,
-	index: number,
-): ExternalSignalSyncRunRecord {
-	return {
-		id: `preview-sync-run-${index}`,
-		url: `https://preview.local/sync-runs/${index}`,
-		title: `${result.provider} sync preview`,
-		provider: result.provider,
-		status: result.status,
-		startedAt: today,
-		completedAt: today,
-		scope: defaultSyncRunScope(result.provider, 0),
-		itemsSeen: result.itemsSeen,
-		itemsWritten: result.itemsWritten,
-		itemsDeduped: result.itemsDeduped,
-		failures: result.failures,
-		cursor: result.cursor,
-		notes: result.notes.join(" | "),
-	};
-}
-
 export function deriveExternalSignalSyncStatus(
 	providerResults: ProviderSyncResult[],
 ): "completed" | "warning" | "partial" | undefined {
@@ -3651,8 +3596,7 @@ function selectScopedSources(input: {
 					.map((provider) => provider.key)
 			: input.providers
 					.filter(
-						(provider) =>
-							provider.enabled && provider.key === input.provider,
+						(provider) => provider.enabled && provider.key === input.provider,
 					)
 					.map((provider) => provider.key);
 

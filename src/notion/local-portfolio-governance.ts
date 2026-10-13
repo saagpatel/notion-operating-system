@@ -25,10 +25,7 @@ export type MutationClass = "Read" | "Comment" | "Issue" | "Deployment Control";
 export type ExecutionMode = "Disabled" | "Shadow" | "Approved Live";
 export type IdentityType = "GitHub App" | "Team Token" | "Break Glass Token";
 export type ApprovalRule =
-	| "No Write"
-	| "Single Approval"
-	| "Dual Approval"
-	| "Emergency";
+	"No Write" | "Single Approval" | "Dual Approval" | "Emergency";
 export type ActionSourceType = "Recommendation" | "Weekly Review" | "Manual";
 export type ActionRequestStatus =
 	| "Draft"
@@ -41,18 +38,9 @@ export type ActionRequestStatus =
 	| "Executed";
 export type EndpointMode = "Disabled" | "Shadow" | "Live";
 export type DeliveryStatus =
-	| "Received"
-	| "Verified"
-	| "Rejected"
-	| "Duplicate"
-	| "Processed"
-	| "Failed";
+	"Received" | "Verified" | "Rejected" | "Duplicate" | "Processed" | "Failed";
 export type VerificationResult =
-	| "Valid"
-	| "Invalid Signature"
-	| "Unknown Endpoint"
-	| "Expired"
-	| "Duplicate";
+	"Valid" | "Invalid Signature" | "Unknown Endpoint" | "Expired" | "Duplicate";
 export type ReceiptDrainStatus = "Pending" | "Written" | "Skipped" | "Failed";
 
 export interface GovernanceDatabaseRef {

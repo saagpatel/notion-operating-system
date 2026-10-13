@@ -892,9 +892,9 @@ describe("runBridgeDbSyncCommand sync-key idempotency (P1)", () => {
 		// Exactly one create across both runs — no duplicate Build Log page.
 		expect(bridgeSyncMocks.createPageWithMarkdown).toHaveBeenCalledOnce();
 		expect(bridgeSyncMocks.session.confirmShippedSync).toHaveBeenLastCalledWith(
-				expect.objectContaining({
-					activityId: 123,
-					downstreamRef: "build-log-page-123",
+			expect.objectContaining({
+				activityId: 123,
+				downstreamRef: "build-log-page-123",
 			}),
 		);
 		expect(secondRun.rowsRecovered).toBe(1);

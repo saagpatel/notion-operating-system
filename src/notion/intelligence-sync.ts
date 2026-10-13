@@ -7,963 +7,1180 @@ import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
-  DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
-  loadLocalPortfolioControlTowerConfig,
-  saveLocalPortfolioControlTowerConfig,
+	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,
+	loadLocalPortfolioControlTowerConfig,
+	saveLocalPortfolioControlTowerConfig,
 } from "./local-portfolio-control-tower.js";
 import { mergeManagedSection } from "./local-portfolio-execution.js";
 import {
-  buildProjectIntelligenceContext,
-  buildRecommendation,
-  calculateIntelligenceMetrics,
-  renderIntelligenceCommandCenterSection,
-  renderRecommendationBriefSection,
-  requirePhase3Intelligence,
+	buildProjectIntelligenceContext,
+	buildRecommendation,
+	calculateIntelligenceMetrics,
+	renderIntelligenceCommandCenterSection,
+	renderRecommendationBriefSection,
+	requirePhase3Intelligence,
 } from "./local-portfolio-intelligence.js";
-import { buildExternalSignalSummary, requirePhase5ExternalSignals } from "./local-portfolio-external-signals.js";
 import {
-  fetchRecentExternalSignalEventPagesByProject,
-  toExternalSignalEventRecord,
-  toExternalSignalSourceRecord,
+	buildExternalSignalSummary,
+	requirePhase5ExternalSignals,
+} from "./local-portfolio-external-signals.js";
+import {
+	fetchRecentExternalSignalEventPagesByProject,
+	toExternalSignalEventRecord,
+	toExternalSignalSourceRecord,
 } from "./local-portfolio-external-signals-live.js";
 import {
-  ensurePhase3IntelligenceSchema,
-  toIntelligenceProjectRecord,
-  toLinkSuggestionRecord,
-  toRecommendationRunRecord,
-  toResearchLibraryRecord,
-  toSkillLibraryRecord,
-  toToolMatrixRecord,
+	ensurePhase3IntelligenceSchema,
+	toIntelligenceProjectRecord,
+	toLinkSuggestionRecord,
+	toRecommendationRunRecord,
+	toResearchLibraryRecord,
+	toSkillLibraryRecord,
+	toToolMatrixRecord,
 } from "./local-portfolio-intelligence-live.js";
 import {
-  datePropertyValue,
-  fetchAllPages,
-  relationIds,
-  relationValue,
-  richTextValue,
-  selectPropertyValue,
-  textValue,
-  titleValue,
-  toBuildSessionRecord,
-  upsertPageByTitle,
+	datePropertyValue,
+	fetchAllPages,
+	relationIds,
+	relationValue,
+	richTextValue,
+	selectPropertyValue,
+	textValue,
+	titleValue,
+	toBuildSessionRecord,
+	upsertPageByTitle,
 } from "./local-portfolio-control-tower-live.js";
 import {
-  toExecutionTaskRecord,
-  toProjectDecisionRecord,
-  toWorkPacketRecord,
+	toExecutionTaskRecord,
+	toProjectDecisionRecord,
+	toWorkPacketRecord,
 } from "./local-portfolio-execution-live.js";
-import {
-  loadLocalPortfolioIntelligenceViewPlan,
-} from "./local-portfolio-intelligence.js";
+import { loadLocalPortfolioIntelligenceViewPlan } from "./local-portfolio-intelligence.js";
 import { validateLocalPortfolioIntelligenceViewPlanAgainstSchemas } from "./local-portfolio-intelligence-views.js";
 import { AppError } from "../utils/errors.js";
-import { normalizeMarkdown, normalizePageBodyMarkdown } from "../utils/markdown.js";
+import {
+	normalizeMarkdown,
+	normalizePageBodyMarkdown,
+} from "../utils/markdown.js";
 import { losAngelesToday } from "../utils/date.js";
 import { mapWithConcurrency } from "../utils/concurrency.js";
 import { mapWeeklyStepStatusToCommandStatus } from "./weekly-refresh-contract.js";
 import {
-  isNotionPolicyBlockedError,
-  isReadBackRecoverableMarkdownError,
-  syncManagedMarkdownSectionWithReadBack,
+	isNotionPolicyBlockedError,
+	isReadBackRecoverableMarkdownError,
+	syncManagedMarkdownSectionWithReadBack,
 } from "./managed-markdown-sync.js";
 import {
-  loadProjectMarkdownBlocklist,
-  partitionKnownBlockedProjectMarkdown,
+	loadProjectMarkdownBlocklist,
+	partitionKnownBlockedProjectMarkdown,
 } from "./project-markdown-blocklist.js";
 import { buildProjectMarkdownRefreshContract } from "./project-markdown-refresh-contract.js";
 import {
-  isMarkdownPatchTransportError,
-  replaceCommandCenterPageAfterPatchFailure,
+	isMarkdownPatchTransportError,
+	replaceCommandCenterPageAfterPatchFailure,
 } from "./command-center-replacement.js";
 
-const RECOMMENDATION_BRIEF_START = "<!-- codex:notion-recommendation-brief:start -->";
-const RECOMMENDATION_BRIEF_END = "<!-- codex:notion-recommendation-brief:end -->";
-const INTELLIGENCE_COMMAND_CENTER_START = "<!-- codex:notion-intelligence-command-center:start -->";
-const INTELLIGENCE_COMMAND_CENTER_END = "<!-- codex:notion-intelligence-command-center:end -->";
+const RECOMMENDATION_BRIEF_START =
+	"<!-- codex:notion-recommendation-brief:start -->";
+const RECOMMENDATION_BRIEF_END =
+	"<!-- codex:notion-recommendation-brief:end -->";
+const INTELLIGENCE_COMMAND_CENTER_START =
+	"<!-- codex:notion-intelligence-command-center:start -->";
+const INTELLIGENCE_COMMAND_CENTER_END =
+	"<!-- codex:notion-intelligence-command-center:end -->";
 const RECOMMENDATION_BRIEF_STORAGE_VERSION = "recommendation-brief-db-v1";
 const PROGRESS_HEARTBEAT_MS = 15_000;
 
 interface RecommendationBriefRefresh {
-  projectId: string;
-  projectTitle: string;
-  previousMarkdown: string;
-  nextMarkdown: string;
-  recommendation: ReturnType<typeof buildRecommendation> | undefined;
-  changed: boolean;
-  storageTitle?: string;
-  storagePageId?: string;
-  storagePageUrl?: string;
-  contentHash?: string;
+	projectId: string;
+	projectTitle: string;
+	previousMarkdown: string;
+	nextMarkdown: string;
+	recommendation: ReturnType<typeof buildRecommendation> | undefined;
+	changed: boolean;
+	storageTitle?: string;
+	storagePageId?: string;
+	storagePageUrl?: string;
+	contentHash?: string;
 }
 
 export interface IntelligenceSyncCommandOptions {
-  live?: boolean;
-  today?: string;
-  config?: string;
-  projectLimit?: number;
-  projectOffset?: number;
-  projectConcurrency?: number;
-  skipKnownBlockedMarkdown?: boolean;
-  blockedMarkdownConfig?: string;
+	live?: boolean;
+	today?: string;
+	config?: string;
+	projectLimit?: number;
+	projectOffset?: number;
+	projectConcurrency?: number;
+	skipKnownBlockedMarkdown?: boolean;
+	blockedMarkdownConfig?: string;
 }
 
 export async function runIntelligenceSyncCommand(
-  options: IntelligenceSyncCommandOptions = {},
+	options: IntelligenceSyncCommandOptions = {},
 ): Promise<void> {
-  const token = resolveRequiredNotionToken("NOTION_TOKEN is required for intelligence sync");
-  const live = options.live ?? false;
-  const today = options.today ?? losAngelesToday();
-  const configPath = options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
-  validateProjectBatchOptions(options);
-  const projectConcurrency = options.projectConcurrency ?? 1;
-  const projectBatchEnabled = options.projectLimit !== undefined || options.projectOffset !== undefined;
-  let config = await loadLocalPortfolioControlTowerConfig(configPath);
+	const token = resolveRequiredNotionToken(
+		"NOTION_TOKEN is required for intelligence sync",
+	);
+	const live = options.live ?? false;
+	const today = options.today ?? losAngelesToday();
+	const configPath =
+		options.config ?? DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH;
+	validateProjectBatchOptions(options);
+	const projectConcurrency = options.projectConcurrency ?? 1;
+	const projectBatchEnabled =
+		options.projectLimit !== undefined || options.projectOffset !== undefined;
+	let config = await loadLocalPortfolioControlTowerConfig(configPath);
 
-    const sdk = createNotionSdkClient(token);
-    const api = new DirectNotionClient(token);
+	const sdk = createNotionSdkClient(token);
+	const api = new DirectNotionClient(token);
 
-    if (live) {
-      logLiveStage(live, "Ensuring Phase 3 schema");
-      config = await ensurePhase3IntelligenceSchema(sdk, config);
-      await saveLocalPortfolioControlTowerConfig(config, configPath);
-    }
+	if (live) {
+		logLiveStage(live, "Ensuring Phase 3 schema");
+		config = await ensurePhase3IntelligenceSchema(sdk, config);
+		await saveLocalPortfolioControlTowerConfig(config, configPath);
+	}
 
-    const phase3 = requirePhase3Intelligence(config);
-    const phase5 = config.phase5ExternalSignals ? requirePhase5ExternalSignals(config) : undefined;
-    logLiveStage(live, "Loading intelligence view plan");
-    const viewPlan = await loadLocalPortfolioIntelligenceViewPlan();
+	const phase3 = requirePhase3Intelligence(config);
+	const phase5 = config.phase5ExternalSignals
+		? requirePhase5ExternalSignals(config)
+		: undefined;
+	logLiveStage(live, "Loading intelligence view plan");
+	const viewPlan = await loadLocalPortfolioIntelligenceViewPlan();
 
-    const [projectSchema, buildSchema, researchSchema] = await Promise.all([
-      api.retrieveDataSource(config.database.dataSourceId),
-      api.retrieveDataSource(config.relatedDataSources.buildLogId),
-      api.retrieveDataSource(config.relatedDataSources.researchId),
-    ]);
-    const [skillSchema, toolSchema, decisionSchema] = await Promise.all([
-      api.retrieveDataSource(config.relatedDataSources.skillsId),
-      api.retrieveDataSource(config.relatedDataSources.toolsId),
-      api.retrieveDataSource(config.phase2Execution!.decisions.dataSourceId),
-    ]);
-    const [packetSchema, taskSchema, runSchema, suggestionSchema] = await Promise.all([
-      api.retrieveDataSource(config.phase2Execution!.packets.dataSourceId),
-      api.retrieveDataSource(config.phase2Execution!.tasks.dataSourceId),
-      api.retrieveDataSource(phase3.recommendationRuns.dataSourceId),
-      api.retrieveDataSource(phase3.linkSuggestions.dataSourceId),
-    ]);
-    const [sourceSchema, eventSchema] = await Promise.all([
-      phase5 ? api.retrieveDataSource(phase5.sources.dataSourceId) : Promise.resolve(undefined),
-      phase5 ? api.retrieveDataSource(phase5.events.dataSourceId) : Promise.resolve(undefined),
-    ]);
+	const [projectSchema, buildSchema, researchSchema] = await Promise.all([
+		api.retrieveDataSource(config.database.dataSourceId),
+		api.retrieveDataSource(config.relatedDataSources.buildLogId),
+		api.retrieveDataSource(config.relatedDataSources.researchId),
+	]);
+	const [skillSchema, toolSchema, decisionSchema] = await Promise.all([
+		api.retrieveDataSource(config.relatedDataSources.skillsId),
+		api.retrieveDataSource(config.relatedDataSources.toolsId),
+		api.retrieveDataSource(config.phase2Execution!.decisions.dataSourceId),
+	]);
+	const [packetSchema, taskSchema, runSchema, suggestionSchema] =
+		await Promise.all([
+			api.retrieveDataSource(config.phase2Execution!.packets.dataSourceId),
+			api.retrieveDataSource(config.phase2Execution!.tasks.dataSourceId),
+			api.retrieveDataSource(phase3.recommendationRuns.dataSourceId),
+			api.retrieveDataSource(phase3.linkSuggestions.dataSourceId),
+		]);
+	const [sourceSchema, eventSchema] = await Promise.all([
+		phase5
+			? api.retrieveDataSource(phase5.sources.dataSourceId)
+			: Promise.resolve(undefined),
+		phase5
+			? api.retrieveDataSource(phase5.events.dataSourceId)
+			: Promise.resolve(undefined),
+	]);
 
-    logLiveStage(live, "Validating intelligence views");
-    validateLocalPortfolioIntelligenceViewPlanAgainstSchemas(viewPlan, {
-      projects: projectSchema,
-      recommendationRuns: runSchema,
-      linkSuggestions: suggestionSchema,
-    });
+	logLiveStage(live, "Validating intelligence views");
+	validateLocalPortfolioIntelligenceViewPlanAgainstSchemas(viewPlan, {
+		projects: projectSchema,
+		recommendationRuns: runSchema,
+		linkSuggestions: suggestionSchema,
+	});
 
-    logLiveStage(live, "Fetching intelligence datasets");
-    const {
-      projectPages,
-      buildPages,
-      researchPages,
-      skillPages,
-      toolPages,
-      decisionPages,
-      packetPages,
-      taskPages,
-      runPages,
-      suggestionPages,
-      sourcePages,
-      eventPages,
-    } = await withProgressHeartbeat(live, "Fetching intelligence datasets", async () => {
-      const [
-        projectPages,
-        buildPages,
-        researchPages,
-        skillPages,
-        toolPages,
-        decisionPages,
-        packetPages,
-        taskPages,
-        runPages,
-        suggestionPages,
-        sourcePages,
-      ] = await Promise.all([
-        fetchPagesWithProgress(live, "projects", api, config.database.dataSourceId, projectSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "build log", api, config.relatedDataSources.buildLogId, buildSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "research", api, config.relatedDataSources.researchId, researchSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "skills", api, config.relatedDataSources.skillsId, skillSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "tools", api, config.relatedDataSources.toolsId, toolSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "decisions", api, config.phase2Execution!.decisions.dataSourceId, decisionSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "packets", api, config.phase2Execution!.packets.dataSourceId, packetSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "tasks", api, config.phase2Execution!.tasks.dataSourceId, taskSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "recommendation runs", api, phase3.recommendationRuns.dataSourceId, runSchema.titlePropertyName),
-        fetchPagesWithProgress(live, "link suggestions", api, phase3.linkSuggestions.dataSourceId, suggestionSchema.titlePropertyName),
-        phase5 && sourceSchema ? fetchPagesWithProgress(live, "external sources", api, phase5.sources.dataSourceId, sourceSchema.titlePropertyName) : Promise.resolve([]),
-      ]);
-      const eventPages = phase5 && eventSchema
-        ? await fetchRecentExternalSignalEventPagesWithProgress(
-            live,
-            api,
-            phase5.events.dataSourceId,
-            eventSchema.titlePropertyName,
-            projectPages.map((page) => page.id),
-          )
-        : [];
-      return {
-        projectPages,
-        buildPages,
-        researchPages,
-        skillPages,
-        toolPages,
-        decisionPages,
-        packetPages,
-        taskPages,
-        runPages,
-        suggestionPages,
-        sourcePages,
-        eventPages,
-      };
-    });
+	logLiveStage(live, "Fetching intelligence datasets");
+	const {
+		projectPages,
+		buildPages,
+		researchPages,
+		skillPages,
+		toolPages,
+		decisionPages,
+		packetPages,
+		taskPages,
+		runPages,
+		suggestionPages,
+		sourcePages,
+		eventPages,
+	} = await withProgressHeartbeat(
+		live,
+		"Fetching intelligence datasets",
+		async () => {
+			const [
+				projectPages,
+				buildPages,
+				researchPages,
+				skillPages,
+				toolPages,
+				decisionPages,
+				packetPages,
+				taskPages,
+				runPages,
+				suggestionPages,
+				sourcePages,
+			] = await Promise.all([
+				fetchPagesWithProgress(
+					live,
+					"projects",
+					api,
+					config.database.dataSourceId,
+					projectSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"build log",
+					api,
+					config.relatedDataSources.buildLogId,
+					buildSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"research",
+					api,
+					config.relatedDataSources.researchId,
+					researchSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"skills",
+					api,
+					config.relatedDataSources.skillsId,
+					skillSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"tools",
+					api,
+					config.relatedDataSources.toolsId,
+					toolSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"decisions",
+					api,
+					config.phase2Execution!.decisions.dataSourceId,
+					decisionSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"packets",
+					api,
+					config.phase2Execution!.packets.dataSourceId,
+					packetSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"tasks",
+					api,
+					config.phase2Execution!.tasks.dataSourceId,
+					taskSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"recommendation runs",
+					api,
+					phase3.recommendationRuns.dataSourceId,
+					runSchema.titlePropertyName,
+				),
+				fetchPagesWithProgress(
+					live,
+					"link suggestions",
+					api,
+					phase3.linkSuggestions.dataSourceId,
+					suggestionSchema.titlePropertyName,
+				),
+				phase5 && sourceSchema
+					? fetchPagesWithProgress(
+							live,
+							"external sources",
+							api,
+							phase5.sources.dataSourceId,
+							sourceSchema.titlePropertyName,
+						)
+					: Promise.resolve([]),
+			]);
+			const eventPages =
+				phase5 && eventSchema
+					? await fetchRecentExternalSignalEventPagesWithProgress(
+							live,
+							api,
+							phase5.events.dataSourceId,
+							eventSchema.titlePropertyName,
+							projectPages.map((page) => page.id),
+						)
+					: [];
+			return {
+				projectPages,
+				buildPages,
+				researchPages,
+				skillPages,
+				toolPages,
+				decisionPages,
+				packetPages,
+				taskPages,
+				runPages,
+				suggestionPages,
+				sourcePages,
+				eventPages,
+			};
+		},
+	);
 
-    const projects = projectPages.map((page) => toIntelligenceProjectRecord(page));
-    const buildSessions = buildPages.map((page) => toBuildSessionRecord(page));
-    const research = researchPages.map((page) => toResearchLibraryRecord(page));
-    const skills = skillPages.map((page) => toSkillLibraryRecord(page));
-    const tools = toolPages.map((page) => toToolMatrixRecord(page));
-    const decisions = decisionPages.map((page) => toProjectDecisionRecord(page));
-    const packets = packetPages.map((page) => toWorkPacketRecord(page));
-    const tasks = taskPages.map((page) => toExecutionTaskRecord(page));
-    const runs = runPages.map((page) => toRecommendationRunRecord(page));
-    const suggestions = suggestionPages.map((page) => toLinkSuggestionRecord(page));
-    const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
-    const events = eventPages.map((page) => toExternalSignalEventRecord(page));
+	const projects = projectPages.map((page) =>
+		toIntelligenceProjectRecord(page),
+	);
+	const buildSessions = buildPages.map((page) => toBuildSessionRecord(page));
+	const research = researchPages.map((page) => toResearchLibraryRecord(page));
+	const skills = skillPages.map((page) => toSkillLibraryRecord(page));
+	const tools = toolPages.map((page) => toToolMatrixRecord(page));
+	const decisions = decisionPages.map((page) => toProjectDecisionRecord(page));
+	const packets = packetPages.map((page) => toWorkPacketRecord(page));
+	const tasks = taskPages.map((page) => toExecutionTaskRecord(page));
+	const runs = runPages.map((page) => toRecommendationRunRecord(page));
+	const suggestions = suggestionPages.map((page) =>
+		toLinkSuggestionRecord(page),
+	);
+	const sources = sourcePages.map((page) => toExternalSignalSourceRecord(page));
+	const events = eventPages.map((page) => toExternalSignalEventRecord(page));
 
-    const contexts = projects.map((project) =>
-      buildProjectIntelligenceContext({
-        project,
-        researchRecords: research,
-        skillRecords: skills,
-        toolRecords: tools,
-        decisions,
-        packets,
-        tasks,
-        buildSessions,
-        today,
-      }),
-    );
-    const externalSummaryByProjectId = new Map(
-      phase5
-        ? projects.map((project) => [
-            project.id,
-            buildExternalSignalSummary({
-              project,
-              sources,
-              events,
-              today,
-            }),
-          ])
-        : [],
-    );
-    const recommendations = contexts.map((context) =>
-      buildRecommendation(context, externalSummaryByProjectId.get(context.project.id)),
-    );
-    const metrics = calculateIntelligenceMetrics({
-      projects,
-      recommendations,
-      linkSuggestions: suggestions,
-    });
+	const contexts = projects.map((project) =>
+		buildProjectIntelligenceContext({
+			project,
+			researchRecords: research,
+			skillRecords: skills,
+			toolRecords: tools,
+			decisions,
+			packets,
+			tasks,
+			buildSessions,
+			today,
+		}),
+	);
+	const externalSummaryByProjectId = new Map(
+		phase5
+			? projects.map((project) => [
+					project.id,
+					buildExternalSignalSummary({
+						project,
+						sources,
+						events,
+						today,
+					}),
+				])
+			: [],
+	);
+	const recommendations = contexts.map((context) =>
+		buildRecommendation(
+			context,
+			externalSummaryByProjectId.get(context.project.id),
+		),
+	);
+	const metrics = calculateIntelligenceMetrics({
+		projects,
+		recommendations,
+		linkSuggestions: suggestions,
+	});
 
-    const latestWeeklyRun = runs
-      .filter((run) => run.runType === "Weekly Portfolio")
-      .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
-    const latestDailyRun = runs
-      .filter((run) => run.runType === "Daily Focus")
-      .sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
+	const latestWeeklyRun = runs
+		.filter((run) => run.runType === "Weekly Portfolio")
+		.sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
+	const latestDailyRun = runs
+		.filter((run) => run.runType === "Daily Focus")
+		.sort((left, right) => right.runDate.localeCompare(left.runDate))[0];
 
-    logLiveStage(live, "Evaluating recommendation briefs", {
-      projectCount: contexts.length,
-      storageMode: Boolean(phase3.recommendationBriefs),
-    });
-    const recommendationBriefs = await withProgressHeartbeat(live, "Evaluating recommendation briefs", () =>
-      phase3.recommendationBriefs
-      ? buildStoredRecommendationBriefRefreshes({
-          api,
-          contexts,
-          recommendations,
-          dataSourceId: phase3.recommendationBriefs.dataSourceId,
-          today,
-        })
-      : buildProjectPageRecommendationBriefRefreshes({
-          api,
-          contexts,
-          recommendations,
-          today,
-        }),
-    );
-    const changedRecommendationBriefs = recommendationBriefs.filter((entry) => entry.changed);
-    logLiveStage(live, "Recommendation brief evaluation complete", {
-      changedCount: changedRecommendationBriefs.length,
-      projectCount: recommendationBriefs.length,
-    });
-    const targetRecommendationBriefsBeforeKnownBlocked = selectProjectBriefBatch(changedRecommendationBriefs, options);
-    const usesRecommendationBriefStorage = Boolean(phase3.recommendationBriefs);
-    const knownBlockedMarkdownBlocklist = options.skipKnownBlockedMarkdown && !usesRecommendationBriefStorage
-      ? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
-      : undefined;
-    const knownBlockedPartition = knownBlockedMarkdownBlocklist
-      ? partitionKnownBlockedProjectMarkdown(
-          targetRecommendationBriefsBeforeKnownBlocked,
-          knownBlockedMarkdownBlocklist,
-          "intelligence",
-        )
-      : { writable: targetRecommendationBriefsBeforeKnownBlocked, skipped: [] };
-    const targetRecommendationBriefs = knownBlockedPartition.writable;
-    const knownBlockedMarkdownProjects = knownBlockedPartition.skipped.map((entry) => entry.projectTitle);
-    const projectRecommendationBriefsWouldChange = projectBatchEnabled
-      ? targetRecommendationBriefsBeforeKnownBlocked.length
-      : changedRecommendationBriefs.length;
+	logLiveStage(live, "Evaluating recommendation briefs", {
+		projectCount: contexts.length,
+		storageMode: Boolean(phase3.recommendationBriefs),
+	});
+	const recommendationBriefs = await withProgressHeartbeat(
+		live,
+		"Evaluating recommendation briefs",
+		() =>
+			phase3.recommendationBriefs
+				? buildStoredRecommendationBriefRefreshes({
+						api,
+						contexts,
+						recommendations,
+						dataSourceId: phase3.recommendationBriefs.dataSourceId,
+						today,
+					})
+				: buildProjectPageRecommendationBriefRefreshes({
+						api,
+						contexts,
+						recommendations,
+						today,
+					}),
+	);
+	const changedRecommendationBriefs = recommendationBriefs.filter(
+		(entry) => entry.changed,
+	);
+	logLiveStage(live, "Recommendation brief evaluation complete", {
+		changedCount: changedRecommendationBriefs.length,
+		projectCount: recommendationBriefs.length,
+	});
+	const targetRecommendationBriefsBeforeKnownBlocked = selectProjectBriefBatch(
+		changedRecommendationBriefs,
+		options,
+	);
+	const usesRecommendationBriefStorage = Boolean(phase3.recommendationBriefs);
+	const knownBlockedMarkdownBlocklist =
+		options.skipKnownBlockedMarkdown && !usesRecommendationBriefStorage
+			? await loadProjectMarkdownBlocklist(options.blockedMarkdownConfig)
+			: undefined;
+	const knownBlockedPartition = knownBlockedMarkdownBlocklist
+		? partitionKnownBlockedProjectMarkdown(
+				targetRecommendationBriefsBeforeKnownBlocked,
+				knownBlockedMarkdownBlocklist,
+				"intelligence",
+			)
+		: { writable: targetRecommendationBriefsBeforeKnownBlocked, skipped: [] };
+	const targetRecommendationBriefs = knownBlockedPartition.writable;
+	const knownBlockedMarkdownProjects = knownBlockedPartition.skipped.map(
+		(entry) => entry.projectTitle,
+	);
+	const projectRecommendationBriefsWouldChange = projectBatchEnabled
+		? targetRecommendationBriefsBeforeKnownBlocked.length
+		: changedRecommendationBriefs.length;
 
-    const previousCommandCenter = projectBatchEnabled
-      ? undefined
-      : await api.readPageMarkdown(config.commandCenter.pageId!);
-    const nextCommandCenter = previousCommandCenter
-      ? mergeManagedSection(
-          previousCommandCenter.markdown,
-          renderIntelligenceCommandCenterSection({
-            recommendations,
-            projects: projects.map((project) => ({
-              ...project,
-              recommendationLane: recommendations.find((entry) => entry.projectId === project.id)?.lane,
-            })),
-            latestWeeklyRun,
-            latestDailyRun,
-            linkSuggestionQueue: suggestions,
-          }),
-          INTELLIGENCE_COMMAND_CENTER_START,
-          INTELLIGENCE_COMMAND_CENTER_END,
-        )
-      : undefined;
-    const intelligenceCommandCenterSectionWouldChange =
-      previousCommandCenter && nextCommandCenter
-        ? normalizeMarkdown(nextCommandCenter) !== normalizeMarkdown(previousCommandCenter.markdown)
-        : false;
+	const previousCommandCenter = projectBatchEnabled
+		? undefined
+		: await api.readPageMarkdown(config.commandCenter.pageId!);
+	const nextCommandCenter = previousCommandCenter
+		? mergeManagedSection(
+				previousCommandCenter.markdown,
+				renderIntelligenceCommandCenterSection({
+					recommendations,
+					projects: projects.map((project) => ({
+						...project,
+						recommendationLane: recommendations.find(
+							(entry) => entry.projectId === project.id,
+						)?.lane,
+					})),
+					latestWeeklyRun,
+					latestDailyRun,
+					linkSuggestionQueue: suggestions,
+				}),
+				INTELLIGENCE_COMMAND_CENTER_START,
+				INTELLIGENCE_COMMAND_CENTER_END,
+			)
+		: undefined;
+	const intelligenceCommandCenterSectionWouldChange =
+		previousCommandCenter && nextCommandCenter
+			? normalizeMarkdown(nextCommandCenter) !==
+				normalizeMarkdown(previousCommandCenter.markdown)
+			: false;
 
-    let changedProjectPages = 0;
-    const blockedMarkdownProjects: string[] = [];
-    const fallbackMarkdownProjects: string[] = [];
-    if (live) {
-      if (!projectBatchEnabled) {
-        logLiveStage(live, "Applying accepted link suggestions", {
-          suggestionCount: suggestions.filter((entry) => entry.status === "Accepted").length,
-        });
-        const projectPageMap = new Map(projectPages.map((page) => [page.id, page]));
-        const researchPageMap = new Map(researchPages.map((page) => [page.id, page]));
-        const skillPageMap = new Map(skillPages.map((page) => [page.id, page]));
-        const toolPageMap = new Map(toolPages.map((page) => [page.id, page]));
+	let changedProjectPages = 0;
+	const blockedMarkdownProjects: string[] = [];
+	const fallbackMarkdownProjects: string[] = [];
+	if (live) {
+		if (!projectBatchEnabled) {
+			logLiveStage(live, "Applying accepted link suggestions", {
+				suggestionCount: suggestions.filter(
+					(entry) => entry.status === "Accepted",
+				).length,
+			});
+			const projectPageMap = new Map(
+				projectPages.map((page) => [page.id, page]),
+			);
+			const researchPageMap = new Map(
+				researchPages.map((page) => [page.id, page]),
+			);
+			const skillPageMap = new Map(skillPages.map((page) => [page.id, page]));
+			const toolPageMap = new Map(toolPages.map((page) => [page.id, page]));
 
-        await applyAcceptedLinkSuggestions({
-          api,
-          suggestions,
-          projectPages: projectPageMap,
-          researchPages: researchPageMap,
-          skillPages: skillPageMap,
-          toolPages: toolPageMap,
-        });
-      }
+			await applyAcceptedLinkSuggestions({
+				api,
+				suggestions,
+				projectPages: projectPageMap,
+				researchPages: researchPageMap,
+				skillPages: skillPageMap,
+				toolPages: toolPageMap,
+			});
+		}
 
-      logLiveStage(live, "Refreshing recommendation briefs", {
-        projectCount: targetRecommendationBriefs.length,
-        projectRefreshTotalCount: changedRecommendationBriefs.length,
-        projectRefreshOffset: options.projectOffset ?? 0,
-        projectRefreshLimit: options.projectLimit ?? 0,
-        projectConcurrency,
-      });
-      await mapWithConcurrency(targetRecommendationBriefs, projectConcurrency, async (entry, index) => {
-        logLoopProgress(live, "intelligence-sync", "Project brief", index + 1, targetRecommendationBriefs.length);
-        const context = contexts.find((candidate) => candidate.project.id === entry.projectId);
-        const recommendation = entry?.recommendation;
-        if (!recommendation || !context) {
-          return;
-        }
+		logLiveStage(live, "Refreshing recommendation briefs", {
+			projectCount: targetRecommendationBriefs.length,
+			projectRefreshTotalCount: changedRecommendationBriefs.length,
+			projectRefreshOffset: options.projectOffset ?? 0,
+			projectRefreshLimit: options.projectLimit ?? 0,
+			projectConcurrency,
+		});
+		await mapWithConcurrency(
+			targetRecommendationBriefs,
+			projectConcurrency,
+			async (entry, index) => {
+				logLoopProgress(
+					live,
+					"intelligence-sync",
+					"Project brief",
+					index + 1,
+					targetRecommendationBriefs.length,
+				);
+				const context = contexts.find(
+					(candidate) => candidate.project.id === entry.projectId,
+				);
+				const recommendation = entry?.recommendation;
+				if (!recommendation || !context) {
+					return;
+				}
 
-        await api.updatePageProperties({
-          pageId: context.project.id,
-          properties: {
-            "Recommendation Lane": { select: { name: recommendation.lane } },
-            "Recommendation Score": { number: recommendation.score },
-            "Recommendation Confidence": { select: { name: recommendation.confidence } },
-            "Recommendation Updated": { date: { start: today } },
-          },
-        });
+				await api.updatePageProperties({
+					pageId: context.project.id,
+					properties: {
+						"Recommendation Lane": { select: { name: recommendation.lane } },
+						"Recommendation Score": { number: recommendation.score },
+						"Recommendation Confidence": {
+							select: { name: recommendation.confidence },
+						},
+						"Recommendation Updated": { date: { start: today } },
+					},
+				});
 
-        if (entry.changed) {
-          if (phase3.recommendationBriefs && entry.storageTitle) {
-            await upsertPageByTitle({
-              api,
-              dataSourceId: phase3.recommendationBriefs.dataSourceId,
-              titlePropertyName: "Name",
-              title: entry.storageTitle,
-              properties: buildRecommendationBriefStorageProperties({
-                entry,
-                today,
-              }),
-              markdown: entry.nextMarkdown,
-            });
-            changedProjectPages += 1;
-            return;
-          }
+				if (entry.changed) {
+					if (phase3.recommendationBriefs && entry.storageTitle) {
+						await upsertPageByTitle({
+							api,
+							dataSourceId: phase3.recommendationBriefs.dataSourceId,
+							titlePropertyName: "Name",
+							title: entry.storageTitle,
+							properties: buildRecommendationBriefStorageProperties({
+								entry,
+								today,
+							}),
+							markdown: entry.nextMarkdown,
+						});
+						changedProjectPages += 1;
+						return;
+					}
 
-          try {
-            const mode = await syncManagedMarkdownSectionWithReadBack({
-              api,
-              pageId: context.project.id,
-              previousMarkdown: entry.previousMarkdown,
-              nextMarkdown: entry.nextMarkdown,
-              startMarker: RECOMMENDATION_BRIEF_START,
-              endMarker: RECOMMENDATION_BRIEF_END,
-            });
-            changedProjectPages += 1;
-            if (mode === "append_tail_update") {
-              fallbackMarkdownProjects.push(entry.projectTitle);
-            }
-          } catch (error) {
-            if (!isNotionPolicyBlockedError(error) && !isReadBackRecoverableMarkdownError(error)) {
-              throw error;
-            }
-            blockedMarkdownProjects.push(entry.projectTitle);
-            logLiveStage(live, "Skipping blocked project markdown patch", {
-              projectId: context.project.id,
-              projectTitle: entry.projectTitle,
-            });
-          }
-        }
-      });
+					try {
+						const mode = await syncManagedMarkdownSectionWithReadBack({
+							api,
+							pageId: context.project.id,
+							previousMarkdown: entry.previousMarkdown,
+							nextMarkdown: entry.nextMarkdown,
+							startMarker: RECOMMENDATION_BRIEF_START,
+							endMarker: RECOMMENDATION_BRIEF_END,
+						});
+						changedProjectPages += 1;
+						if (mode === "append_tail_update") {
+							fallbackMarkdownProjects.push(entry.projectTitle);
+						}
+					} catch (error) {
+						if (
+							!isNotionPolicyBlockedError(error) &&
+							!isReadBackRecoverableMarkdownError(error)
+						) {
+							throw error;
+						}
+						blockedMarkdownProjects.push(entry.projectTitle);
+						logLiveStage(live, "Skipping blocked project markdown patch", {
+							projectId: context.project.id,
+							projectTitle: entry.projectTitle,
+						});
+					}
+				}
+			},
+		);
 
-      logLiveStage(live, "Refreshing intelligence command center");
-      if (previousCommandCenter && nextCommandCenter && intelligenceCommandCenterSectionWouldChange) {
-        try {
-          await syncIntelligenceCommandCenterMarkdown({
-            api,
-            pageId: config.commandCenter.pageId!,
-            previousMarkdown: previousCommandCenter.markdown,
-            nextMarkdown: nextCommandCenter,
-          });
-        } catch (error) {
-          if (
-            !isMarkdownPatchTransportError(error) &&
-            !isReadBackRecoverableMarkdownError(error) &&
-            !isNotionPolicyBlockedError(error)
-          ) {
-            throw error;
-          }
-          config = await replaceCommandCenterPageAfterPatchFailure({
-            api,
-            config,
-            configPath,
-            markdown: nextCommandCenter,
-          });
-        }
-      }
+		logLiveStage(live, "Refreshing intelligence command center");
+		if (
+			previousCommandCenter &&
+			nextCommandCenter &&
+			intelligenceCommandCenterSectionWouldChange
+		) {
+			try {
+				await syncIntelligenceCommandCenterMarkdown({
+					api,
+					pageId: config.commandCenter.pageId!,
+					previousMarkdown: previousCommandCenter.markdown,
+					nextMarkdown: nextCommandCenter,
+				});
+			} catch (error) {
+				if (
+					!isMarkdownPatchTransportError(error) &&
+					!isReadBackRecoverableMarkdownError(error) &&
+					!isNotionPolicyBlockedError(error)
+				) {
+					throw error;
+				}
+				config = await replaceCommandCenterPageAfterPatchFailure({
+					api,
+					config,
+					configPath,
+					markdown: nextCommandCenter,
+				});
+			}
+		}
 
-      if (!projectBatchEnabled) {
-        logLiveStage(live, "Persisting intelligence sync metrics");
-        const nextConfig = {
-          ...config,
-          phaseState: {
-            ...config.phaseState,
-            currentPhaseStatus: "In Progress",
-          },
-          phase3Intelligence: {
-            ...phase3,
-            baselineCapturedAt: phase3.baselineCapturedAt ?? today,
-            baselineMetrics: phase3.baselineMetrics ?? serializeMetrics(metrics),
-            lastSyncAt: today,
-            lastSyncMetrics: serializeMetrics(metrics),
-          },
-        };
-        await saveLocalPortfolioControlTowerConfig(nextConfig, configPath);
-        config = nextConfig;
-      }
-    }
+		if (!projectBatchEnabled) {
+			logLiveStage(live, "Persisting intelligence sync metrics");
+			const nextConfig = {
+				...config,
+				phaseState: {
+					...config.phaseState,
+					currentPhaseStatus: "In Progress",
+				},
+				phase3Intelligence: {
+					...phase3,
+					baselineCapturedAt: phase3.baselineCapturedAt ?? today,
+					baselineMetrics: phase3.baselineMetrics ?? serializeMetrics(metrics),
+					lastSyncAt: today,
+					lastSyncMetrics: serializeMetrics(metrics),
+				},
+			};
+			await saveLocalPortfolioControlTowerConfig(nextConfig, configPath);
+			config = nextConfig;
+		}
+	}
 
-    const output = {
-      ok: true,
-      live,
-      status: "clean" as string,
-      wouldChange: false,
-      summaryCounts: {},
-      warnings: [] as string[],
-      changedProjectPages,
-      projectRecommendationBriefsWouldChange,
-      intelligenceCommandCenterSectionWouldChange,
-      blockedMarkdownProjectPages: blockedMarkdownProjects.length,
-      knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
-      markdownFallbackProjectPages: fallbackMarkdownProjects.length,
-      projectRefreshTotalCount: changedRecommendationBriefs.length,
-      projectRefreshBatchCount: targetRecommendationBriefsBeforeKnownBlocked.length,
-      projectRefreshWritableBatchCount: targetRecommendationBriefs.length,
-      projectRefreshOffset: options.projectOffset ?? 0,
-      projectRefreshLimit: options.projectLimit ?? 0,
-      metrics,
-      latestWeeklyRunId: latestWeeklyRun?.id,
-      latestDailyRunId: latestDailyRun?.id,
-    };
-    const warnings = [
-      ...summarizeProjectWarnings("Recommendation brief markdown used a fallback write for", fallbackMarkdownProjects),
-      ...summarizeProjectWarnings("Recommendation brief markdown remained blocked for", blockedMarkdownProjects),
-      ...summarizeProjectWarnings("Recommendation brief markdown skipped as known blocked for", knownBlockedMarkdownProjects),
-    ];
-    const contract = buildProjectMarkdownRefreshContract({
-      live,
-      blockedMarkdownProjectPages: blockedMarkdownProjects.length,
-      writableMarkdownProjectPagesWouldChange: targetRecommendationBriefs.length,
-      portfolioSectionWouldChange: intelligenceCommandCenterSectionWouldChange,
-      summaryCounts: {
-        projectRecommendationBriefsWouldChange,
-        intelligenceCommandCenterSectionWouldChange: intelligenceCommandCenterSectionWouldChange ? 1 : 0,
-        blockedMarkdownProjectPages: blockedMarkdownProjects.length,
-        knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
-        markdownFallbackProjectPages: fallbackMarkdownProjects.length,
-        projectRefreshTotalCount: changedRecommendationBriefs.length,
-        projectRefreshBatchCount: targetRecommendationBriefsBeforeKnownBlocked.length,
-        projectRefreshWritableBatchCount: targetRecommendationBriefs.length,
-        projectRefreshOffset: options.projectOffset ?? 0,
-        projectRefreshLimit: options.projectLimit ?? 0,
-        totalProjects: metrics.totalProjects,
-        resumeCandidates: metrics.resumeCandidates,
-        proposedLinkSuggestions: metrics.proposedLinkSuggestions,
-      },
-      warnings,
-    });
-    output.status = contract.status;
-    output.wouldChange = contract.wouldChange;
-    output.summaryCounts = contract.summaryCounts;
-    output.warnings = contract.warnings;
-    recordCommandOutputSummary(output, {
-      status: mapWeeklyStepStatusToCommandStatus(contract.status),
-      metadata: {
-        latestWeeklyRunId: latestWeeklyRun?.id,
-        latestDailyRunId: latestDailyRun?.id,
-      },
-    });
-    console.log(JSON.stringify(output, null, 2));
+	const output = {
+		ok: true,
+		live,
+		status: "clean" as string,
+		wouldChange: false,
+		summaryCounts: {},
+		warnings: [] as string[],
+		changedProjectPages,
+		projectRecommendationBriefsWouldChange,
+		intelligenceCommandCenterSectionWouldChange,
+		blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+		knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
+		markdownFallbackProjectPages: fallbackMarkdownProjects.length,
+		projectRefreshTotalCount: changedRecommendationBriefs.length,
+		projectRefreshBatchCount:
+			targetRecommendationBriefsBeforeKnownBlocked.length,
+		projectRefreshWritableBatchCount: targetRecommendationBriefs.length,
+		projectRefreshOffset: options.projectOffset ?? 0,
+		projectRefreshLimit: options.projectLimit ?? 0,
+		metrics,
+		latestWeeklyRunId: latestWeeklyRun?.id,
+		latestDailyRunId: latestDailyRun?.id,
+	};
+	const warnings = [
+		...summarizeProjectWarnings(
+			"Recommendation brief markdown used a fallback write for",
+			fallbackMarkdownProjects,
+		),
+		...summarizeProjectWarnings(
+			"Recommendation brief markdown remained blocked for",
+			blockedMarkdownProjects,
+		),
+		...summarizeProjectWarnings(
+			"Recommendation brief markdown skipped as known blocked for",
+			knownBlockedMarkdownProjects,
+		),
+	];
+	const contract = buildProjectMarkdownRefreshContract({
+		live,
+		blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+		writableMarkdownProjectPagesWouldChange: targetRecommendationBriefs.length,
+		portfolioSectionWouldChange: intelligenceCommandCenterSectionWouldChange,
+		summaryCounts: {
+			projectRecommendationBriefsWouldChange,
+			intelligenceCommandCenterSectionWouldChange:
+				intelligenceCommandCenterSectionWouldChange ? 1 : 0,
+			blockedMarkdownProjectPages: blockedMarkdownProjects.length,
+			knownBlockedMarkdownProjectPages: knownBlockedMarkdownProjects.length,
+			markdownFallbackProjectPages: fallbackMarkdownProjects.length,
+			projectRefreshTotalCount: changedRecommendationBriefs.length,
+			projectRefreshBatchCount:
+				targetRecommendationBriefsBeforeKnownBlocked.length,
+			projectRefreshWritableBatchCount: targetRecommendationBriefs.length,
+			projectRefreshOffset: options.projectOffset ?? 0,
+			projectRefreshLimit: options.projectLimit ?? 0,
+			totalProjects: metrics.totalProjects,
+			resumeCandidates: metrics.resumeCandidates,
+			proposedLinkSuggestions: metrics.proposedLinkSuggestions,
+		},
+		warnings,
+	});
+	output.status = contract.status;
+	output.wouldChange = contract.wouldChange;
+	output.summaryCounts = contract.summaryCounts;
+	output.warnings = contract.warnings;
+	recordCommandOutputSummary(output, {
+		status: mapWeeklyStepStatusToCommandStatus(contract.status),
+		metadata: {
+			latestWeeklyRunId: latestWeeklyRun?.id,
+			latestDailyRunId: latestDailyRun?.id,
+		},
+	});
+	console.log(JSON.stringify(output, null, 2));
 }
 
-function validateProjectBatchOptions(options: Pick<IntelligenceSyncCommandOptions, "projectLimit" | "projectOffset" | "projectConcurrency">): void {
-  if (options.projectLimit !== undefined && (!Number.isInteger(options.projectLimit) || options.projectLimit < 1)) {
-    throw new AppError("--project-limit must be a positive integer");
-  }
-  if (options.projectOffset !== undefined && (!Number.isInteger(options.projectOffset) || options.projectOffset < 0)) {
-    throw new AppError("--project-offset must be a non-negative integer");
-  }
-  if (options.projectConcurrency !== undefined && (!Number.isInteger(options.projectConcurrency) || options.projectConcurrency < 1)) {
-    throw new AppError("--project-concurrency must be a positive integer");
-  }
+function validateProjectBatchOptions(
+	options: Pick<
+		IntelligenceSyncCommandOptions,
+		"projectLimit" | "projectOffset" | "projectConcurrency"
+	>,
+): void {
+	if (
+		options.projectLimit !== undefined &&
+		(!Number.isInteger(options.projectLimit) || options.projectLimit < 1)
+	) {
+		throw new AppError("--project-limit must be a positive integer");
+	}
+	if (
+		options.projectOffset !== undefined &&
+		(!Number.isInteger(options.projectOffset) || options.projectOffset < 0)
+	) {
+		throw new AppError("--project-offset must be a non-negative integer");
+	}
+	if (
+		options.projectConcurrency !== undefined &&
+		(!Number.isInteger(options.projectConcurrency) ||
+			options.projectConcurrency < 1)
+	) {
+		throw new AppError("--project-concurrency must be a positive integer");
+	}
 }
 
 async function buildProjectPageRecommendationBriefRefreshes(input: {
-  api: DirectNotionClient;
-  contexts: ReturnType<typeof buildProjectIntelligenceContext>[];
-  recommendations: Array<ReturnType<typeof buildRecommendation> | undefined>;
-  today: string;
+	api: DirectNotionClient;
+	contexts: ReturnType<typeof buildProjectIntelligenceContext>[];
+	recommendations: Array<ReturnType<typeof buildRecommendation> | undefined>;
+	today: string;
 }): Promise<RecommendationBriefRefresh[]> {
-  return Promise.all(
-    input.contexts.map(async (context, index) => {
-      const recommendation = input.recommendations[index];
-      const previous = await input.api.readPageMarkdown(context.project.id);
-      if (!recommendation) {
-        return {
-          projectId: context.project.id,
-          projectTitle: context.project.title,
-          previousMarkdown: previous.markdown,
-          nextMarkdown: previous.markdown,
-          recommendation,
-          changed: false,
-        };
-      }
-      const nextMarkdown = mergeManagedSection(
-        previous.markdown,
-        renderRecommendationBriefSection({
-          context: withRecommendationFields(context, recommendation, input.today),
-          recommendation,
-        }),
-        RECOMMENDATION_BRIEF_START,
-        RECOMMENDATION_BRIEF_END,
-      );
-      return {
-        projectId: context.project.id,
-        projectTitle: context.project.title,
-        previousMarkdown: previous.markdown,
-        nextMarkdown,
-        recommendation,
-        changed:
-          normalizeMarkdown(nextMarkdown) !== normalizeMarkdown(previous.markdown),
-      };
-    }),
-  );
+	return Promise.all(
+		input.contexts.map(async (context, index) => {
+			const recommendation = input.recommendations[index];
+			const previous = await input.api.readPageMarkdown(context.project.id);
+			if (!recommendation) {
+				return {
+					projectId: context.project.id,
+					projectTitle: context.project.title,
+					previousMarkdown: previous.markdown,
+					nextMarkdown: previous.markdown,
+					recommendation,
+					changed: false,
+				};
+			}
+			const nextMarkdown = mergeManagedSection(
+				previous.markdown,
+				renderRecommendationBriefSection({
+					context: withRecommendationFields(
+						context,
+						recommendation,
+						input.today,
+					),
+					recommendation,
+				}),
+				RECOMMENDATION_BRIEF_START,
+				RECOMMENDATION_BRIEF_END,
+			);
+			return {
+				projectId: context.project.id,
+				projectTitle: context.project.title,
+				previousMarkdown: previous.markdown,
+				nextMarkdown,
+				recommendation,
+				changed:
+					normalizeMarkdown(nextMarkdown) !==
+					normalizeMarkdown(previous.markdown),
+			};
+		}),
+	);
 }
 
 async function buildStoredRecommendationBriefRefreshes(input: {
-  api: DirectNotionClient;
-  contexts: ReturnType<typeof buildProjectIntelligenceContext>[];
-  recommendations: Array<ReturnType<typeof buildRecommendation> | undefined>;
-  dataSourceId: string;
-  today: string;
+	api: DirectNotionClient;
+	contexts: ReturnType<typeof buildProjectIntelligenceContext>[];
+	recommendations: Array<ReturnType<typeof buildRecommendation> | undefined>;
+	dataSourceId: string;
+	today: string;
 }): Promise<RecommendationBriefRefresh[]> {
-  const existingPages = await fetchAllPages(input.api, input.dataSourceId, "Name");
-  const existingByTitle = new Map(existingPages.map((page) => [page.title, page]));
+	const existingPages = await fetchAllPages(
+		input.api,
+		input.dataSourceId,
+		"Name",
+	);
+	const existingByTitle = new Map(
+		existingPages.map((page) => [page.title, page]),
+	);
 
-  return Promise.all(
-    input.contexts.map(async (context, index) => {
-      const recommendation = input.recommendations[index];
-      if (!recommendation) {
-        return {
-          projectId: context.project.id,
-          projectTitle: context.project.title,
-          previousMarkdown: "",
-          nextMarkdown: "",
-          recommendation,
-          changed: false,
-        };
-      }
+	return Promise.all(
+		input.contexts.map(async (context, index) => {
+			const recommendation = input.recommendations[index];
+			if (!recommendation) {
+				return {
+					projectId: context.project.id,
+					projectTitle: context.project.title,
+					previousMarkdown: "",
+					nextMarkdown: "",
+					recommendation,
+					changed: false,
+				};
+			}
 
-      const storageTitle = buildRecommendationBriefStorageTitle({
-        projectTitle: context.project.title,
-        today: input.today,
-      });
-      const existing = existingByTitle.get(storageTitle);
-      const nextMarkdown = renderRecommendationBriefStorageMarkdown({
-        context,
-        recommendation,
-        today: input.today,
-      });
-      const contentHash = hashMarkdown(nextMarkdown, storageTitle);
-      const existingHash = existing
-        ? textValue(existing.properties["Brief Hash"])
-        : "";
-      const previousMarkdown =
-        existing && existingHash !== contentHash
-          ? (await input.api.readPageMarkdown(existing.id)).markdown
-          : "";
-      const changed = !existing || (
-        existingHash === contentHash
-          ? false
-          : normalizePageBodyMarkdown(nextMarkdown, storageTitle) !==
-            normalizePageBodyMarkdown(previousMarkdown, storageTitle)
-      );
-      return {
-        projectId: context.project.id,
-        projectTitle: context.project.title,
-        previousMarkdown,
-        nextMarkdown,
-        recommendation,
-        changed,
-        storageTitle,
-        storagePageId: existing?.id,
-        storagePageUrl: existing?.url,
-        contentHash,
-      };
-    }),
-  );
+			const storageTitle = buildRecommendationBriefStorageTitle({
+				projectTitle: context.project.title,
+				today: input.today,
+			});
+			const existing = existingByTitle.get(storageTitle);
+			const nextMarkdown = renderRecommendationBriefStorageMarkdown({
+				context,
+				recommendation,
+				today: input.today,
+			});
+			const contentHash = hashMarkdown(nextMarkdown, storageTitle);
+			const existingHash = existing
+				? textValue(existing.properties["Brief Hash"])
+				: "";
+			const previousMarkdown =
+				existing && existingHash !== contentHash
+					? (await input.api.readPageMarkdown(existing.id)).markdown
+					: "";
+			const changed =
+				!existing ||
+				(existingHash === contentHash
+					? false
+					: normalizePageBodyMarkdown(nextMarkdown, storageTitle) !==
+						normalizePageBodyMarkdown(previousMarkdown, storageTitle));
+			return {
+				projectId: context.project.id,
+				projectTitle: context.project.title,
+				previousMarkdown,
+				nextMarkdown,
+				recommendation,
+				changed,
+				storageTitle,
+				storagePageId: existing?.id,
+				storagePageUrl: existing?.url,
+				contentHash,
+			};
+		}),
+	);
 }
 
 export function buildRecommendationBriefStorageTitle(input: {
-  projectTitle: string;
-  today: string;
+	projectTitle: string;
+	today: string;
 }): string {
-  return `${input.projectTitle} - Recommendation Brief - ${input.today}`;
+	return `${input.projectTitle} - Recommendation Brief - ${input.today}`;
 }
 
 function renderRecommendationBriefStorageMarkdown(input: {
-  context: ReturnType<typeof buildProjectIntelligenceContext>;
-  recommendation: ReturnType<typeof buildRecommendation>;
-  today: string;
+	context: ReturnType<typeof buildProjectIntelligenceContext>;
+	recommendation: ReturnType<typeof buildRecommendation>;
+	today: string;
 }): string {
-  return [
-    `# ${buildRecommendationBriefStorageTitle({
-      projectTitle: input.context.project.title,
-      today: input.today,
-    })}`,
-    "",
-    renderRecommendationBriefSection({
-      context: withRecommendationFields(
-        input.context,
-        input.recommendation,
-        input.today,
-      ),
-      recommendation: input.recommendation,
-    }),
-  ].join("\n");
+	return [
+		`# ${buildRecommendationBriefStorageTitle({
+			projectTitle: input.context.project.title,
+			today: input.today,
+		})}`,
+		"",
+		renderRecommendationBriefSection({
+			context: withRecommendationFields(
+				input.context,
+				input.recommendation,
+				input.today,
+			),
+			recommendation: input.recommendation,
+		}),
+	].join("\n");
 }
 
 function withRecommendationFields(
-  context: ReturnType<typeof buildProjectIntelligenceContext>,
-  recommendation: ReturnType<typeof buildRecommendation>,
-  today: string,
+	context: ReturnType<typeof buildProjectIntelligenceContext>,
+	recommendation: ReturnType<typeof buildRecommendation>,
+	today: string,
 ): ReturnType<typeof buildProjectIntelligenceContext> {
-  return {
-    ...context,
-    project: {
-      ...context.project,
-      recommendationLane: recommendation.lane,
-      recommendationScore: recommendation.score,
-      recommendationConfidence: recommendation.confidence,
-      recommendationUpdated: today,
-    },
-  };
+	return {
+		...context,
+		project: {
+			...context.project,
+			recommendationLane: recommendation.lane,
+			recommendationScore: recommendation.score,
+			recommendationConfidence: recommendation.confidence,
+			recommendationUpdated: today,
+		},
+	};
 }
 
 function buildRecommendationBriefStorageProperties(input: {
-  entry: RecommendationBriefRefresh;
-  today: string;
+	entry: RecommendationBriefRefresh;
+	today: string;
 }): Record<string, unknown> {
-  const recommendation = input.entry.recommendation;
-  if (!recommendation) {
-    return {
-      Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
-    };
-  }
-  return {
-    Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
-    "Local Project": relationValue([input.entry.projectId]),
-    "Brief Date": datePropertyValue(input.today),
-    "Recommendation Lane": selectPropertyValue(recommendation.lane),
-    "Recommendation Score": { number: recommendation.score },
-    "Recommendation Confidence": selectPropertyValue(recommendation.confidence),
-    Source: selectPropertyValue("intelligence-sync"),
-    "Storage Version": richTextValue(RECOMMENDATION_BRIEF_STORAGE_VERSION),
-    "Brief Hash": richTextValue(input.entry.contentHash ?? ""),
-  };
+	const recommendation = input.entry.recommendation;
+	if (!recommendation) {
+		return {
+			Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
+		};
+	}
+	return {
+		Name: titleValue(input.entry.storageTitle ?? input.entry.projectTitle),
+		"Local Project": relationValue([input.entry.projectId]),
+		"Brief Date": datePropertyValue(input.today),
+		"Recommendation Lane": selectPropertyValue(recommendation.lane),
+		"Recommendation Score": { number: recommendation.score },
+		"Recommendation Confidence": selectPropertyValue(recommendation.confidence),
+		Source: selectPropertyValue("intelligence-sync"),
+		"Storage Version": richTextValue(RECOMMENDATION_BRIEF_STORAGE_VERSION),
+		"Brief Hash": richTextValue(input.entry.contentHash ?? ""),
+	};
 }
 
 function hashMarkdown(markdown: string, title: string): string {
-  return createHash("sha256")
-    .update(normalizePageBodyMarkdown(markdown, title))
-    .digest("hex");
+	return createHash("sha256")
+		.update(normalizePageBodyMarkdown(markdown, title))
+		.digest("hex");
 }
 
 function selectProjectBriefBatch<T>(
-  briefs: T[],
-  options: Pick<IntelligenceSyncCommandOptions, "projectLimit" | "projectOffset">,
+	briefs: T[],
+	options: Pick<
+		IntelligenceSyncCommandOptions,
+		"projectLimit" | "projectOffset"
+	>,
 ): T[] {
-  const offset = options.projectOffset ?? 0;
-  const limit = options.projectLimit ?? briefs.length;
-  return briefs.slice(offset, offset + limit);
+	const offset = options.projectOffset ?? 0;
+	const limit = options.projectLimit ?? briefs.length;
+	return briefs.slice(offset, offset + limit);
 }
 
 export async function syncIntelligenceCommandCenterMarkdown(input: {
-  api: DirectNotionClient;
-  pageId: string;
-  previousMarkdown: string;
-  nextMarkdown: string;
-}): Promise<Awaited<ReturnType<typeof syncManagedMarkdownSectionWithReadBack>>> {
-  return syncManagedMarkdownSectionWithReadBack({
-    api: input.api,
-    pageId: input.pageId,
-    previousMarkdown: input.previousMarkdown,
-    nextMarkdown: input.nextMarkdown,
-    startMarker: INTELLIGENCE_COMMAND_CENTER_START,
-    endMarker: INTELLIGENCE_COMMAND_CENTER_END,
-    maxAttempts: 1,
-    patchMaxAttempts: 1,
-  });
+	api: DirectNotionClient;
+	pageId: string;
+	previousMarkdown: string;
+	nextMarkdown: string;
+}): Promise<
+	Awaited<ReturnType<typeof syncManagedMarkdownSectionWithReadBack>>
+> {
+	return syncManagedMarkdownSectionWithReadBack({
+		api: input.api,
+		pageId: input.pageId,
+		previousMarkdown: input.previousMarkdown,
+		nextMarkdown: input.nextMarkdown,
+		startMarker: INTELLIGENCE_COMMAND_CENTER_START,
+		endMarker: INTELLIGENCE_COMMAND_CENTER_END,
+		maxAttempts: 1,
+		patchMaxAttempts: 1,
+	});
 }
 
-function logLiveStage(live: boolean, stage: string, details?: Record<string, unknown>): void {
-  if (!shouldLogProgress(live)) {
-    return;
-  }
+function logLiveStage(
+	live: boolean,
+	stage: string,
+	details?: Record<string, unknown>,
+): void {
+	if (!shouldLogProgress(live)) {
+		return;
+	}
 
-  const suffix = details ? ` ${JSON.stringify(details)}` : "";
-  console.error(`[intelligence-sync] ${stage}${suffix}`);
+	const suffix = details ? ` ${JSON.stringify(details)}` : "";
+	console.error(`[intelligence-sync] ${stage}${suffix}`);
 }
 
-function logLoopProgress(live: boolean, scope: string, label: string, index: number, total: number): void {
-  if (!shouldLogProgress(live)) {
-    return;
-  }
+function logLoopProgress(
+	live: boolean,
+	scope: string,
+	label: string,
+	index: number,
+	total: number,
+): void {
+	if (!shouldLogProgress(live)) {
+		return;
+	}
 
-  console.error(`[${scope}] ${label} ${index}/${total}`);
+	console.error(`[${scope}] ${label} ${index}/${total}`);
 }
 
 async function withProgressHeartbeat<T>(
-  live: boolean,
-  stage: string,
-  work: () => Promise<T>,
+	live: boolean,
+	stage: string,
+	work: () => Promise<T>,
 ): Promise<T> {
-  if (!shouldLogProgress(live)) {
-    return work();
-  }
-  const startedAt = Date.now();
-  const heartbeat = setInterval(() => {
-    console.error(
-      `[intelligence-sync] ${stage} still running (${Math.round((Date.now() - startedAt) / 1000)}s)`,
-    );
-  }, PROGRESS_HEARTBEAT_MS);
-  try {
-    return await work();
-  } finally {
-    clearInterval(heartbeat);
-  }
+	if (!shouldLogProgress(live)) {
+		return work();
+	}
+	const startedAt = Date.now();
+	const heartbeat = setInterval(() => {
+		console.error(
+			`[intelligence-sync] ${stage} still running (${Math.round((Date.now() - startedAt) / 1000)}s)`,
+		);
+	}, PROGRESS_HEARTBEAT_MS);
+	try {
+		return await work();
+	} finally {
+		clearInterval(heartbeat);
+	}
 }
 
 async function fetchPagesWithProgress(
-  live: boolean,
-  label: string,
-  api: DirectNotionClient,
-  dataSourceId: string,
-  titlePropertyName: string,
+	live: boolean,
+	label: string,
+	api: DirectNotionClient,
+	dataSourceId: string,
+	titlePropertyName: string,
 ): Promise<Awaited<ReturnType<typeof fetchAllPages>>> {
-  const startedAt = Date.now();
-  const pages = await fetchAllPages(api, dataSourceId, titlePropertyName);
-  logLiveStage(live, `Fetched ${label}`, {
-    pageCount: pages.length,
-    durationSeconds: Math.round((Date.now() - startedAt) / 1000),
-  });
-  return pages;
+	const startedAt = Date.now();
+	const pages = await fetchAllPages(api, dataSourceId, titlePropertyName);
+	logLiveStage(live, `Fetched ${label}`, {
+		pageCount: pages.length,
+		durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+	});
+	return pages;
 }
 
 async function fetchRecentExternalSignalEventPagesWithProgress(
-  live: boolean,
-  api: DirectNotionClient,
-  dataSourceId: string,
-  titlePropertyName: string,
-  projectIds: string[],
+	live: boolean,
+	api: DirectNotionClient,
+	dataSourceId: string,
+	titlePropertyName: string,
+	projectIds: string[],
 ): Promise<Awaited<ReturnType<typeof fetchAllPages>>> {
-  const startedAt = Date.now();
-  const result = await fetchRecentExternalSignalEventPagesByProject({
-    client: api,
-    dataSourceId,
-    titlePropertyName,
-    projectIds,
-  });
-  logLiveStage(live, "Fetched recent external events", {
-    pageCount: result.pages.length,
-    projectCount: projectIds.length,
-    mode: result.mode,
-    durationSeconds: Math.round((Date.now() - startedAt) / 1000),
-    ...(result.fallbackError ? { fallbackError: result.fallbackError } : {}),
-  });
-  return result.pages;
+	const startedAt = Date.now();
+	const result = await fetchRecentExternalSignalEventPagesByProject({
+		client: api,
+		dataSourceId,
+		titlePropertyName,
+		projectIds,
+	});
+	logLiveStage(live, "Fetched recent external events", {
+		pageCount: result.pages.length,
+		projectCount: projectIds.length,
+		mode: result.mode,
+		durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+		...(result.fallbackError ? { fallbackError: result.fallbackError } : {}),
+	});
+	return result.pages;
 }
 
 function shouldLogProgress(live: boolean): boolean {
-  return live || process.env.NOTION_WEEKLY_PROGRESS === "1";
+	return live || process.env.NOTION_WEEKLY_PROGRESS === "1";
 }
 
-function summarizeProjectWarnings(prefix: string, projectTitles: string[]): string[] {
-  if (projectTitles.length === 0) {
-    return [];
-  }
+function summarizeProjectWarnings(
+	prefix: string,
+	projectTitles: string[],
+): string[] {
+	if (projectTitles.length === 0) {
+		return [];
+	}
 
-  const preview = projectTitles.slice(0, 3).join(", ");
-  const suffix = projectTitles.length > 3 ? `, +${projectTitles.length - 3} more` : "";
-  return [`${prefix} ${projectTitles.length} project page(s): ${preview}${suffix}.`];
+	const preview = projectTitles.slice(0, 3).join(", ");
+	const suffix =
+		projectTitles.length > 3 ? `, +${projectTitles.length - 3} more` : "";
+	return [
+		`${prefix} ${projectTitles.length} project page(s): ${preview}${suffix}.`,
+	];
 }
 
 async function applyAcceptedLinkSuggestions(input: {
-  api: DirectNotionClient;
-  suggestions: ReturnType<typeof toLinkSuggestionRecord>[];
-  projectPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
-  researchPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
-  skillPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
-  toolPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
+	api: DirectNotionClient;
+	suggestions: ReturnType<typeof toLinkSuggestionRecord>[];
+	projectPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
+	researchPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
+	skillPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
+	toolPages: Map<string, Awaited<ReturnType<typeof fetchAllPages>>[number]>;
 }): Promise<void> {
-  for (const suggestion of input.suggestions.filter((entry) => entry.status === "Accepted")) {
-    const projectId = suggestion.localProjectIds[0];
-    if (!projectId) {
-      continue;
-    }
-    const projectPage = input.projectPages.get(projectId);
-    if (!projectPage) {
-      continue;
-    }
+	for (const suggestion of input.suggestions.filter(
+		(entry) => entry.status === "Accepted",
+	)) {
+		const projectId = suggestion.localProjectIds[0];
+		if (!projectId) {
+			continue;
+		}
+		const projectPage = input.projectPages.get(projectId);
+		if (!projectPage) {
+			continue;
+		}
 
-    const projectResearchIds = new Set(relationIds(projectPage.properties["Related Research"]));
-    const projectSkillIds = new Set(relationIds(projectPage.properties["Supporting Skills"]));
-    const projectToolIds = new Set(relationIds(projectPage.properties["Tool Stack Records"]));
+		const projectResearchIds = new Set(
+			relationIds(projectPage.properties["Related Research"]),
+		);
+		const projectSkillIds = new Set(
+			relationIds(projectPage.properties["Supporting Skills"]),
+		);
+		const projectToolIds = new Set(
+			relationIds(projectPage.properties["Tool Stack Records"]),
+		);
 
-    if (suggestion.suggestedResearchIds[0]) {
-      projectResearchIds.add(suggestion.suggestedResearchIds[0]);
-      await input.api.updatePageProperties({
-        pageId: projectId,
-        properties: {
-          "Related Research": relationValue([...projectResearchIds]),
-        },
-      });
-      const researchPage = input.researchPages.get(suggestion.suggestedResearchIds[0]);
-      if (researchPage) {
-        const relatedProjects = new Set(relationIds(researchPage.properties["Related Local Projects"]));
-        relatedProjects.add(projectId);
-        await input.api.updatePageProperties({
-          pageId: researchPage.id,
-          properties: {
-            "Related Local Projects": relationValue([...relatedProjects]),
-          },
-        });
-      }
-    }
+		if (suggestion.suggestedResearchIds[0]) {
+			projectResearchIds.add(suggestion.suggestedResearchIds[0]);
+			await input.api.updatePageProperties({
+				pageId: projectId,
+				properties: {
+					"Related Research": relationValue([...projectResearchIds]),
+				},
+			});
+			const researchPage = input.researchPages.get(
+				suggestion.suggestedResearchIds[0],
+			);
+			if (researchPage) {
+				const relatedProjects = new Set(
+					relationIds(researchPage.properties["Related Local Projects"]),
+				);
+				relatedProjects.add(projectId);
+				await input.api.updatePageProperties({
+					pageId: researchPage.id,
+					properties: {
+						"Related Local Projects": relationValue([...relatedProjects]),
+					},
+				});
+			}
+		}
 
-    if (suggestion.suggestedSkillIds[0]) {
-      projectSkillIds.add(suggestion.suggestedSkillIds[0]);
-      await input.api.updatePageProperties({
-        pageId: projectId,
-        properties: {
-          "Supporting Skills": relationValue([...projectSkillIds]),
-        },
-      });
-      const skillPage = input.skillPages.get(suggestion.suggestedSkillIds[0]);
-      if (skillPage) {
-        const relatedProjects = new Set(relationIds(skillPage.properties["Related Local Projects"]));
-        relatedProjects.add(projectId);
-        await input.api.updatePageProperties({
-          pageId: skillPage.id,
-          properties: {
-            "Related Local Projects": relationValue([...relatedProjects]),
-          },
-        });
-      }
-    }
+		if (suggestion.suggestedSkillIds[0]) {
+			projectSkillIds.add(suggestion.suggestedSkillIds[0]);
+			await input.api.updatePageProperties({
+				pageId: projectId,
+				properties: {
+					"Supporting Skills": relationValue([...projectSkillIds]),
+				},
+			});
+			const skillPage = input.skillPages.get(suggestion.suggestedSkillIds[0]);
+			if (skillPage) {
+				const relatedProjects = new Set(
+					relationIds(skillPage.properties["Related Local Projects"]),
+				);
+				relatedProjects.add(projectId);
+				await input.api.updatePageProperties({
+					pageId: skillPage.id,
+					properties: {
+						"Related Local Projects": relationValue([...relatedProjects]),
+					},
+				});
+			}
+		}
 
-    if (suggestion.suggestedToolIds[0]) {
-      projectToolIds.add(suggestion.suggestedToolIds[0]);
-      await input.api.updatePageProperties({
-        pageId: projectId,
-        properties: {
-          "Tool Stack Records": relationValue([...projectToolIds]),
-        },
-      });
-      const toolPage = input.toolPages.get(suggestion.suggestedToolIds[0]);
-      if (toolPage) {
-        const relatedProjects = new Set(relationIds(toolPage.properties["Linked Local Projects"]));
-        relatedProjects.add(projectId);
-        await input.api.updatePageProperties({
-          pageId: toolPage.id,
-          properties: {
-            "Linked Local Projects": relationValue([...relatedProjects]),
-          },
-        });
-      }
-    }
-  }
+		if (suggestion.suggestedToolIds[0]) {
+			projectToolIds.add(suggestion.suggestedToolIds[0]);
+			await input.api.updatePageProperties({
+				pageId: projectId,
+				properties: {
+					"Tool Stack Records": relationValue([...projectToolIds]),
+				},
+			});
+			const toolPage = input.toolPages.get(suggestion.suggestedToolIds[0]);
+			if (toolPage) {
+				const relatedProjects = new Set(
+					relationIds(toolPage.properties["Linked Local Projects"]),
+				);
+				relatedProjects.add(projectId);
+				await input.api.updatePageProperties({
+					pageId: toolPage.id,
+					properties: {
+						"Linked Local Projects": relationValue([...relatedProjects]),
+					},
+				});
+			}
+		}
+	}
 }
 
-function serializeMetrics(metrics: ReturnType<typeof calculateIntelligenceMetrics>): Record<string, number | string[]> {
-  return {
-    totalProjects: metrics.totalProjects,
-    resumeCandidates: metrics.resumeCandidates,
-    finishCandidates: metrics.finishCandidates,
-    investigateCandidates: metrics.investigateCandidates,
-    deferCandidates: metrics.deferCandidates,
-    monitorProjects: metrics.monitorProjects,
-    orphanedProjects: metrics.orphanedProjects,
-    supportGapProjects: metrics.supportGapProjects,
-    proposedLinkSuggestions: metrics.proposedLinkSuggestions,
-    acceptedLinkSuggestions: metrics.acceptedLinkSuggestions,
-  };
+function serializeMetrics(
+	metrics: ReturnType<typeof calculateIntelligenceMetrics>,
+): Record<string, number | string[]> {
+	return {
+		totalProjects: metrics.totalProjects,
+		resumeCandidates: metrics.resumeCandidates,
+		finishCandidates: metrics.finishCandidates,
+		investigateCandidates: metrics.investigateCandidates,
+		deferCandidates: metrics.deferCandidates,
+		monitorProjects: metrics.monitorProjects,
+		orphanedProjects: metrics.orphanedProjects,
+		supportGapProjects: metrics.supportGapProjects,
+		proposedLinkSuggestions: metrics.proposedLinkSuggestions,
+		acceptedLinkSuggestions: metrics.acceptedLinkSuggestions,
+	};
 }
 
 if (isDirectExecution(import.meta.url)) {
-  void runLegacyCliPath(["intelligence", "sync"]);
+	void runLegacyCliPath(["intelligence", "sync"]);
 }

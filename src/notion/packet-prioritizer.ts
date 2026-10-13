@@ -26,9 +26,7 @@ import type {
 } from "./local-portfolio-external-signals.js";
 import { toExternalSignalEventRecord } from "./local-portfolio-external-signals-live.js";
 import type { IntelligenceProjectRecord } from "./local-portfolio-intelligence.js";
-import {
-	toIntelligenceProjectRecord,
-} from "./local-portfolio-intelligence-live.js";
+import { toIntelligenceProjectRecord } from "./local-portfolio-intelligence-live.js";
 
 export interface PacketPrioritizerCommandOptions {
 	today?: string;
@@ -98,7 +96,9 @@ export async function runPacketPrioritizerCommand(
 			api.retrieveDataSource(config.phase2Execution.packets.dataSourceId),
 			api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId),
 			config.phase5ExternalSignals
-				? api.retrieveDataSource(config.phase5ExternalSignals.events.dataSourceId)
+				? api.retrieveDataSource(
+						config.phase5ExternalSignals.events.dataSourceId,
+					)
 				: Promise.resolve(undefined),
 		]);
 	const [projectPages, packetPages, taskPages, eventPages] = await Promise.all([
@@ -126,12 +126,13 @@ export async function runPacketPrioritizerCommand(
 			: Promise.resolve([]),
 	]);
 
-	const projects = projectPages.map((page) =>
-		applyDerivedSignals(
-			toIntelligenceProjectRecord(page),
-			config,
-			today,
-		) as IntelligenceProjectRecord,
+	const projects = projectPages.map(
+		(page) =>
+			applyDerivedSignals(
+				toIntelligenceProjectRecord(page),
+				config,
+				today,
+			) as IntelligenceProjectRecord,
 	);
 	const packets = packetPages.map((page) => toWorkPacketRecord(page));
 	const tasks = taskPages.map((page) => toExecutionTaskRecord(page));
@@ -182,7 +183,9 @@ export function buildPacketPrioritizerReport(input: {
 	limit?: number;
 	lookbackDays?: number;
 }): PacketPrioritizerReport {
-	const projectById = new Map(input.projects.map((project) => [project.id, project]));
+	const projectById = new Map(
+		input.projects.map((project) => [project.id, project]),
+	);
 	const tasksByPacketId = groupTasksByPacketId(input.tasks);
 	const eventsByProjectId = groupEventsByProjectId(input.events ?? []);
 	const totalOpenPackets = input.packets.filter(
@@ -197,7 +200,7 @@ export function buildPacketPrioritizerReport(input: {
 				project,
 				tasks: tasksByPacketId.get(packet.id) ?? [],
 				taskCreatedAtById: input.taskCreatedAtById ?? new Map(),
-				events: project ? eventsByProjectId.get(project.id) ?? [] : [],
+				events: project ? (eventsByProjectId.get(project.id) ?? []) : [],
 				today: input.today,
 				lookbackDays: input.lookbackDays ?? 14,
 			});
@@ -316,7 +319,10 @@ function recommendationFactor(project?: IntelligenceProjectRecord): {
 	source: "stored" | "estimated";
 } {
 	if (typeof project?.recommendationScore === "number") {
-		return { score: clamp(project.recommendationScore, 30, 100), source: "stored" };
+		return {
+			score: clamp(project.recommendationScore, 30, 100),
+			source: "stored",
+		};
 	}
 	const estimates: Record<OperatingQueue, number> = {
 		"Resume Now": 76,

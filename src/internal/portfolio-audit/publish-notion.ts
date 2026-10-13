@@ -64,7 +64,7 @@ const CANONICAL_COLUMN_NAMES = [
 
 type CanonicalColumnName = (typeof CANONICAL_COLUMN_NAMES)[number];
 
-interface CanonicalWorkbookRow extends Record<CanonicalColumnName, string> {}
+type CanonicalWorkbookRow = Record<CanonicalColumnName, string>;
 
 interface InventoryProject {
 	projectName: string;

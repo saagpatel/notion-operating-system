@@ -6,7 +6,8 @@ import path from "node:path";
 const HEX40 = /^[0-9a-f]{40}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
 const REPOSITORY = "saagpatel/notion-operating-system";
-const SOURCE_REMOTE = "https://github.com/saagpatel/notion-operating-system.git";
+const SOURCE_REMOTE =
+	"https://github.com/saagpatel/notion-operating-system.git";
 const MANIFEST_SCHEMA = "NotionRuntimeGenerationV1";
 const ENTRYPOINT = "dist/src/cli.js";
 const EXPORT_MODULE = "dist/src/notion/export-project-snapshot.js";
@@ -85,7 +86,11 @@ export function verifySnapshotRuntimeSource(
 	const expectedManifestSha =
 		options.manifestSha256 ??
 		process.env.NOTION_RUNTIME_GENERATION_MANIFEST_SHA256;
-	if (!manifestInput || !expectedManifestSha || !HEX64.test(expectedManifestSha)) {
+	if (
+		!manifestInput ||
+		!expectedManifestSha ||
+		!HEX64.test(expectedManifestSha)
+	) {
 		throw new Error(
 			"Non-canonical snapshot runtime requires an exact generation manifest path and SHA-256",
 		);
@@ -105,7 +110,9 @@ export function verifySnapshotRuntimeSource(
 	try {
 		manifest = JSON.parse(manifestBytes.toString("utf8")) as RuntimeManifest;
 	} catch (error) {
-		throw new Error(`Runtime generation manifest is invalid JSON: ${String(error)}`);
+		throw new Error(
+			`Runtime generation manifest is invalid JSON: ${String(error)}`,
+		);
 	}
 	const expectedFields = new Set([
 		"schema",
@@ -160,7 +167,9 @@ export function verifySnapshotRuntimeSource(
 	}
 	const expectedSource = path.join(releaseRoot, EXPORT_MODULE);
 	if (sourcePath !== expectedSource) {
-		throw new Error("Snapshot export module is not the manifest-bound runtime module");
+		throw new Error(
+			"Snapshot export module is not the manifest-bound runtime module",
+		);
 	}
 	assertCurrentPointer(
 		productionRoot,
@@ -180,7 +189,9 @@ export function verifySnapshotRuntimeSource(
 	assertCompleteManifestFiles(releaseRoot, manifest.files);
 	for (const requiredPath of [EXPORT_MODULE, ENTRYPOINT, "package-lock.json"]) {
 		if (!(requiredPath in manifest.files)) {
-			throw new Error(`Runtime generation is missing required file: ${requiredPath}`);
+			throw new Error(
+				`Runtime generation is missing required file: ${requiredPath}`,
+			);
 		}
 	}
 
@@ -209,7 +220,9 @@ function assertCurrentPointer(
 	try {
 		pointer = JSON.parse(readFileSync(pointerPath, "utf8")) as RuntimePointer;
 	} catch (error) {
-		throw new Error(`Runtime generation pointer is invalid JSON: ${String(error)}`);
+		throw new Error(
+			`Runtime generation pointer is invalid JSON: ${String(error)}`,
+		);
 	}
 	const exactEntry = (value: unknown): value is RuntimePointerEntry =>
 		typeof value === "object" &&
@@ -239,7 +252,9 @@ function assertCurrentPointer(
 		pointer.current.source_commit !== sourceCommit ||
 		pointer.current.manifest_sha256 !== manifestSha256
 	) {
-		throw new Error("Runtime generation is not selected by the current pointer");
+		throw new Error(
+			"Runtime generation is not selected by the current pointer",
+		);
 	}
 }
 
@@ -260,16 +275,23 @@ function assertCompleteManifestFiles(
 		}
 		for (const entry of readdirSync(directory, { withFileTypes: true })) {
 			const entryPath = path.join(directory, entry.name);
-			const relativePath = path.relative(releaseRoot, entryPath).split(path.sep).join("/");
+			const relativePath = path
+				.relative(releaseRoot, entryPath)
+				.split(path.sep)
+				.join("/");
 			if (entry.isSymbolicLink()) {
-				throw new Error(`Runtime generation contains a symlink: ${relativePath}`);
+				throw new Error(
+					`Runtime generation contains a symlink: ${relativePath}`,
+				);
 			}
 			if (entry.isDirectory()) {
 				walk(entryPath);
 				continue;
 			}
 			if (!entry.isFile()) {
-				throw new Error(`Runtime generation contains an unsupported entry: ${relativePath}`);
+				throw new Error(
+					`Runtime generation contains an unsupported entry: ${relativePath}`,
+				);
 			}
 			if (relativePath !== "notion-runtime-generation.json") {
 				observed.push(relativePath);
@@ -281,7 +303,9 @@ function assertCompleteManifestFiles(
 	const declaredPaths = Object.keys(declared).sort();
 	observed.sort();
 	if (declaredPaths.join("\0") !== observed.join("\0")) {
-		throw new Error("Runtime generation file manifest is incomplete or contains stale records");
+		throw new Error(
+			"Runtime generation file manifest is incomplete or contains stale records",
+		);
 	}
 	for (const relativePath of observed) {
 		assertManifestFile(releaseRoot, relativePath, declared[relativePath]);
@@ -303,7 +327,9 @@ function assertManifestFile(
 		!Number.isInteger(record.size) ||
 		record.size < 0
 	) {
-		throw new Error(`Runtime generation file record is invalid: ${relativePath}`);
+		throw new Error(
+			`Runtime generation file record is invalid: ${relativePath}`,
+		);
 	}
 	const filePath = path.join(releaseRoot, relativePath);
 	assertOwnedRegularFile(filePath, `runtime file ${relativePath}`);

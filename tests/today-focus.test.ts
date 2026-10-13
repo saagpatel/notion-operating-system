@@ -38,9 +38,13 @@ describe("today focus", () => {
 
 		expect(report.markdown).toContain(TODAY_FOCUS_START);
 		expect(report.markdown).toContain("## Daily Focus - 2026-05-18");
-		expect(report.markdown).toContain("AIWorkFlow - AIWorkFlow - Notion-only production packet - score 137");
+		expect(report.markdown).toContain(
+			"AIWorkFlow - AIWorkFlow - Notion-only production packet - score 137",
+		);
 		expect(report.markdown).toContain("Blocked packet pressure: 5");
-		expect(report.markdown).toContain("Work existing packets before creating new ones");
+		expect(report.markdown).toContain(
+			"Work existing packets before creating new ones",
+		);
 		expect(report.markdown).toContain(TODAY_FOCUS_END);
 	});
 });
@@ -73,7 +77,9 @@ function followThroughReport(
 	};
 }
 
-function packetItem(overrides: Partial<PacketPriorityItem>): PacketPriorityItem {
+function packetItem(
+	overrides: Partial<PacketPriorityItem>,
+): PacketPriorityItem {
 	return {
 		packetId: "packet",
 		packetTitle: "Packet",

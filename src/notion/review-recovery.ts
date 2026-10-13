@@ -64,11 +64,7 @@ export async function runReviewRecoveryCommand(
 		api.retrieveDataSource(config.relatedDataSources.buildLogId),
 	]);
 	const [projectPages, buildPages] = await Promise.all([
-		fetchAllPages(
-			api,
-			config.database.dataSourceId,
-			schema.titlePropertyName,
-		),
+		fetchAllPages(api, config.database.dataSourceId, schema.titlePropertyName),
 		fetchAllPages(
 			api,
 			config.relatedDataSources.buildLogId,
@@ -81,7 +77,9 @@ export async function runReviewRecoveryCommand(
 	const buildSessions = buildPages.map((page) => toBuildSessionRecord(page));
 	const beforeMetrics = calculateControlTowerMetrics(
 		projects,
-		buildSessions.filter((session) => session.sessionDate >= addDays(today, -7)),
+		buildSessions.filter(
+			(session) => session.sessionDate >= addDays(today, -7),
+		),
 		today,
 	);
 	const allPlans = buildReviewRecoveryPlans({
@@ -118,7 +116,9 @@ export async function runReviewRecoveryCommand(
 	);
 	const afterMetrics = calculateControlTowerMetrics(
 		afterProjects,
-		buildSessions.filter((session) => session.sessionDate >= addDays(today, -7)),
+		buildSessions.filter(
+			(session) => session.sessionDate >= addDays(today, -7),
+		),
 		today,
 	);
 	const output = {

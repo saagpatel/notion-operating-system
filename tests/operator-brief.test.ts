@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import type { ControlTowerMetrics, ControlTowerProjectRecord } from "../src/notion/local-portfolio-control-tower.js";
+import type {
+	ControlTowerMetrics,
+	ControlTowerProjectRecord,
+} from "../src/notion/local-portfolio-control-tower.js";
 import type {
 	ExecutionTaskRecord,
 	WorkPacketRecord,
@@ -51,8 +54,12 @@ describe("renderOperatorBrief", () => {
 		expect(markdown).toContain("## Operator Brief — 2026-05-09");
 		expect(markdown).toContain("ApplyKit — score 84");
 		expect(markdown).toContain("Orphans already routed to kickoff packets: 5");
-		expect(markdown).toContain("Packet staleness: 1 packet(s) stale by task activity; 1 at risk");
-		expect(markdown).toContain("At risk: ApplyKit — ApplyKit - repair workflow evidence");
+		expect(markdown).toContain(
+			"Packet staleness: 1 packet(s) stale by task activity; 1 at risk",
+		);
+		expect(markdown).toContain(
+			"At risk: ApplyKit — ApplyKit - repair workflow evidence",
+		);
 		expect(markdown).toContain("SpecCompanion — review due 2026-05-01");
 		expect(markdown).toContain("npm run control-tower:operator-brief");
 	});
@@ -99,14 +106,17 @@ describe("renderOperatorBrief", () => {
 			projectTitle: "Codec",
 			taskActivityAgeDays: 47,
 			isAtRisk: true,
-			nextAction: "Recover overdue task: Turn Codec build proof into a demo checklist.",
+			nextAction:
+				"Recover overdue task: Turn Codec build proof into a demo checklist.",
 		});
 	});
 
 	test("counts task note edits as recent packet activity", () => {
 		const items = buildPacketStalenessItems({
 			today: "2026-05-18",
-			projects: [baseProject({ id: "project-devtools", title: "DevToolsTranslator" })],
+			projects: [
+				baseProject({ id: "project-devtools", title: "DevToolsTranslator" }),
+			],
 			packets: [
 				basePacket({
 					id: "packet-release",
@@ -135,7 +145,9 @@ describe("renderOperatorBrief", () => {
 	});
 });
 
-function baseMetrics(overrides: Partial<ControlTowerMetrics> = {}): ControlTowerMetrics {
+function baseMetrics(
+	overrides: Partial<ControlTowerMetrics> = {},
+): ControlTowerMetrics {
 	return {
 		totalProjects: 1,
 		queueCounts: {
@@ -195,7 +207,9 @@ function baseProject(
 	};
 }
 
-function basePacket(overrides: Partial<WorkPacketRecord> = {}): WorkPacketRecord {
+function basePacket(
+	overrides: Partial<WorkPacketRecord> = {},
+): WorkPacketRecord {
 	return {
 		id: "packet",
 		url: "https://notion.example/packet",
@@ -221,7 +235,9 @@ function basePacket(overrides: Partial<WorkPacketRecord> = {}): WorkPacketRecord
 	};
 }
 
-function baseTask(overrides: Partial<ExecutionTaskRecord> = {}): ExecutionTaskRecord {
+function baseTask(
+	overrides: Partial<ExecutionTaskRecord> = {},
+): ExecutionTaskRecord {
 	return {
 		id: "task",
 		url: "https://notion.example/task",

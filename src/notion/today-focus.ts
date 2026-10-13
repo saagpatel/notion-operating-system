@@ -55,7 +55,9 @@ export interface TodayFocusReport {
 export async function runTodayFocusCommand(
 	options: TodayFocusCommandOptions = {},
 ): Promise<void> {
-	const token = resolveRequiredNotionToken("NOTION_TOKEN is required for today");
+	const token = resolveRequiredNotionToken(
+		"NOTION_TOKEN is required for today",
+	);
 	const today = options.today ?? losAngelesToday();
 	const limit = options.limit ?? 5;
 	const lookbackDays = options.lookbackDays ?? 14;
@@ -74,7 +76,9 @@ export async function runTodayFocusCommand(
 			api.retrieveDataSource(config.phase2Execution.packets.dataSourceId),
 			api.retrieveDataSource(config.phase2Execution.tasks.dataSourceId),
 			config.phase5ExternalSignals
-				? api.retrieveDataSource(config.phase5ExternalSignals.events.dataSourceId)
+				? api.retrieveDataSource(
+						config.phase5ExternalSignals.events.dataSourceId,
+					)
 				: Promise.resolve(undefined),
 		]);
 	const [projectPages, packetPages, taskPages, eventPages] = await Promise.all([
@@ -105,12 +109,13 @@ export async function runTodayFocusCommand(
 	const controlProjects = projectPages.map((page) =>
 		applyDerivedSignals(toControlTowerProjectRecord(page), config, today),
 	);
-	const intelligenceProjects = projectPages.map((page) =>
-		applyDerivedSignals(
-			toIntelligenceProjectRecord(page),
-			config,
-			today,
-		) as ReturnType<typeof toIntelligenceProjectRecord>,
+	const intelligenceProjects = projectPages.map(
+		(page) =>
+			applyDerivedSignals(
+				toIntelligenceProjectRecord(page),
+				config,
+				today,
+			) as ReturnType<typeof toIntelligenceProjectRecord>,
 	);
 	const packets = packetPages.map((page) => toWorkPacketRecord(page));
 	const tasks = taskPages.map((page) => toExecutionTaskRecord(page));
@@ -194,7 +199,9 @@ export function buildTodayFocusReport(input: {
 	};
 }
 
-function renderTodayFocusMarkdown(input: Omit<TodayFocusReport, "markdown">): string {
+function renderTodayFocusMarkdown(
+	input: Omit<TodayFocusReport, "markdown">,
+): string {
 	const lines = [
 		TODAY_FOCUS_START,
 		`## Daily Focus - ${input.today}`,

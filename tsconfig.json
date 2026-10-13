@@ -1,27 +1,24 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist",
-    "rootDir": ".",
-    "declaration": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true,
-    "types": [
-      "node",
-      "vitest/globals"
-    ]
-  },
-  "include": [
-    "src/**/*.ts",
-    "tests/**/*.ts",
-    "tests/**/*.d.ts",
-    "scripts/**/*.d.ts"
-  ]
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"outDir": "dist",
+		"rootDir": ".",
+		"declaration": true,
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"allowSyntheticDefaultImports": true,
+		"types": ["node", "vitest/globals"]
+	},
+	"include": [
+		"src/**/*.ts",
+		"tests/**/*.ts",
+		"tests/**/*.d.ts",
+		"scripts/**/*.d.ts"
+	]
 }

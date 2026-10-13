@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest";
 import type { ControlTowerBuildSessionRecord } from "../src/notion/local-portfolio-control-tower.js";
 import type {
 	ExecutionTaskRecord,
-	ProjectDecisionRecord,
 	WorkPacketRecord,
 } from "../src/notion/local-portfolio-execution.js";
 import {

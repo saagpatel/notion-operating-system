@@ -45,6 +45,10 @@
 		"node": ">=26.11.1 <27"
 	},
 	"scripts": {
+		"check": "npm run lint && npm run format:check && npm run verify",
+		"lint": "eslint src tests scripts *.ts *.mjs",
+		"format": "prettier --write \"{src,tests,scripts}/**/*.{ts,mjs}\" \"*.{ts,mjs,json}\"",
+		"format:check": "prettier --check \"{src,tests,scripts}/**/*.{ts,mjs}\" \"*.{ts,mjs,json}\"",
 		"build": "tsc -p tsconfig.json",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"test": "vitest run",
@@ -57,7 +61,7 @@
 		"smoke:packed-install": "node scripts/packed-install-smoke.mjs",
 		"verify": "npm run typecheck && npm test && npm run build && npm run smoke:built-cli && npm run smoke:packed-install && npm run smoke:git-install",
 		"verify:fresh-clone": "node scripts/fresh-clone-verify.mjs",
-		"release:prepare": "npm run verify && npm run pack:tarball",
+		"release:prepare": "npm run check && npm run pack:tarball",
 		"hooks:install": "node scripts/install-git-hooks.mjs",
 		"hooks:check-staged": "node scripts/check-staged-files.mjs",
 		"doctor": "tsx src/cli.ts doctor",
@@ -161,9 +165,15 @@
 		"zod": "^4.6.7"
 	},
 	"devDependencies": {
+		"@eslint/js": "10.0.1",
 		"@types/node": "^26.6.5",
+		"@typescript/native": "npm:typescript@^7.0.2",
+		"eslint": "10.12.0",
+		"globals": "17.13.0",
+		"prettier": "3.9.10",
 		"tsx": "^4.23.15",
-		"typescript": "^7.0.2",
+		"typescript": "npm:@typescript/typescript6@6.0.2",
+		"typescript-eslint": "8.71.2",
 		"vitest": "5.0.4"
 	},
 	"overrides": {

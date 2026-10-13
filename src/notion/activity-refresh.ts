@@ -4,7 +4,7 @@ import { recordCommandOutputSummary } from "../cli/command-summary.js";
 import { resolveRequiredNotionToken } from "../cli/context.js";
 import { isDirectExecution, runLegacyCliPath } from "../cli/legacy.js";
 import { buildProjectIntelligenceDataset } from "../portfolio-audit/project-intelligence.js";
-import { AppError } from "../utils/errors.js";
+
 import { DirectNotionClient } from "./direct-notion-client.js";
 import {
 	DEFAULT_LOCAL_PORTFOLIO_CONTROL_TOWER_PATH,

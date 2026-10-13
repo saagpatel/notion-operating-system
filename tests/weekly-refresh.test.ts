@@ -27,9 +27,9 @@ describe("weekly refresh fast workflow guidance", () => {
 			buildWeeklyRefreshChildEnv({ NOTION_WEEKLY_PROGRESS: "1" }, false)
 				.NOTION_WEEKLY_PROGRESS,
 		).toBeUndefined();
-		expect(
-			buildWeeklyRefreshChildEnv({}, true).NOTION_WEEKLY_PROGRESS,
-		).toBe("1");
+		expect(buildWeeklyRefreshChildEnv({}, true).NOTION_WEEKLY_PROGRESS).toBe(
+			"1",
+		);
 	});
 
 	test("persists weekly freshness only for full live runs", () => {
@@ -179,7 +179,9 @@ describe("weekly refresh fast workflow guidance", () => {
 			staleBeforeRun: false,
 			recovered: false,
 		});
-		expect(catchUp.summary).toContain("Prior weekly refresh run date is invalid");
+		expect(catchUp.summary).toContain(
+			"Prior weekly refresh run date is invalid",
+		);
 	});
 
 	test("does not loop on invalid current weekly refresh dates", () => {
@@ -203,35 +205,36 @@ describe("weekly refresh fast workflow guidance", () => {
 	});
 
 	test("chunks large live external signal project-page refreshes", () => {
-		const [supportStep, ...externalSteps] = expandExternalSignalLiveProjectBatches(
-			[
+		const [supportStep, ...externalSteps] =
+			expandExternalSignalLiveProjectBatches(
+				[
+					{
+						key: "support-maintenance",
+						title: "GitHub Support Maintenance",
+						kind: "script",
+						args: ["support"],
+						timeoutMs: 1,
+					},
+					{
+						key: "external-signals",
+						title: "External Signal Sync",
+						kind: "cli",
+						args: ["signals", "sync"],
+						timeoutMs: 1,
+					},
+				],
 				{
-					key: "support-maintenance",
-					title: "GitHub Support Maintenance",
-					kind: "script",
-					args: ["support"],
-					timeoutMs: 1,
+					maxProjectPages: 45,
+					projectConcurrency: 2,
+					skipKnownBlockedMarkdown: true,
 				},
+				true,
 				{
-					key: "external-signals",
-					title: "External Signal Sync",
-					kind: "cli",
-					args: ["signals", "sync"],
-					timeoutMs: 1,
+					sharedArgs: ["--live", "--today", "2026-06-06"],
+					externalSignalSourceLimit: 119,
+					externalSignalMaxEventsPerSource: 5,
 				},
-			],
-			{
-				maxProjectPages: 45,
-				projectConcurrency: 2,
-				skipKnownBlockedMarkdown: true,
-			},
-			true,
-			{
-				sharedArgs: ["--live", "--today", "2026-06-06"],
-				externalSignalSourceLimit: 119,
-				externalSignalMaxEventsPerSource: 5,
-			},
-		);
+			);
 
 		expect(supportStep?.key).toBe("support-maintenance");
 		expect(externalSteps.map((step) => step.title)).toEqual([
@@ -365,7 +368,9 @@ describe("weekly refresh fast workflow guidance", () => {
 							evaluatedProjectCount: 15,
 							syncedSourceCount: 15,
 						},
-						warnings: ["49 event(s) skipped: event key already exists in Notion."],
+						warnings: [
+							"49 event(s) skipped: event key already exists in Notion.",
+						],
 					},
 				],
 			},
@@ -468,7 +473,8 @@ describe("weekly refresh fast workflow guidance", () => {
 		expect(plan).toEqual([
 			{
 				step: "execution-sync",
-				reason: "Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
+				reason:
+					"Dry-run found drift; run only this lane live, then repeat the same lane dry-run.",
 				command:
 					"npm run maintenance:weekly-refresh -- --today 2026-05-03 --only execution-sync --fast --live --confirm-full-live",
 			},
