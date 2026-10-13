@@ -5,7 +5,7 @@ tmp/
 .tmp/
 var/
 logs/
-config/
+/config/
 docs/
 fable-explore/
 package-lock.json
