@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
 	deriveExternalSignalSyncFailureCategories,
@@ -1146,11 +1146,37 @@ describe("external signal sync hardening", () => {
 			5,
 			"2026-03-29",
 			new Set(),
+			false,
+			() => undefined,
 		);
 
 		expect(result.status).toBe("Failed");
 		expect(result.failures).toBe(1);
 		expect(result.notes[0]).toContain("Missing GITHUB_TOKEN");
+		expect(result.notes[0]).toContain("no gh CLI login");
+	});
+
+	test("falls back to the gh CLI login when GITHUB_TOKEN is unset", async () => {
+		process.env = {
+			...previousEnv,
+			GITHUB_TOKEN: "",
+		};
+		const readGhToken = vi.fn(() => "gh-cli-token");
+
+		const result = await syncGithubSources(
+			baseProvider(),
+			[baseSource({ localProjectIds: [] })],
+			5,
+			"2026-03-29",
+			new Set(),
+			false,
+			readGhToken,
+		);
+
+		// Past the credential gate: the failure is the unlinked source, not auth.
+		expect(readGhToken).toHaveBeenCalledTimes(1);
+		expect(result.notes[0]).toContain("missing a linked Local Project");
+		expect(result.notes[0]).not.toContain("Missing GITHUB_TOKEN");
 	});
 
 	test("treats active sources without a linked project as safe failures", async () => {

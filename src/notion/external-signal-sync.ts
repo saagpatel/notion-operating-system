@@ -58,8 +58,11 @@ import {
 	type ExternalSignalSyncRunRecord,
 	getPrimarySourceProjectId,
 	loadLocalPortfolioExternalSignalProviderConfig,
+	type GhTokenReader,
 	providerCredentialPresent,
+	readGhAuthToken,
 	renderExternalSignalBriefSection,
+	resolveProviderCredential,
 	renderExternalSignalCommandCenterSection,
 	renderWeeklyExternalSignalsSection,
 	requirePhase5ExternalSignals,
@@ -2343,6 +2346,7 @@ export async function syncGithubSources(
 	today: string,
 	eventKeySet: Set<string>,
 	live = false,
+	readGhToken: GhTokenReader = readGhAuthToken,
 ): Promise<ProviderSyncResult> {
 	if (sources.length === 0) {
 		return emptyProviderResult(
@@ -2350,18 +2354,18 @@ export async function syncGithubSources(
 			"Provider not exercised: no active GitHub sources are ready for sync.",
 		);
 	}
-	if (!providerCredentialPresent(provider)) {
+	const token = resolveProviderCredential(provider, readGhToken);
+	if (!token) {
 		return {
 			...emptyProviderResult(
 				provider.displayName as ProviderSyncResult["provider"],
-				`Missing ${provider.authEnvVar} for GitHub sync.`,
+				`Missing ${provider.authEnvVar} for GitHub sync, and no gh CLI login was available.`,
 			),
 			status: "Failed",
 			failures: sources.length,
 		};
 	}
 
-	const token = process.env[provider.authEnvVar]!.trim();
 	const events: NormalizedSignalEvent[] = [];
 	const notes: string[] = [];
 	let itemsSeen = 0;
