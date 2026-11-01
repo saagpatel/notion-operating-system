@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 import { loadRuntimeConfig } from "../config/runtime-config.js";
 import type { DataSourceSchemaSnapshot, PropertySchema } from "../types.js";
 import { losAngelesToday } from "../utils/date.js";
@@ -1893,10 +1895,51 @@ export function defaultSyncRunScope(
 	return `${provider} priority sync across ${sourceCount} mapped source${sourceCount === 1 ? "" : "s"}`;
 }
 
+export type GhTokenReader = () => string | undefined;
+
+const GH_AUTH_TOKEN_TIMEOUT_MS = 10_000;
+let cachedGhToken: { value: string | undefined } | undefined;
+
+// The gh CLI keeps its login in the system keyring. Reading it at runtime keeps
+// the token out of .env files, where it went stale and broke the GitHub sync.
+export function readGhAuthToken(): string | undefined {
+	if (cachedGhToken === undefined) {
+		let value: string | undefined;
+		try {
+			value =
+				execFileSync("gh", ["auth", "token"], {
+					encoding: "utf8",
+					stdio: ["ignore", "pipe", "ignore"],
+					timeout: GH_AUTH_TOKEN_TIMEOUT_MS,
+				}).trim() || undefined;
+		} catch {
+			// gh missing, logged out or timed out. Callers report this as a
+			// missing credential, so the failure surfaces in the sync result.
+			value = undefined;
+		}
+		cachedGhToken = { value };
+	}
+	return cachedGhToken.value;
+}
+
+export function resolveProviderCredential(
+	provider: ExternalSignalProviderPlan,
+	readGhToken: GhTokenReader = readGhAuthToken,
+): string | undefined {
+	const fromEnv = process.env[provider.authEnvVar]?.trim();
+	if (fromEnv) {
+		return fromEnv;
+	}
+	// Only GitHub falls back: other providers reuse authEnvVar for non-token
+	// values, such as the Notification Hub log path.
+	return provider.key === "github" ? readGhToken() : undefined;
+}
+
 export function providerCredentialPresent(
 	provider: ExternalSignalProviderPlan,
+	readGhToken: GhTokenReader = readGhAuthToken,
 ): boolean {
-	return Boolean(process.env[provider.authEnvVar]?.trim());
+	return Boolean(resolveProviderCredential(provider, readGhToken));
 }
 
 export function currentTelemetryDate(): string {

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { parseLocalPortfolioControlTowerConfig } from "../src/notion/local-portfolio-control-tower.js";
 import type { WorkPacketRecord } from "../src/notion/local-portfolio-execution.js";
 import {
@@ -14,7 +14,10 @@ import {
 	parseLocalPortfolioExternalSignalProviderConfig,
 	parseLocalPortfolioExternalSignalSourceConfig,
 	parseLocalPortfolioExternalSignalViewPlan,
+	type ExternalSignalProviderPlan,
+	providerCredentialPresent,
 	renderExternalSignalBriefSection,
+	resolveProviderCredential,
 	renderExternalSignalCommandCenterSection,
 	renderWeeklyExternalSignalsSection,
 	validateLocalPortfolioExternalSignalViewPlanAgainstSchemas,
@@ -744,3 +747,64 @@ function baseSyncRun(
 		notes: overrides.notes ?? "",
 	};
 }
+
+describe("provider credentials", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	function provider(
+		overrides: Partial<ExternalSignalProviderPlan> = {},
+	): ExternalSignalProviderPlan {
+		return {
+			key: overrides.key ?? "github",
+			displayName: overrides.displayName ?? "GitHub",
+			enabled: true,
+			authEnvVar: overrides.authEnvVar ?? "GITHUB_TOKEN",
+			baseUrl: "https://api.github.com",
+			syncStrategy: "poll",
+			sourceTypes: ["Repo"],
+			notes: [],
+		};
+	}
+
+	test("prefers the configured environment variable over the gh CLI", () => {
+		vi.stubEnv("GITHUB_TOKEN", " env-token ");
+		const readGhToken = vi.fn(() => "gh-cli-token");
+		expect(resolveProviderCredential(provider(), readGhToken)).toBe(
+			"env-token",
+		);
+		expect(readGhToken).not.toHaveBeenCalled();
+	});
+
+	test("falls back to the gh CLI login for GitHub when the variable is unset", () => {
+		vi.stubEnv("GITHUB_TOKEN", "");
+		expect(resolveProviderCredential(provider(), () => "gh-cli-token")).toBe(
+			"gh-cli-token",
+		);
+		expect(providerCredentialPresent(provider(), () => "gh-cli-token")).toBe(
+			true,
+		);
+	});
+
+	test("reports no credential when neither source has one", () => {
+		vi.stubEnv("GITHUB_TOKEN", "");
+		expect(
+			resolveProviderCredential(provider(), () => undefined),
+		).toBeUndefined();
+		expect(providerCredentialPresent(provider(), () => undefined)).toBe(false);
+	});
+
+	test("never consults the gh CLI for other providers", () => {
+		vi.stubEnv("VERCEL_TOKEN", "");
+		const readGhToken = vi.fn(() => "gh-cli-token");
+		const vercel = provider({
+			key: "vercel",
+			displayName: "Vercel",
+			authEnvVar: "VERCEL_TOKEN",
+		});
+		expect(resolveProviderCredential(vercel, readGhToken)).toBeUndefined();
+		expect(providerCredentialPresent(vercel, readGhToken)).toBe(false);
+		expect(readGhToken).not.toHaveBeenCalled();
+	});
+});
