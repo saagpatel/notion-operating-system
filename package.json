@@ -178,13 +178,8 @@
 	},
 	"overrides": {
 		"uuid": "11.1.1",
-		"js-yaml": "3.15.0",
-		"minimatch@3.1.5": {
-			"brace-expansion": "1.1.18"
-		},
-		"minimatch@5.1.9": {
-			"brace-expansion": "2.1.4"
-		},
+		"js-yaml": "3.15.2",
+		"minimatch": "11.0.4",
 		"why-is-node-running": "3.2.2"
 	},
 	"packageManager": "npm@11.21.0"
