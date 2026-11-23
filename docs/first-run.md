@@ -4,11 +4,13 @@ This guide is the fast path for getting `Notion Operating System` working safely
 
 ## 1. Install
 
+Use Node.js 26.11.1 and npm 11.21.0, as pinned in `.node-version` and `package.json`.
+
 ```bash
 npm ci
 ```
 
-Use Node.js 24 for development, matching CI. The library declares Node.js >=20, but the locked Vitest 5 test runner does not support Node.js 20.
+`npm ci` builds the CLI. From this checkout, use `node dist/src/cli.js` wherever the examples below show `notion-os`.
 
 ## 2. Pick or confirm the active profile
 
@@ -34,12 +36,13 @@ notion-os profiles migrate --write
 The repo already includes a tracked `sandbox` profile descriptor and profile-owned JSON files. To make it usable on your machine, add a local env file for it:
 
 ```bash
-cp .env .env.sandbox
+cp .env.example .env.sandbox
+# Set the sandbox token and configure separate sandbox targets before running doctor.
 notion-os --profile sandbox profiles show
 notion-os --profile sandbox doctor
 ```
 
-That gives you a same-shape rehearsal lane, not an automatically isolated live sandbox. Copying `.env` is fine only as a first bootstrap step for dry-run and config rehearsal. Before any live sandbox write you must repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace.
+Set the primary profile's token for comparison. Use a separate integration in `.env.sandbox` and point `config/profiles/sandbox/destinations.json` and the other sandbox target IDs at its workspace.
 
 The sandbox doctor now enforces that rule. It fails when:
 
@@ -126,7 +129,7 @@ For risky operational workflow changes, also rehearse from the sandbox profile b
 Start with a dry run instead of a live write:
 
 ```bash
-npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly.md --dry-run
+npm run publish:notion -- --destination weekly_reviews --file examples/content/weekly-review.md --dry-run
 ```
 
 Or use a request file:
@@ -140,7 +143,7 @@ npm run publish:notion -- --request ./examples/requests/weekly_review.dry-run.js
 Only switch to live after the dry run looks correct:
 
 ```bash
-npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly.md --live
+npm run publish:notion -- --destination weekly_reviews --file examples/content/weekly-review.md --live
 ```
 
 ## 9. Explore the CLI

@@ -2,7 +2,7 @@
 
 A local automation layer that turns Notion into a real project and portfolio control system.
 
-The system connects three surfaces: **Notion** (databases, dashboards, weekly reviews), **GitHub** (open PRs, workflow runs, issue/comment actuation), and **Vercel** (redeploy, rollback, promote). All automation is config-driven, auditable, and dry-run-first.
+The system connects **Notion** (databases, dashboards, weekly reviews), **GitHub** (open PRs, workflow runs, issue/comment actuation), and **Vercel** (redeploy, rollback, promote). The shared CLI logs its runs and supports previews for publishing and portfolio syncs.
 
 ## Status
 
@@ -19,8 +19,8 @@ Phase 9 provider expansion as complete, GitHub and Vercel actuation as live and
 policy-backed, and Google Calendar scaffolding as disabled. These are recorded
 delivery states, not fresh provider verification.
 
-The recorded portfolio snapshot contained 117 tracked projects, zero overdue
-reviews, and six orphaned projects. Current counts require a fresh refresh.
+The control-tower snapshot dated 2026-08-29 records 158 tracked projects, 132 overdue
+reviews, and 41 orphaned projects. Current counts require a fresh sync.
 “Orphaned” means `buildSessionCount`, `relatedResearchCount`,
 `supportingSkillsCount`, and `linkedToolCount` are all zero. Missing linked
 operating records do not imply corruption or prevent a scoped authorized sync.
@@ -40,7 +40,7 @@ operating records do not imply corruption or prevent a scoped authorized sync.
 - Use targeted repairs; broad weekly live refresh requires explicit approval and `--confirm-full-live`.
 - Keep manual project fields separate from sync-owned derived fields.
 - Governed mutations require request, policy check, dry run, approval, live execution, and audit trail.
-- Webhook feedback is recorded as `trusted_feedback`, with shadow/drain/reconcile machinery retained. Verify execution rows and reconcile state; the loop is not self-healing.
+- GitHub webhook feedback is recorded as `trusted_feedback`, with shadow/drain/reconcile machinery retained. Verify execution rows and reconcile state; the loop is not self-healing.
 - Actuation defaults can permit all six GitHub actions for unmatched active linked sources. Review fallback targets deliberately; see [AGENTS.md](AGENTS.md#boundaries).
 
 ### Next steps
@@ -61,16 +61,16 @@ records or structured properties to reduce direct project-page markdown patches.
 ## What It Does
 
 - Publishes local Markdown files into the right Notion pages and databases
-- Maintains a project control tower with derived PM signals (Operating Queue, Review Date, Evidence Freshness)
+- Maintains a project control tower with derived PM signals (Operating Queue, Next Review Date, Evidence Freshness)
 - Syncs GitHub repo activity as external signals that inform project recommendations
 - Executes governed GitHub mutations (issues, labels, assignees, PR comments) through a dry-run → approval → live pipeline
 - Executes governed Vercel recovery actions (redeploy, rollback, promote) through the same pipeline
 - Generates weekly review packets, command-center pages, and governance health snapshots
-- Stores all rules, policies, and config in code so the setup is portable and versionable
+- Keeps destination mappings and policy definitions in versioned JSON. Live operations use the configured workspace's Notion records.
 
 ## First Operator Checkpoint
 
-Once your operator workspace is configured, run the health report to see the current governance posture:
+After installing dependencies, run the health report to see the configured governance posture:
 
 ```bash
 npm run governance:health-report
@@ -80,20 +80,19 @@ This shows config-based policy, authentication, webhook, and target readiness wa
 
 ## Install
 
-Use the install path that matches how much control you want:
+Local development uses Node 26.11.1 and npm 11.21.0. The full check needs a POSIX environment with Git, tar, Make, and registry access.
 
-- **GitHub ref install**: install directly from a tagged GitHub ref
-- **GitHub release tarball install**: future most locked-down verified artifact once a real release exists
-- **local repo development**: working on the repo itself, source-first workflow
+- **GitHub ref install**: install a pinned commit into a consuming npm project.
+- **GitHub release tarball install**: requires a published release with an attached package tarball.
+- **local repo development**: use the repository checkout for the operator commands below.
 
 ```bash
-# GitHub ref install
-npm install github:saagpatel/notion-operating-system#v0.2.0
+# In a consuming npm project
+npm install git+https://github.com/saagpatel/notion-operating-system.git#a59f498430e51343876b6c2ff9c2318e7b01fc55
+```
 
-# GitHub release tarball install (not available until a GitHub release is cut)
-# npm install https://github.com/saagpatel/notion-operating-system/releases/download/v0.2.0/notion-operating-system-0.2.0.tgz
-
-# local repo development
+```bash
+# In the repository root
 npm ci
 make check
 ```
@@ -102,13 +101,13 @@ make check
 
 For credential-free development checks, use the [local setup and verification
 guide](CONTRIBUTING.md#local-setup), including its pinned Node/npm prerequisites. The
-following path configures an operator workspace; doctor checks provider access
-when credentials are present.
+following path configures an operator workspace. Point the active profile's destination
+and control-tower config at your own Notion targets before checking access with doctor.
 
 ```bash
 npm ci
 cp .env.example .env
-# fill in NOTION_TOKEN (required), GITHUB_TOKEN (for signal sync),
+# fill in NOTION_TOKEN (for Notion access), GITHUB_TOKEN (or a gh login for GitHub signals),
 # GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_PEM (for governed GitHub writes)
 npm run doctor
 ```
@@ -119,10 +118,10 @@ operator credentials before using the tool.
 Then start with a dry-run publish:
 
 ```bash
-npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly.md
+npm run publish:notion -- --destination weekly_reviews --file examples/content/weekly-review.md --dry-run
 ```
 
-Add `--live` only when you are satisfied with the dry-run output.
+Replace `--dry-run` with `--live` only when you are satisfied with the preview.
 
 ## Main Workflows
 
@@ -139,11 +138,11 @@ npm run portfolio-audit:control-tower-sync -- --live
 ### 2. Publish content into Notion
 
 ```bash
-# Dry run (default)
-npm run publish:notion -- --destination weekly_reviews --file path/to/review.md
+# Preview the bundled review
+npm run publish:notion -- --destination weekly_reviews --file examples/content/weekly-review.md --dry-run
 
 # Live write
-npm run publish:notion -- --destination weekly_reviews --file path/to/review.md --live
+npm run publish:notion -- --destination weekly_reviews --file examples/content/weekly-review.md --live
 ```
 
 ### 3. Review stale active projects
@@ -188,7 +187,7 @@ intended portfolio cleanup.
 npm run portfolio-audit:review-packet -- --live
 ```
 
-Run this **before** any command that patches the "latest weekly" managed section (signals, recommendations, action-request sync). If the current week's page does not exist yet, those commands land on the wrong weekly page.
+Run this **before** syncing weekly sections. Signals and weekly recommendations look up `Week of <weekStart>` and skip its section when the page is missing. Action-request sync uses the latest weekly page and can patch the previous week.
 
 ### 7. Sync GitHub signals
 
@@ -213,7 +212,7 @@ GitHub mutations follow a strict three-step pipeline. Never skip steps.
 npm run portfolio-audit:action-dry-run -- --request <action-request-page-id>
 ```
 
-**Step 2 — Approval**: In Notion, set the action request row to `Status = Approved`, fill in `Approver` and `Decided At`. Repeat the dry run after approval if needed to reach `Execution Intent = Ready for Live` and `Latest Execution Status = Dry Run Passed`.
+**Step 2 — Approval**: In Notion, set the action request row to `Status = Approved`, fill in `Approver` and `Decided At`. Follow the linked policy's approval count. The requester cannot be the sole approver. Repeat the dry run after approval if needed to reach `Execution Intent = Ready for Live` and `Latest Execution Status = Dry Run Passed`.
 
 **Step 3 — Live execution**:
 ```bash
@@ -231,7 +230,7 @@ Supported actions: `github.create_issue`, `github.update_issue`, `github.set_iss
 
 Same three-step pipeline as GitHub. Supported actions: `vercel.redeploy`, `vercel.rollback`, `vercel.promote`.
 
-Requires `VERCEL_TOKEN` in your `.env`. The live gate also requires a successful dry run that passes the configured freshness gate (24 hours measured against the current UTC day's midnight).
+Requires `VERCEL_TOKEN` in the environment or active profile's env file. The live gate also requires a successful dry run that passes the configured freshness gate (24 hours measured against the current UTC day's midnight).
 
 ### 10. Weekly live sequence (correct order)
 
@@ -263,8 +262,8 @@ npm run portfolio-audit:action-request-sync -- --live         # 5. sync governan
 
 ## Immutable scheduled runtime generations
 
-`scripts/notion-runtime-generation.mjs` stages and verifies the immutable runtime
-used by the scheduled snapshot wrapper. `stage`, `select`, and `readback` remain
+`scripts/notion-runtime-generation.mjs` stages and verifies an immutable runtime
+for scheduled snapshots. `stage`, `select`, and `readback` remain
 separate operations. `readback` does not alter a runtime selector, release, or
 lock. It validates the pointer, release, manifest, pointer identity, and pointer
 digest before and after receipt construction and fails if final validation
@@ -286,7 +285,7 @@ credentials, call Notion, or provide scheduler proof.
 
 | Command | What it does |
 |---|---|
-| `npm run governance:health-report` | Governance health snapshot (no writes) |
+| `npm run governance:health-report` | Governance health snapshot from local config and credential presence |
 | `npm run maintenance:weekly-refresh -- --summary-first` | Weekly maintenance preflight with compact troubleshooting output |
 | `npm run destinations:check` | List configured Notion destination aliases |
 | `npm run destinations:resolve` | Resolve and persist Notion IDs for all destinations |
@@ -294,7 +293,7 @@ credentials, call Notion, or provide scheduler proof.
 | `npm run control-tower:review-recovery` | Recover overdue review rows and small review metadata gaps; dry-run by default |
 | `npm run control-tower:stale-active-rescue` | Stale Active Build project rescue report and scoped updater; dry-run by default, live only with `--live` |
 | `npm run control-tower:repo-mapping-audit` | Read-only decision queue and repo/source mapping cleanup packet |
-| `npm run bridge-db:sync -- --shipped-only` | Sync only bridge-db `SHIPPED` rows into Build Log; omit the filter to process both queues |
+| `npm run bridge-db:sync -- --shipped-only` | Preview Build Log writes for bridge-db `SHIPPED` rows. Omit the filter to include personal-ops events. |
 | `npm run control-tower:schema-report` | Analyze property usage before schema cleanup or deletion |
 | `npm run portfolio-audit:review-packet` | Generate weekly review packet (dry-run) |
 | `npm run portfolio-audit:external-signal-sync -- --provider github --live` | Sync GitHub signals (live) |
@@ -306,7 +305,7 @@ credentials, call Notion, or provide scheduler proof.
 | `npm run typecheck` | TypeScript type checking |
 | `make check` | Lint, format check, typecheck, tests, build, and three CLI/install smokes |
 | `npm test` | Run Vitest tests |
-| `npm run verify` | Full local release gate (typecheck + test + build + smoke) |
+| `npm run verify` | Typecheck, tests, build, and three CLI/install smokes |
 | `npm run verify:fresh-clone` | Fresh-machine confidence check |
 | `npm run doctor` | Verify local setup |
 
@@ -322,9 +321,9 @@ credentials, call Notion, or provide scheduler proof.
 
 ## Safety Defaults
 
-- **Dry-run first.** Publishing and syncs default to dry-run; action-runner uses `--mode live`. Action dry runs persist Notion execution records; `destinations:resolve` persists local IDs, and `phase-closeout` writes local artifacts and Notion records without a `--live` flag.
+- **Dry-run first.** Pass `--dry-run` when publishing a file. With `--destination` and `--file`, omitting the mode selects a live publish. Portfolio syncs default to preview and action-runner uses `--mode live`. Action dry runs persist Notion execution records, `destinations:resolve` persists local IDs, and `phase-closeout` writes local artifacts and Notion records without a `--live` flag.
 - **Governed writes only.** GitHub and Vercel mutations require: approved action request, non-expired request, active target, and a successful dry run that passes the configured freshness gate (24 hours measured against the current UTC day's midnight).
-- **No hardcoded tokens.** All tokens come from environment variables.
+- **No hardcoded tokens.** Configure credentials through the environment or the active profile's env file. GitHub signal polling can also use an authenticated `gh` CLI.
 - **Additive posture.** Labels and assignees are additive-only — removal is not supported by these actions.
 - **Compensation is manual.** There is no automated compensation runner. Corrections are operator-driven.
 
@@ -333,13 +332,22 @@ credentials, call Notion, or provide scheduler proof.
 | Variable | Required | Purpose |
 |---|---|---|
 | `NOTION_TOKEN` | Live Notion access | Notion integration token |
-| `GITHUB_TOKEN` | For signal sync | GitHub PAT for polling PRs and workflow runs |
+| `GITHUB_TOKEN` | For GitHub signals without a `gh` login | Token for polling PRs and workflow runs |
 | `GITHUB_APP_ID` | For governed GitHub writes | GitHub App ID |
 | `GITHUB_APP_PRIVATE_KEY_PEM` | For governed GitHub writes | GitHub App private key |
 | `GITHUB_APP_WEBHOOK_SECRET` | For webhook verification | Shared secret for delivery validation |
-| `VERCEL_TOKEN` | For governed Vercel writes | Vercel API token |
+| `VERCEL_TOKEN` | For Vercel signals and governed Vercel actions | Vercel API token |
+| `VERCEL_WEBHOOK_SECRET` | Optional | Signature verification for Vercel webhook deliveries |
+| `GOOGLE_CALENDAR_TOKEN` | Optional | Credential reference for the disabled Calendar provider |
+| `NOTIFICATION_HUB_LOG_PATH` | Optional | Override the local event log used by the Notification Hub signal provider |
+| `GITHUB_BREAK_GLASS_TOKEN`, `VERCEL_BREAK_GLASS_TOKEN` | Optional | Audit-only credential references for emergency policies |
+| `NOTION_PROFILE` | Optional | Select a workspace profile |
+| `NOTION_ENV_FILE` | Optional | Absolute path to a private, owner-controlled env file |
+| `NOTION_RETRY_MAX_ATTEMPTS` | Optional | Maximum Notion request attempts (default: `5`) |
+| `NOTION_HTTP_TIMEOUT_MS` | Optional | Notion HTTP timeout in milliseconds (default: `90000`) |
 | `NOTION_LOG_DIR` | Optional | Log directory (default: `./logs`) |
-| `NOTION_DESTINATIONS_PATH` | Optional | Destinations config path (default: `./config/destinations.json`) |
+| `NOTION_DESTINATIONS_PATH` | Optional | Override the active profile's destinations file (`./config/destinations.json` for the default profile) |
+| `BRIDGE_DB_PATH` | Optional | Database path passed to the BridgeDB launcher |
 | `BRIDGE_DB_MCP_LAUNCHER` | Optional | Absolute reviewed BridgeDB launcher; defaults to the installed immutable `~/.local/state/bridge-db/current/bin/bridge-db-mcp` |
 
 The bridge sync always acts as its bound `notion_os` principal. A foreign-source
@@ -351,11 +359,11 @@ live sync; the worker never substitutes the row's source as its caller.
 Use a `sandbox` profile as the default proving ground before live changes that touch control-tower, signals, governance, rollout, or profile flows.
 
 ```bash
+npm run doctor -- --profile sandbox
 npm run sandbox:smoke
-notion-os --profile sandbox doctor
 ```
 
-The sandbox profile isolates tokens and Notion targets from your primary profile. The sandbox doctor fails if the sandbox token matches the primary token or if any sandbox target overlaps primary targets.
+Configure a separate token in `.env.sandbox` and separate Notion targets for the sandbox profile. The sandbox doctor checks for token and target overlap with the primary profile.
 
 `sandbox:smoke` performs real sandbox writes and provider reads. It requires
 explicit authorization for those effects; use the [fixture verification
