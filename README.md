@@ -230,7 +230,9 @@ Supported actions: `github.create_issue`, `github.update_issue`, `github.set_iss
 
 Same three-step pipeline as GitHub. Supported actions: `vercel.redeploy`, `vercel.rollback`, `vercel.promote`.
 
-Requires `VERCEL_TOKEN` in the environment or active profile's env file. The live gate also requires a successful dry run that passes the configured freshness gate (24 hours measured against the current UTC day's midnight).
+Set `VERCEL_TOKEN` in the active profile's env file or export it in your shell. The CLI gives env-file assignments precedence over shell values, even when the assignment is blank. If you export the token, remove or comment out the `VERCEL_TOKEN=` line copied from `.env.example`.
+
+The live gate also requires a successful dry run that passes the configured freshness gate (24 hours measured against the current UTC day's midnight).
 
 ### 10. Weekly live sequence (correct order)
 

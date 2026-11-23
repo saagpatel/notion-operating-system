@@ -37,12 +37,18 @@ The repo already includes a tracked `sandbox` profile descriptor and profile-own
 
 ```bash
 cp .env.example .env.sandbox
-# Set the sandbox token and configure separate sandbox targets before running doctor.
-notion-os --profile sandbox profiles show
-notion-os --profile sandbox doctor
 ```
 
+Set `NOTION_PROFILE=sandbox` in `.env.sandbox` or remove the `NOTION_PROFILE=` line. A blank assignment overrides `--profile sandbox` during startup and makes doctor select the default profile.
+
 Set the primary profile's token for comparison. Use a separate integration in `.env.sandbox` and point `config/profiles/sandbox/destinations.json` and the other sandbox target IDs at its workspace.
+
+```bash
+notion-os --profile sandbox profiles show
+notion-os --profile sandbox doctor --json
+```
+
+Before continuing, verify that `runtime.profile.name` is `sandbox` and that `checks` includes both `sandbox-token-isolation` and `sandbox-target-isolation` with status `pass`.
 
 The sandbox doctor now enforces that rule. It fails when:
 
