@@ -113,7 +113,7 @@ Git install uses the local committed HEAD.
 The built CLI smoke runs in a synthetic workspace and ignores inherited Notion
 credentials and profile overrides. No Notion configuration or live publish is
 required. `npm run verify:fresh-clone` copies the workspace into a
-temporary clone, installs dependencies, runs the full gate, and checks the
+temporary clone, installs dependencies, runs the build and `npm run verify`, and checks the
 expected no-token doctor failure. CI runs both lanes on Ubuntu with the Node
 version in `.node-version`.
 

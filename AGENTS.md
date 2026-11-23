@@ -66,8 +66,10 @@ provider, scheduler, or human acceptance.
 
 ### Publishing and governed writes
 
-- Dry-run first unless the user clearly asks for a live write. Publishing and
-  syncs default to dry-run; action-runner uses `--mode live`.
+- Dry-run first unless the user clearly asks for a live write. For a file
+  preview with `--destination` and `--file`, pass `--dry-run`. Omitting the
+  mode selects a live publish. Portfolio syncs default to dry-run and
+  action-runner uses `--mode live`.
 - Explicit publish `--dry-run` overrides request-file mode. Do not combine it
   with `--live`; without CLI mode flags, request files retain their mode.
 - Never hardcode Notion or GitHub tokens. Preserve non-secret profile bundles

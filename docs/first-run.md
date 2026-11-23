@@ -4,13 +4,26 @@ This guide is the fast path for getting `Notion Operating System` working safely
 
 ## 1. Install
 
+Use Node.js 26.11.1 and npm 11.21.0, as pinned in `.node-version` and `package.json`.
+
 ```bash
 npm ci
 ```
 
-Use Node.js 24 for development, matching CI. The library declares Node.js >=20, but the locked Vitest 5 test runner does not support Node.js 20.
+`npm ci` builds the CLI. From this checkout, use `node dist/src/cli.js` wherever the examples below show `notion-os`.
 
-## 2. Pick or confirm the active profile
+## 2. Set up the primary profile's env file
+
+The tracked primary profile uses `.env`. Create it from the template if it is missing.
+Only the owner can read or write credential files created with `install -m 600`.
+
+```bash
+test -e .env || install -m 600 .env.example .env
+```
+
+Set or confirm `NOTION_TOKEN` in `.env` so the sandbox doctor can compare the two tokens. Optional credentials include `GITHUB_TOKEN` and the other provider tokens listed in `.env.example`.
+
+## 3. Pick or confirm the active profile
 
 Phase 3 adds workspace profiles.
 
@@ -34,12 +47,19 @@ notion-os profiles migrate --write
 The repo already includes a tracked `sandbox` profile descriptor and profile-owned JSON files. To make it usable on your machine, add a local env file for it:
 
 ```bash
-cp .env .env.sandbox
-notion-os --profile sandbox profiles show
-notion-os --profile sandbox doctor
+test -e .env.sandbox || install -m 600 .env.example .env.sandbox
 ```
 
-That gives you a same-shape rehearsal lane, not an automatically isolated live sandbox. Copying `.env` is fine only as a first bootstrap step for dry-run and config rehearsal. Before any live sandbox write you must repoint `.env.sandbox`, `config/profiles/sandbox/destinations.json`, and any other sandbox Notion target IDs to a separate sandbox workspace.
+Set `NOTION_PROFILE=sandbox` in `.env.sandbox` or remove the `NOTION_PROFILE=` line. A blank assignment overrides `--profile sandbox` during startup and makes doctor select the default profile.
+
+Set `NOTION_TOKEN` in `.env.sandbox` to a separate integration's token and point `config/profiles/sandbox/destinations.json` and the other sandbox target IDs at its workspace. Pass `--profile sandbox` on each sandbox command because the CLI selects the profile before it reads that profile's env file.
+
+```bash
+notion-os --profile sandbox profiles show
+notion-os --profile sandbox doctor --json
+```
+
+Before continuing, verify that `runtime.profile.name` is `sandbox` and that `checks` includes both `sandbox-token-isolation` and `sandbox-target-isolation` with status `pass`.
 
 The sandbox doctor now enforces that rule. It fails when:
 
@@ -56,22 +76,6 @@ notion-os profiles bootstrap --target sandbox --write
 
 The recommended extra profile is `sandbox`. Use it as the proving environment before live changes to governance, signals, rollout, control-tower, or profile-lifecycle flows.
 
-## 3. Create local env
-
-Copy `.env.example` to `.env`, then fill in the values you actually have.
-
-Required:
-
-- `NOTION_TOKEN`
-
-Common optional credentials:
-
-- `GITHUB_TOKEN`
-- provider tokens used by external signal sync
-- any other advanced credentials listed in `.env.example`
-
-If you use a named profile, create that profile's env file instead of `.env` or set `NOTION_PROFILE` when you want to switch.
-
 If your shell exports path overrides like `NOTION_DESTINATIONS_PATH`, remember that those environment variables win over the profile descriptor values. Unset them when you want a named profile to use only its own tracked config paths.
 
 ## 4. Check destination config
@@ -81,7 +85,7 @@ Make sure the active profile points at a destinations file with the aliases you 
 Helpful command:
 
 ```bash
-npm run destinations:check
+npm run destinations:check -- --profile sandbox
 ```
 
 ## 5. Run doctor
@@ -89,7 +93,7 @@ npm run destinations:check
 Use the doctor command before any live write:
 
 ```bash
-npm run doctor
+npm run doctor -- --profile sandbox
 ```
 
 This checks:
@@ -106,7 +110,7 @@ This checks:
 If you want machine-readable output:
 
 ```bash
-npm run doctor -- --json
+npm run doctor -- --profile sandbox --json
 ```
 
 ## 6. Run the full verify gate
@@ -126,13 +130,13 @@ For risky operational workflow changes, also rehearse from the sandbox profile b
 Start with a dry run instead of a live write:
 
 ```bash
-npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly.md --dry-run
+npm run publish:notion -- --profile sandbox --destination weekly_reviews --file examples/content/weekly-review.md --dry-run
 ```
 
 Or use a request file:
 
 ```bash
-npm run publish:notion -- --request ./examples/requests/weekly_review.dry-run.json
+npm run publish:notion -- --profile sandbox --request ./examples/requests/weekly_review.dry-run.json
 ```
 
 ## 8. First live publish
@@ -140,7 +144,7 @@ npm run publish:notion -- --request ./examples/requests/weekly_review.dry-run.js
 Only switch to live after the dry run looks correct:
 
 ```bash
-npm run publish:notion -- --destination weekly_reviews --file ./notes/weekly.md --live
+npm run publish:notion -- --profile sandbox --destination weekly_reviews --file examples/content/weekly-review.md --live
 ```
 
 ## 9. Explore the CLI
@@ -174,7 +178,7 @@ Shared CLI commands now write lifecycle events and run summaries to the active l
 
 - default log location: `./logs`
 - override with `NOTION_LOG_DIR`
-- confirm the resolved log path in the doctor report: `npm run doctor` (`Log dir:`)
+- confirm the resolved sandbox log path in the doctor report: `npm run doctor -- --profile sandbox` (`Log dir:`)
 
 ## Safety defaults
 
