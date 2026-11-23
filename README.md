@@ -103,10 +103,11 @@ For credential-free development checks, use the [local setup and verification
 guide](CONTRIBUTING.md#local-setup), including its pinned Node/npm prerequisites. The
 following path configures an operator workspace. Point the active profile's destination
 and control-tower config at your own Notion targets before checking access with doctor.
+Only the owner can read or write the newly created credential file.
 
 ```bash
 npm ci
-cp .env.example .env
+test -e .env || install -m 600 .env.example .env
 # fill in NOTION_TOKEN (for Notion access), GITHUB_TOKEN (or a gh login for GitHub signals),
 # GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_PEM (for governed GitHub writes)
 npm run doctor
@@ -360,16 +361,13 @@ live sync; the worker never substitutes the row's source as its caller.
 
 Use a `sandbox` profile as the default proving ground before live changes that touch control-tower, signals, governance, rollout, or profile flows.
 
+Follow the [first-run sandbox setup](docs/first-run.md#3-pick-or-confirm-the-active-profile) to configure a separate token and Notion targets. In `.env.sandbox`, set `NOTION_PROFILE=sandbox` or remove the blank `NOTION_PROFILE=` assignment so it cannot override the CLI flag.
+
 ```bash
-npm run doctor -- --profile sandbox
-npm run sandbox:smoke
+npm run doctor -- --profile sandbox --json
 ```
 
-Configure a separate token in `.env.sandbox` and separate Notion targets for the sandbox profile. The sandbox doctor checks for token and target overlap with the primary profile.
-
-`sandbox:smoke` performs real sandbox writes and provider reads. It requires
-explicit authorization for those effects; use the [fixture verification
-lane](CONTRIBUTING.md#tests) for local development checks.
+Before running `npm run sandbox:smoke`, confirm that `runtime.profile.name` is `sandbox` and that `checks` reports `pass` for `sandbox-path-overrides`, `sandbox-token-isolation`, and `sandbox-target-isolation`. The smoke command performs real sandbox writes and provider reads and requires explicit authorization. Use the [fixture verification lane](CONTRIBUTING.md#tests) for local development checks.
 
 See [docs/sandbox-rehearsal-runbook.md](docs/sandbox-rehearsal-runbook.md) for the full rehearsal path.
 

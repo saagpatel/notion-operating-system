@@ -14,10 +14,11 @@ npm ci
 
 ## 2. Set up the primary profile's env file
 
-The tracked primary profile uses `.env`. Create it from the template only if it is missing:
+The tracked primary profile uses `.env`. Create it from the template if it is missing.
+Only the owner can read or write credential files created with `install -m 600`.
 
 ```bash
-test -e .env || cp .env.example .env
+test -e .env || install -m 600 .env.example .env
 ```
 
 Set or confirm `NOTION_TOKEN` in `.env` so the sandbox doctor can compare the two tokens. Optional credentials include `GITHUB_TOKEN` and the other provider tokens listed in `.env.example`.
@@ -46,7 +47,7 @@ notion-os profiles migrate --write
 The repo already includes a tracked `sandbox` profile descriptor and profile-owned JSON files. To make it usable on your machine, add a local env file for it:
 
 ```bash
-test -e .env.sandbox || cp .env.example .env.sandbox
+test -e .env.sandbox || install -m 600 .env.example .env.sandbox
 ```
 
 Set `NOTION_PROFILE=sandbox` in `.env.sandbox` or remove the `NOTION_PROFILE=` line. A blank assignment overrides `--profile sandbox` during startup and makes doctor select the default profile.
